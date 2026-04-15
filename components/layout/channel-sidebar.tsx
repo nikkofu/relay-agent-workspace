@@ -1,0 +1,144 @@
+"use client"
+
+import { Hash, Lock, ChevronDown, Plus, Search, Star, MessageSquare } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { cn } from "@/lib/utils"
+import { useWorkspaceStore } from "@/stores/workspace-store"
+import { useChannelStore } from "@/stores/channel-store"
+import { useState } from "react"
+import { Badge } from "@/components/ui/badge"
+
+export function ChannelSidebar() {
+  const { currentWorkspace } = useWorkspaceStore()
+  const { channels, currentChannel, setCurrentChannel } = useChannelStore()
+  const [openSections, setOpenSections] = useState({ starred: true, channels: true, dms: true })
+
+  const starredChannels = channels.filter(c => c.isStarred)
+  const regularChannels = channels.filter(c => !c.isStarred)
+
+  return (
+    <nav className="w-[260px] bg-[#3f0e40] dark:bg-[#19171d] flex flex-col h-full text-[#cfc3cf] dark:text-[#9b999b] shrink-0 border-r border-white/5">
+      {/* Workspace Header */}
+      <div className="h-14 px-4 flex items-center justify-between hover:bg-white/10 cursor-pointer transition-colors border-b border-white/5">
+        <h2 className="font-bold text-lg text-white truncate flex items-center gap-1">
+          {currentWorkspace?.name}
+          <ChevronDown className="w-4 h-4" />
+        </h2>
+        <div className="bg-white rounded-full p-1.5 shrink-0">
+          <Plus className="w-4 h-4 text-[#3f0e40]" />
+        </div>
+      </div>
+
+      <ScrollArea className="flex-1">
+        <div className="px-2 py-4 flex flex-col gap-4">
+          {/* Quick Search */}
+          <div className="px-2 mb-2">
+            <Button variant="ghost" className="w-full justify-start text-white/50 bg-white/10 hover:bg-white/20 h-8 px-2 font-normal">
+              <Search className="w-4 h-4 mr-2" />
+              Search Acme Corp
+              <span className="ml-auto text-[10px] opacity-50">⌘K</span>
+            </Button>
+          </div>
+
+          {/* Starred Section */}
+          <Collapsible open={openSections.starred} onOpenChange={(open) => setOpenSections(s => ({ ...s, starred: open }))}>
+            <div className="group flex items-center px-2 py-1 hover:bg-white/10 rounded cursor-pointer mb-1">
+              <CollapsibleTrigger asChild>
+                <ChevronDown className={cn("w-4 h-4 mr-1 transition-transform", !openSections.starred && "-rotate-90")} />
+              </CollapsibleTrigger>
+              <span className="text-sm font-semibold uppercase tracking-wider text-[11px] flex-1">Starred</span>
+            </div>
+            <CollapsibleContent className="flex flex-col gap-[2px]">
+              {starredChannels.map(channel => (
+                <SidebarItem 
+                  key={channel.id} 
+                  channel={channel} 
+                  isActive={currentChannel?.id === channel.id}
+                  onClick={() => setCurrentChannel(channel)}
+                />
+              ))}
+            </CollapsibleContent>
+          </Collapsible>
+
+          {/* Channels Section */}
+          <Collapsible open={openSections.channels} onOpenChange={(open) => setOpenSections(s => ({ ...s, channels: open }))}>
+            <div className="group flex items-center px-2 py-1 hover:bg-white/10 rounded cursor-pointer mb-1">
+              <CollapsibleTrigger asChild>
+                <ChevronDown className={cn("w-4 h-4 mr-1 transition-transform", !openSections.channels && "-rotate-90")} />
+              </CollapsibleTrigger>
+              <span className="text-sm font-semibold uppercase tracking-wider text-[11px] flex-1">Channels</span>
+              <Plus className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
+            <CollapsibleContent className="flex flex-col gap-[2px]">
+              {regularChannels.map(channel => (
+                <SidebarItem 
+                  key={channel.id} 
+                  channel={channel} 
+                  isActive={currentChannel?.id === channel.id}
+                  onClick={() => setCurrentChannel(channel)}
+                />
+              ))}
+              <div className="flex items-center px-2 py-1.5 hover:bg-white/10 rounded cursor-pointer text-sm gap-2">
+                <div className="bg-white/10 rounded p-0.5">
+                  <Plus className="w-3.5 h-3.5" />
+                </div>
+                <span>Add channels</span>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          {/* Direct Messages Section */}
+          <Collapsible open={openSections.dms} onOpenChange={(open) => setOpenSections(s => ({ ...s, dms: open }))}>
+            <div className="group flex items-center px-2 py-1 hover:bg-white/10 rounded cursor-pointer mb-1">
+              <CollapsibleTrigger asChild>
+                <ChevronDown className={cn("w-4 h-4 mr-1 transition-transform", !openSections.dms && "-rotate-90")} />
+              </CollapsibleTrigger>
+              <span className="text-sm font-semibold uppercase tracking-wider text-[11px] flex-1">Direct Messages</span>
+              <Plus className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
+            <CollapsibleContent className="flex flex-col gap-[2px]">
+              <div className="flex items-center px-2 py-1.5 hover:bg-white/10 rounded cursor-pointer text-sm gap-2">
+                <div className="w-5 h-5 rounded bg-green-500/20 flex items-center justify-center">
+                  <div className="w-2 h-2 rounded-full bg-green-500" />
+                </div>
+                <span className="flex-1 truncate">Nikko Fu (you)</span>
+              </div>
+              <div className="flex items-center px-2 py-1.5 hover:bg-white/10 rounded cursor-pointer text-sm gap-2">
+                <div className="w-5 h-5 rounded bg-purple-500/20 flex items-center justify-center">
+                  <Sparkles className="w-3 h-3 text-purple-400" />
+                </div>
+                <span className="flex-1 truncate">AI Assistant</span>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
+      </ScrollArea>
+    </nav>
+  )
+}
+
+function SidebarItem({ channel, isActive, onClick }: { channel: any, isActive: boolean, onClick: () => void }) {
+  const Icon = channel.type === "private" ? Lock : Hash
+
+  return (
+    <div 
+      className={cn(
+        "flex items-center px-2 py-1.5 hover:bg-[#1164a3] hover:text-white rounded cursor-pointer text-sm gap-2 transition-colors",
+        isActive && "bg-[#1164a3] text-white"
+      )}
+      onClick={onClick}
+    >
+      <Icon className={cn("w-4 h-4 shrink-0 opacity-70", isActive && "opacity-100")} />
+      <span className={cn("flex-1 truncate font-medium", channel.unreadCount && "font-bold text-white")}>
+        {channel.name}
+      </span>
+      {channel.unreadCount > 0 && (
+        <Badge className="bg-[#e01e5a] text-white hover:bg-[#e01e5a] h-5 px-1.5 min-w-5 justify-center border-none text-[10px]">
+          {channel.unreadCount}
+        </Badge>
+      )}
+    </div>
+  )
+}
