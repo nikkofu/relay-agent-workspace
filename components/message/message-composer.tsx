@@ -8,6 +8,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { AISlashCommand } from "@/components/ai-chat/ai-slash-command"
 
 interface MessageComposerProps {
   placeholder?: string
@@ -16,6 +17,7 @@ interface MessageComposerProps {
 
 export function MessageComposer({ placeholder, onSend }: MessageComposerProps) {
   const [content, setContent] = useState("")
+  const [showSlashCommands, setShowSlashCommands] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Auto-resize textarea
@@ -30,6 +32,7 @@ export function MessageComposer({ placeholder, onSend }: MessageComposerProps) {
     if (content.trim()) {
       onSend?.(content)
       setContent("")
+      setShowSlashCommands(false)
     }
   }
 
@@ -38,10 +41,32 @@ export function MessageComposer({ placeholder, onSend }: MessageComposerProps) {
       e.preventDefault()
       handleSend()
     }
+    if (e.key === 'Escape') {
+      setShowSlashCommands(false)
+    }
+  }
+
+  const handleContentChange = (val: string) => {
+    setContent(val)
+    if (val === "/") {
+      setShowSlashCommands(true)
+    } else if (!val.includes("/") || val === "") {
+      setShowSlashCommands(false)
+    }
+  }
+
+  const handleSlashCommandSelect = (cmd: string) => {
+    setContent(cmd + " ")
+    setShowSlashCommands(false)
+    textareaRef.current?.focus()
   }
 
   return (
-    <div className="p-4 pt-0">
+    <div className="p-4 pt-0 relative">
+      {showSlashCommands && (
+        <AISlashCommand onSelect={handleSlashCommandSelect} />
+      )}
+      
       <div className="border rounded-lg bg-white dark:bg-[#1a1d21] focus-within:ring-1 focus-within:ring-ring transition-shadow group">
         {/* Toolbar */}
         <div className="flex items-center gap-0.5 p-1 border-b bg-muted/30">
@@ -64,7 +89,7 @@ export function MessageComposer({ placeholder, onSend }: MessageComposerProps) {
         <textarea
           ref={textareaRef}
           value={content}
-          onChange={(e) => setContent(e.target.value)}
+          onChange={(e) => handleContentChange(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           className="w-full resize-none bg-transparent border-none focus:ring-0 px-3 py-2 text-sm min-h-[44px] max-h-[200px] outline-none placeholder:text-muted-foreground/50"
