@@ -3,12 +3,13 @@
 import { useState, useRef, useEffect } from "react"
 import { 
   Bold, Italic, Strikethrough, Link, List, ListOrdered, 
-  Quote, Code, FileCode, Type, Smile, Paperclip, Send, Mic, Sparkles 
+  Quote, Code, FileCode, Type, Smile, Paperclip, Send, Mic, Sparkles, Plus 
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { AISlashCommand } from "@/components/ai-chat/ai-slash-command"
+import { useUIStore } from "@/stores/ui-store"
 
 interface MessageComposerProps {
   placeholder?: string
@@ -18,6 +19,7 @@ interface MessageComposerProps {
 export function MessageComposer({ placeholder, onSend }: MessageComposerProps) {
   const [content, setContent] = useState("")
   const [showSlashCommands, setShowSlashCommands] = useState(false)
+  const { openCanvas } = useUIStore()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Auto-resize textarea
@@ -43,7 +45,6 @@ export function MessageComposer({ placeholder, onSend }: MessageComposerProps) {
     }
     if (e.key === 'ArrowUp' && content === "") {
       console.log("Slack feature: Edit last message triggered")
-      // In a real app, we would set the content to the last message and enter edit mode
     }
     if (e.key === 'Escape') {
       setShowSlashCommands(false)
@@ -60,6 +61,12 @@ export function MessageComposer({ placeholder, onSend }: MessageComposerProps) {
   }
 
   const handleSlashCommandSelect = (cmd: string) => {
+    if (cmd === "/canvas") {
+      openCanvas("new-doc")
+      setContent("")
+      setShowSlashCommands(false)
+      return
+    }
     setContent(cmd + " ")
     setShowSlashCommands(false)
     textareaRef.current?.focus()
@@ -167,13 +174,5 @@ function ToolbarButton({ icon: Icon, tooltip, active }: { icon: React.ElementTyp
         {tooltip}
       </TooltipContent>
     </Tooltip>
-  )
-}
-
-function Plus({ className }: { className?: string }) {
-  return (
-    <div className={cn("w-4 h-4 rounded-full border-2 border-current flex items-center justify-center font-bold text-[10px]", className)}>
-      +
-    </div>
   )
 }

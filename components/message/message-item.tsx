@@ -26,7 +26,7 @@ export function MessageItem({ message, sender, isCompact, showActions = true }: 
       {/* Sender Avatar or Time for Compact Mode */}
       <div className="shrink-0 w-9 h-9 flex items-center justify-center">
         {!isCompact ? (
-          <UserAvatar src={sender.avatar} name={sender.name} status={sender.status} />
+          <UserAvatar src={sender.avatar} name={sender.name} status={sender.status} user={sender} />
         ) : (
           <span className="text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
             {format(new Date(message.createdAt), "h:mm")}

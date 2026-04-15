@@ -11,6 +11,7 @@ export function AISlashCommand({ onSelect }: { onSelect: (cmd: string) => void }
     { icon: Code, label: "Explain Code", value: "/explain", desc: "Explain code snippets" },
     { icon: MessageSquarePlus, label: "Draft Reply", value: "/draft", desc: "Help me draft a reply" },
     { icon: Zap, label: "Optimize", value: "/optimize", desc: "Rewrite my message" },
+    { icon: FileText, label: "Create Canvas", value: "/canvas", desc: "Create a shared document" },
   ]
 
   return (
