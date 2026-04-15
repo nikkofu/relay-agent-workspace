@@ -6,6 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Hash, Lock, Info, Phone, Video, Search, Star, MoreVertical } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { MessageComposer } from "@/components/message/message-composer"
 
 export function MessageArea({ children }: { children?: React.ReactNode }) {
   const { currentChannel } = useChannelStore()
@@ -62,24 +63,14 @@ export function MessageArea({ children }: { children?: React.ReactNode }) {
         {children}
       </div>
 
-      {/* Message Composer Placeholder */}
-      <div className="p-4 pt-0">
-        <div className="border rounded-lg p-2 focus-within:ring-1 focus-within:ring-ring">
-          <Input 
-            placeholder={`Message #${currentChannel.name}`} 
-            className="border-none focus-visible:ring-0 px-1"
-          />
-          <div className="flex items-center justify-between mt-2 pt-2 border-t">
-            <div className="flex items-center gap-1">
-              {/* Toolbar placeholders */}
-              <div className="w-6 h-6 rounded hover:bg-muted" />
-              <div className="w-6 h-6 rounded hover:bg-muted" />
-              <div className="w-6 h-6 rounded hover:bg-muted" />
-            </div>
-            <Button size="sm" className="bg-[#007a5a] hover:bg-[#007a5a]/90 h-7">Send</Button>
-          </div>
-        </div>
-      </div>
+      {/* Message Composer */}
+      <MessageComposer 
+        placeholder={`Message #${currentChannel.name}`} 
+        onSend={(content) => {
+          console.log("Sending message:", content)
+          // In a real app, we would add the message to the store here
+        }}
+      />
     </div>
   )
 }

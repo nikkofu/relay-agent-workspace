@@ -1,0 +1,100 @@
+"use client"
+
+import { Message, User } from "@/types"
+import { UserAvatar } from "@/components/common/user-avatar"
+import { format, isSameMinute } from "date-fns"
+import { cn } from "@/lib/utils"
+import { MessageActions } from "./message-actions"
+import { EmojiReaction } from "./emoji-reaction"
+import { useUIStore } from "@/stores/ui-store"
+
+interface MessageItemProps {
+  message: Message
+  sender: User
+  isCompact?: boolean
+  showActions?: boolean
+}
+
+export function MessageItem({ message, sender, isCompact, showActions = true }: MessageItemProps) {
+  const { openThread } = useUIStore()
+
+  return (
+    <div className={cn(
+      "group flex items-start gap-3 hover:bg-muted/50 -mx-4 px-4 py-1 transition-colors relative",
+      isCompact ? "py-0.5" : "py-2 mt-2"
+    )}>
+      {/* Sender Avatar or Time for Compact Mode */}
+      <div className="shrink-0 w-9 h-9 flex items-center justify-center">
+        {!isCompact ? (
+          <UserAvatar src={sender.avatar} name={sender.name} status={sender.status} />
+        ) : (
+          <span className="text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+            {format(new Date(message.createdAt), "h:mm")}
+          </span>
+        )}
+      </div>
+
+      <div className="flex-1 min-w-0">
+        {/* Sender Name and Time (only for non-compact) */}
+        {!isCompact && (
+          <div className="flex items-center gap-2 leading-tight">
+            <span className="font-bold text-sm hover:underline cursor-pointer">{sender.name}</span>
+            <span className="text-[11px] text-muted-foreground">
+              {format(new Date(message.createdAt), "h:mm a")}
+            </span>
+          </div>
+        )}
+
+        {/* Message Content */}
+        <div className={cn(
+          "text-sm mt-0.5 whitespace-pre-wrap break-words leading-normal",
+          isCompact && "mt-0"
+        )}>
+          {message.content}
+        </div>
+
+        {/* Reactions */}
+        {message.reactions && message.reactions.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {message.reactions.map((reaction, idx) => (
+              <EmojiReaction 
+                key={idx} 
+                emoji={reaction.emoji} 
+                count={reaction.count} 
+                userIds={reaction.userIds}
+                isActive={reaction.userIds.includes("user-1")} // Mocking current user
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Thread Info */}
+        {message.replyCount && message.replyCount > 0 && (
+          <div 
+            className="flex items-center gap-2 mt-2 group/thread cursor-pointer hover:bg-muted px-2 py-1 rounded w-fit -ml-2 transition-colors"
+            onClick={() => openThread(message.id)}
+          >
+            <div className="flex -space-x-1">
+              <div className="w-5 h-5 rounded border-2 border-background bg-muted overflow-hidden">
+                <img src={sender.avatar} alt={sender.name} className="w-full h-full object-cover" />
+              </div>
+            </div>
+            <span className="text-xs font-bold text-blue-500 group-hover/thread:underline">
+              {message.replyCount} {message.replyCount === 1 ? "reply" : "replies"}
+            </span>
+            <span className="text-[10px] text-muted-foreground hidden group-hover/thread:inline">
+              Last reply {format(new Date(message.lastReplyAt!), "h:mm a")}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Message Actions (Floating) */}
+      {showActions && (
+        <div className="absolute -top-4 right-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+          <MessageActions onReply={() => openThread(message.id)} />
+        </div>
+      )}
+    </div>
+  )
+}
