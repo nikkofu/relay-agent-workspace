@@ -82,7 +82,13 @@ export interface AIMessage {
   role: "user" | "assistant" | "system" | "data"
   content: string
   createdAt: string
+  isStreaming?: boolean
   reasoning?: string
-  tools?: any[]
-  sources?: any[]
+  tools?: {
+    name: string
+    args: any
+    state: "calling" | "result"
+    result?: any
+  }[]
+  sources?: { title: string; url: string }[]
 }
