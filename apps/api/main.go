@@ -25,6 +25,9 @@ func main() {
 	v1 := r.Group("/api/v1")
 	{
 		v1.GET("/me", handlers.GetMe)
+		v1.GET("/orgs", handlers.GetOrganizations)
+		v1.GET("/orgs/:id/teams", handlers.GetTeams)
+		v1.POST("/orgs/:id/agents", handlers.CreateAgent)
 		v1.GET("/workspaces", handlers.GetWorkspaces)
 		v1.GET("/channels", handlers.GetChannels)
 		v1.GET("/messages", handlers.GetMessages)

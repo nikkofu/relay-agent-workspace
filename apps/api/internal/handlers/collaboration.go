@@ -20,6 +20,49 @@ func GetMe(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"user": user})
 }
 
+func GetOrganizations(c *gin.Context) {
+	var orgs []domain.Organization
+	db.DB.Order("created_at asc").Find(&orgs)
+	c.JSON(http.StatusOK, gin.H{"organizations": orgs})
+}
+
+func GetTeams(c *gin.Context) {
+	orgID := c.Param("id")
+	var teams []domain.Team
+
+	db.DB.Where("organization_id = ?", orgID).Find(&teams)
+	c.JSON(http.StatusOK, gin.H{"teams": teams})
+}
+
+func CreateAgent(c *gin.Context) {
+	orgID := c.Param("id")
+	var input struct {
+		Name    string `json:"name" binding:"required"`
+		Type    string `json:"type" binding:"required"`
+		OwnerID string `json:"owner_id" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	agent := domain.Agent{
+		ID:             "agent_" + time.Now().Format("20060102150405"),
+		OrganizationID: orgID,
+		Name:           input.Name,
+		Type:           input.Type,
+		OwnerID:        input.OwnerID,
+	}
+
+	if err := db.DB.Create(&agent).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create agent"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"agent": agent})
+}
+
 func GetWorkspaces(c *gin.Context) {
 	var workspaces []domain.Workspace
 	db.DB.Find(&workspaces)
