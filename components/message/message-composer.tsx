@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { 
   Bold, Italic, Strikethrough, Link as LinkIcon, List, ListOrdered, 
   Quote, Code, FileCode, Type, Smile, Paperclip, Send, Mic, Sparkles 
@@ -11,6 +11,16 @@ import { cn } from "@/lib/utils"
 import { AISlashCommand } from "@/components/ai-chat/ai-slash-command"
 import { MentionPopover } from "./mention-popover"
 import { useUIStore } from "@/stores/ui-store"
+import { toast } from "sonner"
+import { EmojiPicker } from "./emoji-picker"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -25,7 +35,9 @@ interface MessageComposerProps {
 export function MessageComposer({ placeholder, onSend }: MessageComposerProps) {
   const [showSlashCommands, setShowSlashCommands] = useState(false)
   const [showMentions, setShowMentions] = useState(false)
+  const [showFormatting, setShowFormatting] = useState(true)
   const { openCanvas } = useUIStore()
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const editor = useEditor({
     extensions: [
@@ -105,6 +117,19 @@ export function MessageComposer({ placeholder, onSend }: MessageComposerProps) {
     editor?.commands.focus()
   }
 
+  const handleEmojiSelect = (emoji: string) => {
+    editor?.commands.insertContent(emoji)
+    editor?.commands.focus()
+  }
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      toast.success(`Attached file: ${file.name}`)
+      e.target.value = ''
+    }
+  }
+
   if (!editor) {
     return null
   }
@@ -122,89 +147,131 @@ export function MessageComposer({ placeholder, onSend }: MessageComposerProps) {
       
       <div className="border rounded-lg bg-white dark:bg-[#1a1d21] focus-within:ring-1 focus-within:ring-ring transition-shadow group shrink-0">
         {/* Toolbar */}
-        <div className="flex items-center gap-0.5 p-1 border-b bg-muted/30">
-          <ToolbarButton 
-            icon={Bold} 
-            tooltip="Bold (⌘B)" 
-            onClick={() => editor.chain().focus().toggleBold().run()}
-            active={editor.isActive('bold')}
-          />
-          <ToolbarButton 
-            icon={Italic} 
-            tooltip="Italic (⌘I)" 
-            onClick={() => editor.chain().focus().toggleItalic().run()}
-            active={editor.isActive('italic')}
-          />
-          <ToolbarButton 
-            icon={Strikethrough} 
-            tooltip="Strikethrough" 
-            onClick={() => editor.chain().focus().toggleStrike().run()}
-            active={editor.isActive('strike')}
-          />
-          <div className="w-[1px] h-4 bg-border mx-1" />
-          <ToolbarButton 
-            icon={LinkIcon} 
-            tooltip="Link" 
-            onClick={() => {
-              const url = window.prompt('URL')
-              if (url) editor.chain().focus().setLink({ href: url }).run()
-            }}
-            active={editor.isActive('link')}
-          />
-          <div className="w-[1px] h-4 bg-border mx-1" />
-          <ToolbarButton 
-            icon={ListOrdered} 
-            tooltip="Ordered list" 
-            onClick={() => editor.chain().focus().toggleOrderedList().run()}
-            active={editor.isActive('orderedList')}
-          />
-          <ToolbarButton 
-            icon={List} 
-            tooltip="Bulleted list" 
-            onClick={() => editor.chain().focus().toggleBulletList().run()}
-            active={editor.isActive('bulletList')}
-          />
-          <div className="w-[1px] h-4 bg-border mx-1" />
-          <ToolbarButton 
-            icon={Quote} 
-            tooltip="Blockquote" 
-            onClick={() => editor.chain().focus().toggleBlockquote().run()}
-            active={editor.isActive('blockquote')}
-          />
-          <div className="w-[1px] h-4 bg-border mx-1" />
-          <ToolbarButton 
-            icon={Code} 
-            tooltip="Code" 
-            onClick={() => editor.chain().focus().toggleCode().run()}
-            active={editor.isActive('code')}
-          />
-          <ToolbarButton 
-            icon={FileCode} 
-            tooltip="Code block" 
-            onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-            active={editor.isActive('codeBlock')}
-          />
-        </div>
+        {showFormatting && (
+          <div className="flex items-center gap-0.5 p-1 border-b bg-muted/30">
+            <ToolbarButton 
+              icon={Bold} 
+              tooltip="Bold (⌘B)" 
+              onClick={() => editor.chain().focus().toggleBold().run()}
+              active={editor.isActive('bold')}
+            />
+            <ToolbarButton 
+              icon={Italic} 
+              tooltip="Italic (⌘I)" 
+              onClick={() => editor.chain().focus().toggleItalic().run()}
+              active={editor.isActive('italic')}
+            />
+            <ToolbarButton 
+              icon={Strikethrough} 
+              tooltip="Strikethrough" 
+              onClick={() => editor.chain().focus().toggleStrike().run()}
+              active={editor.isActive('strike')}
+            />
+            <div className="w-[1px] h-4 bg-border mx-1" />
+            <ToolbarButton 
+              icon={LinkIcon} 
+              tooltip="Link" 
+              onClick={() => {
+                const url = window.prompt('URL')
+                if (url) editor.chain().focus().setLink({ href: url }).run()
+              }}
+              active={editor.isActive('link')}
+            />
+            <div className="w-[1px] h-4 bg-border mx-1" />
+            <ToolbarButton 
+              icon={ListOrdered} 
+              tooltip="Ordered list" 
+              onClick={() => editor.chain().focus().toggleOrderedList().run()}
+              active={editor.isActive('orderedList')}
+            />
+            <ToolbarButton 
+              icon={List} 
+              tooltip="Bulleted list" 
+              onClick={() => editor.chain().focus().toggleBulletList().run()}
+              active={editor.isActive('bulletList')}
+            />
+            <div className="w-[1px] h-4 bg-border mx-1" />
+            <ToolbarButton 
+              icon={Quote} 
+              tooltip="Blockquote" 
+              onClick={() => editor.chain().focus().toggleBlockquote().run()}
+              active={editor.isActive('blockquote')}
+            />
+            <div className="w-[1px] h-4 bg-border mx-1" />
+            <ToolbarButton 
+              icon={Code} 
+              tooltip="Code" 
+              onClick={() => editor.chain().focus().toggleCode().run()}
+              active={editor.isActive('code')}
+            />
+            <ToolbarButton 
+              icon={FileCode} 
+              tooltip="Code block" 
+              onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+              active={editor.isActive('codeBlock')}
+            />
+          </div>
+        )}
 
         {/* Editor Content */}
         <EditorContent editor={editor} />
+        <input 
+          type="file" 
+          ref={fileInputRef} 
+          className="hidden" 
+          onChange={handleFileSelect} 
+        />
 
         {/* Bottom Actions */}
         <div className="flex items-center justify-between px-2 pb-2">
           <div className="flex items-center gap-0.5">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-muted">
-                  <PlusIcon className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Shortcuts</TooltipContent>
-            </Tooltip>
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-muted">
+                      <PlusIcon className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent>Shortcuts</TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent align="start" className="w-56">
+                <DropdownMenuLabel>Message Shortcuts</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="flex justify-between" onClick={() => toast.info("Post message clicked")}>
+                  <span>Post message</span>
+                  <span className="text-xs text-muted-foreground">Enter</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="flex justify-between" onClick={() => toast.info("New line clicked")}>
+                  <span>New line</span>
+                  <span className="text-xs text-muted-foreground">Shift + Enter</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="flex justify-between" onClick={() => toast.info("Bold clicked")}>
+                  <span>Bold</span>
+                  <span className="text-xs text-muted-foreground">⌘ B</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="flex justify-between" onClick={() => toast.info("Italic clicked")}>
+                  <span>Italic</span>
+                  <span className="text-xs text-muted-foreground">⌘ I</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             <div className="w-[1px] h-4 bg-border mx-1" />
-            <ToolbarButton icon={Type} tooltip="Formatting" />
-            <ToolbarButton icon={Smile} tooltip="Emoji" />
-            <ToolbarButton icon={Paperclip} tooltip="Attach file" />
-            <ToolbarButton icon={Mic} tooltip="Video/Audio clip" />
+            <ToolbarButton 
+              icon={Type} 
+              tooltip="Formatting" 
+              active={showFormatting}
+              onClick={() => setShowFormatting(prev => !prev)} 
+            />
+            <EmojiPicker onSelect={handleEmojiSelect}>
+              <div className="flex">
+                <ToolbarButton icon={Smile} tooltip="Emoji" />
+              </div>
+            </EmojiPicker>
+            <ToolbarButton icon={Paperclip} tooltip="Attach file" onClick={() => fileInputRef.current?.click()} />
+            <ToolbarButton icon={Mic} tooltip="Video/Audio clip" onClick={() => toast.info("Video/Audio clip coming soon")} />
             <div className="w-[1px] h-4 bg-border mx-1" />
             <Tooltip>
               <TooltipTrigger asChild>
@@ -212,7 +279,7 @@ export function MessageComposer({ placeholder, onSend }: MessageComposerProps) {
                   <Sparkles className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>AI Assistant</TooltipContent>
+              <TooltipContent>AI Canvas</TooltipContent>
             </Tooltip>
           </div>
           
