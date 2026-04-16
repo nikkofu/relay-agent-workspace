@@ -13,6 +13,7 @@ apps/api/apps/
 
 # Docs
 docs/
+!docs/AGENTS.md
 
 # Misc
 .DS_Store
