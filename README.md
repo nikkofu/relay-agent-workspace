@@ -36,7 +36,7 @@ This repository is currently a frontend-first implementation with mock data and 
 - database-backed state and search
 - agent runtime and artifact persistence
 
-See [docs/phase8-api-expansion.md](/Users/admin/Documents/WORK/ai/acim-ui/docs/phase8-api-expansion.md:1) for the current backend API expansion analysis.
+See [docs/phase8-api-expansion.md](/Users/admin/Documents/WORK/ai/relay-agent-workspace/docs/phase8-api-expansion.md:1) for the current backend API expansion analysis.
 
 ## Tech Stack
 
@@ -63,7 +63,7 @@ Open `http://localhost:3000`.
 - Add realtime transport for messages, threads, presence, and AI streaming
 - Introduce an AI gateway for external LLM providers
 - Add database-backed search, artifacts, and agent execution history
-- Migrate the repository to `relay-agent-workspace`
+- Keep strengthening the Relay brand across docs, metadata, and product surfaces
 
 ## Repository Structure
 
@@ -83,4 +83,3 @@ docs/                 Implementation, positioning, and migration documents
 - Short product name: `Relay`
 - Suggested GitHub description:
   - `AI-native collaboration workspace for humans and agents, combining messaging, artifacts, and orchestration.`
-

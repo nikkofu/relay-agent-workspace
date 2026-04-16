@@ -4,14 +4,14 @@
 
 当前 `Relay Agent Workspace` 仍然是 **纯前端 Mock 驱动**：
 
-- 工作区、频道、消息、用户都来自 [lib/mock-data.ts](/Users/admin/Documents/WORK/ai/acim-ui/lib/mock-data.ts:1)
+- 工作区、频道、消息、用户都来自 [lib/mock-data.ts](/Users/admin/Documents/WORK/ai/relay-agent-workspace/lib/mock-data.ts:1)
 - 页面状态主要保存在 Zustand store 中：
-  - [stores/workspace-store.ts](/Users/admin/Documents/WORK/ai/acim-ui/stores/workspace-store.ts:1)
-  - [stores/channel-store.ts](/Users/admin/Documents/WORK/ai/acim-ui/stores/channel-store.ts:1)
-  - [stores/message-store.ts](/Users/admin/Documents/WORK/ai/acim-ui/stores/message-store.ts:1)
-  - [stores/ui-store.ts](/Users/admin/Documents/WORK/ai/acim-ui/stores/ui-store.ts:1)
+  - [stores/workspace-store.ts](/Users/admin/Documents/WORK/ai/relay-agent-workspace/stores/workspace-store.ts:1)
+  - [stores/channel-store.ts](/Users/admin/Documents/WORK/ai/relay-agent-workspace/stores/channel-store.ts:1)
+  - [stores/message-store.ts](/Users/admin/Documents/WORK/ai/relay-agent-workspace/stores/message-store.ts:1)
+  - [stores/ui-store.ts](/Users/admin/Documents/WORK/ai/relay-agent-workspace/stores/ui-store.ts:1)
 - AI 对话也是本地模拟流式：
-  - [hooks/use-ai-chat.ts](/Users/admin/Documents/WORK/ai/acim-ui/hooks/use-ai-chat.ts:1)
+  - [hooks/use-ai-chat.ts](/Users/admin/Documents/WORK/ai/relay-agent-workspace/hooks/use-ai-chat.ts:1)
 
 这意味着，如果项目要真正“动态运行起来”，后端至少要覆盖以下 3 类能力：
 
@@ -24,27 +24,27 @@
 本清单不是凭空设计，而是从当前 UI 和交互直接反推：
 
 - 工作区容器与右侧面板来源：
-  - [app/workspace/layout.tsx](/Users/admin/Documents/WORK/ai/acim-ui/app/workspace/layout.tsx:1)
+  - [app/workspace/layout.tsx](/Users/admin/Documents/WORK/ai/relay-agent-workspace/app/workspace/layout.tsx:1)
 - 主频道页与消息区：
-  - [app/workspace/page.tsx](/Users/admin/Documents/WORK/ai/acim-ui/app/workspace/page.tsx:1)
-  - [components/layout/message-area.tsx](/Users/admin/Documents/WORK/ai/acim-ui/components/layout/message-area.tsx:1)
+  - [app/workspace/page.tsx](/Users/admin/Documents/WORK/ai/relay-agent-workspace/app/workspace/page.tsx:1)
+  - [components/layout/message-area.tsx](/Users/admin/Documents/WORK/ai/relay-agent-workspace/components/layout/message-area.tsx:1)
 - 频道侧边栏、搜索入口、DM 入口：
-  - [components/layout/channel-sidebar.tsx](/Users/admin/Documents/WORK/ai/acim-ui/components/layout/channel-sidebar.tsx:1)
+  - [components/layout/channel-sidebar.tsx](/Users/admin/Documents/WORK/ai/relay-agent-workspace/components/layout/channel-sidebar.tsx:1)
 - 消息发送、AI Slash Command、Canvas 唤起：
-  - [components/message/message-composer.tsx](/Users/admin/Documents/WORK/ai/acim-ui/components/message/message-composer.tsx:1)
+  - [components/message/message-composer.tsx](/Users/admin/Documents/WORK/ai/relay-agent-workspace/components/message/message-composer.tsx:1)
 - 消息悬浮操作、Reaction、Thread：
-  - [components/message/message-item.tsx](/Users/admin/Documents/WORK/ai/acim-ui/components/message/message-item.tsx:1)
-  - [components/message/message-actions.tsx](/Users/admin/Documents/WORK/ai/acim-ui/components/message/message-actions.tsx:1)
-  - [components/message/emoji-reaction.tsx](/Users/admin/Documents/WORK/ai/acim-ui/components/message/emoji-reaction.tsx:1)
-  - [components/layout/thread-panel.tsx](/Users/admin/Documents/WORK/ai/acim-ui/components/layout/thread-panel.tsx:1)
+  - [components/message/message-item.tsx](/Users/admin/Documents/WORK/ai/relay-agent-workspace/components/message/message-item.tsx:1)
+  - [components/message/message-actions.tsx](/Users/admin/Documents/WORK/ai/relay-agent-workspace/components/message/message-actions.tsx:1)
+  - [components/message/emoji-reaction.tsx](/Users/admin/Documents/WORK/ai/relay-agent-workspace/components/message/emoji-reaction.tsx:1)
+  - [components/layout/thread-panel.tsx](/Users/admin/Documents/WORK/ai/relay-agent-workspace/components/layout/thread-panel.tsx:1)
 - 搜索、Activity、Later：
-  - [components/search/search-dialog.tsx](/Users/admin/Documents/WORK/ai/acim-ui/components/search/search-dialog.tsx:1)
-  - [app/workspace/activity/page.tsx](/Users/admin/Documents/WORK/ai/acim-ui/app/workspace/activity/page.tsx:1)
-  - [app/workspace/later/page.tsx](/Users/admin/Documents/WORK/ai/acim-ui/app/workspace/later/page.tsx:1)
+  - [components/search/search-dialog.tsx](/Users/admin/Documents/WORK/ai/relay-agent-workspace/components/search/search-dialog.tsx:1)
+  - [app/workspace/activity/page.tsx](/Users/admin/Documents/WORK/ai/relay-agent-workspace/app/workspace/activity/page.tsx:1)
+  - [app/workspace/later/page.tsx](/Users/admin/Documents/WORK/ai/relay-agent-workspace/app/workspace/later/page.tsx:1)
 - AI Chat、Thread Summary、Canvas：
-  - [components/ai-chat/ai-chat-panel.tsx](/Users/admin/Documents/WORK/ai/acim-ui/components/ai-chat/ai-chat-panel.tsx:1)
-  - [components/ai-chat/ai-thread-summary.tsx](/Users/admin/Documents/WORK/ai/acim-ui/components/ai-chat/ai-thread-summary.tsx:1)
-  - [components/layout/canvas-panel.tsx](/Users/admin/Documents/WORK/ai/acim-ui/components/layout/canvas-panel.tsx:1)
+  - [components/ai-chat/ai-chat-panel.tsx](/Users/admin/Documents/WORK/ai/relay-agent-workspace/components/ai-chat/ai-chat-panel.tsx:1)
+  - [components/ai-chat/ai-thread-summary.tsx](/Users/admin/Documents/WORK/ai/relay-agent-workspace/components/ai-chat/ai-thread-summary.tsx:1)
+  - [components/layout/canvas-panel.tsx](/Users/admin/Documents/WORK/ai/relay-agent-workspace/components/layout/canvas-panel.tsx:1)
 
 ## 3. 最小可运行 API
 
@@ -113,7 +113,7 @@
 
 ### 4.2 DM 页面
 
-当前 [app/workspace/dms/page.tsx](/Users/admin/Documents/WORK/ai/acim-ui/app/workspace/dms/page.tsx:1) 已经存在独立列表页，所以至少需要：
+当前 [app/workspace/dms/page.tsx](/Users/admin/Documents/WORK/ai/relay-agent-workspace/app/workspace/dms/page.tsx:1) 已经存在独立列表页，所以至少需要：
 
 - `GET /api/dms`
   - 返回 DM 会话列表、最后一条消息、未读数、对方用户资料。
@@ -176,7 +176,7 @@
 
 ### 5.2 AI Slash Commands
 
-对应当前 [components/ai-chat/ai-slash-command.tsx](/Users/admin/Documents/WORK/ai/acim-ui/components/ai-chat/ai-slash-command.tsx:1) 的命令集：
+对应当前 [components/ai-chat/ai-slash-command.tsx](/Users/admin/Documents/WORK/ai/relay-agent-workspace/components/ai-chat/ai-slash-command.tsx:1) 的命令集：
 
 - `/ai`
 - `/summarize`
