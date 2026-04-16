@@ -73,6 +73,7 @@ func SeedData() {
 		{ID: "ch-4", WorkspaceID: "ws-1", Name: "design", Type: "public", Description: "UI/UX design critiques and inspiration", MemberCount: 5},
 		{ID: "ch-5", WorkspaceID: "ws-1", Name: "ai-lab", Type: "public", Description: "Exploring the future of AI-native applications", MemberCount: 10, IsStarred: true, UnreadCount: 12},
 		{ID: "ch-6", WorkspaceID: "ws-1", Name: "private-deal", Type: "private", MemberCount: 3},
+		{ID: "ch-collab", WorkspaceID: "ws-1", Name: "agent-collab", Type: "public", Description: "Real-time Agent collaboration and synchronization hub", MemberCount: 3, IsStarred: true},
 	}
 
 	for _, ch := range channels {
