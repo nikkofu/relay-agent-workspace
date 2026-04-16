@@ -1,13 +1,22 @@
 "use client"
 
 import { useChannelStore } from "@/stores/channel-store"
+import { useMessageStore } from "@/stores/message-store"
 import { Hash, Lock, Info, Phone, Video, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { MessageComposer } from "@/components/message/message-composer"
+import { useEffect } from "react"
 
 export function MessageArea({ children }: { children?: React.ReactNode }) {
   const { currentChannel } = useChannelStore()
+  const { fetchMessages, sendMessage } = useMessageStore()
   
+  useEffect(() => {
+    if (currentChannel) {
+      fetchMessages(currentChannel.id)
+    }
+  }, [currentChannel, fetchMessages])
+
   if (!currentChannel) {
     return (
       <div className="flex-1 flex items-center justify-center bg-white dark:bg-[#1a1d21] text-muted-foreground">
@@ -64,8 +73,9 @@ export function MessageArea({ children }: { children?: React.ReactNode }) {
       <MessageComposer 
         placeholder={`Message #${currentChannel.name}`} 
         onSend={(content) => {
-          console.log("Sending message:", content)
-          // In a real app, we would add the message to the store here
+          if (currentChannel) {
+            sendMessage(currentChannel.id, content, "user-1")
+          }
         }}
       />
     </div>

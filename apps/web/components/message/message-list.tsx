@@ -28,7 +28,13 @@ export function MessageList({ messages }: MessageListProps) {
     <ScrollArea ref={scrollRef} className="h-full">
       <div className="p-4 flex flex-col gap-0.5 min-h-full justify-end">
         {messages.map((msg, idx) => {
-          const sender = USERS.find(u => u.id === msg.senderId)!
+          const sender = USERS.find(u => u.id === msg.senderId) || {
+            id: msg.senderId,
+            name: "Unknown User",
+            email: "unknown@example.com",
+            avatar: "https://github.com/shadcn.png",
+            status: "offline" as const,
+          }
           const prevMsg = idx > 0 ? messages[idx - 1] : null
           
           // Logic for date separator

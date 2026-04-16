@@ -8,6 +8,9 @@ import { CanvasPanel } from "@/components/layout/canvas-panel"
 import { SearchDialog } from "@/components/search/search-dialog"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
 import { useUIStore } from "@/stores/ui-store"
+import { useWorkspaceStore } from "@/stores/workspace-store"
+import { useChannelStore } from "@/stores/channel-store"
+import { useUserStore } from "@/stores/user-store"
 import { useEffect } from "react"
 
 export default function WorkspaceLayout({
@@ -16,7 +19,21 @@ export default function WorkspaceLayout({
   children: React.ReactNode
 }) {
   const { isThreadOpen, isAIPanelOpen, isCanvasOpen, closeThread, closeAIPanel, closeCanvas } = useUIStore()
+  const { fetchWorkspaces, currentWorkspace } = useWorkspaceStore()
+  const { fetchChannels } = useChannelStore()
+  const { fetchMe } = useUserStore()
   const showRightPanel = isThreadOpen || isAIPanelOpen || isCanvasOpen
+
+  useEffect(() => {
+    fetchMe()
+    fetchWorkspaces()
+  }, [fetchMe, fetchWorkspaces])
+
+  useEffect(() => {
+    if (currentWorkspace) {
+      fetchChannels(currentWorkspace.id)
+    }
+  }, [currentWorkspace, fetchChannels])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
