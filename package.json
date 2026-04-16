@@ -1,56 +1,11 @@
 {
-  "name": "relay-agent-workspace",
-  "version": "0.1.3",
+  "name": "relay-agent-workspace-root",
   "private": true,
-  "description": "AI-native collaboration workspace for humans and agents, combining messaging, artifacts, and orchestration.",
-  "homepage": "https://github.com/nikkofu/relay-agent-workspace",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/nikkofu/relay-agent-workspace.git"
-  },
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
-  },
-  "dependencies": {
-    "@ai-sdk/react": "^3.0.163",
-    "@tiptap/extension-code-block-lowlight": "^3.22.3",
-    "@tiptap/extension-link": "^3.22.3",
-    "@tiptap/extension-mention": "^3.22.3",
-    "@tiptap/extension-placeholder": "^3.22.3",
-    "@tiptap/react": "^3.22.3",
-    "@tiptap/starter-kit": "^3.22.3",
-    "ai": "^6.0.161",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "cmdk": "^1.1.1",
-    "date-fns": "^4.1.0",
-    "lowlight": "^3.3.0",
-    "lucide-react": "^1.8.0",
-    "next": "^15.1.0",
-    "next-themes": "^0.4.6",
-    "radix-ui": "^1.4.3",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "react-resizable-panels": "^4",
-    "sonner": "^2.0.7",
-    "tailwind-merge": "^3.5.0",
-    "tailwindcss-animate": "^1.0.7",
-    "zustand": "^5.0.12"
-  },
-  "devDependencies": {
-    "@eslint/eslintrc": "^3",
-    "@tailwindcss/postcss": "^4.2.2",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "15.1.0",
-    "postcss": "^8",
-    "tailwindcss": "^4.0.0",
-    "typescript": "^5"
+    "web:dev": "pnpm --filter web dev",
+    "web:build": "pnpm --filter web build",
+    "api:dev": "make -C apps/api dev",
+    "dev": "pnpm run web:dev"
   },
   "packageManager": "pnpm@10.32.1+sha512.a706938f0e89ac1456b6563eab4edf1d1faf3368d1191fc5c59790e96dc918e4456ab2e67d613de1043d2e8c81f87303e6b40d4ffeca9df15ef1ad567348f2be"
 }
