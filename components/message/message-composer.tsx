@@ -53,7 +53,7 @@ export function MessageComposer({ placeholder, onSend }: MessageComposerProps) {
     immediatelyRender: false,
     editorProps: {
       attributes: {
-        class: 'min-h-[44px] max-h-[200px] overflow-y-auto px-3 py-2 text-sm block w-full',
+        class: 'min-h-[72px] max-h-[200px] overflow-y-auto px-3 py-2 text-sm block w-full',
       },
       handleKeyDown: (view, event) => {
         if (event.key === 'Enter' && !event.shiftKey) {
