@@ -49,39 +49,41 @@ export function AIChatPanel() {
         </Button>
       </header>
 
-      {/* Messages Area */}
-      <ScrollArea ref={scrollRef} className="flex-1 bg-slate-50/30 dark:bg-transparent">
-        <div className="flex flex-col min-h-full pb-4">
-          {messages.length === 0 ? (
-            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center gap-6 mt-12">
-              <div className="relative">
-                <div className="w-20 h-20 rounded-full bg-purple-100 dark:bg-purple-900/20 flex items-center justify-center animate-pulse">
-                  <Wand2 className="w-10 h-10 text-purple-600 dark:text-purple-400" />
+      {/* Messages Area - Ensure this fills space and scrolls */}
+      <div className="flex-1 min-h-0 relative">
+        <ScrollArea ref={scrollRef} className="h-full bg-slate-50/30 dark:bg-transparent">
+          <div className="flex flex-col min-h-full pb-4">
+            {messages.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center gap-6 mt-12">
+                <div className="relative">
+                  <div className="w-20 h-20 rounded-full bg-purple-100 dark:bg-purple-900/20 flex items-center justify-center animate-pulse">
+                    <Wand2 className="w-10 h-10 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center border-2 border-white dark:border-[#1a1d21]">
+                    <Sparkles className="w-3 h-3 text-white" />
+                  </div>
                 </div>
-                <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center border-2 border-white dark:border-[#1a1d21]">
-                  <Sparkles className="w-3 h-3 text-white" />
+                <div className="max-w-[240px]">
+                  <h4 className="font-bold text-lg mb-2">I&apos;m your AI sidekick</h4>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Ask me to summarize channels, help with code, or draft messages. I&apos;m here to make you faster.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 gap-2 w-full mt-4">
+                  <SuggestionButton text="Summarize this channel" onClick={() => append("Summarize this channel")} />
+                  <SuggestionButton text="Help me draft a professional reply" onClick={() => append("Help me draft a professional reply")} />
+                  <SuggestionButton text="Explain current engineering trends" onClick={() => append("Explain current engineering trends")} />
                 </div>
               </div>
-              <div className="max-w-[240px]">
-                <h4 className="font-bold text-lg mb-2">I&apos;m your AI sidekick</h4>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  Ask me to summarize channels, help with code, or draft messages. I&apos;m here to make you faster.
-                </p>
-              </div>
-              <div className="grid grid-cols-1 gap-2 w-full mt-4">
-                <SuggestionButton text="Summarize this channel" />
-                <SuggestionButton text="Help me draft a professional reply" />
-                <SuggestionButton text="Explain current engineering trends" />
-              </div>
-            </div>
-          ) : (
-            messages.map(msg => <AIMessageItem key={msg.id} message={msg} />)
-          )}
-        </div>
-      </ScrollArea>
+            ) : (
+              messages.map(msg => <AIMessageItem key={msg.id} message={msg} />)
+            )}
+          </div>
+        </ScrollArea>
+      </div>
 
-      {/* Input Area */}
-      <div className="p-4 border-t bg-white dark:bg-[#1a1d21] shadow-[0_-4px_12px_rgba(0,0,0,0.02)]">
+      {/* Input Area - Stay at bottom */}
+      <div className="p-4 border-t bg-white dark:bg-[#1a1d21] shrink-0 shadow-[0_-4px_12px_rgba(0,0,0,0.02)]">
         <MessageComposer 
           placeholder="Message AI Assistant..." 
           onSend={append} 
@@ -91,11 +93,12 @@ export function AIChatPanel() {
   )
 }
 
-function SuggestionButton({ text }: { text: string }) {
+function SuggestionButton({ text, onClick }: { text: string, onClick: () => void }) {
   return (
     <Button 
       variant="outline" 
-      className="justify-start h-auto py-2.5 px-3 text-left text-xs bg-white dark:bg-[#1a1d21] border-purple-200/50 dark:border-purple-800/30 hover:border-purple-500 hover:bg-purple-50 transition-all group"
+      className="justify-start h-auto py-2.5 px-3 text-left text-xs bg-white dark:bg-[#1a1d21] border-purple-200/50 dark:border-purple-800/30 hover:border-purple-50 hover:bg-purple-50 transition-all group"
+      onClick={onClick}
     >
       <Sparkles className="w-3 h-3 mr-2 text-purple-500 opacity-50 group-hover:opacity-100" />
       <span className="truncate">{text}</span>

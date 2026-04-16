@@ -1,8 +1,8 @@
-# ACIM-UI: AI-Native 超级应用 — Slack 1:1 复刻实施计划
+# Relay Agent Workspace: AI-Native Collaboration Workspace Implementation Plan
 
 ## 项目概述
 
-构建一个 **1:1 复刻 Slack 所有布局和功能** 的 AI-Native 超级应用 UI，在 Slack 的经典交互体验基础上，深度集成 AI 对话、推理、工具调用等能力，打造面向未来的协作平台。
+本文件记录当前仓库早期的前端实施方案。项目最初从 Slack 风格协作界面切入，用于探索 AI-native messaging、threads、artifacts 与 agent collaboration 的统一工作区体验。当前仓库已重定位为 `Relay Agent Workspace`。
 
 ### 技术栈
 
@@ -23,7 +23,7 @@
 
 > [!IMPORTANT]
 > **关键决策点：** 
-> 1. 项目命名为 `acim-ui` (AI-native Communication & Intelligence Manager)，是否合适？
+> 1. 项目当前正式命名为 `Relay Agent Workspace`，旧名 `acim-ui` 仅作为历史代号保留。
 > 2. 包管理器使用 `pnpm`，是否同意？
 > 3. shadcn/ui 初始化使用 `--template next --defaults`（Nova preset），是否需要特定的主题/预设？
 > 4. 本项目为纯前端 UI Demo，所有数据使用 Mock JSON，AI 组件使用模拟流式响应。后续是否需要接入真实 AI API？

@@ -7,7 +7,7 @@ export const USERS: User[] = [
     email: "nikko@example.com",
     avatar: "https://github.com/nikkofu.png",
     status: "online",
-    statusText: "Building ACIM-UI 🚀",
+    statusText: "Building Relay 🚀",
   },
   {
     id: "user-2",
@@ -110,7 +110,7 @@ export const MESSAGES: Message[] = [
     content: "Welcome to the team everyone! Glad to have you here.",
     senderId: "user-1",
     channelId: "ch-1",
-    createdAt: new Date(Date.now() - 3600000 * 24).toISOString(), // 1 day ago
+    createdAt: "2026-04-14T10:00:00.000Z",
     reactions: [{ emoji: "👋", count: 3, userIds: ["user-2", "user-3", "user-4"] }],
   },
   {
@@ -118,22 +118,22 @@ export const MESSAGES: Message[] = [
     content: "Thanks @Nikko Fu! Excited to get started on the AI integration.",
     senderId: "user-3",
     channelId: "ch-1",
-    createdAt: new Date(Date.now() - 3600000 * 23).toISOString(),
+    createdAt: "2026-04-14T11:30:00.000Z",
     replyCount: 2,
-    lastReplyAt: new Date(Date.now() - 3600000 * 22).toISOString(),
+    lastReplyAt: "2026-04-14T12:00:00.000Z",
   },
   {
     id: "msg-3",
-    content: "I've drafted the implementation plan for ACIM-UI. Take a look: https://github.com/nikkofu/acim-ui",
+    content: "I've drafted the implementation plan for Relay Agent Workspace. Take a look: https://github.com/nikkofu/relay-agent-workspace",
     senderId: "user-1",
     channelId: "ch-5",
-    createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
+    createdAt: "2026-04-15T08:00:00.000Z",
     attachments: [
       {
         id: "att-1",
         type: "link",
-        url: "https://github.com/nikkofu/acim-ui",
-        name: "ACIM-UI Repository",
+        url: "https://github.com/nikkofu/relay-agent-workspace",
+        name: "Relay Agent Workspace Repository",
       },
     ],
   },
@@ -142,14 +142,14 @@ export const MESSAGES: Message[] = [
     content: "The AI components look promising. Can we add support for streaming responses?",
     senderId: "user-4",
     channelId: "ch-5",
-    createdAt: new Date(Date.now() - 3600000 * 1.5).toISOString(),
+    createdAt: "2026-04-15T08:30:00.000Z",
   },
   {
     id: "msg-5",
     content: "Absolutely. Vercel AI SDK provides great primitives for that. I'll include it in Phase 3.",
     senderId: "user-1",
     channelId: "ch-5",
-    createdAt: new Date(Date.now() - 3600000 * 1).toISOString(),
+    createdAt: "2026-04-15T09:00:00.000Z",
     reactions: [{ emoji: "✅", count: 2, userIds: ["user-4", "user-2"] }],
   },
   {
@@ -157,6 +157,6 @@ export const MESSAGES: Message[] = [
     content: "Here is a quick summary of today's progress:\n- Setup project with Next.js 15\n- Initialized shadcn/ui components\n- Defined core types and mock data",
     senderId: "user-2",
     channelId: "ch-5",
-    createdAt: new Date(Date.now() - 1800000).toISOString(), // 30 mins ago
+    createdAt: "2026-04-15T09:30:00.000Z",
   },
 ]

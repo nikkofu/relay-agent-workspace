@@ -44,7 +44,7 @@ export function CanvasPanel() {
         <div className="max-w-3xl mx-auto px-8 py-12 flex flex-col gap-8">
           {/* Document Content */}
           <div className="flex flex-col gap-4">
-            <h1 className="text-4xl font-black tracking-tighter leading-none">ACIM-UI Project Launch Roadmap</h1>
+            <h1 className="text-4xl font-black tracking-tighter leading-none">Relay Agent Workspace Launch Roadmap</h1>
             <div className="flex items-center gap-4 text-sm text-muted-foreground font-medium">
               <div className="flex items-center gap-1.5">
                 <div className="w-5 h-5 rounded-full bg-purple-100 flex items-center justify-center">
@@ -59,7 +59,7 @@ export function CanvasPanel() {
 
           <div className="prose dark:prose-invert max-w-none">
             <p className="text-lg text-muted-foreground leading-relaxed">
-              This document outlines the strategic steps for the Alpha release of ACIM-UI. 
+              This document outlines the strategic steps for the alpha release of Relay Agent Workspace. 
               Focus is on ensuring the AI-native features feel seamless and intuitive for Slack power users.
             </p>
 

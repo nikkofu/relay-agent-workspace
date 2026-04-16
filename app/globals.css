@@ -135,4 +135,44 @@
   ::-webkit-scrollbar-thumb:hover {
     @apply bg-muted-foreground/40;
   }
+
+  /* Tiptap Editor Styles */
+  .tiptap {
+    outline: none;
+  }
+
+  .tiptap p.is-editor-empty:first-child::before {
+    color: var(--muted-foreground);
+    content: attr(data-placeholder);
+    float: left;
+    height: 0;
+    pointer-events: none;
+    opacity: 0.5;
+  }
+
+  .tiptap p {
+    margin: 0;
+  }
+
+  .tiptap ul, .tiptap ol {
+    padding: 0 1rem;
+    margin: 0.5rem 0;
+    list-style-type: disc;
+  }
+
+  .tiptap pre {
+    @apply bg-muted rounded-md p-2 font-mono text-xs my-2;
+  }
+
+  .tiptap code {
+    @apply bg-muted rounded px-1 py-0.5 font-mono text-xs;
+  }
+
+  .tiptap blockquote {
+    @apply border-l-4 border-muted pl-4 italic my-2;
+  }
+
+  .tiptap a {
+    @apply text-blue-500 underline cursor-pointer;
+  }
 }

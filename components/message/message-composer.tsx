@@ -1,15 +1,21 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState } from "react"
 import { 
-  Bold, Italic, Strikethrough, Link, List, ListOrdered, 
-  Quote, Code, FileCode, Type, Smile, Paperclip, Send, Mic, Sparkles, Plus 
+  Bold, Italic, Strikethrough, Link as LinkIcon, List, ListOrdered, 
+  Quote, Code, FileCode, Type, Smile, Paperclip, Send, Mic, Sparkles 
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { AISlashCommand } from "@/components/ai-chat/ai-slash-command"
+import { MentionPopover } from "./mention-popover"
 import { useUIStore } from "@/stores/ui-store"
+
+import { useEditor, EditorContent } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+import Placeholder from '@tiptap/extension-placeholder'
+import Link from '@tiptap/extension-link'
 
 interface MessageComposerProps {
   placeholder?: string
@@ -17,94 +23,171 @@ interface MessageComposerProps {
 }
 
 export function MessageComposer({ placeholder, onSend }: MessageComposerProps) {
-  const [content, setContent] = useState("")
   const [showSlashCommands, setShowSlashCommands] = useState(false)
+  const [showMentions, setShowMentions] = useState(false)
   const { openCanvas } = useUIStore()
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Auto-resize textarea
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`
-    }
-  }, [content])
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Placeholder.configure({
+        placeholder: placeholder || 'Type a message...',
+      }),
+      Link.configure({
+        openOnClick: false,
+      }),
+    ],
+    content: '',
+    immediatelyRender: false,
+    editorProps: {
+      attributes: {
+        class: 'min-h-[44px] max-h-[200px] overflow-y-auto px-3 py-2 text-sm block w-full',
+      },
+      handleKeyDown: (view, event) => {
+        if (event.key === 'Enter' && !event.shiftKey) {
+          event.preventDefault()
+          handleSend()
+          return true
+        }
+        if (event.key === 'ArrowUp' && editor?.getText() === "") {
+          console.log("Slack feature: Edit last message triggered")
+        }
+        if (event.key === 'Escape') {
+          setShowSlashCommands(false)
+          setShowMentions(false)
+        }
+        return false
+      },
+    },
+    onUpdate: ({ editor }) => {
+      const text = editor.getText()
+      const lastChar = text.slice(-1)
+      
+      if (lastChar === "/") {
+        setShowSlashCommands(true)
+        setShowMentions(false)
+      } else if (lastChar === "@") {
+        setShowMentions(true)
+        setShowSlashCommands(false)
+      } else {
+        if (!text.includes("/")) setShowSlashCommands(false)
+        if (!text.includes("@")) setShowMentions(false)
+      }
+    },
+  })
 
   const handleSend = () => {
-    if (content.trim()) {
-      onSend?.(content)
-      setContent("")
+    if (editor && !editor.isEmpty) {
+      onSend?.(editor.getHTML())
+      editor.commands.clearContent()
       setShowSlashCommands(false)
-    }
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
-    }
-    if (e.key === 'ArrowUp' && content === "") {
-      console.log("Slack feature: Edit last message triggered")
-    }
-    if (e.key === 'Escape') {
-      setShowSlashCommands(false)
-    }
-  }
-
-  const handleContentChange = (val: string) => {
-    setContent(val)
-    if (val === "/") {
-      setShowSlashCommands(true)
-    } else if (!val.includes("/") || val === "") {
-      setShowSlashCommands(false)
+      setShowMentions(false)
     }
   }
 
   const handleSlashCommandSelect = (cmd: string) => {
     if (cmd === "/canvas") {
       openCanvas("new-doc")
-      setContent("")
+      editor?.commands.clearContent()
       setShowSlashCommands(false)
       return
     }
-    setContent(cmd + " ")
+    // Replace the trailing slash with the command
+    editor?.commands.insertContent(cmd.slice(1) + " ")
     setShowSlashCommands(false)
-    textareaRef.current?.focus()
+    editor?.commands.focus()
+  }
+
+  const handleMentionSelect = (name: string) => {
+    // Replace trailing @ with mention (we can use a more advanced approach but this works for now)
+    editor?.commands.insertContent(name + " ")
+    setShowMentions(false)
+    editor?.commands.focus()
+  }
+
+  if (!editor) {
+    return null
   }
 
   return (
-    <div className="p-4 pt-0 relative">
-      {showSlashCommands && (
-        <AISlashCommand onSelect={handleSlashCommandSelect} />
-      )}
+    <div className="p-4 pt-0 relative flex flex-col">
+      <div className="relative w-full">
+        {showSlashCommands && (
+          <AISlashCommand onSelect={handleSlashCommandSelect} />
+        )}
+        {showMentions && (
+          <MentionPopover onSelect={handleMentionSelect} />
+        )}
+      </div>
       
-      <div className="border rounded-lg bg-white dark:bg-[#1a1d21] focus-within:ring-1 focus-within:ring-ring transition-shadow group">
+      <div className="border rounded-lg bg-white dark:bg-[#1a1d21] focus-within:ring-1 focus-within:ring-ring transition-shadow group shrink-0">
         {/* Toolbar */}
         <div className="flex items-center gap-0.5 p-1 border-b bg-muted/30">
-          <ToolbarButton icon={Bold} tooltip="Bold (⌘B)" />
-          <ToolbarButton icon={Italic} tooltip="Italic (⌘I)" />
-          <ToolbarButton icon={Strikethrough} tooltip="Strikethrough" />
+          <ToolbarButton 
+            icon={Bold} 
+            tooltip="Bold (⌘B)" 
+            onClick={() => editor.chain().focus().toggleBold().run()}
+            active={editor.isActive('bold')}
+          />
+          <ToolbarButton 
+            icon={Italic} 
+            tooltip="Italic (⌘I)" 
+            onClick={() => editor.chain().focus().toggleItalic().run()}
+            active={editor.isActive('italic')}
+          />
+          <ToolbarButton 
+            icon={Strikethrough} 
+            tooltip="Strikethrough" 
+            onClick={() => editor.chain().focus().toggleStrike().run()}
+            active={editor.isActive('strike')}
+          />
           <div className="w-[1px] h-4 bg-border mx-1" />
-          <ToolbarButton icon={Link} tooltip="Link" />
+          <ToolbarButton 
+            icon={LinkIcon} 
+            tooltip="Link" 
+            onClick={() => {
+              const url = window.prompt('URL')
+              if (url) editor.chain().focus().setLink({ href: url }).run()
+            }}
+            active={editor.isActive('link')}
+          />
           <div className="w-[1px] h-4 bg-border mx-1" />
-          <ToolbarButton icon={ListOrdered} tooltip="Ordered list" />
-          <ToolbarButton icon={List} tooltip="Bulleted list" />
+          <ToolbarButton 
+            icon={ListOrdered} 
+            tooltip="Ordered list" 
+            onClick={() => editor.chain().focus().toggleOrderedList().run()}
+            active={editor.isActive('orderedList')}
+          />
+          <ToolbarButton 
+            icon={List} 
+            tooltip="Bulleted list" 
+            onClick={() => editor.chain().focus().toggleBulletList().run()}
+            active={editor.isActive('bulletList')}
+          />
           <div className="w-[1px] h-4 bg-border mx-1" />
-          <ToolbarButton icon={Quote} tooltip="Blockquote" />
+          <ToolbarButton 
+            icon={Quote} 
+            tooltip="Blockquote" 
+            onClick={() => editor.chain().focus().toggleBlockquote().run()}
+            active={editor.isActive('blockquote')}
+          />
           <div className="w-[1px] h-4 bg-border mx-1" />
-          <ToolbarButton icon={Code} tooltip="Code" />
-          <ToolbarButton icon={FileCode} tooltip="Code block" />
+          <ToolbarButton 
+            icon={Code} 
+            tooltip="Code" 
+            onClick={() => editor.chain().focus().toggleCode().run()}
+            active={editor.isActive('code')}
+          />
+          <ToolbarButton 
+            icon={FileCode} 
+            tooltip="Code block" 
+            onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+            active={editor.isActive('codeBlock')}
+          />
         </div>
 
-        {/* Input */}
-        <textarea
-          ref={textareaRef}
-          value={content}
-          onChange={(e) => handleContentChange(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          className="w-full resize-none bg-transparent border-none focus:ring-0 px-3 py-2 text-sm min-h-[44px] max-h-[200px] outline-none placeholder:text-muted-foreground/50"
-        />
+        {/* Editor Content */}
+        <EditorContent editor={editor} />
 
         {/* Bottom Actions */}
         <div className="flex items-center justify-between px-2 pb-2">
@@ -112,7 +195,7 @@ export function MessageComposer({ placeholder, onSend }: MessageComposerProps) {
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-muted">
-                  <Plus className="h-4 w-4" />
+                  <PlusIcon className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Shortcuts</TooltipContent>
@@ -125,7 +208,7 @@ export function MessageComposer({ placeholder, onSend }: MessageComposerProps) {
             <div className="w-[1px] h-4 bg-border mx-1" />
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-purple-500 hover:bg-purple-500/10">
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-purple-500 hover:bg-purple-500/10" onClick={() => openCanvas('ai-assistant')}>
                   <Sparkles className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
@@ -135,11 +218,11 @@ export function MessageComposer({ placeholder, onSend }: MessageComposerProps) {
           
           <Button 
             size="sm" 
-            disabled={!content.trim()}
+            disabled={editor.isEmpty}
             onClick={handleSend}
             className={cn(
               "h-7 w-7 p-0 transition-colors",
-              content.trim() ? "bg-[#007a5a] hover:bg-[#007a5a]/90 text-white" : "bg-muted text-muted-foreground"
+              !editor.isEmpty ? "bg-[#007a5a] hover:bg-[#007a5a]/90 text-white" : "bg-muted text-muted-foreground"
             )}
           >
             <Send className="h-4 w-4" />
@@ -155,16 +238,17 @@ export function MessageComposer({ placeholder, onSend }: MessageComposerProps) {
   )
 }
 
-function ToolbarButton({ icon: Icon, tooltip, active }: { icon: React.ElementType, tooltip: string, active?: boolean }) {
+function ToolbarButton({ icon: Icon, tooltip, active, onClick }: { icon: React.ElementType, tooltip: string, active?: boolean, onClick?: () => void }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button 
           variant="ghost" 
           size="icon" 
+          onClick={onClick}
           className={cn(
-            "h-7 w-7 hover:bg-muted",
-            active ? "bg-muted text-foreground" : "text-muted-foreground"
+            "h-7 w-7 hover:bg-muted transition-colors",
+            active ? "bg-muted text-blue-500" : "text-muted-foreground"
           )}
         >
           <Icon className="h-3.5 w-3.5" />
@@ -174,5 +258,13 @@ function ToolbarButton({ icon: Icon, tooltip, active }: { icon: React.ElementTyp
         {tooltip}
       </TooltipContent>
     </Tooltip>
+  )
+}
+
+function PlusIcon({ className }: { className?: string }) {
+  return (
+    <div className={cn("w-4 h-4 rounded-full border-2 border-current flex items-center justify-center font-bold text-[10px]", className)}>
+      +
+    </div>
   )
 }

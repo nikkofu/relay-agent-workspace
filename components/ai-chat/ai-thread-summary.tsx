@@ -14,7 +14,7 @@ export function AIThreadSummary() {
     setSummary("")
     // 模拟 AI 处理延迟
     await new Promise(r => setTimeout(r, 1200))
-    setSummary("The team is aligning on the ACIM-UI v1.0 release. Key consensus reached on implementing AI Canvas first. Nikko will handle the core layout, and John will provide the initial mock data by EOD.")
+    setSummary("The team is aligning on the Relay Agent Workspace v1.0 release. Key consensus reached on implementing AI Canvas first. Nikko will handle the core layout, and John will provide the initial mock data by EOD.")
     setLoading(false)
   }
 

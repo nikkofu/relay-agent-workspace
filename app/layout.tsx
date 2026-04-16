@@ -7,8 +7,8 @@ import { Toaster } from "@/components/ui/sonner"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "ACIM-UI | AI-Native Communication & Intelligence Manager",
-  description: "1:1 Slack Clone with AI-Native Superpowers",
+  title: "Relay Agent Workspace",
+  description: "AI-native collaboration workspace for humans and agents.",
 }
 
 export default function RootLayout({

@@ -1,4 +1,4 @@
-# ACIM-UI 任务清单
+# Relay Agent Workspace 任务清单
 
 ## Phase 0: 项目脚手架 & 基础设施
 - [x] 使用 shadcn CLI 初始化 Next.js 项目
@@ -48,5 +48,19 @@
 - [x] 键盘快捷键 (Esc 关闭面板, ArrowUp 模拟编辑)
 - [x] 构建验证 & 浏览器测试 (pnpm build 通过)
 
-**项目开发任务已全部完成。**
+## Phase 6: AI 生产力增强
+- [x] AI 线程摘要 (ai-thread-summary.tsx)
+- [x] 智能协作资料卡 (user-profile.tsx)
+- [x] 智能画布 (AI Canvas / Artifacts)
+- [x] 布局动态适配 (Thread/AI/Canvas 互斥与宽度切换)
+
+## Phase 7: Tiptap 高级编辑器集成
+- [x] 安装 Tiptap 相关依赖
+- [x] 使用 Tiptap 重构 MessageComposer (保留所有 AI 亮点功能)
+- [x] 实现富文本格式化工具栏 (Bold, Italic, Code, Link 等)
+- [x] 深度定制编辑器配色与 Slack 风格一致
+- [x] 集成 @ 提及与 / 快捷命令逻辑
+
+**当前前端实现任务已完成，仓库正在重定位为 Relay Agent Workspace。**
+
 
