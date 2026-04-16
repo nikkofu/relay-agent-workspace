@@ -7,6 +7,8 @@ dist
 # Go
 apps/api/main
 apps/api/vendor
+apps/api/relay.db
+apps/api/.cache/
 
 # Docs
 docs/
