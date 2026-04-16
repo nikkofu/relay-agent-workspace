@@ -25,7 +25,8 @@ import {
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
-import Link from '@tiptap/extension-link'
+import TiptapLink from '@tiptap/extension-link'
+import { useMemo } from "react"
 
 interface MessageComposerProps {
   placeholder?: string
@@ -39,16 +40,21 @@ export function MessageComposer({ placeholder, onSend }: MessageComposerProps) {
   const { openCanvas } = useUIStore()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const extensions = useMemo(() => [
+    StarterKit.configure({}),
+    Placeholder.configure({
+      placeholder: placeholder || 'Type a message...',
+    }),
+    TiptapLink.configure({
+      openOnClick: false,
+      HTMLAttributes: {
+        class: 'text-blue-500 underline cursor-pointer',
+      },
+    }),
+  ], [placeholder])
+
   const editor = useEditor({
-    extensions: [
-      StarterKit,
-      Placeholder.configure({
-        placeholder: placeholder || 'Type a message...',
-      }),
-      Link.configure({
-        openOnClick: false,
-      }),
-    ],
+    extensions,
     content: '',
     immediatelyRender: false,
     editorProps: {
@@ -88,7 +94,9 @@ export function MessageComposer({ placeholder, onSend }: MessageComposerProps) {
     },
   })
 
-  const handleSend = () => {
+  // We need to use a ref for handleSend to avoid dependency cycles in useEditor
+  // or just use the editor instance inside handleSend directly which is fine since it's defined in the same scope.
+  function handleSend() {
     if (editor && !editor.isEmpty) {
       onSend?.(editor.getHTML())
       editor.commands.clearContent()

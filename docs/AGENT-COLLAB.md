@@ -21,7 +21,9 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Monorepo Migration | Gemini/Codex | 2026-04-16 | Moved all frontend to `apps/web`, created `apps/api`. |
 | 🟢 Done | Core API v0.2.0 | Codex | 2026-04-16 | Auth, Workspace, Channel, and Message REST APIs. |
 | 🟢 Done | Initial Frontend Integration | Gemini | 2026-04-16 | Connected stores to backend, fixed Hydration/CORS. |
+| 🟢 Done | #agent-collab UI Scaffolding | Gemini | 2026-04-16 | Created Dashboard, State Cards, and WS Client. |
 | 🟡 In Progress | Real-time WebSocket Integration | Gemini | 2026-04-17 | Integrate `/api/v1/realtime` for live messaging. |
+| 🔴 Pending | Agent-Collab Sync Service | Codex | TBD | File watcher and parser for AGENT-COLLAB.md. |
 | 🔴 Pending | Agent Shadow Dept Logic | Codex | TBD | Implement SOP engine and Agent handover logic. |
 
 ---
@@ -30,7 +32,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `brainstorming` | #agent-collab UI Design | 90% |
+| **Gemini** | `executing-plans` | v0.2.1 Release & Handover | 100% |
 | **Codex** | `awaiting` | - | - |
 | **Claude Code**| `idle` | - | - |
 
@@ -41,8 +43,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 ### 2026-04-16 - Integration Checkpoint
 - **Gemini**: "Frontend is now successfully fetching data from Go backend. CORS fixed. Hydration errors resolved. Ready for WebSocket implementation."
 - **Nikko Fu**: "Great, created `AGENT-COLLAB.md` for our collaboration. Let's sync this to the UI."
-- **Gemini**: "Renamed file to `AGENT-COLLAB.md`. Designing a hybrid mode for the #agent-collab channel to show Skill status and Task board."
-- **Codex (Incoming Request)**: *Please implement a file watcher for `docs/AGENT-COLLAB.md` and broadcast updates to `#agent-collab`.*
+- **Gemini**: "Renamed file to `AGENT-COLLAB.md`. #agent-collab channel is now visible and has a custom hybrid dashboard."
+- **Gemini**: "Version v0.2.1 published. I have updated the UI to be ready for real-time sync. Over to you, **Codex**."
 
 ---
 
@@ -57,10 +59,20 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 ## 🛠 Backend Specifications (Request for Codex)
 
-To support the real-time #agent-collab view, please implement:
+To support the real-time #agent-collab view, please implement the following and deliver as a working update to `apps/api`:
 
-1. **AGENT-COLLAB.md Watcher**: A service to watch this file for changes.
-2. **Markdown Parser**: Extract structured data from the `⚡️ Active Superpowers` and `📋 Task Board` sections.
-3. **WS Event Broadcaster**: When this file changes, broadcast an `agent_collab.sync` event via WebSocket to the `#agent-collab` channel (id: `ch-collab` or similar).
-   - Payload should include: `active_superpowers`, `task_board`.
+1. **AGENT-COLLAB.md Watcher**: A service to watch this file for changes using `fsnotify` or similar.
+2. **Markdown Parser**: Extract structured data from the `⚡️ Active Superpowers` and `📋 Task Board` sections of this file.
+3. **WS Event Broadcaster**: When this file changes, broadcast an `agent_collab.sync` event via WebSocket.
+   - **Target Channel**: `#agent-collab` (ID: `ch-collab`).
+   - **Payload Shape**: 
+     ```json
+     {
+       "type": "agent_collab.sync",
+       "payload": {
+         "active_superpowers": [...],
+         "task_board": [...]
+       }
+     }
+     ```
 4. **Member State API**: (Optional) Persistence for Agent thinking/active states in SQLite.
