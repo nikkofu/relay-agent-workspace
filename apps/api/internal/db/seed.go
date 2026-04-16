@@ -1,76 +1,164 @@
 package db
 
-import "github.com/nikkofu/relay-agent-workspace/api/internal/domain"
+import (
+	"encoding/json"
+	"time"
+
+	"github.com/nikkofu/relay-agent-workspace/api/internal/domain"
+)
 
 func SeedData() {
-	org := domain.Organization{
-		ID:   "org_1",
-		Name: "Relay Labs",
-	}
+	// 1. Organizations
+	org := domain.Organization{ID: "ws-1", Name: "Acme Corp"}
 	DB.FirstOrCreate(&org, domain.Organization{ID: org.ID})
 
-	team := domain.Team{
-		ID:             "team_1",
-		OrganizationID: org.ID,
-		Name:           "Product",
-	}
-	DB.FirstOrCreate(&team, domain.Team{ID: team.ID})
+	org2 := domain.Organization{ID: "ws-2", Name: "Side Project"}
+	DB.FirstOrCreate(&org2, domain.Organization{ID: org2.ID})
 
-	team2 := domain.Team{
-		ID:             "team_2",
-		OrganizationID: org.ID,
-		Name:           "Engineering",
+	// 2. Users (from mock-data.ts)
+	users := []domain.User{
+		{
+			ID:             "user-1",
+			OrganizationID: org.ID,
+			Name:           "Nikko Fu",
+			Email:          "nikko@example.com",
+			Avatar:         "https://github.com/nikkofu.png",
+			Status:         "online",
+		},
+		{
+			ID:             "user-2",
+			OrganizationID: org.ID,
+			Name:           "AI Assistant",
+			Email:          "ai@acim.ai",
+			Avatar:         "https://api.dicebear.com/7.x/bottts/svg?seed=ai",
+			Status:         "online",
+		},
+		{
+			ID:             "user-3",
+			OrganizationID: org.ID,
+			Name:           "John Doe",
+			Email:          "john@example.com",
+			Avatar:         "https://i.pravatar.cc/150?u=john",
+			Status:         "away",
+		},
+		{
+			ID:             "user-4",
+			OrganizationID: org.ID,
+			Name:           "Jane Smith",
+			Email:          "jane@example.com",
+			Avatar:         "https://i.pravatar.cc/150?u=jane",
+			Status:         "offline",
+		},
 	}
-	DB.FirstOrCreate(&team2, domain.Team{ID: team2.ID})
 
-	user := domain.User{
-		ID:             "u_1",
-		OrganizationID: org.ID,
-		Name:           "Nikko Fu",
-		Email:          "nikko@relay.ai",
-		Avatar:         "https://github.com/nikkofu.png",
-		Status:         "online",
+	for _, u := range users {
+		DB.FirstOrCreate(&u, domain.User{ID: u.ID})
 	}
-	DB.FirstOrCreate(&user, domain.User{ID: user.ID})
 
-	agent := domain.Agent{
-		ID:             "agent_1",
-		OrganizationID: org.ID,
-		Name:           "Relay Assistant",
-		Type:           "general",
-		OwnerID:        user.ID,
+	// 3. Workspaces (from mock-data.ts)
+	workspaces := []domain.Workspace{
+		{ID: "ws-1", OrganizationID: org.ID, Name: "Acme Corp"},
+		{ID: "ws-2", OrganizationID: org2.ID, Name: "Side Project"},
 	}
-	DB.FirstOrCreate(&agent, domain.Agent{ID: agent.ID})
 
-	agent2 := domain.Agent{
-		ID:             "agent_2",
-		OrganizationID: org.ID,
-		Name:           "Relay Researcher",
-		Type:           "research",
-		OwnerID:        user.ID,
+	for _, w := range workspaces {
+		DB.FirstOrCreate(&w, domain.Workspace{ID: w.ID})
 	}
-	DB.FirstOrCreate(&agent2, domain.Agent{ID: agent2.ID})
 
-	workspace := domain.Workspace{
-		ID:             "ws_1",
-		OrganizationID: org.ID,
-		Name:           "Relay Workspace",
+	// 4. Channels (from mock-data.ts)
+	channels := []domain.Channel{
+		{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public", Description: "Company-wide announcements and work-based matters", MemberCount: 15, IsStarred: true},
+		{ID: "ch-2", WorkspaceID: "ws-1", Name: "random", Type: "public", Description: "Non-work-related banter and water cooler talk", MemberCount: 12},
+		{ID: "ch-3", WorkspaceID: "ws-1", Name: "engineering", Type: "public", Description: "Technical discussions and code reviews", MemberCount: 8, UnreadCount: 3},
+		{ID: "ch-4", WorkspaceID: "ws-1", Name: "design", Type: "public", Description: "UI/UX design critiques and inspiration", MemberCount: 5},
+		{ID: "ch-5", WorkspaceID: "ws-1", Name: "ai-lab", Type: "public", Description: "Exploring the future of AI-native applications", MemberCount: 10, IsStarred: true, UnreadCount: 12},
+		{ID: "ch-6", WorkspaceID: "ws-1", Name: "private-deal", Type: "private", MemberCount: 3},
 	}
-	DB.FirstOrCreate(&workspace, domain.Workspace{ID: workspace.ID})
 
-	channel := domain.Channel{
-		ID:          "ch_1",
-		WorkspaceID: workspace.ID,
-		Name:        "general",
-		Type:        "public",
+	for _, ch := range channels {
+		DB.FirstOrCreate(&ch, domain.Channel{ID: ch.ID})
 	}
-	DB.FirstOrCreate(&channel, domain.Channel{ID: channel.ID})
 
-	message := domain.Message{
-		ID:        "msg_1",
-		ChannelID: channel.ID,
-		UserID:    user.ID,
-		Content:   "Relay backend seed data is ready.",
+	// 5. Messages (from mock-data.ts)
+	type MockMessage struct {
+		ID          string
+		Content     string
+		SenderID    string
+		ChannelID   string
+		CreatedAt   string
+		Reactions   interface{}
+		Attachments interface{}
 	}
-	DB.FirstOrCreate(&message, domain.Message{ID: message.ID})
+
+	mockMessages := []MockMessage{
+		{
+			ID:        "msg-1",
+			Content:   "Welcome to the team everyone! Glad to have you here.",
+			SenderID:  "user-1",
+			ChannelID: "ch-1",
+			CreatedAt: "2026-04-14T10:00:00Z",
+			Reactions: []map[string]interface{}{{"emoji": "👋", "count": 3, "userIds": []string{"user-2", "user-3", "user-4"}}},
+		},
+		{
+			ID:        "msg-2",
+			Content:   "Thanks @Nikko Fu! Excited to get started on the AI integration.",
+			SenderID:  "user-3",
+			ChannelID: "ch-1",
+			CreatedAt: "2026-04-14T11:30:00Z",
+		},
+		{
+			ID:        "msg-3",
+			Content:   "I've drafted the implementation plan for Relay Agent Workspace. Take a look: https://github.com/nikkofu/relay-agent-workspace",
+			SenderID:  "user-1",
+			ChannelID: "ch-5",
+			CreatedAt: "2026-04-15T08:00:00Z",
+			Attachments: []map[string]interface{}{{"id": "att-1", "type": "link", "url": "https://github.com/nikkofu/relay-agent-workspace", "name": "Relay Agent Workspace Repository"}},
+		},
+		{
+			ID:        "msg-4",
+			Content:   "The AI components look promising. Can we add support for streaming responses?",
+			SenderID:  "user-4",
+			ChannelID: "ch-5",
+			CreatedAt: "2026-04-15T08:30:00Z",
+		},
+		{
+			ID:        "msg-5",
+			Content:   "Absolutely. Vercel AI SDK provides great primitives for that. I'll include it in Phase 3.",
+			SenderID:  "user-1",
+			ChannelID: "ch-5",
+			CreatedAt: "2026-04-15T09:00:00Z",
+			Reactions: []map[string]interface{}{{"emoji": "✅", "count": 2, "userIds": []string{"user-4", "user-2"}}},
+		},
+		{
+			ID:        "msg-6",
+			Content:   "Here is a quick summary of today's progress:\n- Setup project with Next.js 15\n- Initialized shadcn/ui components\n- Defined core types and mock data",
+			SenderID:  "user-2",
+			ChannelID: "ch-5",
+			CreatedAt: "2026-04-15T09:30:00Z",
+		},
+	}
+
+	for _, m := range mockMessages {
+		t, _ := time.Parse(time.RFC3339, m.CreatedAt)
+		
+		metadata := make(map[string]interface{})
+		if m.Reactions != nil {
+			metadata["reactions"] = m.Reactions
+		}
+		if m.Attachments != nil {
+			metadata["attachments"] = m.Attachments
+		}
+		
+		metadataJSON, _ := json.Marshal(metadata)
+
+		msg := domain.Message{
+			ID:        m.ID,
+			ChannelID: m.ChannelID,
+			UserID:    m.SenderID,
+			Content:   m.Content,
+			CreatedAt: t,
+			Metadata:  string(metadataJSON),
+		}
+		DB.FirstOrCreate(&msg, domain.Message{ID: msg.ID})
+	}
 }

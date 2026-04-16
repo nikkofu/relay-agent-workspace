@@ -42,6 +42,10 @@ type Channel struct {
 	WorkspaceID string `json:"workspace_id"`
 	Name        string `json:"name"`
 	Type        string `json:"type"`
+	Description string `json:"description"`
+	MemberCount int    `json:"member_count"`
+	UnreadCount int    `json:"unread_count"`
+	IsStarred   bool   `json:"is_starred"`
 }
 
 type Message struct {
@@ -50,4 +54,5 @@ type Message struct {
 	UserID    string    `json:"user_id"`
 	Content   string    `json:"content"`
 	CreatedAt time.Time `json:"created_at"`
+	Metadata  string    `json:"metadata"` // 用于存储 Reactions/Attachments 的 JSON 字符串
 }
