@@ -8,6 +8,7 @@ import (
 
 	"github.com/nikkofu/relay-agent-workspace/api/internal/db"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/domain"
+	"github.com/nikkofu/relay-agent-workspace/api/internal/realtime"
 )
 
 func GetMe(c *gin.Context) {
@@ -117,6 +118,24 @@ func CreateMessage(c *gin.Context) {
 	if err := db.DB.Create(&msg).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create message"})
 		return
+	}
+
+	if RealtimeHub != nil {
+		var channel domain.Channel
+		db.DB.First(&channel, "id = ?", input.ChannelID)
+
+		if err := RealtimeHub.Broadcast(realtime.Event{
+			ID:          "evt_" + time.Now().Format("20060102150405.000000"),
+			Type:        "message.created",
+			WorkspaceID: channel.WorkspaceID,
+			ChannelID:   msg.ChannelID,
+			EntityID:    msg.ID,
+			TS:          time.Now().UTC().Format(time.RFC3339Nano),
+			Payload:     msg,
+		}); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to broadcast message event"})
+			return
+		}
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"message": msg})

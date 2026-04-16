@@ -7,6 +7,7 @@ import (
 
 	"github.com/nikkofu/relay-agent-workspace/api/internal/db"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/handlers"
+	"github.com/nikkofu/relay-agent-workspace/api/internal/realtime"
 )
 
 func main() {
@@ -17,6 +18,9 @@ func main() {
 	db.SeedData()
 
 	r := gin.Default()
+	hub := realtime.NewHub()
+	go hub.Run()
+	handlers.SetRealtimeHub(hub)
 
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "pong"})
@@ -32,6 +36,7 @@ func main() {
 		v1.GET("/channels", handlers.GetChannels)
 		v1.GET("/messages", handlers.GetMessages)
 		v1.POST("/messages", handlers.CreateMessage)
+		v1.GET("/realtime", handlers.HandleRealtime)
 	}
 
 	r.Run(":8080")
