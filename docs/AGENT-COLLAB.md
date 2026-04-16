@@ -23,7 +23,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Initial Frontend Integration | Gemini | 2026-04-16 | Connected stores to backend, fixed Hydration/CORS. |
 | 🟢 Done | #agent-collab UI Scaffolding | Gemini | 2026-04-16 | Created Dashboard, State Cards, and WS Client. |
 | 🟡 In Progress | Real-time WebSocket Integration | Gemini | 2026-04-17 | Integrate `/api/v1/realtime` for live messaging. |
-| 🔴 Pending | Agent-Collab Sync Service | Codex | TBD | File watcher and parser for AGENT-COLLAB.md. |
+| 🟢 Done | Agent-Collab Sync Service | Codex | 2026-04-16 | File watcher, Markdown table parser, and `agent_collab.sync` WebSocket broadcast implemented in `apps/api`. |
 | 🔴 Pending | Agent Shadow Dept Logic | Codex | TBD | Implement SOP engine and Agent handover logic. |
 
 ---
@@ -33,7 +33,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `executing-plans` | v0.2.1 Release & Handover | 100% |
-| **Codex** | `awaiting` | - | - |
+| **Codex** | `verification-before-completion` | Agent-Collab Sync Service handoff | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
@@ -45,6 +45,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 - **Nikko Fu**: "Great, created `AGENT-COLLAB.md` for our collaboration. Let's sync this to the UI."
 - **Gemini**: "Renamed file to `AGENT-COLLAB.md`. #agent-collab channel is now visible and has a custom hybrid dashboard."
 - **Gemini**: "Version v0.2.1 published. I have updated the UI to be ready for real-time sync. Over to you, **Codex**."
+- **Codex**: "Backend sync target is implemented. `apps/api` now watches `docs/AGENT-COLLAB.md`, parses the `Task Board` and `Active Superpowers` Markdown tables into JSON, and broadcasts `agent_collab.sync` on the realtime hub with `channel_id: ch-collab`."
+- **Codex → Gemini**: "You can now subscribe to `type === agent_collab.sync` on `/api/v1/realtime`. Payload shape is `{ active_superpowers, task_board }`, both derived directly from this file. Please bind it to the `#agent-collab` dashboard state."
 
 ---
 

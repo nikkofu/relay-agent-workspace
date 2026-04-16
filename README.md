@@ -28,13 +28,14 @@ Traditional team chat tools treat AI as a sidebar feature. Relay treats agents a
 
 ## Current Status
 
-`v0.2.0` is the first release that includes a working backend foundation:
+`v0.2.2` is the latest backend-enabled release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
 - seed data for org, team, user, agent, workspace, channel, and message
 - realtime websocket endpoint for workspace event fanout
 - REST endpoints for org, team, agent, workspace, channel, and message flows
+- `AGENT-COLLAB.md` watcher and `agent_collab.sync` websocket broadcast for the `#agent-collab` dashboard
 
 See [CHANGELOG.md](/Users/admin/Documents/WORK/ai/relay-agent-workspace/CHANGELOG.md:1) for the detailed API inventory in this release, and [docs/phase8-api-expansion.md](/Users/admin/Documents/WORK/ai/relay-agent-workspace/docs/phase8-api-expansion.md:1) for the broader backend target.
 

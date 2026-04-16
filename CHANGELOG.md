@@ -2,6 +2,55 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.2.2] - 2026-04-16
+
+This release adds the backend sync path for the `#agent-collab` workspace view and aligns the repository version with the latest cross-agent handoff.
+
+### Added
+
+- `docs/AGENT-COLLAB.md` file watcher in `apps/api`
+- Markdown table parser for:
+  - `Task Board`
+  - `Active Superpowers`
+- Realtime broadcast for `agent_collab.sync`
+
+### Realtime Event Added
+
+- `agent_collab.sync`
+  - Broadcast through `GET /api/v1/realtime`
+  - Fixed target channel id: `ch-collab`
+  - Payload shape:
+    - `active_superpowers`
+    - `task_board`
+
+Example payload:
+
+```json
+{
+  "type": "agent_collab.sync",
+  "channel_id": "ch-collab",
+  "payload": {
+    "active_superpowers": [],
+    "task_board": []
+  }
+}
+```
+
+### Backend Notes
+
+- Watch path defaults to `../../docs/AGENT-COLLAB.md` from `apps/api`
+- Sync is pushed on service startup and on subsequent file `write/create` events
+- Parsing currently targets the two collaboration tables only
+
+### Verification Used For This Release
+
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- Automated coverage added for:
+  - Markdown table parsing
+  - Direct sync broadcast
+  - Watcher-triggered broadcast after file write
+
 ## [0.2.0] - 2026-04-16
 
 This release turns Relay Agent Workspace into a monorepo with a working backend foundation. It is the first version suitable for frontend-to-backend integration across `apps/web` and `apps/api`.

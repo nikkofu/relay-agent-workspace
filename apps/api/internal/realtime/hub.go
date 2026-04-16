@@ -152,7 +152,9 @@ func (h *Hub) removeClient(c *client) {
 	}
 	h.mu.Unlock()
 
-	_ = c.conn.Close()
+	if c.conn != nil {
+		_ = c.conn.Close()
+	}
 }
 
 func marshalEvent(event Event) ([]byte, error) {

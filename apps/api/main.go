@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/nikkofu/relay-agent-workspace/api/internal/agentcollab"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/db"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/handlers"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/realtime"
@@ -34,6 +35,17 @@ func main() {
 	hub := realtime.NewHub()
 	go hub.Run()
 	handlers.SetRealtimeHub(hub)
+
+	collabService := agentcollab.NewService(agentcollab.DefaultPath(), hub)
+	if err := collabService.Start(); err != nil {
+		log.Printf("agent collab watcher disabled: %v", err)
+	} else {
+		defer func() {
+			if err := collabService.Close(); err != nil {
+				log.Printf("failed to close agent collab watcher: %v", err)
+			}
+		}()
+	}
 
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "pong"})
