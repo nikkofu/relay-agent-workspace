@@ -1,10 +1,12 @@
 import { useEffect, useRef } from 'react'
 import { API_BASE_URL } from '@/lib/constants'
 import { useMessageStore } from '@/stores/message-store'
+import { useCollabStore } from '@/stores/collab-store'
 
 export function useWebsocket() {
   const socketRef = useRef<WebSocket | null>(null)
   const { addMessage } = useMessageStore()
+  const { setCollabData } = useCollabStore()
 
   useEffect(() => {
     // Convert http://... to ws://...
@@ -35,6 +37,9 @@ export function useWebsocket() {
             reactions: [],
             attachments: []
           })
+        } else if (data.type === 'agent_collab.sync') {
+          console.log("Syncing Agent Collab data from backend...")
+          setCollabData(data.payload)
         }
       } catch (err) {
         console.error("Failed to parse WS message:", err)
