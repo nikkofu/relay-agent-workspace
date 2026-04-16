@@ -4,7 +4,7 @@ AI-native collaboration workspace for humans and agents, combining messaging, ar
 
 ## Overview
 
-Relay Agent Workspace is a TypeScript-first UI foundation for a shared workspace where people and agents can chat, think, coordinate, and execute together. The current repository focuses on the frontend experience: workspace navigation, channel messaging, threads, AI chat, search, and canvas-style artifact surfaces.
+Relay Agent Workspace is an AI-native collaboration workspace where people and agents can chat, think, coordinate, and execute together. The repository now includes both the Next.js app and an initial Go API for organizations, workspaces, channels, messages, and realtime events.
 
 It started as an internal Slack-inspired UI exploration and is now being repositioned as `Relay`: a broader collaboration product centered on realtime messaging plus agent-native workflows.
 
@@ -28,15 +28,15 @@ Traditional team chat tools treat AI as a sidebar feature. Relay treats agents a
 
 ## Current Status
 
-This repository is currently a frontend-first implementation with mock data and simulated AI flows. The next major step is backend integration:
+`v0.2.0` is the first release that includes a working backend foundation:
 
-- workspace, channel, message, and thread APIs
-- realtime messaging and presence
-- external LLM integration through a unified AI gateway
-- database-backed state and search
-- agent runtime and artifact persistence
+- Go + Gin API service under `apps/api`
+- SQLite persistence via GORM
+- seed data for org, team, user, agent, workspace, channel, and message
+- realtime websocket endpoint for workspace event fanout
+- REST endpoints for org, team, agent, workspace, channel, and message flows
 
-See [docs/phase8-api-expansion.md](/Users/admin/Documents/WORK/ai/relay-agent-workspace/docs/phase8-api-expansion.md:1) for the current backend API expansion analysis.
+See [CHANGELOG.md](/Users/admin/Documents/WORK/ai/relay-agent-workspace/CHANGELOG.md:1) for the detailed API inventory in this release, and [docs/phase8-api-expansion.md](/Users/admin/Documents/WORK/ai/relay-agent-workspace/docs/phase8-api-expansion.md:1) for the broader backend target.
 
 ## Tech Stack
 
@@ -44,9 +44,12 @@ See [docs/phase8-api-expansion.md](/Users/admin/Documents/WORK/ai/relay-agent-wo
 - React 19
 - TypeScript
 - Tailwind CSS v4
-- shadcn/ui
 - Zustand
 - Tiptap
+- Go
+- Gin
+- GORM
+- SQLite
 
 ## Local Development
 
@@ -57,10 +60,18 @@ pnpm dev
 
 Open `http://localhost:3000`.
 
+To start the API locally:
+
+```bash
+make api-dev
+```
+
+API server runs on `http://localhost:8080`.
+
 ## Roadmap
 
-- Connect the UI to real workspace and messaging APIs
-- Add realtime transport for messages, threads, presence, and AI streaming
+- Connect the UI to the shipped org/workspace/message APIs
+- Expand realtime beyond `message.created` into presence, typing, and thread events
 - Introduce an AI gateway for external LLM providers
 - Add database-backed search, artifacts, and agent execution history
 - Keep strengthening the Relay brand across docs, metadata, and product surfaces
@@ -68,13 +79,9 @@ Open `http://localhost:3000`.
 ## Repository Structure
 
 ```txt
-app/                  Next.js app router pages and layouts
-components/           UI, layout, message, AI, search, and canvas components
-hooks/                Client-side hooks, including simulated AI chat
-stores/               Zustand state stores
-lib/                  Mock data and utilities
-types/                Shared TypeScript types
-docs/                 Implementation, positioning, and migration documents
+apps/web/             Next.js app, UI components, hooks, stores, and mock flows
+apps/api/             Go API, SQLite integration, REST handlers, and realtime hub
+docs/                 Implementation, positioning, migration, and backend notes
 ```
 
 ## Repository Metadata
