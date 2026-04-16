@@ -6,7 +6,8 @@
     "web:build": "pnpm --filter web build",
     "api:dev": "make -C apps/api dev",
     "dev": "pnpm run web:dev",
-    "lint": "pnpm --filter web lint"
+    "lint": "pnpm --filter web lint",
+    "build": "pnpm --filter web build"
   },
   "packageManager": "pnpm@10.32.1+sha512.a706938f0e89ac1456b6563eab4edf1d1faf3368d1191fc5c59790e96dc918e4456ab2e67d613de1043d2e8c81f87303e6b40d4ffeca9df15ef1ad567348f2be"
 }
