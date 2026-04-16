@@ -1,8 +1,10 @@
 # Phase 3: AI-Native 能力集成实施计划
 
+> 历史说明：本计划编写于项目早期原型阶段，当时整体仓库仍以 Slack 风格协作 UI 为切入点，当前产品名称已更新为 `Relay Agent Workspace`。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 在 Slack 复刻版中深度集成 AI 能力，包括模拟流式对话、思考过程展示、AI Slash 命令以及 @AI 助手交互。
+**Goal:** 在早期 Slack 风格协作原型中深度集成 AI 能力，包括模拟流式对话、思考过程展示、AI Slash 命令以及 @AI 助手交互。
 
 **Architecture:** 
 - 使用 `use-ai-chat.ts` Hook 模拟 Vercel AI SDK 的流式行为。

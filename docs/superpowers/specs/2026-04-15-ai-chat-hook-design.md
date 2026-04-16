@@ -1,7 +1,9 @@
 # AI 对话 Hook 设计文档 (2026-04-15)
 
+> 历史说明：本设计文档形成于项目早期，当时仓库仍使用 `acim-ui / ACIM-UI` 作为代号。当前产品名称为 `Relay Agent Workspace`。
+
 ## 目标
-实现 `useAIChat` Hook，用于在 ACIM-UI 项目中模拟 AI 对话逻辑。该 Hook 需要支持流式输出模拟、思考（reasoning）阶段，以及对话历史管理。
+实现 `useAIChat` Hook，用于在 `Relay Agent Workspace` 的早期前端中模拟 AI 对话逻辑。该 Hook 需要支持流式输出模拟、思考（reasoning）阶段，以及对话历史管理。
 
 ## 核心接口变更
 

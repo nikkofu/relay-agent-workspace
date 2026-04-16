@@ -1,5 +1,7 @@
 # AI Chat Hook (Simulated Streaming) Implementation Plan
 
+> Historical note: this implementation plan was drafted during the project's early `acim-ui` phase. The current product name is `Relay Agent Workspace`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Implement a `useAIChat` React Hook that simulates AI dialogue with reasoning, tool-calling states, and word-by-word streaming output.

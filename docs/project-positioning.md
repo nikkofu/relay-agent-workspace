@@ -22,7 +22,7 @@ Relay combines realtime messaging, shared context, AI chat, artifacts, and agent
 
 ## What The Product Is Not
 
-- Not just a Slack clone
+- Not a clone-only messaging demo
 - Not just an AI sidebar on top of chat
 - Not only a generic LLM UI shell
 - Not yet a full production backend platform
@@ -103,5 +103,4 @@ The system should evolve from simple AI responses to visible, auditable, multi-s
 
 ## Migration Note
 
-This repository began as `acim-ui`, an internal Slack-inspired frontend exploration. The rename to `Relay Agent Workspace` reflects a broader product direction: from UI clone exercise to AI-native collaboration workspace.
-
+This repository began as `acim-ui`, an internal Slack-inspired frontend exploration. The rename to `Relay Agent Workspace` reflects a broader product direction: from early UI exploration to AI-native collaboration workspace.
