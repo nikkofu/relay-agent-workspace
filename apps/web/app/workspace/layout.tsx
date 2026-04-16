@@ -11,7 +11,8 @@ import { useUIStore } from "@/stores/ui-store"
 import { useWorkspaceStore } from "@/stores/workspace-store"
 import { useChannelStore } from "@/stores/channel-store"
 import { useUserStore } from "@/stores/user-store"
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
+import { useWebsocket } from "@/hooks/use-websocket"
 
 export default function WorkspaceLayout({
   children,
@@ -23,14 +24,23 @@ export default function WorkspaceLayout({
   const { fetchChannels } = useChannelStore()
   const { fetchMe } = useUserStore()
   const showRightPanel = isThreadOpen || isAIPanelOpen || isCanvasOpen
+  
+  useWebsocket()
+  
+  const workspacesFetched = useRef(false)
+  const lastChannelsWorkspaceId = useRef<string | null>(null)
 
   useEffect(() => {
-    fetchMe()
-    fetchWorkspaces()
+    if (!workspacesFetched.current) {
+      workspacesFetched.current = true
+      fetchMe()
+      fetchWorkspaces()
+    }
   }, [fetchMe, fetchWorkspaces])
 
   useEffect(() => {
-    if (currentWorkspace) {
+    if (currentWorkspace && currentWorkspace.id !== lastChannelsWorkspaceId.current) {
+      lastChannelsWorkspaceId.current = currentWorkspace.id
       fetchChannels(currentWorkspace.id)
     }
   }, [currentWorkspace, fetchChannels])

@@ -5,7 +5,7 @@ import { MessageItem } from "./message-item"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { USERS } from "@/lib/mock-data"
 import { format, isSameDay } from "date-fns"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 
 interface MessageListProps {
   messages: Message[]
@@ -13,6 +13,11 @@ interface MessageListProps {
 
 export function MessageList({ messages }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -51,7 +56,7 @@ export function MessageList({ messages }: MessageListProps) {
                 <div className="flex items-center gap-4 my-6 relative">
                   <div className="h-[1px] bg-border flex-1" />
                   <div className="px-4 py-1 border rounded-full text-xs font-bold bg-white dark:bg-[#1a1d21] shadow-sm sticky top-0 z-10">
-                    {format(new Date(msg.createdAt), "EEEE, MMMM do")}
+                    {mounted ? format(new Date(msg.createdAt), "EEEE, MMMM do") : null}
                   </div>
                   <div className="h-[1px] bg-border flex-1" />
                 </div>

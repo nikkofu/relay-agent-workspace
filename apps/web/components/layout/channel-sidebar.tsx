@@ -9,7 +9,7 @@ import { useWorkspaceStore } from "@/stores/workspace-store"
 import { useChannelStore } from "@/stores/channel-store"
 import { useUIStore } from "@/stores/ui-store"
 import { HuddleBar } from "@/components/huddle/huddle-bar"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Badge } from "@/components/ui/badge"
 
 export function ChannelSidebar() {
@@ -17,9 +17,20 @@ export function ChannelSidebar() {
   const { channels, currentChannel, setCurrentChannel } = useChannelStore()
   const { openSearch } = useUIStore()
   const [openSections, setOpenSections] = useState({ starred: true, channels: true, dms: true })
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const starredChannels = channels.filter(c => c.isStarred)
   const regularChannels = channels.filter(c => !c.isStarred)
+
+  if (!mounted) {
+    return (
+      <nav className="w-[260px] bg-[#3f0e40] dark:bg-[#19171d] flex flex-col h-full text-[#cfc3cf] dark:text-[#9b999b] shrink-0 border-r border-white/5 shadow-xl relative z-10" />
+    )
+  }
 
   return (
     <nav className="w-[260px] bg-[#3f0e40] dark:bg-[#19171d] flex flex-col h-full text-[#cfc3cf] dark:text-[#9b999b] shrink-0 border-r border-white/5 shadow-xl relative z-10">

@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { MessageActions } from "./message-actions"
 import { EmojiReaction } from "./emoji-reaction"
 import { useUIStore } from "@/stores/ui-store"
+import { useState, useEffect } from "react"
 
 interface MessageItemProps {
   message: Message
@@ -17,6 +18,11 @@ interface MessageItemProps {
 
 export function MessageItem({ message, sender, isCompact, showActions = true }: MessageItemProps) {
   const { openThread } = useUIStore()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   return (
     <div className={cn(
@@ -29,7 +35,7 @@ export function MessageItem({ message, sender, isCompact, showActions = true }: 
           <UserAvatar src={sender.avatar} name={sender.name} status={sender.status} user={sender} />
         ) : (
           <span className="text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
-            {format(new Date(message.createdAt), "h:mm")}
+            {mounted ? format(new Date(message.createdAt), "h:mm") : null}
           </span>
         )}
       </div>
@@ -40,7 +46,7 @@ export function MessageItem({ message, sender, isCompact, showActions = true }: 
           <div className="flex items-center gap-2 leading-tight">
             <span className="font-bold text-sm hover:underline cursor-pointer">{sender.name}</span>
             <span className="text-[11px] text-muted-foreground">
-              {format(new Date(message.createdAt), "h:mm a")}
+              {mounted ? format(new Date(message.createdAt), "h:mm a") : null}
             </span>
           </div>
         )}

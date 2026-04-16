@@ -9,6 +9,7 @@ import { useWorkspaceStore } from "@/stores/workspace-store"
 import { useUIStore } from "@/stores/ui-store"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useState, useEffect } from "react"
 
 const NAV_ITEMS = [
   { icon: Home, label: "Home", href: "/workspace" },
@@ -22,6 +23,17 @@ export function PrimaryNav() {
   const { currentWorkspace } = useWorkspaceStore()
   const { toggleAIPanel, isAIPanelOpen } = useUIStore()
   const pathname = usePathname()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted) {
+    return (
+      <aside className="w-[60px] bg-[#3f0e40] dark:bg-[#1a1d21] flex flex-col items-center py-3 gap-4 border-r border-white/10 shrink-0 relative z-20" />
+    )
+  }
 
   return (
     <aside className="w-[60px] bg-[#3f0e40] dark:bg-[#1a1d21] flex flex-col items-center py-3 gap-4 border-r border-white/10 shrink-0 relative z-20">

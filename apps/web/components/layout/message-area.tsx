@@ -5,14 +5,17 @@ import { useMessageStore } from "@/stores/message-store"
 import { Hash, Lock, Info, Phone, Video, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { MessageComposer } from "@/components/message/message-composer"
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
+import { AgentCollabDashboard } from "./agent-collab-dashboard"
 
 export function MessageArea({ children }: { children?: React.ReactNode }) {
   const { currentChannel } = useChannelStore()
   const { fetchMessages, sendMessage } = useMessageStore()
+  const lastFetchedId = useRef<string | null>(null)
   
   useEffect(() => {
-    if (currentChannel) {
+    if (currentChannel && currentChannel.id !== lastFetchedId.current) {
+      lastFetchedId.current = currentChannel.id
       fetchMessages(currentChannel.id)
     }
   }, [currentChannel, fetchMessages])
@@ -32,7 +35,7 @@ export function MessageArea({ children }: { children?: React.ReactNode }) {
       {/* Channel Header */}
       <header className="h-14 px-4 flex items-center justify-between border-b shrink-0">
         <div className="flex items-center gap-1.5 min-w-0">
-          <Button variant="ghost" size="sm" className="px-1 hover:bg-muted font-bold text-lg">
+          <Button variant="ghost" size="sm" className="px-1 hover:bg-muted font-bold text-lg text-foreground">
             <Icon className="w-4 h-4 mr-1" />
             <span className="truncate">{currentChannel.name}</span>
           </Button>
@@ -65,8 +68,11 @@ export function MessageArea({ children }: { children?: React.ReactNode }) {
       </header>
 
       {/* Messages List Area */}
-      <div className="flex-1 overflow-hidden relative">
-        {children}
+      <div className="flex-1 overflow-hidden relative flex flex-col">
+        {currentChannel.name === "agent-collab" && <AgentCollabDashboard />}
+        <div className="flex-1 overflow-hidden relative">
+          {children}
+        </div>
       </div>
 
       {/* Message Composer */}
