@@ -1,6 +1,9 @@
 package db
 
 import (
+	"os"
+	"path/filepath"
+
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
@@ -10,8 +13,13 @@ import (
 var DB *gorm.DB
 
 func InitDB() error {
+	dbPath := filepath.Join("db", "relay.db")
+	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
+		return err
+	}
+
 	var err error
-	DB, err = gorm.Open(sqlite.Open("relay.db"), &gorm.Config{})
+	DB, err = gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	if err != nil {
 		return err
 	}
