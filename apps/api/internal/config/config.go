@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -38,7 +39,14 @@ func mergeConfigFile(path string, cfg *llm.Config) error {
 		}
 		return err
 	}
-	return yaml.Unmarshal(content, cfg)
+	normalized := strings.ReplaceAll(string(content), "\t", "  ")
+	var overlay llm.Config
+	if err := yaml.Unmarshal([]byte(normalized), &overlay); err != nil {
+		return err
+	}
+
+	mergeConfig(cfg, overlay)
+	return nil
 }
 
 func applyEnvOverrides(cfg *llm.Config) {
@@ -83,4 +91,53 @@ func normalizeProviderEnvName(name string) string {
 		out = append(out, r)
 	}
 	return string(out)
+}
+
+func mergeConfig(dst *llm.Config, src llm.Config) {
+	if src.DefaultProvider != "" {
+		dst.DefaultProvider = src.DefaultProvider
+	}
+	if dst.Providers == nil {
+		dst.Providers = map[string]llm.ProviderConfig{}
+	}
+
+	for name, provider := range src.Providers {
+		merged := dst.Providers[name]
+		if provider.Name != "" {
+			merged.Name = provider.Name
+		}
+		if provider.Kind != "" {
+			merged.Kind = provider.Kind
+		}
+		if provider.BaseURL != "" {
+			merged.BaseURL = provider.BaseURL
+		}
+		if provider.APIKey != "" {
+			merged.APIKey = provider.APIKey
+		}
+		if provider.Model != "" {
+			merged.Model = provider.Model
+		}
+		if provider.APIStyle != "" {
+			merged.APIStyle = provider.APIStyle
+		}
+		if provider.Enabled {
+			merged.Enabled = true
+		}
+		if provider.Temperature != 0 {
+			merged.Temperature = provider.Temperature
+		}
+		if provider.MaxOutputTokens != 0 {
+			merged.MaxOutputTokens = provider.MaxOutputTokens
+		}
+		if len(provider.Headers) > 0 {
+			if merged.Headers == nil {
+				merged.Headers = map[string]string{}
+			}
+			for key, value := range provider.Headers {
+				merged.Headers[key] = value
+			}
+		}
+		dst.Providers[name] = merged
+	}
 }

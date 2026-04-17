@@ -49,8 +49,14 @@ providers:
 	if cfg.Providers["openrouter"].Model != "openai/gpt-4.1-mini" {
 		t.Fatalf("expected local override for openrouter model, got %s", cfg.Providers["openrouter"].Model)
 	}
+	if !cfg.Providers["openrouter"].Enabled {
+		t.Fatalf("expected openrouter enabled flag to be preserved across layered merge")
+	}
 	if cfg.Providers["gemini"].APIKey != "secret-gemini-key" {
 		t.Fatalf("expected secrets override for gemini api key, got %s", cfg.Providers["gemini"].APIKey)
+	}
+	if cfg.Providers["gemini"].Kind != "gemini" {
+		t.Fatalf("expected gemini kind to survive merge, got %s", cfg.Providers["gemini"].Kind)
 	}
 	if cfg.Providers["gemini"].BaseURL != "https://generativelanguage.googleapis.com/v1beta" {
 		t.Fatalf("expected env override base url, got %s", cfg.Providers["gemini"].BaseURL)

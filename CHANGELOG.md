@@ -2,6 +2,25 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.2.5] - 2026-04-17
+
+This release hardens local LLM configuration loading and records the first real upstream validation pass against the configured providers.
+
+### Fixed
+
+- layered LLM config merge now preserves provider defaults while applying local overrides
+- local YAML parsing now tolerates tab characters in `llm.local.yaml`
+
+### Verified
+
+- local `gemini` provider configuration successfully streamed real SSE output through `POST /api/v1/ai/execute`
+- local `openrouter` configuration loaded correctly, but the selected free model returned upstream `429` rate limiting during validation
+
+### Notes
+
+- with the current local config, Gemini is the verified working provider for frontend integration
+- OpenRouter can still be used after switching to a non-rate-limited model or retrying later
+
 ## [0.2.4] - 2026-04-17
 
 This release adds the first real LLM gateway architecture plus the backend APIs Gemini requested for user resolution, message threading, and AI streaming.
