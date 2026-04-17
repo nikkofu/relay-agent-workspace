@@ -8,15 +8,19 @@ import { cn } from "@/lib/utils"
 import { useWorkspaceStore } from "@/stores/workspace-store"
 import { useChannelStore } from "@/stores/channel-store"
 import { useUIStore } from "@/stores/ui-store"
+import { useDMStore } from "@/stores/dm-store"
+import { useUserStore } from "@/stores/user-store"
 import { HuddleBar } from "@/components/huddle/huddle-bar"
 import { useState, useEffect } from "react"
 import { Badge } from "@/components/ui/badge"
 import { useRouter } from "next/navigation"
-import type { Channel } from "@/types"
+import type { Channel, DirectMessage } from "@/types"
 
 export function ChannelSidebar() {
   const { currentWorkspace } = useWorkspaceStore()
   const { channels, currentChannel, setCurrentChannel } = useChannelStore()
+  const { conversations, fetchConversations, currentConversation, setCurrentConversation } = useDMStore()
+  const { users, currentUser } = useUserStore()
   const { openSearch } = useUIStore()
   const [openSections, setOpenSections] = useState({ starred: true, channels: true, dms: true })
   const [mounted, setMounted] = useState(false)
@@ -24,14 +28,22 @@ export function ChannelSidebar() {
 
   useEffect(() => {
     setMounted(true)
-  }, [])
+    fetchConversations()
+  }, [fetchConversations])
 
   const starredChannels = channels.filter(c => c.isStarred)
   const regularChannels = channels.filter(c => !c.isStarred)
 
   const handleChannelClick = (channel: Channel) => {
     setCurrentChannel(channel)
+    setCurrentConversation(null)
     router.push(`/workspace?c=${channel.id}`)
+  }
+
+  const handleDMClick = (conv: DirectMessage) => {
+    setCurrentChannel(null)
+    setCurrentConversation(conv)
+    router.push(`/workspace/dms?id=${conv.id}`)
   }
 
   if (!mounted) {
@@ -125,17 +137,44 @@ export function ChannelSidebar() {
               <Plus className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
             <CollapsibleContent className="flex flex-col gap-[2px]">
-              <div className="flex items-center px-2 py-1.5 hover:bg-white/10 rounded cursor-pointer text-sm gap-2">
-                <div className="w-5 h-5 rounded bg-green-500/20 flex items-center justify-center">
-                  <div className="w-2 h-2 rounded-full bg-green-500" />
+              {conversations.map(conv => {
+                const otherUserId = conv.userIds.find(id => id !== currentUser?.id)
+                const user = users.find(u => u.id === otherUserId)
+                if (!user) return null
+
+                return (
+                  <div 
+                    key={conv.id} 
+                    onClick={() => handleDMClick(conv)}
+                    className={cn(
+                      "flex items-center px-2 py-1.5 hover:bg-[#1164a3] hover:text-white rounded cursor-pointer text-sm gap-2 transition-colors",
+                      currentConversation?.id === conv.id && "bg-[#1164a3] text-white"
+                    )}
+                  >
+                    <div className="relative shrink-0">
+                      <div className={cn(
+                        "w-5 h-5 rounded flex items-center justify-center",
+                        user.status === 'online' ? "bg-green-500/20" : "bg-white/10"
+                      )}>
+                        {user.id === 'user-2' ? (
+                          <Sparkles className="w-3 h-3 text-purple-400" />
+                        ) : (
+                          <div className={cn("w-2 h-2 rounded-full", user.status === 'online' ? "bg-green-500" : "bg-white/30")} />
+                        )}
+                      </div>
+                    </div>
+                    <span className="flex-1 truncate">{user.name}</span>
+                  </div>
+                )
+              })}
+              <div 
+                onClick={() => router.push('/workspace/dms')}
+                className="flex items-center px-2 py-1.5 hover:bg-white/10 rounded cursor-pointer text-sm gap-2 opacity-70"
+              >
+                <div className="bg-white/10 rounded p-0.5">
+                  <Plus className="w-3.5 h-3.5" />
                 </div>
-                <span className="flex-1 truncate">Nikko Fu (you)</span>
-              </div>
-              <div className="flex items-center px-2 py-1.5 hover:bg-white/10 rounded cursor-pointer text-sm gap-2">
-                <div className="w-5 h-5 rounded bg-purple-500/20 flex items-center justify-center">
-                  <Sparkles className="w-3 h-3 text-purple-400" />
-                </div>
-                <span className="flex-1 truncate">AI Assistant</span>
+                <span>Add teammates</span>
               </div>
             </CollapsibleContent>
           </Collapsible>

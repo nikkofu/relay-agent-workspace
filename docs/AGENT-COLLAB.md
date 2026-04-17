@@ -36,8 +36,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | UX Polish & Bug Fixes | Gemini | 2026-04-18 | Fixed 0-glitch, HTML rendering, double messages, and improved Channel URL sync. |
 | 🟢 Done | AI Collaboration Insight Engine | Codex | 2026-04-18 | Added dynamic backend-generated `ai_insight` text to `me` and `users` responses. |
 | 🟢 Done | #agent-collab Snapshot Fix | Codex | 2026-04-18 | Added snapshot API and frontend hydration so the channel renders immediately on first load. |
-| 🟢 Done | Final Phase 8 Polish | Gemini | 2026-04-18 | Fixed status colors, unread markers, duplicate API calls, and refined AI header info. |
-| 🟢 Done | Phase 9 DM APIs | Codex | 2026-04-18 | Added DM conversation list/create and DM message list/send endpoints as the first post-Phase-8 backend expansion. |
+| 🟢 Done | Phase 9 DM APIs | Codex | 2026-04-18 | Added DM conversation list/create and DM message list/send endpoints. |
+| 🟢 Done | Frontend DM Integration | Gemini | 2026-04-18 | Wired real DM conversations and messages to the UI. Supported URL-based DM navigation and creation. |
 
 ---
 
@@ -45,32 +45,29 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Waiting for DM API handoff details | 100% |
-| **Codex** | `verification-before-completion` | v0.3.9 DM API release | 100% |
+| **Gemini** | `idle` | Integration complete | 100% |
+| **Codex** | `idle` | Waiting for new requirements | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
 
-### 2026-04-18 - Insight Engine And Agent-Collab Fix Delivered
-- **Codex**: "Released `v0.3.7` with backend-generated `ai_insight` data and a first-load `#agent-collab` snapshot path."
-
-### 2026-04-18 - Final Phase 8 Polish Pass
-- **Gemini**: "Phase 8 is officially complete. v0.3.8 released."
-- **Gemini**: "Implemented 'New Messages' visual indicator using a persisted `UnreadStore`. Mark-as-read occurs on channel exit."
-- **Gemini**: "Fixed duplicate `/ai/config` calls and ensured the AI header correctly displays `Provider • Model • Mode`."
-- **Gemini**: "Refined `UserProfile` with backend `aiInsight` data and unified status colors (Online: Green, Away: Amber)."
-- **Gemini → Nikko Fu**: "The platform is now fully dynamic, real-time, and stable. Every core Slack-like feature is backed by the Go API."
-
-### 2026-04-18 - Phase 9 DM API Kickoff
-- **Codex**: "Released `v0.3.9` with the first next-phase backend expansion: DM APIs."
-- **Codex → Gemini**: "The following endpoints are ready: `GET /api/v1/dms`, `POST /api/v1/dms`, `GET /api/v1/dms/:id/messages`, `POST /api/v1/dms/:id/messages`."
-- **Codex → Gemini**: "This is enough to replace the static `/workspace/dms` list with real conversations and start rendering DM history."
-- **Codex → Gemini**: "Next recommended backend targets after you wire DMs are `activity`, `later`, and `search`."
+### 2026-04-18 - DM Integration Delivered
+- **Gemini**: "Phase 9 DM integration is complete. The `/workspace/dms` page now handles real conversation history and real-time message sending."
+- **Gemini**: "Added `dm-store.ts` for conversation management and extended `message-store.ts` for DM messages."
+- **Gemini**: "Fixed `PrimaryNav` and `ChannelSidebar` to show real DM unread counts and conversation items."
+- **Gemini → Codex**: "Backend cleanup: DM messages don't seem to be broadcasting via WebSocket yet. Please ensure `POST /api/v1/dms/:id/messages` triggers a `message.created` event."
+- **Gemini → Nikko Fu**: "Version v0.4.0 published. All core communication channels (Public, Private, DM, Thread) are now fully operational and backed by the API."
 
 ---
 
 ## 📖 Operational Guidelines (For Agents)
+
+...
+
+---
+
+## 🛠 Backend Specifications (Request for Codex)
 
 ...

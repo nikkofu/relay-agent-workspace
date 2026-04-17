@@ -7,10 +7,14 @@ interface MessageState {
   messages: Message[]
   currentThreadMessages: Message[]
   fetchMessages: (channelId: string) => Promise<void>
+  fetchDMMessages: (dmId: string) => Promise<void>
   fetchThread: (messageId: string) => Promise<void>
   addMessage: (message: Message) => void
   sendMessage: (channelId: string, content: string, userId: string, threadId?: string) => Promise<void>
+  sendDMMessage: (dmId: string, content: string, userId: string) => Promise<void>
   getMessagesByChannel: (channelId: string) => Message[]
+  getMessagesByDM: (dmId: string) => Message[]
+  // ... rest of actions
   addReaction: (messageId: string, emoji: string) => Promise<void>
   deleteMessage: (messageId: string) => Promise<void>
   pinMessage: (messageId: string) => Promise<void>
@@ -37,6 +41,7 @@ const mapMessage = (m: any): Message => {
     content: m.content,
     senderId: m.user_id,
     channelId: m.channel_id,
+    dmId: m.dm_id,
     threadId: m.thread_id,
     createdAt: m.created_at,
     reactions,
@@ -58,6 +63,16 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       set({ messages: mappedMessages })
     } catch (error) {
       console.error("Failed to fetch messages:", error)
+    }
+  },
+  fetchDMMessages: async (dmId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/dms/${dmId}/messages`)
+      const data = await response.json()
+      const mappedMessages = data.messages.map(mapMessage)
+      set({ messages: mappedMessages })
+    } catch (error) {
+      console.error("Failed to fetch DM messages:", error)
     }
   },
   fetchThread: async (messageId) => {
@@ -98,7 +113,22 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       console.error("Failed to send message:", error)
     }
   },
+  sendDMMessage: async (dmId, content, userId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/dms/${dmId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content, user_id: userId })
+      })
+      const data = await response.json()
+      const msg = mapMessage(data.message)
+      set((state) => ({ messages: [...state.messages, msg] }))
+    } catch (error) {
+      console.error("Failed to send DM message:", error)
+    }
+  },
   getMessagesByChannel: (channelId) => get().messages.filter((m) => m.channelId === channelId),
+  getMessagesByDM: (dmId) => get().messages.filter((m) => m.dmId === dmId),
   
   deleteMessageLocally: (messageId: string) => {
     set(state => ({

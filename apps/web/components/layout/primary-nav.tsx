@@ -7,13 +7,15 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils"
 import { useWorkspaceStore } from "@/stores/workspace-store"
 import { useUIStore } from "@/stores/ui-store"
+import { useUserStore } from "@/stores/user-store"
+import { useDMStore } from "@/stores/dm-store"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState, useEffect } from "react"
 
 const NAV_ITEMS = [
   { icon: Home, label: "Home", href: "/workspace" },
-  { icon: MessageSquare, label: "DMs", href: "/workspace/dms", count: 2 },
+  { icon: MessageSquare, label: "DMs", href: "/workspace/dms" },
   { icon: Bell, label: "Activity", href: "/workspace/activity" },
   { icon: Bookmark, label: "Later", href: "/workspace/later" },
   { icon: MoreHorizontal, label: "More", href: "#" },
@@ -22,6 +24,8 @@ const NAV_ITEMS = [
 export function PrimaryNav() {
   const { currentWorkspace } = useWorkspaceStore()
   const { toggleAIPanel, isAIPanelOpen } = useUIStore()
+  const { currentUser } = useUserStore()
+  const { conversations } = useDMStore()
   const pathname = usePathname()
   const [mounted, setMounted] = useState(false)
 
@@ -41,7 +45,7 @@ export function PrimaryNav() {
       <Tooltip>
         <TooltipTrigger asChild>
           <Button variant="ghost" size="icon" className="w-9 h-9 p-0 hover:bg-white/10">
-            <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center text-white font-bold text-sm">
+            <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center text-white font-bold text-sm text-foreground">
               {currentWorkspace?.logo}
             </div>
           </Button>
@@ -54,6 +58,11 @@ export function PrimaryNav() {
       <div className="flex flex-col gap-1 w-full items-center">
         {NAV_ITEMS.map((item, idx) => {
           const isActive = pathname === item.href
+          let unreadCount = 0
+          if (item.label === "DMs") {
+            unreadCount = conversations.reduce((acc, c) => acc + (c.unreadCount || 0), 0)
+          }
+
           return (
             <Tooltip key={idx}>
               <TooltipTrigger asChild>
@@ -67,9 +76,9 @@ export function PrimaryNav() {
                     )}
                   >
                     <item.icon className="w-5 h-5" />
-                    {item.count && (
+                    {unreadCount > 0 && (
                       <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#e01e5a] text-white text-[10px] rounded-full flex items-center justify-center border-2 border-[#3f0e40] dark:border-[#1a1d21]">
-                        {item.count}
+                        {unreadCount}
                       </span>
                     )}
                   </Button>
@@ -111,12 +120,12 @@ export function PrimaryNav() {
         <Tooltip>
           <TooltipTrigger asChild>
             <Avatar className="w-8 h-8 cursor-pointer border border-white/10">
-              <AvatarImage src="https://github.com/nikkofu.png" />
-              <AvatarFallback>NF</AvatarFallback>
+              <AvatarImage src={currentUser?.avatar} />
+              <AvatarFallback>{currentUser?.name?.substring(0, 2).toUpperCase() || "NF"}</AvatarFallback>
             </Avatar>
           </TooltipTrigger>
           <TooltipContent side="right">
-            <p>Nikko Fu (Online)</p>
+            <p>{currentUser?.name} ({currentUser?.status})</p>
           </TooltipContent>
         </Tooltip>
       </div>
