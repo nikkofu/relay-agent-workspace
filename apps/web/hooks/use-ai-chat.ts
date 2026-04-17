@@ -159,6 +159,7 @@ export function useAIChat() {
       const reader = response.body?.getReader()
       const decoder = new TextDecoder()
       let fullContent = ""
+      let reasoningContent = ""
       let currentEvent = ""
 
       if (!reader) return
@@ -178,10 +179,17 @@ export function useAIChat() {
             try {
               const data = JSON.parse(trimmed.slice(6))
               
-              if (currentEvent === "chunk") {
+              if (currentEvent === "start") {
+                if (data.model) setCurrentModel(data.model)
+              } else if (currentEvent === "chunk") {
                 fullContent += data.text || ""
                 setMessages(prev => prev.map(m => 
                   m.id === assistantId ? { ...m, content: fullContent } : m
+                ))
+              } else if (currentEvent === "reasoning") {
+                reasoningContent += data.text || ""
+                setMessages(prev => prev.map(m => 
+                  m.id === assistantId ? { ...m, reasoning: reasoningContent } : m
                 ))
               } else if (currentEvent === "done") {
                 setMessages(prev => prev.map(m => 

@@ -26,8 +26,6 @@ export function useWebsocket() {
         console.log("WS Event received:", data.type)
 
         if (data.type === 'message.created') {
-          // Handle incoming message from WS
-          // Map backend payload to frontend Message type
           addMessage({
             id: data.payload.id,
             content: data.payload.content,
@@ -35,8 +33,17 @@ export function useWebsocket() {
             channelId: data.payload.channel_id,
             createdAt: data.payload.created_at,
             reactions: [],
-            attachments: []
+            attachments: [],
+            replyCount: data.payload.reply_count,
+            lastReplyAt: data.payload.last_reply_at
           })
+        } else if (data.type === 'message.deleted') {
+          const { message_id } = data.payload
+          useMessageStore.getState().deleteMessageLocally(message_id)
+        } else if (data.type === 'message.updated' || data.type === 'reaction.added' || data.type === 'reaction.removed') {
+          const updatedMsg = data.payload.message || data.payload
+          // We need a way to update a single message in the store
+          useMessageStore.getState().updateMessageLocally(updatedMsg)
         } else if (data.type === 'agent_collab.sync') {
           console.log("Syncing Agent Collab data from backend...")
           setCollabData(data.payload)

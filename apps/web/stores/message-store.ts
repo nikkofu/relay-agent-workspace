@@ -95,6 +95,21 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   },
   getMessagesByChannel: (channelId) => get().messages.filter((m) => m.channelId === channelId),
   
+  deleteMessageLocally: (messageId: string) => {
+    set(state => ({
+      messages: state.messages.filter(m => m.id !== messageId),
+      currentThreadMessages: state.currentThreadMessages.filter(m => m.id !== messageId)
+    }))
+  },
+
+  updateMessageLocally: (rawMessage: any) => {
+    const updatedMsg = mapMessage(rawMessage)
+    set(state => ({
+      messages: state.messages.map(m => m.id === updatedMsg.id ? updatedMsg : m),
+      currentThreadMessages: state.currentThreadMessages.map(m => m.id === updatedMsg.id ? updatedMsg : m)
+    }))
+  },
+
   addReaction: async (messageId, emoji) => {
     try {
       const response = await fetch(`${API_BASE_URL}/messages/${messageId}/reactions`, {
