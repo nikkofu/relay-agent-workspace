@@ -1,6 +1,6 @@
 {
   "name": "relay-agent-workspace-root",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "private": true,
   "scripts": {
     "web:dev": "pnpm --filter relay-agent-workspace dev",
