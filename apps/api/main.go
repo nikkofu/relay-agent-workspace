@@ -72,6 +72,7 @@ func main() {
 		v1.GET("/me", handlers.GetMe)
 		v1.PATCH("/me/settings", handlers.PatchMeSettings)
 		v1.GET("/users", handlers.GetUsers)
+		v1.GET("/agent-collab/snapshot", handlers.GetAgentCollabSnapshot)
 		v1.GET("/orgs", handlers.GetOrganizations)
 		v1.GET("/orgs/:id/teams", handlers.GetTeams)
 		v1.POST("/orgs/:id/agents", handlers.CreateAgent)

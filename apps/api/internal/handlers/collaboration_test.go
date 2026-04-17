@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -48,6 +50,9 @@ func TestGetUsersReturnsUsers(t *testing.T) {
 	}
 	if len(payload.Users) != 1 {
 		t.Fatalf("expected 1 user, got %d", len(payload.Users))
+	}
+	if payload.Users[0].AIInsight == "" {
+		t.Fatal("expected ai_insight to be populated")
 	}
 }
 
@@ -344,6 +349,54 @@ func TestPinSaveUnreadAndFeedbackEndpointsPersistState(t *testing.T) {
 	}
 	if !feedback.IsGood {
 		t.Fatal("expected feedback to be persisted as positive")
+	}
+}
+
+func TestGetAgentCollabSnapshotReturnsParsedMarkdown(t *testing.T) {
+	setupTestDB(t)
+
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "AGENT-COLLAB.md")
+	content := `## 📋 Task Board
+
+| Status | Task | Assigned To | Deadline | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| 🟢 Done | Snapshot API | Codex | 2026-04-18 | Confirm agent-collab snapshot loads. |
+
+## ⚡️ Active Superpowers (Live State)
+
+| Agent | Current Skill | Active Task | Progress |
+| :--- | :--- | :--- | :--- |
+| **Codex** | verification | Snapshot sync | 100% |
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("failed to write temp collab doc: %v", err)
+	}
+
+	prevPath := CollabSnapshotPath
+	CollabSnapshotPath = path
+	defer func() { CollabSnapshotPath = prevPath }()
+
+	router := gin.New()
+	router.GET("/api/v1/agent-collab/snapshot", GetAgentCollabSnapshot)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/agent-collab/snapshot", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		ActiveSuperpowers []map[string]any `json:"active_superpowers"`
+		TaskBoard         []map[string]any `json:"task_board"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode snapshot response: %v", err)
+	}
+	if len(payload.ActiveSuperpowers) != 1 || len(payload.TaskBoard) != 1 {
+		t.Fatalf("unexpected snapshot payload: %#v", payload)
 	}
 }
 

@@ -24,6 +24,7 @@ type User struct {
 	AIProvider     string `json:"ai_provider"`
 	AIModel        string `json:"ai_model"`
 	AIMode         string `json:"ai_mode"`
+	AIInsight      string `gorm:"-" json:"ai_insight,omitempty"`
 }
 
 type Agent struct {

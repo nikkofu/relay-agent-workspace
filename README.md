@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.3.4` is the current release line and includes:
+`v0.3.7` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -50,6 +50,8 @@ For product, design, and marketing, the short version is:
   - AI feedback
 - reasoning-aware AI SSE streaming
 - websocket sync for message reactions, pin updates, and deletions
+- backend-generated `ai_insight` for user profile hover cards
+- `GET /api/v1/agent-collab/snapshot` so `#agent-collab` renders on first load
 
 See [CHANGELOG.md](./CHANGELOG.md) for shipped API details, and [docs/phase8-api-expansion.md](./docs/phase8-api-expansion.md) for the broader backend target.
 

@@ -2,6 +2,34 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.3.7] - 2026-04-18
+
+This release adds a real backend collaboration insight path for user profiles and fixes `#agent-collab` so it renders meaningful content on first load.
+
+### Added
+
+- `GET /api/v1/agent-collab/snapshot`
+  - returns:
+    - `active_superpowers`
+    - `task_board`
+- dynamic `ai_insight` generation on existing user payloads:
+  - `GET /api/v1/me`
+  - `GET /api/v1/users`
+
+### Fixed
+
+- `#agent-collab` no longer depends on catching a startup websocket event
+- frontend collab store now correctly maps backend lowercase JSON keys
+- the dashboard now renders both:
+  - agent cards
+  - task board rows
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm build`
+
 ## [0.3.4] - 2026-04-18
 
 This release closes the audit loop on the original LLM/thread/user API delivery plan and synchronizes repository-facing docs with the shipped backend state.

@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
+	"github.com/nikkofu/relay-agent-workspace/api/internal/agentcollab"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/db"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/domain"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/realtime"
@@ -20,6 +21,8 @@ type reactionSummary struct {
 	Count   int      `json:"count"`
 	UserIDs []string `json:"userIds"`
 }
+
+var CollabSnapshotPath = agentcollab.DefaultPath()
 
 type messageMetadata struct {
 	Reactions   []reactionSummary `json:"reactions,omitempty"`
@@ -32,6 +35,36 @@ func getCurrentUser() (domain.User, error) {
 		return domain.User{}, err
 	}
 	return user, nil
+}
+
+func buildUserInsight(user domain.User) string {
+	var messageCount int64
+	db.DB.Model(&domain.Message{}).Where("user_id = ?", user.ID).Count(&messageCount)
+
+	var threadReplyCount int64
+	db.DB.Model(&domain.Message{}).Where("user_id = ? AND thread_id <> ''", user.ID).Count(&threadReplyCount)
+
+	var reactionCount int64
+	db.DB.Table("message_reactions").
+		Joins("JOIN messages ON messages.id = message_reactions.message_id").
+		Where("messages.user_id = ?", user.ID).
+		Count(&reactionCount)
+
+	switch {
+	case messageCount >= 5 && reactionCount >= 2:
+		return user.Name + " is driving visible collaboration with frequent updates and strong team response."
+	case threadReplyCount >= 2:
+		return user.Name + " is active in threads and helps move discussions toward concrete next steps."
+	case messageCount > 0:
+		return user.Name + " is participating in the workspace and building recent collaboration history."
+	default:
+		return user.Name + " is present in the workspace, but there is not enough interaction history yet for a stronger insight."
+	}
+}
+
+func enrichUser(user domain.User) domain.User {
+	user.AIInsight = buildUserInsight(user)
+	return user
 }
 
 func broadcastRealtimeEvent(eventType string, message domain.Message, payload any) error {
@@ -144,7 +177,7 @@ func GetMe(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"user": user})
+	c.JSON(http.StatusOK, gin.H{"user": enrichUser(user)})
 }
 
 func PatchMeSettings(c *gin.Context) {
@@ -191,8 +224,24 @@ func GetUsers(c *gin.Context) {
 		query = query.Where("id = ?", userID)
 	}
 	query.Find(&users)
+	for idx := range users {
+		users[idx] = enrichUser(users[idx])
+	}
 
 	c.JSON(http.StatusOK, gin.H{"users": users})
+}
+
+func GetAgentCollabSnapshot(c *gin.Context) {
+	snapshot, err := agentcollab.ReadSnapshot(CollabSnapshotPath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read agent collab snapshot"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"active_superpowers": snapshot.ActiveSuperpowers,
+		"task_board":         snapshot.TaskBoard,
+	})
 }
 
 func GetTeams(c *gin.Context) {

@@ -54,7 +54,7 @@ export function UserProfile({ user }: UserProfileProps) {
             <span className="text-[10px] font-bold uppercase tracking-wider">AI Collaboration Insight</span>
           </div>
           <p className="text-[11px] leading-relaxed text-foreground/80 italic font-medium">
-            &quot;{user.name} is a key contributor. Best reached during their local business hours.&quot;
+            &quot;{user.aiInsight || `${user.name} is present in the workspace. Insight data is still loading.`}&quot;
           </p>
         </div>
 

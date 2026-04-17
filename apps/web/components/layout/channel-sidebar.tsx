@@ -11,7 +11,8 @@ import { useUIStore } from "@/stores/ui-store"
 import { HuddleBar } from "@/components/huddle/huddle-bar"
 import { useState, useEffect } from "react"
 import { Badge } from "@/components/ui/badge"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
+import type { Channel } from "@/types"
 
 export function ChannelSidebar() {
   const { currentWorkspace } = useWorkspaceStore()
@@ -20,7 +21,6 @@ export function ChannelSidebar() {
   const [openSections, setOpenSections] = useState({ starred: true, channels: true, dms: true })
   const [mounted, setMounted] = useState(false)
   const router = useRouter()
-  const searchParams = useSearchParams()
 
   useEffect(() => {
     setMounted(true)
@@ -29,7 +29,7 @@ export function ChannelSidebar() {
   const starredChannels = channels.filter(c => c.isStarred)
   const regularChannels = channels.filter(c => !c.isStarred)
 
-  const handleChannelClick = (channel: any) => {
+  const handleChannelClick = (channel: Channel) => {
     setCurrentChannel(channel)
     router.push(`/workspace?c=${channel.id}`)
   }

@@ -8,6 +8,7 @@ export interface User {
   status: UserStatus
   statusText?: string
   lastSeen?: string
+  aiInsight?: string
   aiProvider?: string
   aiModel?: string
   aiMode?: "fast" | "planning"

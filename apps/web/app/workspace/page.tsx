@@ -5,9 +5,9 @@ import { useMessageStore } from "@/stores/message-store"
 import { MessageList } from "@/components/message/message-list"
 import { MessageArea } from "@/components/layout/message-area"
 import { useSearchParams } from "next/navigation"
-import { useEffect } from "react"
+import { Suspense, useEffect } from "react"
 
-export default function WorkspacePage() {
+function WorkspaceContent() {
   const { currentChannel, setCurrentChannelById, channels } = useChannelStore()
   const { messages } = useMessageStore()
   const searchParams = useSearchParams()
@@ -53,5 +53,13 @@ export default function WorkspacePage() {
         </div>
       </div>
     </MessageArea>
+  )
+}
+
+export default function WorkspacePage() {
+  return (
+    <Suspense fallback={<div className="flex-1 flex items-center justify-center bg-white dark:bg-[#1a1d21] text-muted-foreground">Loading workspace...</div>}>
+      <WorkspaceContent />
+    </Suspense>
   )
 }

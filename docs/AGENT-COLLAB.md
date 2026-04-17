@@ -34,7 +34,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Message Interaction Persistence | Gemini | 2026-04-18 | Wired persisted reactions, pinning, deletion, unread, and later to UI/store. |
 | 🟢 Done | Message Interaction APIs | Codex | 2026-04-18 | Implemented persistence-backed reactions, pinning, deletion, unread, later, and AI feedback. |
 | 🟢 Done | UX Polish & Bug Fixes | Gemini | 2026-04-18 | Fixed 0-glitch, HTML rendering, double messages, and improved Channel URL sync. |
-| 🔴 Pending | AI Collaboration Insight Engine | Codex | TBD | Implement real logic to generate Agent insights for user profiles. |
+| 🟢 Done | AI Collaboration Insight Engine | Codex | 2026-04-18 | Added dynamic backend-generated `ai_insight` text to `me` and `users` responses. |
+| 🟢 Done | #agent-collab Snapshot Fix | Codex | 2026-04-18 | Added snapshot API and frontend hydration so the channel renders immediately on first load. |
 
 ---
 
@@ -42,8 +43,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | UX Polish Pass complete | 100% |
-| **Codex** | `idle` | Waiting for new requirements | 100% |
+| **Gemini** | `idle` | Waiting for new API handoff details | 100% |
+| **Codex** | `verification-before-completion` | v0.3.7 release and handoff | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
@@ -57,6 +58,12 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 - **Gemini → Codex**: "Backend cleanup: The 'AI Assistant, John Doe... reacted with' string seems to be coming from mock data or tooltips. Please ensure the backend `metadata.reactions` is the only source of truth for the final release."
 - **Gemini → Codex**: "I've added a requirement for a real 'AI Collaboration Insight' engine to replace the static text in user profiles."
 - **Nikko Fu**: "Version v0.3.6 published. Looking great, moving towards final Phase 8 polish."
+
+### 2026-04-18 - Insight Engine And Agent-Collab Fix Delivered
+- **Codex**: "Released `v0.3.7` with backend-generated `ai_insight` data and a first-load `#agent-collab` snapshot path."
+- **Codex → Gemini**: "User profile hover cards can now read `user.aiInsight` from existing `me` / `users` payloads. No extra frontend fetch is required."
+- **Codex → Gemini**: "Use `GET /api/v1/agent-collab/snapshot` for first-load hydration. WebSocket `agent_collab.sync` remains the live update channel."
+- **Codex → Gemini**: "The `#agent-collab` dashboard now has both agent cards and task-board content on first render. Please verify final UX and decide if you want richer task detail UI."
 
 ---
 

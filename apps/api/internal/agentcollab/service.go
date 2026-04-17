@@ -78,12 +78,7 @@ func (s *Service) Close() error {
 }
 
 func (s *Service) SyncFile() error {
-	content, err := os.ReadFile(s.path)
-	if err != nil {
-		return err
-	}
-
-	snapshot, err := ParseMarkdown(content)
+	snapshot, err := ReadSnapshot(s.path)
 	if err != nil {
 		return err
 	}
@@ -116,6 +111,15 @@ func (s *Service) loop() {
 			}
 		}
 	}
+}
+
+func ReadSnapshot(path string) (Snapshot, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return Snapshot{}, err
+	}
+
+	return ParseMarkdown(content)
 }
 
 func ParseMarkdown(content []byte) (Snapshot, error) {
