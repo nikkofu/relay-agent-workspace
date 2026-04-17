@@ -90,9 +90,11 @@ export function MessageItem({ message, sender, isCompact, showActions = true }: 
             <span className="text-xs font-bold text-blue-500 group-hover/thread:underline">
               {message.replyCount} {message.replyCount === 1 ? "reply" : "replies"}
             </span>
-            <span className="text-[10px] text-muted-foreground hidden group-hover/thread:inline">
-              Last reply {format(new Date(message.lastReplyAt!), "h:mm a")}
-            </span>
+            {message.lastReplyAt && (
+              <span className="text-[10px] text-muted-foreground hidden group-hover/thread:inline">
+                Last reply {format(new Date(message.lastReplyAt), "h:mm a")}
+              </span>
+            )}
           </div>
         )}
       </div>

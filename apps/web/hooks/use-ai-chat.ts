@@ -10,6 +10,8 @@ export function useAIChat() {
   const [isLoading, setIsLoading] = useState(false)
   const [currentProvider, setCurrentProvider] = useState<string>("gemini")
   const [currentModel, setCurrentModel] = useState<string>("")
+  const [currentMode, setCurrentMode] = useState<"fast" | "planning">("fast")
+  const [availableProviders, setAvailableProviders] = useState<string[]>(["gemini", "openrouter"])
 
   const append = useCallback(async (content: string) => {
     const userMsg: AIMessage = {
@@ -41,7 +43,8 @@ export function useAIChat() {
           prompt: content, 
           channel_id: "ai-chat", // Default or specific channel
           provider: currentProvider,
-          model: currentModel
+          model: currentModel,
+          mode: currentMode
         })
       })
 
@@ -57,6 +60,7 @@ export function useAIChat() {
       const reader = response.body?.getReader()
       const decoder = new TextDecoder()
       let fullContent = ""
+      let currentEvent = ""
 
       if (!reader) return
 
@@ -68,26 +72,27 @@ export function useAIChat() {
         const lines = chunk.split("\n")
 
         for (const line of lines) {
-          if (line.startsWith("data: ")) {
+          const trimmed = line.trim()
+          if (trimmed.startsWith("event: ")) {
+            currentEvent = trimmed.slice(7).trim()
+          } else if (trimmed.startsWith("data: ")) {
             try {
-              const data = JSON.parse(line.slice(6))
+              const data = JSON.parse(trimmed.slice(6))
               
-              if (data.event === "start") {
-                // Could set model name or reasoning if provided
-              } else if (data.event === "chunk") {
+              if (currentEvent === "chunk") {
                 fullContent += data.text || ""
                 setMessages(prev => prev.map(m => 
                   m.id === assistantId ? { ...m, content: fullContent } : m
                 ))
-              } else if (data.event === "done") {
+              } else if (currentEvent === "done") {
                 setMessages(prev => prev.map(m => 
                   m.id === assistantId ? { ...m, isStreaming: false } : m
                 ))
-              } else if (data.event === "error") {
+              } else if (currentEvent === "error") {
                 toast.error(data.message || "Streaming error")
               }
             } catch (e) {
-              // Not a valid JSON or other line, ignore
+              // Ignore invalid JSON or fragments
             }
           }
         }
@@ -100,7 +105,7 @@ export function useAIChat() {
     } finally {
       setIsLoading(false)
     }
-  }, [currentProvider, currentModel])
+  }, [currentProvider, currentModel, currentMode])
 
   return { 
     messages, 
@@ -109,6 +114,10 @@ export function useAIChat() {
     currentProvider, 
     setCurrentProvider,
     currentModel,
-    setCurrentModel
+    setCurrentModel,
+    currentMode,
+    setCurrentMode,
+    availableProviders,
+    setAvailableProviders
   }
 }

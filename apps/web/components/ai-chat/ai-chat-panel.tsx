@@ -8,14 +8,19 @@ import { X, Sparkles, Wand2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useUIStore } from "@/stores/ui-store"
 import { useEffect, useRef } from "react"
-import { cn } from "@/lib/utils"
+import { AISettings } from "./ai-settings"
 
 export function AIChatPanel() {
   const { 
     messages, 
     append, 
     currentProvider, 
-    setCurrentProvider 
+    setCurrentProvider,
+    currentMode,
+    setCurrentMode,
+    currentModel,
+    setCurrentModel,
+    availableProviders
   } = useAIChat()
   const { isAIPanelOpen, closeAIPanel } = useUIStore()
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -42,45 +47,30 @@ export function AIChatPanel() {
           </div>
           <div className="flex flex-col">
             <h3 className="font-bold text-sm leading-tight">AI Assistant</h3>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <button 
-                onClick={() => setCurrentProvider('gemini')}
-                className={cn(
-                  "text-[9px] px-1.5 py-0.5 rounded transition-colors",
-                  currentProvider === 'gemini' ? "bg-purple-600 text-white font-bold" : "text-purple-200/50 hover:text-white"
-                )}
-              >
-                Gemini
-              </button>
-              <button 
-                onClick={() => setCurrentProvider('openai')}
-                className={cn(
-                  "text-[9px] px-1.5 py-0.5 rounded transition-colors",
-                  currentProvider === 'openai' ? "bg-purple-600 text-white font-bold" : "text-purple-200/50 hover:text-white"
-                )}
-              >
-                OpenAI
-              </button>
-              <button 
-                onClick={() => setCurrentProvider('openrouter')}
-                className={cn(
-                  "text-[9px] px-1.5 py-0.5 rounded transition-colors",
-                  currentProvider === 'openrouter' ? "bg-purple-600 text-white font-bold" : "text-purple-200/50 hover:text-white"
-                )}
-              >
-                OpenRouter
-              </button>
-            </div>
+            <span className="text-[10px] text-purple-200/70 font-medium capitalize">
+              {currentProvider} • {currentMode}
+            </span>
           </div>
         </div>
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="h-8 w-8 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors" 
-          onClick={closeAIPanel}
-        >
-          <X className="w-4 h-4" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <AISettings 
+            provider={currentProvider}
+            setProvider={setCurrentProvider}
+            mode={currentMode}
+            setMode={setCurrentMode}
+            model={currentModel}
+            setModel={setCurrentModel}
+            availableProviders={availableProviders}
+          />
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-8 w-8 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors" 
+            onClick={closeAIPanel}
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
       </header>
 
       {/* Messages Area - Ensure this fills space and scrolls */}
