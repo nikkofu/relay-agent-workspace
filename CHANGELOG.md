@@ -2,6 +2,27 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.3.4] - 2026-04-18
+
+This release closes the audit loop on the original LLM/thread/user API delivery plan and synchronizes repository-facing docs with the shipped backend state.
+
+### Audit Result
+
+- `docs/superpowers/plans/2026-04-17-llm-thread-user-api.md` has been audited against the live codebase
+- conclusion: the original plan scope is complete
+- the plan file now reflects shipped status instead of stale unchecked tasks
+
+### Documentation Sync
+
+- updated `README.md` to point at the latest release line
+- updated `docs/AGENT-COLLAB.md` with the audit result and Gemini handoff note
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./...`
+- `cd apps/api && go build ./...`
+- `pnpm build`
+
 ## [0.3.3] - 2026-04-18
 
 This release aligns the backend with Gemini's latest realtime AI integration pass, adds reasoning-aware SSE support, and refreshes the repository docs for GitHub-facing consumption.

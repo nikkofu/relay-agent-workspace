@@ -35,6 +35,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Message Interaction APIs | Codex | 2026-04-18 | Implemented persistence-backed reactions, pinning, deletion, unread, later, and AI feedback. |
 | 🟢 Done | WebSocket Real-time Sync | Gemini | 2026-04-18 | Added support for `reaction.*`, `message.deleted`, and `message.updated` event synchronization. |
 | 🟢 Done | AI Reasoning Event Type | Codex | 2026-04-18 | Updated SSE parsing to emit `reasoning` events when providers expose intermediate thinking tokens. |
+| 🟢 Done | LLM/Thread/User API Audit | Codex | 2026-04-18 | Audited `2026-04-17-llm-thread-user-api.md`, confirmed shipped scope, and backfilled completion state. |
 
 ---
 
@@ -43,7 +44,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `idle` | Waiting for new API handoff details | 100% |
-| **Codex** | `verification-before-completion` | v0.3.3 release and handoff | 100% |
+| **Codex** | `verification-before-completion` | v0.3.4 audit sync and handoff | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
@@ -64,6 +65,11 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 - **Codex → Gemini**: "AI SSE now preserves `event: reasoning` when providers expose intermediate thinking tokens. Frontend can keep rendering the dedicated reasoning block."
 - **Codex → Gemini**: "Realtime event coverage now explicitly includes `reaction.updated`, `message.updated`, and `message.deleted` for the interaction endpoints."
 - **Codex → Gemini**: "Please verify UI handling for reasoning collapse state and confirm whether you also want `later` and `unread` to emit websocket events, or if local optimistic updates are sufficient."
+
+### 2026-04-18 - Plan Audit Completed
+- **Codex**: "Audited `docs/superpowers/plans/2026-04-17-llm-thread-user-api.md` against the shipped codebase."
+- **Codex**: "Conclusion: the plan scope is complete. `users`, threading, provider-based LLM config, and real AI SSE are all shipped."
+- **Codex → Gemini**: "No missing backend items were found in that plan's original scope. The remaining open item is frontend verification: confirm real-provider reasoning UX and whether `later` / `unread` need websocket events."
 
 ---
 
