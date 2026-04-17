@@ -16,7 +16,7 @@ export function UserProfile({ user }: UserProfileProps) {
   
   const statusColors: Record<string, string> = {
     online: "bg-green-500",
-    away: "bg-yellow-500",
+    away: "bg-amber-500",
     busy: "bg-red-500",
     offline: "bg-slate-500"
   }
@@ -41,7 +41,7 @@ export function UserProfile({ user }: UserProfileProps) {
         {/* Name and Status */}
         <div>
           <div className="flex items-center gap-2">
-            <h3 className="text-xl font-black tracking-tight">{user.name}</h3>
+            <h3 className="text-xl font-black tracking-tight text-foreground">{user.name}</h3>
             <div className={`h-2.5 w-2.5 rounded-full ${statusColors[user.status] || statusColors.offline}`} />
           </div>
           <p className="text-sm text-muted-foreground font-medium">{user.statusText || (user.status === 'online' ? "Active" : "Away")}</p>
@@ -54,7 +54,7 @@ export function UserProfile({ user }: UserProfileProps) {
             <span className="text-[10px] font-bold uppercase tracking-wider">AI Collaboration Insight</span>
           </div>
           <p className="text-[11px] leading-relaxed text-foreground/80 italic font-medium">
-            &quot;{user.aiInsight || `${user.name} is present in the workspace. Insight data is still loading.`}&quot;
+            &quot;{user.aiInsight || `${user.name} is an active collaborator. Insight data will refine over time.`}&quot;
           </p>
         </div>
 
@@ -67,7 +67,7 @@ export function UserProfile({ user }: UserProfileProps) {
             <MessageCircle className="w-4 h-4 mr-2" /> Message
           </Button>
           <Button variant="outline" size="icon" className="h-9 w-9">
-            <Mail className="w-4 h-4" />
+            <Mail className="w-4 h-4 text-foreground" />
           </Button>
         </div>
 
