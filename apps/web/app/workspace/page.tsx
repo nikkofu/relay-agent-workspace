@@ -17,7 +17,7 @@ export default function WorkspacePage() {
     )
   }
 
-  const channelMessages = messages.filter(m => m.channelId === currentChannel.id)
+  const channelMessages = messages.filter(m => m.channelId === currentChannel.id && !m.threadId)
 
   return (
     <MessageArea>

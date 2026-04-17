@@ -22,7 +22,12 @@ export const useUserStore = create<UserState>((set) => ({
     }
   },
   fetchUsers: async () => {
-    // Note: We'll need this endpoint soon
-    // For now, let's keep it empty or mock it if needed
+    try {
+      const response = await fetch(`${API_BASE_URL}/users`)
+      const data = await response.json()
+      set({ users: data.users })
+    } catch (error) {
+      console.error("Failed to fetch users:", error)
+    }
   }
 }))

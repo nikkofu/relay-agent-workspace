@@ -1,11 +1,10 @@
 "use client"
-
 import { Message } from "@/types"
 import { MessageItem } from "./message-item"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { USERS } from "@/lib/mock-data"
 import { format, isSameDay } from "date-fns"
 import { useEffect, useRef, useState } from "react"
+import { useUserStore } from "@/stores/user-store"
 
 interface MessageListProps {
   messages: Message[]
@@ -14,6 +13,7 @@ interface MessageListProps {
 export function MessageList({ messages }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [mounted, setMounted] = useState(false)
+  const { users } = useUserStore()
 
   useEffect(() => {
     setMounted(true)
@@ -33,7 +33,7 @@ export function MessageList({ messages }: MessageListProps) {
     <ScrollArea ref={scrollRef} className="h-full">
       <div className="p-4 flex flex-col gap-0.5 min-h-full justify-end">
         {messages.map((msg, idx) => {
-          const sender = USERS.find(u => u.id === msg.senderId) || {
+          const sender = users.find(u => u.id === msg.senderId) || {
             id: msg.senderId,
             name: "Unknown User",
             email: "unknown@example.com",

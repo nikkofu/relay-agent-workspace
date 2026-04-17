@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { MessageActions } from "./message-actions"
 import { EmojiReaction } from "./emoji-reaction"
 import { useUIStore } from "@/stores/ui-store"
+import { useUserStore } from "@/stores/user-store"
 import { useState, useEffect } from "react"
 
 interface MessageItemProps {
@@ -18,6 +19,7 @@ interface MessageItemProps {
 
 export function MessageItem({ message, sender, isCompact, showActions = true }: MessageItemProps) {
   const { openThread } = useUIStore()
+  const { currentUser } = useUserStore()
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -68,7 +70,7 @@ export function MessageItem({ message, sender, isCompact, showActions = true }: 
                 emoji={reaction.emoji} 
                 count={reaction.count} 
                 userIds={reaction.userIds}
-                isActive={reaction.userIds.includes("user-1")} // Mocking current user
+                isActive={currentUser ? reaction.userIds.includes(currentUser.id) : false}
               />
             ))}
           </div>

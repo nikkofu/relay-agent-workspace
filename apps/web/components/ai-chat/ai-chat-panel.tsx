@@ -8,9 +8,15 @@ import { X, Sparkles, Wand2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useUIStore } from "@/stores/ui-store"
 import { useEffect, useRef } from "react"
+import { cn } from "@/lib/utils"
 
 export function AIChatPanel() {
-  const { messages, append } = useAIChat()
+  const { 
+    messages, 
+    append, 
+    currentProvider, 
+    setCurrentProvider 
+  } = useAIChat()
   const { isAIPanelOpen, closeAIPanel } = useUIStore()
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -36,7 +42,35 @@ export function AIChatPanel() {
           </div>
           <div className="flex flex-col">
             <h3 className="font-bold text-sm leading-tight">AI Assistant</h3>
-            <span className="text-[10px] text-purple-200/70 font-medium">Next-gen intelligence</span>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <button 
+                onClick={() => setCurrentProvider('gemini')}
+                className={cn(
+                  "text-[9px] px-1.5 py-0.5 rounded transition-colors",
+                  currentProvider === 'gemini' ? "bg-purple-600 text-white font-bold" : "text-purple-200/50 hover:text-white"
+                )}
+              >
+                Gemini
+              </button>
+              <button 
+                onClick={() => setCurrentProvider('openai')}
+                className={cn(
+                  "text-[9px] px-1.5 py-0.5 rounded transition-colors",
+                  currentProvider === 'openai' ? "bg-purple-600 text-white font-bold" : "text-purple-200/50 hover:text-white"
+                )}
+              >
+                OpenAI
+              </button>
+              <button 
+                onClick={() => setCurrentProvider('openrouter')}
+                className={cn(
+                  "text-[9px] px-1.5 py-0.5 rounded transition-colors",
+                  currentProvider === 'openrouter' ? "bg-purple-600 text-white font-bold" : "text-purple-200/50 hover:text-white"
+                )}
+              >
+                OpenRouter
+              </button>
+            </div>
           </div>
         </div>
         <Button 

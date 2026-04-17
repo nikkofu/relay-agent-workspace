@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
-import { USERS } from "@/lib/mock-data"
+import { useUserStore } from "@/stores/user-store"
 
 interface EmojiReactionProps {
   emoji: string
@@ -14,8 +14,9 @@ interface EmojiReactionProps {
 }
 
 export function EmojiReaction({ emoji, count, userIds, isActive, onToggle }: EmojiReactionProps) {
-  const users = userIds.map(id => USERS.find(u => u.id === id)?.name || "Unknown user")
-  const tooltipText = users.join(", ")
+  const { users } = useUserStore()
+  const reactingUsers = userIds.map(id => users.find(u => u.id === id)?.name || "Unknown user")
+  const tooltipText = reactingUsers.join(", ")
 
   return (
     <HoverCard openDelay={300}>

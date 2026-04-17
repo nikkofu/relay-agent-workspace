@@ -22,7 +22,7 @@ export default function WorkspaceLayout({
   const { isThreadOpen, isAIPanelOpen, isCanvasOpen, closeThread, closeAIPanel, closeCanvas } = useUIStore()
   const { fetchWorkspaces, currentWorkspace } = useWorkspaceStore()
   const { fetchChannels } = useChannelStore()
-  const { fetchMe } = useUserStore()
+  const { fetchMe, fetchUsers } = useUserStore()
   const showRightPanel = isThreadOpen || isAIPanelOpen || isCanvasOpen
   
   useWebsocket()
@@ -34,9 +34,10 @@ export default function WorkspaceLayout({
     if (!workspacesFetched.current) {
       workspacesFetched.current = true
       fetchMe()
+      fetchUsers()
       fetchWorkspaces()
     }
-  }, [fetchMe, fetchWorkspaces])
+  }, [fetchMe, fetchUsers, fetchWorkspaces])
 
   useEffect(() => {
     if (currentWorkspace && currentWorkspace.id !== lastChannelsWorkspaceId.current) {
