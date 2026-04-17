@@ -22,9 +22,11 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Core API v0.2.0 | Codex | 2026-04-16 | Auth, Workspace, Channel, and Message REST APIs. |
 | 🟢 Done | Initial Frontend Integration | Gemini | 2026-04-16 | Connected stores to backend, fixed Hydration/CORS. |
 | 🟢 Done | #agent-collab UI Scaffolding | Gemini | 2026-04-16 | Created Dashboard, State Cards, and WS Client. |
-| 🟡 In Progress | Real-time WebSocket Integration | Gemini | 2026-04-17 | Integrate `/api/v1/realtime` for live messaging. |
-| 🟢 Done | Agent-Collab Sync Service | Codex | 2026-04-16 | File watcher, Markdown table parser, and `agent_collab.sync` WebSocket broadcast implemented in `apps/api`. |
-| 🔴 Pending | Agent Shadow Dept Logic | Codex | TBD | Implement SOP engine and Agent handover logic. |
+| 🟢 Done | Real-time WebSocket Integration | Gemini | 2026-04-16 | Integrated `/api/v1/realtime` for live messaging and sync. |
+| 🟢 Done | Agent-Collab Sync Service | Codex | 2026-04-16 | File watcher, Markdown table parser, and `agent_collab.sync` WebSocket broadcast. |
+| 🔴 Pending | Multi-User Profile API | Codex | 2026-04-17 | Implement `GET /api/v1/users` to support sender avatars/names. |
+| 🔴 Pending | Message Threads API | Codex | 2026-04-17 | Implement `thread_id` and `/messages/:id/thread`. |
+| 🔴 Pending | AI SSE Execution Layer | Codex | 2026-04-18 | Implement `POST /api/v1/ai/execute` with SSE streaming. |
 
 ---
 
@@ -32,21 +34,18 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `executing-plans` | v0.2.1 Release & Handover | 100% |
-| **Codex** | `verification-before-completion` | Agent-Collab Sync Service handoff | 100% |
+| **Gemini** | `idle` | Waiting for API updates | 100% |
+| **Codex** | `awaiting` | - | - |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
 
-### 2026-04-16 - Integration Checkpoint
-- **Gemini**: "Frontend is now successfully fetching data from Go backend. CORS fixed. Hydration errors resolved. Ready for WebSocket implementation."
-- **Nikko Fu**: "Great, created `AGENT-COLLAB.md` for our collaboration. Let's sync this to the UI."
-- **Gemini**: "Renamed file to `AGENT-COLLAB.md`. #agent-collab channel is now visible and has a custom hybrid dashboard."
-- **Gemini**: "Version v0.2.1 published. I have updated the UI to be ready for real-time sync. Over to you, **Codex**."
-- **Codex**: "Backend sync target is implemented. `apps/api` now watches `docs/AGENT-COLLAB.md`, parses the `Task Board` and `Active Superpowers` Markdown tables into JSON, and broadcasts `agent_collab.sync` on the realtime hub with `channel_id: ch-collab`."
-- **Codex → Gemini**: "You can now subscribe to `type === agent_collab.sync` on `/api/v1/realtime`. Payload shape is `{ active_superpowers, task_board }`, both derived directly from this file. Please bind it to the `#agent-collab` dashboard state."
+### 2026-04-16 - Real-time Sync Accomplished
+- **Gemini**: "WebSocket sync for `#agent-collab` is fully integrated! The dashboard now updates live from this document."
+- **Gemini → Codex**: "Excellent work on the file watcher. I've posted new requirements for the next phase in the 'Backend Specifications' section below. We need user profiles and thread support to clean up the UI."
+- **Nikko Fu**: "Version v0.2.3 published. Gemini is idling until Codex delivers the next batch of APIs."
 
 ---
 
@@ -61,20 +60,19 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 ## 🛠 Backend Specifications (Request for Codex)
 
-To support the real-time #agent-collab view, please implement the following and deliver as a working update to `apps/api`:
+To support the next level of frontend integration, please implement the following in `apps/api`:
 
-1. **AGENT-COLLAB.md Watcher**: A service to watch this file for changes using `fsnotify` or similar.
-2. **Markdown Parser**: Extract structured data from the `⚡️ Active Superpowers` and `📋 Task Board` sections of this file.
-3. **WS Event Broadcaster**: When this file changes, broadcast an `agent_collab.sync` event via WebSocket.
-   - **Target Channel**: `#agent-collab` (ID: `ch-collab`).
-   - **Payload Shape**: 
-     ```json
-     {
-       "type": "agent_collab.sync",
-       "payload": {
-         "active_superpowers": [...],
-         "task_board": [...]
-       }
-     }
-     ```
-4. **Member State API**: (Optional) Persistence for Agent thinking/active states in SQLite.
+1. **GET /api/v1/users**: 
+   - **Goal**: Fetch all users or a specific user by ID.
+   - **Purpose**: Frontend needs this to replace "Unknown User" with real names and avatars in the message list.
+   - **Response**: `{ "users": [...] }`
+
+2. **Message Threads**:
+   - **Model Update**: Add `ThreadID` (string) and `ReplyCount` (int) to the `Message` domain model.
+   - **New Endpoint**: `GET /api/v1/messages/:id/thread` to fetch all replies for a parent message.
+
+3. **AI SSE Execution Scaffolding**:
+   - **Endpoint**: `POST /api/v1/ai/execute`
+   - **Payload**: `{ "prompt": string, "channel_id": string }`
+   - **Response**: Initiate a **Server-Sent Events (SSE)** stream.
+   - **Initial Implementation**: Can be a mock stream that sends "Thinking..." followed by a generic response.
