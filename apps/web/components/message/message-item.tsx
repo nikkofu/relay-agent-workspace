@@ -8,7 +8,9 @@ import { MessageActions } from "./message-actions"
 import { EmojiReaction } from "./emoji-reaction"
 import { useUIStore } from "@/stores/ui-store"
 import { useUserStore } from "@/stores/user-store"
+import { useMessageStore } from "@/stores/message-store"
 import { useState, useEffect } from "react"
+import { toast } from "sonner"
 
 interface MessageItemProps {
   message: Message

@@ -167,6 +167,185 @@ func TestCreateMessageReplyUpdatesParentReplyMetadata(t *testing.T) {
 	}
 }
 
+func TestToggleReactionUpdatesMetadata(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Message{
+		ID:        "msg-1",
+		ChannelID: "ch-1",
+		UserID:    "user-2",
+		Content:   "Hello",
+		CreatedAt: time.Now(),
+		Metadata:  "{}",
+	})
+
+	router := gin.New()
+	router.POST("/api/v1/messages/:id/reactions", ToggleReaction)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/messages/msg-1/reactions", bytes.NewBufferString(`{"emoji":"🔥"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var message domain.Message
+	if err := db.DB.First(&message, "id = ?", "msg-1").Error; err != nil {
+		t.Fatalf("failed to reload message: %v", err)
+	}
+	if !bytes.Contains([]byte(message.Metadata), []byte(`"emoji":"🔥"`)) {
+		t.Fatalf("expected reaction metadata to include emoji, got %s", message.Metadata)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/messages/msg-1/reactions", bytes.NewBufferString(`{"emoji":"🔥"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on toggle off, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	if err := db.DB.First(&message, "id = ?", "msg-1").Error; err != nil {
+		t.Fatalf("failed to reload message after toggle off: %v", err)
+	}
+	if bytes.Contains([]byte(message.Metadata), []byte(`"emoji":"🔥"`)) {
+		t.Fatalf("expected reaction metadata to remove emoji, got %s", message.Metadata)
+	}
+}
+
+func TestDeleteReplyRecomputesParentThreadMetadata(t *testing.T) {
+	setupTestDB(t)
+
+	parent := domain.Message{
+		ID:         "msg-parent",
+		ChannelID:  "ch-1",
+		UserID:     "user-1",
+		Content:    "Parent",
+		ReplyCount: 2,
+		CreatedAt:  time.Now().Add(-3 * time.Hour),
+	}
+	replyOneTime := time.Now().Add(-2 * time.Hour).UTC()
+	replyTwoTime := time.Now().Add(-1 * time.Hour).UTC()
+	parent.LastReplyAt = &replyTwoTime
+
+	replyOne := domain.Message{
+		ID:        "msg-r1",
+		ChannelID: "ch-1",
+		UserID:    "user-2",
+		Content:   "first",
+		ThreadID:  "msg-parent",
+		CreatedAt: replyOneTime,
+	}
+	replyTwo := domain.Message{
+		ID:        "msg-r2",
+		ChannelID: "ch-1",
+		UserID:    "user-3",
+		Content:   "second",
+		ThreadID:  "msg-parent",
+		CreatedAt: replyTwoTime,
+	}
+	db.DB.Create(&parent)
+	db.DB.Create(&replyOne)
+	db.DB.Create(&replyTwo)
+
+	router := gin.New()
+	router.DELETE("/api/v1/messages/:id", DeleteMessage)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/messages/msg-r2", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var refreshed domain.Message
+	if err := db.DB.First(&refreshed, "id = ?", "msg-parent").Error; err != nil {
+		t.Fatalf("failed to reload parent: %v", err)
+	}
+	if refreshed.ReplyCount != 1 {
+		t.Fatalf("expected reply_count=1, got %d", refreshed.ReplyCount)
+	}
+	if refreshed.LastReplyAt == nil || !refreshed.LastReplyAt.Equal(replyOneTime) {
+		t.Fatalf("expected last_reply_at=%s, got %#v", replyOneTime, refreshed.LastReplyAt)
+	}
+}
+
+func TestPinSaveUnreadAndFeedbackEndpointsPersistState(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Message{
+		ID:        "msg-1",
+		ChannelID: "ch-1",
+		UserID:    "user-2",
+		Content:   "Hello",
+		CreatedAt: time.Now(),
+		Metadata:  "{}",
+	})
+
+	router := gin.New()
+	router.POST("/api/v1/messages/:id/pin", TogglePinMessage)
+	router.POST("/api/v1/messages/:id/later", ToggleSaveForLater)
+	router.POST("/api/v1/messages/:id/unread", MarkMessageUnread)
+	router.POST("/api/v1/ai/feedback", SubmitAIFeedback)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/messages/msg-1/pin", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on pin, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var message domain.Message
+	if err := db.DB.First(&message, "id = ?", "msg-1").Error; err != nil {
+		t.Fatalf("failed to reload pinned message: %v", err)
+	}
+	if !message.IsPinned {
+		t.Fatal("expected message to be pinned")
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/messages/msg-1/later", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on save later, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var saved domain.SavedMessage
+	if err := db.DB.First(&saved, "message_id = ? AND user_id = ?", "msg-1", "user-1").Error; err != nil {
+		t.Fatalf("expected saved message row: %v", err)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/messages/msg-1/unread", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on unread, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var unread domain.UnreadMarker
+	if err := db.DB.First(&unread, "message_id = ? AND user_id = ?", "msg-1", "user-1").Error; err != nil {
+		t.Fatalf("expected unread marker row: %v", err)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/ai/feedback", bytes.NewBufferString(`{"message_id":"msg-1","is_good":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on feedback, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var feedback domain.AIFeedback
+	if err := db.DB.First(&feedback, "message_id = ? AND user_id = ?", "msg-1", "user-1").Error; err != nil {
+		t.Fatalf("expected ai feedback row: %v", err)
+	}
+	if !feedback.IsGood {
+		t.Fatal("expected feedback to be persisted as positive")
+	}
+}
+
 func setupTestDB(t *testing.T) {
 	t.Helper()
 
@@ -178,6 +357,9 @@ func setupTestDB(t *testing.T) {
 	}
 	db.DB = testDB
 	if err := db.DB.AutoMigrate(&domain.Organization{}, &domain.Team{}, &domain.User{}, &domain.Agent{}, &domain.Workspace{}, &domain.Channel{}, &domain.Message{}); err != nil {
+		t.Fatalf("failed to migrate test db: %v", err)
+	}
+	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.UnreadMarker{}, &domain.AIFeedback{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 }

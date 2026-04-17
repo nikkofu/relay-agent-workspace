@@ -32,5 +32,9 @@ func InitDB() error {
 		&domain.Workspace{},
 		&domain.Channel{},
 		&domain.Message{},
+		&domain.MessageReaction{},
+		&domain.SavedMessage{},
+		&domain.UnreadMarker{},
+		&domain.AIFeedback{},
 	)
 }

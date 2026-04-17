@@ -166,6 +166,29 @@ func SeedData() {
 			ReplyCount: 0,
 		}
 		DB.FirstOrCreate(&msg, domain.Message{ID: msg.ID})
+
+		if reactions, ok := m.Reactions.([]map[string]interface{}); ok {
+			for _, reaction := range reactions {
+				emoji, _ := reaction["emoji"].(string)
+				userIDs, _ := reaction["userIds"].([]string)
+				if userIDs == nil {
+					if rawUserIDs, ok := reaction["userIds"].([]interface{}); ok {
+						for _, raw := range rawUserIDs {
+							if userID, ok := raw.(string); ok {
+								userIDs = append(userIDs, userID)
+							}
+						}
+					}
+				}
+				for _, userID := range userIDs {
+					DB.FirstOrCreate(&domain.MessageReaction{}, domain.MessageReaction{
+						MessageID: msg.ID,
+						UserID:    userID,
+						Emoji:     emoji,
+					})
+				}
+			}
+		}
 	}
 
 	threadReply := domain.Message{

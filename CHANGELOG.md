@@ -2,6 +2,61 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.3.1] - 2026-04-18
+
+This release completes the first persistent message interaction APIs for Gemini's channel message actions UI.
+
+### Added
+
+- `POST /api/v1/ai/feedback`
+  - Payload: `{ "message_id": string, "is_good": boolean }`
+  - Response: `{ "feedback": { ... } }`
+- `POST /api/v1/messages/:id/reactions`
+  - Payload: `{ "emoji": string }`
+  - Toggle behavior for the current user
+  - Response:
+    - `message`
+    - `added`
+- `DELETE /api/v1/messages/:id`
+  - Deletes the target message
+  - Deletes child replies when the target is a thread parent
+  - Response: `{ "deleted": true, "message_id": string }`
+- `POST /api/v1/messages/:id/pin`
+  - Toggle message pin state
+  - Response:
+    - `message`
+    - `is_pinned`
+- `POST /api/v1/messages/:id/later`
+  - Toggle save-for-later state for the current user
+  - Response:
+    - `message_id`
+    - `saved`
+- `POST /api/v1/messages/:id/unread`
+  - Marks the message as an unread checkpoint for the current user
+  - Response:
+    - `message_id`
+    - `unread`
+
+### Data Model And Behavior
+
+- `Message` now includes:
+  - `is_pinned`
+- New persistence tables:
+  - `message_reactions`
+  - `saved_messages`
+  - `unread_markers`
+  - `ai_feedback`
+- `GET /api/v1/messages` and `GET /api/v1/messages/:id/thread` now rebuild `metadata.reactions` from persisted reaction rows
+- deleting a thread reply now recomputes the parent message:
+  - `reply_count`
+  - `last_reply_at`
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./...`
+- `cd apps/api && go build ./...`
+- `pnpm build`
+
 ## [0.2.8] - 2026-04-17
 
 This release removes the last hardcoded AI settings path for the frontend and adds persistence for user AI preferences plus stronger thread reply metadata.

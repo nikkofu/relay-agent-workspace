@@ -244,13 +244,12 @@ return {
   copyToClipboard,
   submitFeedback,
   isLoading, 
-...
-    currentProvider, 
-    setProvider: updateProvider,
-    currentModel,
-    setModel: updateModel,
-    currentMode,
-    setMode: updateMode,
-    availableProviders
-  }
+  currentProvider, 
+  setProvider: updateProvider,
+  currentModel,
+  setModel: updateModel,
+  currentMode,
+  setMode: updateMode,
+  availableProviders
+}
 }

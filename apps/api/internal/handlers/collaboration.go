@@ -1,7 +1,10 @@
 package handlers
 
 import (
+	"encoding/json"
+	"errors"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -11,6 +14,107 @@ import (
 	"github.com/nikkofu/relay-agent-workspace/api/internal/domain"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/realtime"
 )
+
+type reactionSummary struct {
+	Emoji   string   `json:"emoji"`
+	Count   int      `json:"count"`
+	UserIDs []string `json:"userIds"`
+}
+
+type messageMetadata struct {
+	Reactions   []reactionSummary `json:"reactions,omitempty"`
+	Attachments any               `json:"attachments,omitempty"`
+}
+
+func getCurrentUser() (domain.User, error) {
+	var user domain.User
+	if err := db.DB.First(&user).Error; err != nil {
+		return domain.User{}, err
+	}
+	return user, nil
+}
+
+func decodeMessageMetadata(message domain.Message) messageMetadata {
+	if message.Metadata == "" {
+		return messageMetadata{}
+	}
+
+	var meta messageMetadata
+	if err := json.Unmarshal([]byte(message.Metadata), &meta); err != nil {
+		return messageMetadata{}
+	}
+	return meta
+}
+
+func refreshMessageMetadata(messageID string) (*domain.Message, error) {
+	var message domain.Message
+	if err := db.DB.First(&message, "id = ?", messageID).Error; err != nil {
+		return nil, err
+	}
+
+	meta := decodeMessageMetadata(message)
+
+	var reactions []domain.MessageReaction
+	if err := db.DB.Where("message_id = ?", messageID).Order("emoji asc, created_at asc").Find(&reactions).Error; err != nil {
+		return nil, err
+	}
+
+	if len(reactions) == 0 {
+		meta.Reactions = nil
+	} else {
+		byEmoji := map[string]*reactionSummary{}
+		order := make([]string, 0)
+		for _, reaction := range reactions {
+			summary, ok := byEmoji[reaction.Emoji]
+			if !ok {
+				summary = &reactionSummary{Emoji: reaction.Emoji}
+				byEmoji[reaction.Emoji] = summary
+				order = append(order, reaction.Emoji)
+			}
+			summary.Count++
+			summary.UserIDs = append(summary.UserIDs, reaction.UserID)
+		}
+
+		meta.Reactions = make([]reactionSummary, 0, len(order))
+		sort.Strings(order)
+		for _, emoji := range order {
+			meta.Reactions = append(meta.Reactions, *byEmoji[emoji])
+		}
+	}
+
+	metadataJSON, err := json.Marshal(meta)
+	if err != nil {
+		return nil, err
+	}
+
+	message.Metadata = string(metadataJSON)
+	if err := db.DB.Model(&message).Update("metadata", message.Metadata).Error; err != nil {
+		return nil, err
+	}
+
+	return &message, nil
+}
+
+func recomputeThreadParentWithDB(conn *gorm.DB, parentID string) error {
+	if parentID == "" {
+		return nil
+	}
+
+	var replies []domain.Message
+	if err := conn.Where("thread_id = ?", parentID).Order("created_at asc").Find(&replies).Error; err != nil {
+		return err
+	}
+
+	updates := map[string]any{"reply_count": len(replies)}
+	if len(replies) == 0 {
+		updates["last_reply_at"] = nil
+	} else {
+		lastReplyAt := replies[len(replies)-1].CreatedAt
+		updates["last_reply_at"] = &lastReplyAt
+	}
+
+	return conn.Model(&domain.Message{}).Where("id = ?", parentID).Updates(updates).Error
+}
 
 func GetMe(c *gin.Context) {
 	var user domain.User
@@ -135,6 +239,12 @@ func GetMessages(c *gin.Context) {
 
 	var messages []domain.Message
 	db.DB.Where("channel_id = ? AND (thread_id = '' OR thread_id IS NULL)", channelID).Order("created_at asc").Find(&messages)
+	for idx := range messages {
+		refreshed, err := refreshMessageMetadata(messages[idx].ID)
+		if err == nil && refreshed != nil {
+			messages[idx] = *refreshed
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{"messages": messages})
 }
 
@@ -149,6 +259,16 @@ func GetMessageThread(c *gin.Context) {
 
 	var replies []domain.Message
 	db.DB.Where("thread_id = ?", messageID).Order("created_at asc").Find(&replies)
+	refreshedParent, err := refreshMessageMetadata(parent.ID)
+	if err == nil && refreshedParent != nil {
+		parent = *refreshedParent
+	}
+	for idx := range replies {
+		refreshed, err := refreshMessageMetadata(replies[idx].ID)
+		if err == nil && refreshed != nil {
+			replies[idx] = *refreshed
+		}
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"parent":  parent,
@@ -212,4 +332,210 @@ func CreateMessage(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"message": msg})
+}
+
+func ToggleReaction(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	messageID := c.Param("id")
+	var message domain.Message
+	if err := db.DB.First(&message, "id = ?", messageID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "message not found"})
+		return
+	}
+
+	var input struct {
+		Emoji string `json:"emoji" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var reaction domain.MessageReaction
+	result := db.DB.Where("message_id = ? AND user_id = ? AND emoji = ?", messageID, currentUser.ID, input.Emoji).First(&reaction)
+	added := false
+	switch {
+	case errors.Is(result.Error, gorm.ErrRecordNotFound):
+		reaction = domain.MessageReaction{
+			MessageID: messageID,
+			UserID:    currentUser.ID,
+			Emoji:     input.Emoji,
+			CreatedAt: time.Now().UTC(),
+		}
+		if err := db.DB.Create(&reaction).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to persist reaction"})
+			return
+		}
+		added = true
+	case result.Error != nil:
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load reaction"})
+		return
+	default:
+		if err := db.DB.Delete(&reaction).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to toggle reaction"})
+			return
+		}
+	}
+
+	refreshed, err := refreshMessageMetadata(messageID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to refresh message metadata"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": refreshed,
+		"added":   added,
+	})
+}
+
+func DeleteMessage(c *gin.Context) {
+	messageID := c.Param("id")
+
+	var message domain.Message
+	if err := db.DB.First(&message, "id = ?", messageID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "message not found"})
+		return
+	}
+
+	if err := db.DB.Transaction(func(tx *gorm.DB) error {
+		idsToDelete := []string{messageID}
+		if message.ThreadID == "" {
+			var replies []domain.Message
+			if err := tx.Where("thread_id = ?", messageID).Find(&replies).Error; err != nil {
+				return err
+			}
+			for _, reply := range replies {
+				idsToDelete = append(idsToDelete, reply.ID)
+			}
+		}
+
+		if err := tx.Where("message_id IN ?", idsToDelete).Delete(&domain.MessageReaction{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("message_id IN ?", idsToDelete).Delete(&domain.SavedMessage{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("message_id IN ?", idsToDelete).Delete(&domain.UnreadMarker{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("message_id IN ?", idsToDelete).Delete(&domain.AIFeedback{}).Error; err != nil {
+			return err
+		}
+
+		if message.ThreadID == "" {
+			if err := tx.Where("thread_id = ?", messageID).Delete(&domain.Message{}).Error; err != nil {
+				return err
+			}
+		}
+
+		if err := tx.Delete(&message).Error; err != nil {
+			return err
+		}
+
+		if message.ThreadID != "" {
+			if err := recomputeThreadParentWithDB(tx, message.ThreadID); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete message"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"deleted": true, "message_id": messageID})
+}
+
+func TogglePinMessage(c *gin.Context) {
+	messageID := c.Param("id")
+
+	var message domain.Message
+	if err := db.DB.First(&message, "id = ?", messageID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "message not found"})
+		return
+	}
+
+	message.IsPinned = !message.IsPinned
+	if err := db.DB.Save(&message).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update pin state"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": message, "is_pinned": message.IsPinned})
+}
+
+func ToggleSaveForLater(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	messageID := c.Param("id")
+	var message domain.Message
+	if err := db.DB.First(&message, "id = ?", messageID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "message not found"})
+		return
+	}
+
+	var saved domain.SavedMessage
+	result := db.DB.Where("message_id = ? AND user_id = ?", messageID, currentUser.ID).First(&saved)
+	isSaved := false
+	switch {
+	case errors.Is(result.Error, gorm.ErrRecordNotFound):
+		saved = domain.SavedMessage{
+			MessageID: messageID,
+			UserID:    currentUser.ID,
+			CreatedAt: time.Now().UTC(),
+		}
+		if err := db.DB.Create(&saved).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save message"})
+			return
+		}
+		isSaved = true
+	case result.Error != nil:
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load saved state"})
+		return
+	default:
+		if err := db.DB.Delete(&saved).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to toggle saved state"})
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message_id": messageID, "saved": isSaved})
+}
+
+func MarkMessageUnread(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	messageID := c.Param("id")
+	var message domain.Message
+	if err := db.DB.First(&message, "id = ?", messageID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "message not found"})
+		return
+	}
+
+	marker := domain.UnreadMarker{
+		MessageID: messageID,
+		UserID:    currentUser.ID,
+		CreatedAt: time.Now().UTC(),
+	}
+	if err := db.DB.Where("message_id = ? AND user_id = ?", messageID, currentUser.ID).Assign(marker).FirstOrCreate(&marker).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to mark unread"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message_id": messageID, "unread": true})
 }

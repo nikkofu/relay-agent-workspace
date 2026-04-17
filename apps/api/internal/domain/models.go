@@ -59,6 +59,38 @@ type Message struct {
 	ThreadID    string     `json:"thread_id"`
 	ReplyCount  int        `json:"reply_count"`
 	LastReplyAt *time.Time `json:"last_reply_at"`
+	IsPinned    bool       `json:"is_pinned"`
 	CreatedAt   time.Time  `json:"created_at"`
 	Metadata    string     `json:"metadata"` // 用于存储 Reactions/Attachments 的 JSON 字符串
+}
+
+type MessageReaction struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	MessageID string    `gorm:"index;uniqueIndex:idx_message_user_emoji" json:"message_id"`
+	UserID    string    `gorm:"uniqueIndex:idx_message_user_emoji" json:"user_id"`
+	Emoji     string    `gorm:"uniqueIndex:idx_message_user_emoji" json:"emoji"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type SavedMessage struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	MessageID string    `gorm:"index;uniqueIndex:idx_saved_message_user" json:"message_id"`
+	UserID    string    `gorm:"uniqueIndex:idx_saved_message_user" json:"user_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type UnreadMarker struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	MessageID string    `gorm:"index;uniqueIndex:idx_unread_message_user" json:"message_id"`
+	UserID    string    `gorm:"uniqueIndex:idx_unread_message_user" json:"user_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type AIFeedback struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	MessageID string    `gorm:"index;uniqueIndex:idx_ai_feedback_message_user" json:"message_id"`
+	UserID    string    `gorm:"uniqueIndex:idx_ai_feedback_message_user" json:"user_id"`
+	IsGood    bool      `json:"is_good"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }

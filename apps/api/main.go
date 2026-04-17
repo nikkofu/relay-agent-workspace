@@ -80,9 +80,15 @@ func main() {
 		v1.GET("/messages", handlers.GetMessages)
 		v1.GET("/messages/:id/thread", handlers.GetMessageThread)
 		v1.POST("/messages", handlers.CreateMessage)
+		v1.POST("/messages/:id/reactions", handlers.ToggleReaction)
+		v1.DELETE("/messages/:id", handlers.DeleteMessage)
+		v1.POST("/messages/:id/pin", handlers.TogglePinMessage)
+		v1.POST("/messages/:id/later", handlers.ToggleSaveForLater)
+		v1.POST("/messages/:id/unread", handlers.MarkMessageUnread)
 		v1.GET("/realtime", handlers.HandleRealtime)
 		v1.GET("/ai/config", handlers.GetAIConfig)
 		v1.POST("/ai/execute", handlers.ExecuteAI)
+		v1.POST("/ai/feedback", handlers.SubmitAIFeedback)
 	}
 
 	r.Run(":8080")

@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/nikkofu/relay-agent-workspace/api/internal/db"
+	"github.com/nikkofu/relay-agent-workspace/api/internal/domain"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/llm"
 )
 
@@ -109,6 +112,42 @@ func ExecuteAI(c *gin.Context) {
 			return
 		}
 	}
+}
+
+func SubmitAIFeedback(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var input struct {
+		MessageID string `json:"message_id" binding:"required"`
+		IsGood    bool   `json:"is_good"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var message domain.Message
+	if err := db.DB.First(&message, "id = ?", input.MessageID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "message not found"})
+		return
+	}
+
+	feedback := domain.AIFeedback{
+		MessageID: input.MessageID,
+		UserID:    currentUser.ID,
+		IsGood:    input.IsGood,
+		UpdatedAt: time.Now().UTC(),
+	}
+	if err := db.DB.Where("message_id = ? AND user_id = ?", input.MessageID, currentUser.ID).Assign(feedback).FirstOrCreate(&feedback).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to persist feedback"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"feedback": feedback})
 }
 
 func writeSSE(writer http.ResponseWriter, event string, payload any) {

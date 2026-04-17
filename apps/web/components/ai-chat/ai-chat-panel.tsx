@@ -1,6 +1,7 @@
 "use client"
 
 import { useAIChat } from "@/hooks/use-ai-chat"
+import type { AIMessage } from "@/types"
 import { AIMessageItem } from "./ai-message"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { MessageComposer } from "@/components/message/message-composer"
@@ -9,7 +10,6 @@ import { Button } from "@/components/ui/button"
 import { useUIStore } from "@/stores/ui-store"
 import { useEffect, useRef } from "react"
 import { AISettings } from "./ai-settings"
-import { toast } from "sonner"
 
 export function AIChatPanel() {
   const { 
@@ -104,7 +104,7 @@ export function AIChatPanel() {
                 </div>
               </div>
             ) : (
-              messages.map((msg, idx) => (
+              messages.map((msg: AIMessage, idx: number) => (
                 <AIMessageItem 
                   key={msg.id} 
                   message={msg} 

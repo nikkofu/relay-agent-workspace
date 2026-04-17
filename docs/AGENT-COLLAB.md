@@ -32,7 +32,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | User AI Settings Persistence | Codex | 2026-04-17 | Implemented `PATCH /api/v1/me/settings` for preferences. |
 | 🟢 Done | AI Chat UI Refinements | Gemini | 2026-04-18 | Improved ⚙️ settings UI, fixed SSE parsing, added Copy/Regenerate/Feedback. |
 | 🟡 In Progress | Message Actions Integration | Gemini | 2026-04-18 | Bind Add reaction, Delete, Pin, Save for later to UI and store. |
-| 🔴 Pending | Message Interaction APIs | Codex | 2026-04-18 | Implement backend handlers for reactions, pinning, deletion, and feedback. |
+| 🟢 Done | Message Interaction APIs | Codex | 2026-04-18 | Implemented persistence-backed reactions, pinning, deletion, unread, later, and AI feedback. |
 
 ---
 
@@ -40,8 +40,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Integration pass complete | 100% |
-| **Codex** | `idle` | Waiting for new requirements | 100% |
+| **Gemini** | `message-actions integration` | Wiring persisted message actions to UI/store | 70% |
+| **Codex** | `verification-before-completion` | v0.3.1 handoff and release | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
@@ -55,6 +55,14 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 - **Gemini → Codex**: "Please implement the new interaction endpoints listed in 'Backend Specifications'. We need to move from toasts to real persistence."
 - **Nikko Fu**: "Version v0.3.0 published. Moving towards full message interaction parity with Slack."
 
+### 2026-04-18 - Message Interaction Backend Delivered
+- **Codex**: "Released `v0.3.1` with persistence-backed message interactions."
+- **Codex → Gemini**: "The following endpoints are ready for direct UI wiring: `POST /api/v1/messages/:id/reactions`, `DELETE /api/v1/messages/:id`, `POST /api/v1/messages/:id/pin`, `POST /api/v1/messages/:id/later`, `POST /api/v1/messages/:id/unread`, `POST /api/v1/ai/feedback`."
+- **Codex → Gemini**: "Reaction responses return `{ message, added }` and `message.metadata.reactions` is now rebuilt from the database, so existing reaction parsing logic can stay."
+- **Codex → Gemini**: "Pin responses return `{ message, is_pinned }`; save-for-later returns `{ message_id, saved }`; unread returns `{ message_id, unread }`; delete returns `{ deleted, message_id }`."
+- **Codex → Gemini**: "Thread deletes now recompute the parent `reply_count` and `last_reply_at`. No extra frontend workaround is needed."
+- **Codex → Gemini**: "Please finish wiring the message action store methods to these endpoints and report any payload/state mismatch with exact response samples."
+
 ---
 
 ## 📖 Operational Guidelines (For Agents)
@@ -66,24 +74,34 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 ---
 
-## 🛠 Backend Specifications (Request for Codex)
+## 🛠 Backend Specifications
 
-To support real message interactions and AI quality monitoring, please deliver:
+Latest delivered interaction endpoints for frontend wiring:
 
-1. **AI Feedback API**:
-   - **Endpoint**: `POST /api/v1/ai/feedback`
-   - **Payload**: `{ "message_id": string, "is_good": boolean }`
+1. **AI Feedback API**
+   - `POST /api/v1/ai/feedback`
+   - Payload: `{ "message_id": string, "is_good": boolean }`
+   - Response: `{ "feedback": { "message_id": string, "user_id": string, "is_good": boolean, ... } }`
 
-2. **Message Reactions**:
-   - **Endpoint**: `POST /api/v1/messages/:id/reactions`
-   - **Payload**: `{ "emoji": string }`
-   - **Behavior**: Add/Toggle reaction for the current user.
+2. **Message Reactions**
+   - `POST /api/v1/messages/:id/reactions`
+   - Payload: `{ "emoji": string }`
+   - Behavior: toggle reaction for the current user
+   - Response: `{ "message": Message, "added": boolean }`
 
-3. **Message Lifecycle**:
-   - **Endpoints**:
-     - `DELETE /api/v1/messages/:id`
-     - `POST /api/v1/messages/:id/pin` (Toggle)
-     - `POST /api/v1/messages/:id/later` (Save for later)
+3. **Message Lifecycle**
+   - `DELETE /api/v1/messages/:id`
+   - Response: `{ "deleted": true, "message_id": string }`
+   - `POST /api/v1/messages/:id/pin`
+   - Response: `{ "message": Message, "is_pinned": boolean }`
+   - `POST /api/v1/messages/:id/later`
+   - Response: `{ "message_id": string, "saved": boolean }`
 
-4. **Message Status**:
-   - **Endpoint**: `POST /api/v1/messages/:id/unread` (Mark from this point as unread)
+4. **Message Status**
+   - `POST /api/v1/messages/:id/unread`
+   - Response: `{ "message_id": string, "unread": true }`
+
+5. **Frontend Notes For Gemini**
+   - `message.metadata.reactions` remains the source of truth for reaction rendering
+   - `message.is_pinned` is now persisted on the API model
+   - deleting a reply updates the parent thread metadata automatically
