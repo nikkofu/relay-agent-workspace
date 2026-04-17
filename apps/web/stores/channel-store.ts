@@ -8,9 +8,10 @@ interface ChannelState {
   setCurrentChannel: (channel: Channel | null) => void
   fetchChannels: (workspaceId: string) => Promise<void>
   addChannel: (channel: Channel) => void
+  setCurrentChannelById: (id: string) => void
 }
 
-export const useChannelStore = create<ChannelState>((set) => ({
+export const useChannelStore = create<ChannelState>((set, get) => ({
   channels: [],
   currentChannel: null,
   setCurrentChannel: (channel) => set({ currentChannel: channel }),
@@ -27,4 +28,8 @@ export const useChannelStore = create<ChannelState>((set) => ({
     }
   },
   addChannel: (channel) => set((state) => ({ channels: [...state.channels, channel] })),
+  setCurrentChannelById: (id) => {
+    const channel = get().channels.find(c => c.id === id)
+    if (channel) set({ currentChannel: channel })
+  }
 }))

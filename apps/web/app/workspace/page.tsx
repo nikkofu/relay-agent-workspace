@@ -4,10 +4,20 @@ import { useChannelStore } from "@/stores/channel-store"
 import { useMessageStore } from "@/stores/message-store"
 import { MessageList } from "@/components/message/message-list"
 import { MessageArea } from "@/components/layout/message-area"
+import { useSearchParams } from "next/navigation"
+import { useEffect } from "react"
 
 export default function WorkspacePage() {
-  const { currentChannel } = useChannelStore()
+  const { currentChannel, setCurrentChannelById, channels } = useChannelStore()
   const { messages } = useMessageStore()
+  const searchParams = useSearchParams()
+  const channelIdFromUrl = searchParams.get("c")
+
+  useEffect(() => {
+    if (channelIdFromUrl && channels.length > 0) {
+      setCurrentChannelById(channelIdFromUrl)
+    }
+  }, [channelIdFromUrl, channels, setCurrentChannelById])
 
   if (!currentChannel) {
     return (

@@ -71,7 +71,10 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       console.error("Failed to fetch thread:", error)
     }
   },
-  addMessage: (message) => set((state) => ({ messages: [...state.messages, message] })),
+  addMessage: (message) => set((state) => {
+    if (state.messages.find(m => m.id === message.id)) return state;
+    return { messages: [...state.messages, message] };
+  }),
   sendMessage: async (channelId, content, userId, threadId) => {
     try {
       const response = await fetch(`${API_BASE_URL}/messages`, {

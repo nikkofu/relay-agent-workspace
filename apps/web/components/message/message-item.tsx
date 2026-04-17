@@ -64,12 +64,13 @@ export function MessageItem({ message, sender, isCompact, showActions = true }: 
         )}
 
         {/* Message Content */}
-        <div className={cn(
-          "text-sm mt-0.5 whitespace-pre-wrap break-words leading-normal",
-          isCompact && "mt-0"
-        )}>
-          {message.content}
-        </div>
+        <div 
+          className={cn(
+            "text-sm mt-0.5 break-words leading-normal",
+            isCompact && "mt-0"
+          )}
+          dangerouslySetInnerHTML={{ __html: message.content }}
+        />
 
         {/* Reactions */}
         {message.reactions && message.reactions.length > 0 && (
@@ -87,7 +88,7 @@ export function MessageItem({ message, sender, isCompact, showActions = true }: 
         )}
 
         {/* Thread Info */}
-        {message.replyCount && message.replyCount > 0 && (
+        {message.replyCount !== undefined && message.replyCount > 0 && (
           <div 
             className="flex items-center gap-2 mt-2 group/thread cursor-pointer hover:bg-muted px-2 py-1 rounded w-fit -ml-2 transition-colors"
             onClick={() => openThread(message.id)}
@@ -120,7 +121,7 @@ export function MessageItem({ message, sender, isCompact, showActions = true }: 
             onSave={() => saveForLater(message.id)}
             onMarkUnread={() => markAsUnread(message.id)}
             onCopyLink={() => {
-              navigator.clipboard.writeText(`${window.location.origin}/messages/${message.id}`)
+              navigator.clipboard.writeText(`${window.location.origin}/workspace?c=${message.channelId}&m=${message.id}`)
               toast.success("Link copied to clipboard")
             }}
             onForward={() => toast.info("Forwarding coming soon")}

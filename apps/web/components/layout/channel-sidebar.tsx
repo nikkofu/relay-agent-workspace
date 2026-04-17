@@ -11,6 +11,7 @@ import { useUIStore } from "@/stores/ui-store"
 import { HuddleBar } from "@/components/huddle/huddle-bar"
 import { useState, useEffect } from "react"
 import { Badge } from "@/components/ui/badge"
+import { useRouter, useSearchParams } from "next/navigation"
 
 export function ChannelSidebar() {
   const { currentWorkspace } = useWorkspaceStore()
@@ -18,6 +19,8 @@ export function ChannelSidebar() {
   const { openSearch } = useUIStore()
   const [openSections, setOpenSections] = useState({ starred: true, channels: true, dms: true })
   const [mounted, setMounted] = useState(false)
+  const router = useRouter()
+  const searchParams = useSearchParams()
 
   useEffect(() => {
     setMounted(true)
@@ -25,6 +28,11 @@ export function ChannelSidebar() {
 
   const starredChannels = channels.filter(c => c.isStarred)
   const regularChannels = channels.filter(c => !c.isStarred)
+
+  const handleChannelClick = (channel: any) => {
+    setCurrentChannel(channel)
+    router.push(`/workspace?c=${channel.id}`)
+  }
 
   if (!mounted) {
     return (
@@ -74,7 +82,7 @@ export function ChannelSidebar() {
                   key={channel.id} 
                   channel={channel} 
                   isActive={currentChannel?.id === channel.id}
-                  onClick={() => setCurrentChannel(channel)}
+                  onClick={() => handleChannelClick(channel)}
                 />
               ))}
             </CollapsibleContent>
@@ -95,7 +103,7 @@ export function ChannelSidebar() {
                   key={channel.id} 
                   channel={channel} 
                   isActive={currentChannel?.id === channel.id}
-                  onClick={() => setCurrentChannel(channel)}
+                  onClick={() => handleChannelClick(channel)}
                 />
               ))}
               <div className="flex items-center px-2 py-1.5 hover:bg-white/10 rounded cursor-pointer text-sm gap-2">

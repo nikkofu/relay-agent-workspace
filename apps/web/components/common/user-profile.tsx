@@ -5,12 +5,26 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Sparkles, MessageCircle, Mail, Clock, Calendar } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import { useRouter } from "next/navigation"
 
 interface UserProfileProps {
   user: User
 }
 
 export function UserProfile({ user }: UserProfileProps) {
+  const router = useRouter()
+  
+  const statusColors: Record<string, string> = {
+    online: "bg-green-500",
+    away: "bg-yellow-500",
+    busy: "bg-red-500",
+    offline: "bg-slate-500"
+  }
+
+  const handleMessageClick = () => {
+    router.push(`/workspace/dms?u=${user.id}`)
+  }
+
   return (
     <div className="w-[300px] flex flex-col bg-white dark:bg-[#1a1d21] overflow-hidden">
       {/* Header with Background and Large Avatar */}
@@ -28,9 +42,9 @@ export function UserProfile({ user }: UserProfileProps) {
         <div>
           <div className="flex items-center gap-2">
             <h3 className="text-xl font-black tracking-tight">{user.name}</h3>
-            <div className={`h-2.5 w-2.5 rounded-full ${user.status === 'online' ? 'bg-green-500' : 'bg-muted-foreground/30'}`} />
+            <div className={`h-2.5 w-2.5 rounded-full ${statusColors[user.status] || statusColors.offline}`} />
           </div>
-          <p className="text-sm text-muted-foreground font-medium">{user.statusText || "Member"}</p>
+          <p className="text-sm text-muted-foreground font-medium">{user.statusText || (user.status === 'online' ? "Active" : "Away")}</p>
         </div>
 
         {/* AI Insight Section */}
@@ -40,13 +54,16 @@ export function UserProfile({ user }: UserProfileProps) {
             <span className="text-[10px] font-bold uppercase tracking-wider">AI Collaboration Insight</span>
           </div>
           <p className="text-[11px] leading-relaxed text-foreground/80 italic font-medium">
-            &quot;Nikko is most active between 9 AM and 11 AM. For complex UI feedback, he prefers direct threads over DMs.&quot;
+            &quot;{user.name} is a key contributor. Best reached during their local business hours.&quot;
           </p>
         </div>
 
         {/* Action Buttons */}
         <div className="flex gap-2">
-          <Button className="flex-1 h-9 font-bold bg-[#007a5a] hover:bg-[#007a5a]/90">
+          <Button 
+            className="flex-1 h-9 font-bold bg-[#007a5a] hover:bg-[#007a5a]/90 text-white"
+            onClick={handleMessageClick}
+          >
             <MessageCircle className="w-4 h-4 mr-2" /> Message
           </Button>
           <Button variant="outline" size="icon" className="h-9 w-9">
