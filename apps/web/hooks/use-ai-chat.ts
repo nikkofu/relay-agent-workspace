@@ -1,17 +1,96 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { AIMessage } from "@/types"
 import { API_BASE_URL } from "@/lib/constants"
 import { toast } from "sonner"
+import { useUserStore } from "@/stores/user-store"
+
+interface AIProviderConfig {
+  id: string
+  models: string[]
+}
+
+interface AIConfigResponse {
+  default_provider: string
+  providers: AIProviderConfig[]
+}
 
 export function useAIChat() {
+  const { currentUser } = useUserStore()
   const [messages, setMessages] = useState<AIMessage[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  
+  // State initialized from user preferences
   const [currentProvider, setCurrentProvider] = useState<string>("gemini")
   const [currentModel, setCurrentModel] = useState<string>("")
   const [currentMode, setCurrentMode] = useState<"fast" | "planning">("fast")
-  const [availableProviders, setAvailableProviders] = useState<string[]>(["gemini", "openrouter"])
+  const [availableProviders, setAvailableProviders] = useState<AIProviderConfig[]>([])
+
+  // Hydrate from currentUser
+  useEffect(() => {
+    if (currentUser) {
+      if (currentUser.aiProvider) setCurrentProvider(currentUser.aiProvider)
+      if (currentUser.aiModel) setCurrentModel(currentUser.aiModel)
+      if (currentUser.aiMode) setCurrentMode(currentUser.aiMode)
+    }
+  }, [currentUser])
+
+  // Fetch dynamic config
+  const fetchConfig = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/ai/config`)
+      const data: AIConfigResponse = await response.json()
+      setAvailableProviders(data.providers)
+      
+      // If no provider set, use default from backend
+      if (!currentProvider && data.default_provider) {
+        setCurrentProvider(data.default_provider)
+      }
+    } catch (error) {
+      console.error("Failed to fetch AI config:", error)
+    }
+  }, [currentProvider])
+
+  useEffect(() => {
+    fetchConfig()
+  }, [fetchConfig])
+
+  // Persist settings
+  const saveSettings = useCallback(async (updates: { provider?: string, model?: string, mode?: string }) => {
+    try {
+      await fetch(`${API_BASE_URL}/me/settings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates)
+      })
+    } catch (error) {
+      console.error("Failed to save AI settings:", error)
+    }
+  }, [])
+
+  const updateProvider = (provider: string) => {
+    setCurrentProvider(provider)
+    saveSettings({ provider })
+    
+    // Automatically pick the first model for the new provider
+    const config = availableProviders.find(p => p.id === provider)
+    if (config && config.models.length > 0) {
+      const model = config.models[0]
+      setCurrentModel(model)
+      saveSettings({ provider, model })
+    }
+  }
+
+  const updateModel = (model: string) => {
+    setCurrentModel(model)
+    saveSettings({ model })
+  }
+
+  const updateMode = (mode: "fast" | "planning") => {
+    setCurrentMode(mode)
+    saveSettings({ mode })
+  }
 
   const append = useCallback(async (content: string) => {
     const userMsg: AIMessage = {
@@ -41,7 +120,7 @@ export function useAIChat() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           prompt: content, 
-          channel_id: "ai-chat", // Default or specific channel
+          channel_id: "ai-chat", 
           provider: currentProvider,
           model: currentModel,
           mode: currentMode
@@ -112,12 +191,11 @@ export function useAIChat() {
     append, 
     isLoading, 
     currentProvider, 
-    setCurrentProvider,
+    setProvider: updateProvider,
     currentModel,
-    setCurrentModel,
+    setModel: updateModel,
     currentMode,
-    setCurrentMode,
-    availableProviders,
-    setAvailableProviders
+    setMode: updateMode,
+    availableProviders
   }
 }

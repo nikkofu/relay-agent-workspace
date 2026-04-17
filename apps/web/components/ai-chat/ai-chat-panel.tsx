@@ -15,11 +15,11 @@ export function AIChatPanel() {
     messages, 
     append, 
     currentProvider, 
-    setCurrentProvider,
+    setProvider,
     currentMode,
-    setCurrentMode,
+    setMode,
     currentModel,
-    setCurrentModel,
+    setModel,
     availableProviders
   } = useAIChat()
   const { isAIPanelOpen, closeAIPanel } = useUIStore()
@@ -55,11 +55,11 @@ export function AIChatPanel() {
         <div className="flex items-center gap-1">
           <AISettings 
             provider={currentProvider}
-            setProvider={setCurrentProvider}
+            setProvider={setProvider}
             mode={currentMode}
-            setMode={setCurrentMode}
+            setMode={setMode}
             model={currentModel}
-            setModel={setCurrentModel}
+            setModel={setModel}
             availableProviders={availableProviders}
           />
           <Button 

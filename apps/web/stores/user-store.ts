@@ -9,6 +9,13 @@ interface UserState {
   fetchUsers: () => Promise<void>
 }
 
+const mapUser = (u: any): User => ({
+  ...u,
+  aiProvider: u.ai_provider,
+  aiModel: u.ai_model,
+  aiMode: u.ai_mode
+})
+
 export const useUserStore = create<UserState>((set) => ({
   currentUser: null,
   users: [],
@@ -16,7 +23,7 @@ export const useUserStore = create<UserState>((set) => ({
     try {
       const response = await fetch(`${API_BASE_URL}/me`)
       const data = await response.json()
-      set({ currentUser: data.user })
+      set({ currentUser: mapUser(data.user) })
     } catch (error) {
       console.error("Failed to fetch current user:", error)
     }
@@ -25,7 +32,7 @@ export const useUserStore = create<UserState>((set) => ({
     try {
       const response = await fetch(`${API_BASE_URL}/users`)
       const data = await response.json()
-      set({ users: data.users })
+      set({ users: data.users.map(mapUser) })
     } catch (error) {
       console.error("Failed to fetch users:", error)
     }
