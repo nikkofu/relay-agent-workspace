@@ -10,6 +10,13 @@ interface DMState {
   createConversation: (userIds: string[]) => Promise<DirectMessage | null>
 }
 
+const mapConversation = (c: any): DirectMessage => ({
+  ...c,
+  userIds: c.user_ids || [],
+  lastMessageAt: c.last_message_at,
+  unreadCount: c.unread_count
+})
+
 export const useDMStore = create<DMState>((set, get) => ({
   conversations: [],
   currentConversation: null,
@@ -18,7 +25,7 @@ export const useDMStore = create<DMState>((set, get) => ({
     try {
       const response = await fetch(`${API_BASE_URL}/dms`)
       const data = await response.json()
-      set({ conversations: data.conversations })
+      set({ conversations: data.conversations.map(mapConversation) })
     } catch (error) {
       console.error("Failed to fetch DM conversations:", error)
     }
@@ -31,7 +38,7 @@ export const useDMStore = create<DMState>((set, get) => ({
         body: JSON.stringify({ user_ids: userIds })
       })
       const data = await response.json()
-      const newConv = data.conversation
+      const newConv = mapConversation(data.conversation)
       set((state) => ({ 
         conversations: [newConv, ...state.conversations.filter(c => c.id !== newConv.id)] 
       }))

@@ -67,7 +67,7 @@ function DMsContent() {
   }
 
   if (currentConversation) {
-    const otherUserId = currentConversation.userIds.find(id => id !== currentUser?.id)
+    const otherUserId = currentConversation.userIds?.find(id => id !== currentUser?.id)
     const otherUser = users.find(u => u.id === otherUserId)
 
     return (
@@ -121,7 +121,7 @@ function DMsContent() {
         <div className="p-4 flex flex-col gap-1">
           <h3 className="text-xs font-bold text-muted-foreground uppercase px-2 mb-2">Recent conversations</h3>
           {conversations.map(conv => {
-            const otherUserId = conv.userIds.find(id => id !== currentUser?.id)
+            const otherUserId = conv.userIds?.find(id => id !== currentUser?.id)
             const user = users.find(u => u.id === otherUserId)
             if (!user) return null
 

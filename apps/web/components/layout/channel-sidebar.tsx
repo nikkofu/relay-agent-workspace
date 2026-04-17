@@ -138,7 +138,9 @@ export function ChannelSidebar() {
             </div>
             <CollapsibleContent className="flex flex-col gap-[2px]">
               {conversations.map(conv => {
-                const otherUserId = conv.userIds.find(id => id !== currentUser?.id)
+                const otherUserId = conv.userIds?.find(id => id !== currentUser?.id)
+                if (!otherUserId) return null
+                
                 const user = users.find(u => u.id === otherUserId)
                 if (!user) return null
 
