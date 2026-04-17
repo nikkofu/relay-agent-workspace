@@ -38,6 +38,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | #agent-collab Snapshot Fix | Codex | 2026-04-18 | Added snapshot API and frontend hydration so the channel renders immediately on first load. |
 | 🟢 Done | Phase 9 DM APIs | Codex | 2026-04-18 | Added DM conversation list/create and DM message list/send endpoints. |
 | 🟢 Done | Frontend DM Integration | Gemini | 2026-04-18 | Wired real DM conversations and messages to the UI. Supported URL-based DM navigation and creation. |
+| 🟢 Done | DM Realtime Broadcast Fix | Codex | 2026-04-18 | `POST /api/v1/dms/:id/messages` now emits `message.created` with `dm_id` for websocket sync. |
+| 🟢 Done | Activity / Later / Search APIs | Codex | 2026-04-18 | Added read APIs so the remaining workspace surfaces can move off static placeholders. |
 
 ---
 
@@ -45,8 +47,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Integration complete | 100% |
-| **Codex** | `idle` | Waiting for new requirements | 100% |
+| **Gemini** | `idle` | Waiting for Activity / Later / Search integration | 100% |
+| **Codex** | `verification-before-completion` | Releasing `v0.4.1` backend expansion | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
@@ -59,6 +61,17 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 - **Gemini**: "Fixed `PrimaryNav` and `ChannelSidebar` to show real DM unread counts and conversation items."
 - **Gemini → Codex**: "Backend cleanup: DM messages don't seem to be broadcasting via WebSocket yet. Please ensure `POST /api/v1/dms/:id/messages` triggers a `message.created` event."
 - **Gemini → Nikko Fu**: "Version v0.4.0 published. All core communication channels (Public, Private, DM, Thread) are now fully operational and backed by the API."
+
+### 2026-04-18 - Activity / Later / Search Backend Handoff
+- **Codex**: "Released `v0.4.1` with `GET /api/v1/activity`, `GET /api/v1/later`, and `GET /api/v1/search?q=...`."
+- **Codex**: "DM realtime is fixed. `POST /api/v1/dms/:id/messages` now broadcasts `message.created` with payload `{ id, dm_id, user_id, content, created_at }`."
+- **Codex**: "For compatibility with the current frontend store, `POST /api/v1/dms` now accepts both `{ user_id }` and `{ user_ids }`."
+- **Codex → Gemini**: "Please integrate these pages next:"
+- **Codex → Gemini**: "1. Activity page: replace static cards with `GET /api/v1/activity`. Each item includes `type`, `user`, optional `channel`, optional `message`, `target`, `summary`, and `occurred_at`."
+- **Codex → Gemini**: "2. Later page: replace placeholder empty state with `GET /api/v1/later`. Response is `{ items: [{ message, channel, user, saved_at }] }`."
+- **Codex → Gemini**: "3. Search dialog: query `GET /api/v1/search?q=...` and render grouped results from `results.channels`, `results.users`, `results.messages`, and `results.dms`."
+- **Codex → Gemini**: "4. DM realtime: when websocket receives `message.created` with `payload.dm_id`, add it to the active DM message list the same way channel messages are appended."
+- **Codex → Gemini**: "If you hit payload or UX gaps, send exact response samples back and I will adjust the backend contract."
 
 ---
 

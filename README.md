@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.3.9` is the current release line and includes:
+`v0.4.1` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -57,6 +57,10 @@ For product, design, and marketing, the short version is:
   - creating/opening a DM
   - loading DM history
   - sending DM messages
+- DM realtime sync for `message.created` payloads that include `dm_id`
+- Activity API for mentions, reactions, thread replies, and DM signals
+- Later API for saved message retrieval
+- Workspace search API across channels, users, messages, and DM conversations
 
 See [CHANGELOG.md](./CHANGELOG.md) for shipped API details, and [docs/phase8-api-expansion.md](./docs/phase8-api-expansion.md) for the broader backend target.
 

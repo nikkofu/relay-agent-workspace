@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -83,6 +84,27 @@ func broadcastRealtimeEvent(eventType string, message domain.Message, payload an
 		WorkspaceID: channel.WorkspaceID,
 		ChannelID:   message.ChannelID,
 		EntityID:    message.ID,
+		TS:          time.Now().UTC().Format(time.RFC3339Nano),
+		Payload:     payload,
+	})
+}
+
+func broadcastDMRealtimeEvent(dmID, messageID string, payload any) error {
+	if RealtimeHub == nil {
+		return nil
+	}
+
+	workspaceID := ""
+	var workspace domain.Workspace
+	if err := db.DB.Order("id asc").First(&workspace).Error; err == nil {
+		workspaceID = workspace.ID
+	}
+
+	return RealtimeHub.Broadcast(realtime.Event{
+		ID:          "evt_" + time.Now().Format("20060102150405.000000"),
+		Type:        "message.created",
+		WorkspaceID: workspaceID,
+		EntityID:    messageID,
 		TS:          time.Now().UTC().Format(time.RFC3339Nano),
 		Payload:     payload,
 	})
@@ -358,13 +380,27 @@ func CreateOrOpenDMConversation(c *gin.Context) {
 	}
 
 	var input struct {
-		UserID string `json:"user_id" binding:"required"`
+		UserID  string   `json:"user_id"`
+		UserIDs []string `json:"user_ids"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if input.UserID == currentUser.ID {
+	targetUserID := input.UserID
+	if targetUserID == "" && len(input.UserIDs) > 0 {
+		for _, candidate := range input.UserIDs {
+			if candidate != "" && candidate != currentUser.ID {
+				targetUserID = candidate
+				break
+			}
+		}
+	}
+	if targetUserID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id is required"})
+		return
+	}
+	if targetUserID == currentUser.ID {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot create dm with current user"})
 		return
 	}
@@ -377,7 +413,7 @@ func CreateOrOpenDMConversation(c *gin.Context) {
 		if len(members) == 2 {
 			memberIDs := []string{members[0].UserID, members[1].UserID}
 			sort.Strings(memberIDs)
-			expected := []string{currentUser.ID, input.UserID}
+			expected := []string{currentUser.ID, targetUserID}
 			sort.Strings(expected)
 			if memberIDs[0] == expected[0] && memberIDs[1] == expected[1] {
 				var conversation domain.DMConversation
@@ -399,7 +435,7 @@ func CreateOrOpenDMConversation(c *gin.Context) {
 
 	members := []domain.DMMember{
 		{DMConversationID: conversation.ID, UserID: currentUser.ID},
-		{DMConversationID: conversation.ID, UserID: input.UserID},
+		{DMConversationID: conversation.ID, UserID: targetUserID},
 	}
 	for _, member := range members {
 		if err := db.DB.Create(&member).Error; err != nil {
@@ -455,7 +491,267 @@ func CreateDMMessage(c *gin.Context) {
 		return
 	}
 
+	if err := broadcastDMRealtimeEvent(dmID, message.ID, gin.H{
+		"id":         message.ID,
+		"dm_id":      message.DMConversationID,
+		"user_id":    message.UserID,
+		"content":    message.Content,
+		"created_at": message.CreatedAt,
+	}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to broadcast dm message event"})
+		return
+	}
+
 	c.JSON(http.StatusCreated, gin.H{"message": message})
+}
+
+func GetActivity(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	type activityItem struct {
+		ID         string      `json:"id"`
+		Type       string      `json:"type"`
+		User       domain.User `json:"user"`
+		Channel    any         `json:"channel,omitempty"`
+		Message    any         `json:"message,omitempty"`
+		Target     string      `json:"target,omitempty"`
+		Summary    string      `json:"summary"`
+		OccurredAt time.Time   `json:"occurred_at"`
+	}
+
+	activities := make([]activityItem, 0)
+	nameNeedle := strings.ToLower(currentUser.Name)
+
+	var mentionMessages []domain.Message
+	db.DB.Where("user_id <> ? AND LOWER(content) LIKE ?", currentUser.ID, "%"+nameNeedle+"%").Order("created_at desc").Find(&mentionMessages)
+	for _, message := range mentionMessages {
+		var actor domain.User
+		var channel domain.Channel
+		if err := db.DB.First(&actor, "id = ?", message.UserID).Error; err != nil {
+			continue
+		}
+		_ = db.DB.First(&channel, "id = ?", message.ChannelID).Error
+		activities = append(activities, activityItem{
+			ID:         "activity-mention-" + message.ID,
+			Type:       "mention",
+			User:       enrichUser(actor),
+			Channel:    channel,
+			Message:    message,
+			Target:     "#" + channel.Name,
+			Summary:    actor.Name + " mentioned you in #" + channel.Name,
+			OccurredAt: message.CreatedAt,
+		})
+	}
+
+	var replies []domain.Message
+	db.DB.Where("thread_id <> ''").Order("created_at desc").Find(&replies)
+	for _, reply := range replies {
+		var parent domain.Message
+		if err := db.DB.First(&parent, "id = ?", reply.ThreadID).Error; err != nil || parent.UserID != currentUser.ID || reply.UserID == currentUser.ID {
+			continue
+		}
+		var actor domain.User
+		var channel domain.Channel
+		if err := db.DB.First(&actor, "id = ?", reply.UserID).Error; err != nil {
+			continue
+		}
+		_ = db.DB.First(&channel, "id = ?", reply.ChannelID).Error
+		activities = append(activities, activityItem{
+			ID:         "activity-thread-" + reply.ID,
+			Type:       "thread_reply",
+			User:       enrichUser(actor),
+			Channel:    channel,
+			Message:    reply,
+			Target:     "#" + channel.Name,
+			Summary:    actor.Name + " replied to your thread in #" + channel.Name,
+			OccurredAt: reply.CreatedAt,
+		})
+	}
+
+	var reactions []domain.MessageReaction
+	if err := db.DB.Table("message_reactions").
+		Select("message_reactions.*").
+		Joins("JOIN messages ON messages.id = message_reactions.message_id").
+		Where("messages.user_id = ?", currentUser.ID).
+		Order("message_reactions.created_at desc").
+		Find(&reactions).Error; err == nil {
+		for _, reaction := range reactions {
+			var actor domain.User
+			var message domain.Message
+			var channel domain.Channel
+			if err := db.DB.First(&actor, "id = ?", reaction.UserID).Error; err != nil {
+				continue
+			}
+			if err := db.DB.First(&message, "id = ?", reaction.MessageID).Error; err != nil {
+				continue
+			}
+			_ = db.DB.First(&channel, "id = ?", message.ChannelID).Error
+			activities = append(activities, activityItem{
+				ID:         "activity-reaction-" + reaction.MessageID + "-" + reaction.Emoji,
+				Type:       "reaction",
+				User:       enrichUser(actor),
+				Channel:    channel,
+				Message:    message,
+				Target:     reaction.Emoji,
+				Summary:    actor.Name + " reacted " + reaction.Emoji + " to your message in #" + channel.Name,
+				OccurredAt: reaction.CreatedAt,
+			})
+		}
+	}
+
+	var dmMemberships []domain.DMMember
+	db.DB.Where("user_id = ?", currentUser.ID).Find(&dmMemberships)
+	for _, membership := range dmMemberships {
+		var dmMessages []domain.DMMessage
+		db.DB.Where("dm_conversation_id = ? AND user_id <> ?", membership.DMConversationID, currentUser.ID).Order("created_at desc").Find(&dmMessages)
+		for _, message := range dmMessages {
+			var actor domain.User
+			if err := db.DB.First(&actor, "id = ?", message.UserID).Error; err != nil {
+				continue
+			}
+			activities = append(activities, activityItem{
+				ID:         "activity-dm-" + message.ID,
+				Type:       "dm_message",
+				User:       enrichUser(actor),
+				Message:    message,
+				Target:     "Direct messages",
+				Summary:    actor.Name + " sent you a DM",
+				OccurredAt: message.CreatedAt,
+			})
+		}
+	}
+
+	sort.Slice(activities, func(i, j int) bool {
+		return activities[i].OccurredAt.After(activities[j].OccurredAt)
+	})
+
+	if len(activities) > 50 {
+		activities = activities[:50]
+	}
+
+	c.JSON(http.StatusOK, gin.H{"activities": activities})
+}
+
+func GetLater(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	type laterItem struct {
+		Message any         `json:"message"`
+		Channel any         `json:"channel,omitempty"`
+		User    domain.User `json:"user"`
+		SavedAt time.Time   `json:"saved_at"`
+	}
+
+	var savedRows []domain.SavedMessage
+	db.DB.Where("user_id = ?", currentUser.ID).Order("created_at desc").Find(&savedRows)
+
+	items := make([]laterItem, 0, len(savedRows))
+	for _, saved := range savedRows {
+		message, err := refreshMessageMetadata(saved.MessageID)
+		if err != nil || message == nil {
+			continue
+		}
+
+		var actor domain.User
+		var channel domain.Channel
+		if err := db.DB.First(&actor, "id = ?", message.UserID).Error; err != nil {
+			continue
+		}
+		_ = db.DB.First(&channel, "id = ?", message.ChannelID).Error
+		items = append(items, laterItem{
+			Message: message,
+			Channel: channel,
+			User:    enrichUser(actor),
+			SavedAt: saved.CreatedAt,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"items": items})
+}
+
+func SearchWorkspace(c *gin.Context) {
+	query := strings.TrimSpace(c.Query("q"))
+	if query == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "q is required"})
+		return
+	}
+
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	needle := "%" + strings.ToLower(query) + "%"
+
+	type searchResults struct {
+		Channels []domain.Channel `json:"channels"`
+		Users    []domain.User    `json:"users"`
+		Messages []domain.Message `json:"messages"`
+		DMs      []gin.H          `json:"dms"`
+	}
+
+	results := searchResults{
+		Channels: []domain.Channel{},
+		Users:    []domain.User{},
+		Messages: []domain.Message{},
+		DMs:      []gin.H{},
+	}
+
+	db.DB.Where("LOWER(name) LIKE ? OR LOWER(description) LIKE ?", needle, needle).Order("name asc").Limit(10).Find(&results.Channels)
+	db.DB.Where("LOWER(name) LIKE ? OR LOWER(email) LIKE ?", needle, needle).Order("name asc").Limit(10).Find(&results.Users)
+	for idx := range results.Users {
+		results.Users[idx] = enrichUser(results.Users[idx])
+	}
+	db.DB.Where("LOWER(content) LIKE ?", needle).Order("created_at desc").Limit(10).Find(&results.Messages)
+	for idx := range results.Messages {
+		refreshed, err := refreshMessageMetadata(results.Messages[idx].ID)
+		if err == nil && refreshed != nil {
+			results.Messages[idx] = *refreshed
+		}
+	}
+
+	var memberships []domain.DMMember
+	db.DB.Where("user_id = ?", currentUser.ID).Find(&memberships)
+	for _, membership := range memberships {
+		var otherMember domain.DMMember
+		if err := db.DB.Where("dm_conversation_id = ? AND user_id <> ?", membership.DMConversationID, currentUser.ID).First(&otherMember).Error; err != nil {
+			continue
+		}
+
+		var otherUser domain.User
+		if err := db.DB.First(&otherUser, "id = ?", otherMember.UserID).Error; err != nil {
+			continue
+		}
+
+		var hitCount int64
+		db.DB.Model(&domain.DMMessage{}).Where("dm_conversation_id = ? AND LOWER(content) LIKE ?", membership.DMConversationID, needle).Count(&hitCount)
+		if !strings.Contains(strings.ToLower(otherUser.Name), strings.ToLower(query)) && !strings.Contains(strings.ToLower(otherUser.Email), strings.ToLower(query)) && hitCount == 0 {
+			continue
+		}
+
+		var lastMessage domain.DMMessage
+		db.DB.Where("dm_conversation_id = ?", membership.DMConversationID).Order("created_at desc").First(&lastMessage)
+		results.DMs = append(results.DMs, gin.H{
+			"id":              membership.DMConversationID,
+			"user":            enrichUser(otherUser),
+			"last_message":    lastMessage.Content,
+			"last_message_at": lastMessage.CreatedAt,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"query":   query,
+		"results": results,
+	})
 }
 
 func GetMessages(c *gin.Context) {

@@ -2,6 +2,50 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.4.1] - 2026-04-18
+
+This release closes the DM realtime gap and expands the post-Phase-8 backend with Activity, Later, and Search APIs so Gemini can finish the remaining workspace pages against live data.
+
+### Added
+
+- `GET /api/v1/activity`
+  - returns recent collaboration signals for the current user
+  - includes mentions, thread replies, reactions on your messages, and DM activity
+- `GET /api/v1/later`
+  - returns the current user's saved messages with channel and sender context
+- `GET /api/v1/search?q=...`
+  - returns grouped results across:
+    - `channels`
+    - `users`
+    - `messages`
+    - `dms`
+
+### Realtime And DM Improvements
+
+- `POST /api/v1/dms/:id/messages` now broadcasts `message.created`
+- DM websocket payloads now include:
+  - `id`
+  - `dm_id`
+  - `user_id`
+  - `content`
+  - `created_at`
+- `POST /api/v1/dms` now accepts either:
+  - `user_id`
+  - `user_ids`
+  which keeps the backend compatible with the current frontend store shape
+
+### Documentation Sync
+
+- updated `README.md` current status to the `v0.4.1` release line
+- updated `docs/phase8-api-expansion.md` so DM, Activity, Later, and Search are no longer listed as missing
+- updated `docs/AGENT-COLLAB.md` with the Gemini handoff for page integration
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm build`
+
 ## [0.3.9] - 2026-04-18
 
 This release starts the first post-Phase-8 backend expansion by adding the minimum DM API surface needed for Gemini to replace the static DMs page.

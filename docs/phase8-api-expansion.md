@@ -70,6 +70,13 @@ Current backend surface already available:
 - `POST /api/v1/orgs/:id/agents`
 - `GET /api/v1/workspaces`
 - `GET /api/v1/channels`
+- `GET /api/v1/dms`
+- `POST /api/v1/dms`
+- `GET /api/v1/dms/:id/messages`
+- `POST /api/v1/dms/:id/messages`
+- `GET /api/v1/activity`
+- `GET /api/v1/later`
+- `GET /api/v1/search`
 - `GET /api/v1/messages`
 - `GET /api/v1/messages/:id/thread`
 - `POST /api/v1/messages`
@@ -85,37 +92,7 @@ Current backend surface already available:
 
 ## 4. Remaining Backend Targets
 
-### 4.1 Direct Messages
-
-Still needed for the DM view to become fully dynamic:
-
-- `GET /api/v1/dms`
-- `POST /api/v1/dms`
-- `GET /api/v1/dms/:id/messages`
-- `POST /api/v1/dms/:id/messages`
-
-### 4.2 Activity And Later
-
-The product already exposes Activity and Later as first-class navigation items. They still need dedicated APIs:
-
-- `GET /api/v1/activity`
-- `GET /api/v1/later`
-
-Optional follow-up if we want stronger separation from message endpoints:
-
-- `DELETE /api/v1/later/:id`
-
-### 4.3 Search
-
-Current UI already frames search as both keyword and AI-assisted workspace retrieval.
-
-Recommended target surface:
-
-- `GET /api/v1/search`
-- `GET /api/v1/search/suggestions`
-- `POST /api/v1/search/semantic`
-
-### 4.4 Presence And Typing
+### 4.1 Presence And Typing
 
 Realtime infrastructure exists, but workspace presence is still incomplete.
 
@@ -127,7 +104,7 @@ Recommended additions:
   - `presence.updated`
   - `typing.updated`
 
-### 4.5 AI Conversation State
+### 4.2 AI Conversation State
 
 The current AI path is execution-oriented and streaming-first. To support richer AI collaboration, we still need:
 
@@ -143,7 +120,7 @@ Recommended additions:
 - `POST /api/v1/ai/channels/:id/summary`
 - `POST /api/v1/ai/commands/execute`
 
-### 4.6 Canvas / Artifact Lifecycle
+### 4.3 Canvas / Artifact Lifecycle
 
 The canvas panel is already a meaningful product surface, but backend artifact lifecycle is still missing.
 
@@ -155,7 +132,7 @@ Recommended additions:
 - `PATCH /api/v1/artifacts/:id`
 - `POST /api/v1/ai/canvas/generate`
 
-### 4.7 Files
+### 4.4 Files
 
 If message attachments and artifact references are to become real:
 
@@ -186,10 +163,10 @@ The broader target should cover:
 
 Recommended sequence from here:
 
-1. Finish DM, Activity, Later, and Search APIs.
-2. Expand realtime into presence, typing, and richer thread updates.
-3. Persist AI conversation state and summaries.
-4. Introduce artifact and file lifecycle APIs.
+1. Expand realtime into presence, typing, and richer thread updates.
+2. Persist AI conversation state and summaries.
+3. Introduce artifact and file lifecycle APIs.
+4. Add richer search layers such as suggestions and semantic retrieval.
 5. Move toward explicit agent runtime APIs once the collaboration foundation is stable.
 
 ## 7. Summary

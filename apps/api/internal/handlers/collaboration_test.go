@@ -499,6 +499,195 @@ func TestDMEndpointsListCreateAndSendMessages(t *testing.T) {
 	}
 }
 
+func TestCreateDMMessageBroadcastsRealtimeEvent(t *testing.T) {
+	setupTestDB(t)
+
+	hub := realtime.NewHub()
+	go hub.Run()
+	SetRealtimeHub(hub)
+	defer SetRealtimeHub(nil)
+
+	client := realtime.NewTestClient(4)
+	hub.RegisterTestClient(client)
+	defer hub.UnregisterTestClient(client)
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.User{ID: "user-2", Name: "AI Assistant", Email: "ai@example.com"})
+	db.DB.Create(&domain.DMConversation{ID: "dm-1", CreatedAt: time.Now().UTC()})
+	db.DB.Create(&domain.DMMember{DMConversationID: "dm-1", UserID: "user-1"})
+	db.DB.Create(&domain.DMMember{DMConversationID: "dm-1", UserID: "user-2"})
+
+	router := gin.New()
+	router.POST("/api/v1/dms/:id/messages", CreateDMMessage)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/dms/dm-1/messages", bytes.NewBufferString(`{"content":"Realtime DM","user_id":"user-1"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on dm send, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	raw, err := client.Receive(2 * time.Second)
+	if err != nil {
+		t.Fatalf("failed to receive realtime event: %v", err)
+	}
+
+	var event realtime.Event
+	if err := json.Unmarshal(raw, &event); err != nil {
+		t.Fatalf("failed to decode realtime event: %v", err)
+	}
+	if event.Type != "message.created" {
+		t.Fatalf("expected message.created event, got %s", event.Type)
+	}
+
+	payload, ok := event.Payload.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map payload, got %#v", event.Payload)
+	}
+	if payload["dm_id"] != "dm-1" {
+		t.Fatalf("expected dm_id in payload, got %#v", payload)
+	}
+}
+
+func TestGetActivityReturnsRecentWorkspaceSignals(t *testing.T) {
+	setupTestDB(t)
+
+	now := time.Now().UTC()
+	users := []domain.User{
+		{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"},
+		{ID: "user-2", Name: "AI Assistant", Email: "ai@example.com"},
+		{ID: "user-3", Name: "Jane Smith", Email: "jane@example.com"},
+	}
+	for _, user := range users {
+		db.DB.Create(&user)
+	}
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public"})
+	parent := domain.Message{ID: "msg-parent", ChannelID: "ch-1", UserID: "user-1", Content: "Root update", CreatedAt: now.Add(-2 * time.Hour), Metadata: "{}"}
+	reply := domain.Message{ID: "msg-reply", ChannelID: "ch-1", UserID: "user-3", Content: "Replying in thread", ThreadID: "msg-parent", CreatedAt: now.Add(-time.Hour), Metadata: "{}"}
+	mention := domain.Message{ID: "msg-mention", ChannelID: "ch-1", UserID: "user-2", Content: "Looping in Nikko Fu for review", CreatedAt: now.Add(-30 * time.Minute), Metadata: "{}"}
+	db.DB.Create(&parent)
+	db.DB.Create(&reply)
+	db.DB.Create(&mention)
+	db.DB.Create(&domain.MessageReaction{MessageID: "msg-parent", UserID: "user-2", Emoji: "🔥", CreatedAt: now.Add(-20 * time.Minute)})
+
+	router := gin.New()
+	router.GET("/api/v1/activity", GetActivity)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/activity", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on activity, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Activities []map[string]any `json:"activities"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode activity payload: %v", err)
+	}
+	if len(payload.Activities) < 3 {
+		t.Fatalf("expected at least 3 activity items, got %d", len(payload.Activities))
+	}
+}
+
+func TestGetLaterReturnsSavedMessages(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.User{ID: "user-2", Name: "AI Assistant", Email: "ai@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public"})
+	db.DB.Create(&domain.Message{
+		ID:        "msg-1",
+		ChannelID: "ch-1",
+		UserID:    "user-2",
+		Content:   "Save me for later",
+		CreatedAt: time.Now().UTC(),
+		Metadata:  "{}",
+	})
+	db.DB.Create(&domain.SavedMessage{
+		MessageID: "msg-1",
+		UserID:    "user-1",
+		CreatedAt: time.Now().UTC(),
+	})
+
+	router := gin.New()
+	router.GET("/api/v1/later", GetLater)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/later", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on later, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode later payload: %v", err)
+	}
+	if len(payload.Items) != 1 {
+		t.Fatalf("expected 1 saved item, got %d", len(payload.Items))
+	}
+}
+
+func TestSearchReturnsChannelUserMessageAndDMHits(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.User{ID: "user-2", Name: "AI Assistant", Email: "ai@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-5", WorkspaceID: "ws-1", Name: "ai-lab", Description: "AI experiments", Type: "public"})
+	db.DB.Create(&domain.Message{
+		ID:        "msg-1",
+		ChannelID: "ch-5",
+		UserID:    "user-2",
+		Content:   "The AI lab launch plan is ready",
+		CreatedAt: time.Now().UTC(),
+		Metadata:  "{}",
+	})
+	db.DB.Create(&domain.DMConversation{ID: "dm-1", CreatedAt: time.Now().UTC()})
+	db.DB.Create(&domain.DMMember{DMConversationID: "dm-1", UserID: "user-1"})
+	db.DB.Create(&domain.DMMember{DMConversationID: "dm-1", UserID: "user-2"})
+	db.DB.Create(&domain.DMMessage{
+		ID:               "dm-msg-1",
+		DMConversationID: "dm-1",
+		UserID:           "user-2",
+		Content:          "AI follow-up in DM",
+		CreatedAt:        time.Now().UTC(),
+	})
+
+	router := gin.New()
+	router.GET("/api/v1/search", SearchWorkspace)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/search?q=AI", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on search, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Query   string `json:"query"`
+		Results struct {
+			Channels []map[string]any `json:"channels"`
+			Users    []map[string]any `json:"users"`
+			Messages []map[string]any `json:"messages"`
+			DMs      []map[string]any `json:"dms"`
+		} `json:"results"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode search payload: %v", err)
+	}
+	if payload.Query != "AI" {
+		t.Fatalf("expected query echo, got %q", payload.Query)
+	}
+	if len(payload.Results.Channels) == 0 || len(payload.Results.Users) == 0 || len(payload.Results.Messages) == 0 || len(payload.Results.DMs) == 0 {
+		t.Fatalf("expected all result groups to have hits, got %#v", payload.Results)
+	}
+}
+
 func TestReactionPinAndDeleteBroadcastRealtimeEvents(t *testing.T) {
 	setupTestDB(t)
 
