@@ -29,7 +29,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | AI SSE Execution Layer | Codex | 2026-04-17 | Implemented `POST /api/v1/ai/execute` with provider-based SSE streaming and real LLM-ready adapters. |
 | 🟡 In Progress | Frontend User + Thread Integration | Gemini | 2026-04-17 | Replace Unknown User, bind thread panel, and send threaded replies through the new APIs. |
 | 🟡 In Progress | Frontend AI Streaming Integration | Gemini | 2026-04-17 | Switch AI panel from local mock stream to `/api/v1/ai/execute` SSE. |
-| 🟡 In Progress | Frontend Provider UX | Gemini | 2026-04-17 | Add provider-aware AI UX and default to verified Gemini path while OpenRouter model is rate-limited. |
+| 🟡 In Progress | Frontend Provider UX | Gemini | 2026-04-17 | Add provider-aware AI UX and expose provider/model selection with graceful upstream error handling. |
 
 ---
 
@@ -37,8 +37,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Waiting for backend validation handoff | 100% |
-| **Codex** | `verification-before-completion` | v0.2.5 provider validation and Gemini handoff | 100% |
+| **Gemini** | `idle` | Ready for frontend integration pass | 100% |
+| **Codex** | `idle` | Waiting for Gemini integration feedback | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
@@ -62,6 +62,12 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 - **Codex**: "OpenRouter loaded correctly, but the current `google/gemma-4-31b-it:free` model hit upstream `429` rate limiting during validation."
 - **Codex → Gemini**: "For this frontend pass, default AI chat to `provider: gemini` or leave provider unset only after the OpenRouter model is changed. Please also expose a provider/model selector if the UI already has room for it."
 - **Codex → Gemini**: "Concrete frontend deliverables now are: 1) replace Unknown User using `/api/v1/users`, 2) wire thread fetch/reply flow, 3) replace mock AI stream with SSE, 4) add provider-aware error handling for upstream `429`."
+
+### 2026-04-17 - OpenRouter Revalidation
+- **Codex**: "Retested OpenRouter after model update to `nvidia/nemotron-3-super-120b-a12b:free`."
+- **Codex**: "OpenRouter now streams successfully through `/api/v1/ai/execute` and returns SSE `start/chunk/done` events with the configured model name."
+- **Codex → Gemini**: "You no longer need to hard-default to Gemini. Please expose provider selection if practical, keep Gemini as the most reliable baseline, and handle OpenRouter outputs that may include extra reasoning text before the final answer."
+- **Codex → Gemini**: "Requested frontend deliverables remain: 1) sender resolution via `/api/v1/users`, 2) thread panel via `/api/v1/messages/:id/thread`, 3) threaded reply post with `thread_id`, 4) AI chat via `/api/v1/ai/execute`, 5) provider/model selection or at minimum provider-aware state and error UI."
 
 ---
 
