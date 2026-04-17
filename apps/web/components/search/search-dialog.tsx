@@ -2,11 +2,13 @@
 
 import { useEffect } from "react"
 import { useUIStore } from "@/stores/ui-store"
+import { useSearchStore } from "@/stores/search-store"
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { Sparkles, Hash, User, Clock } from "lucide-react"
+import { Sparkles, Hash, User, MessageSquare, Search as SearchIcon } from "lucide-react"
 
 export function SearchDialog() {
   const { isSearchOpen, toggleSearch, closeSearch } = useUIStore()
+  const { results, isSearching, search, clearResults } = useSearchStore()
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -19,55 +21,70 @@ export function SearchDialog() {
     return () => document.removeEventListener("keydown", down)
   }, [toggleSearch])
 
+  useEffect(() => {
+    if (!isSearchOpen) clearResults()
+  }, [isSearchOpen, clearResults])
+
   return (
     <CommandDialog open={isSearchOpen} onOpenChange={closeSearch}>
       <div className="flex items-center border-b px-3 bg-purple-50 dark:bg-purple-900/10">
-        <Sparkles className="mr-2 h-4 w-4 shrink-0 text-purple-500 opacity-50" />
-        <CommandInput placeholder="Ask AI to search across Acme Corp..." className="border-none focus:ring-0" />
+        {isSearching ? (
+          <Sparkles className="mr-2 h-4 w-4 shrink-0 text-purple-500 animate-pulse" />
+        ) : (
+          <SearchIcon className="mr-2 h-4 w-4 shrink-0 text-muted-foreground opacity-50" />
+        )}
+        <CommandInput 
+          placeholder="Search channels, people, and messages..." 
+          className="border-none focus:ring-0" 
+          onValueChange={search}
+        />
       </div>
       <CommandList>
-        <CommandEmpty>No results found.</CommandEmpty>
+        <CommandEmpty>{isSearching ? "Searching..." : "No results found."}</CommandEmpty>
         
-        <CommandGroup heading="Recent">
-          <CommandItem className="cursor-pointer">
-            <Clock className="mr-2 h-4 w-4 opacity-50" />
-            <span>AI-native app development</span>
-          </CommandItem>
-          <CommandItem className="cursor-pointer">
-            <Clock className="mr-2 h-4 w-4 opacity-50" />
-            <span>#engineering-team</span>
-          </CommandItem>
-        </CommandGroup>
+        {results.channels?.length > 0 && (
+          <CommandGroup heading="Channels">
+            {results.channels.map(c => (
+              <CommandItem key={c.id} className="cursor-pointer">
+                <Hash className="mr-2 h-4 w-4 opacity-50" />
+                <span>{c.name}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
 
-        <CommandGroup heading="AI Semantic Suggestions">
-          <CommandItem className="cursor-pointer">
-            <Sparkles className="mr-2 h-4 w-4 text-purple-500" />
-            <span>Find messages related to &quot;project timeline&quot;</span>
-          </CommandItem>
-          <CommandItem className="cursor-pointer">
-            <Sparkles className="mr-2 h-4 w-4 text-purple-500" />
-            <span>Show me all files about &quot;UI design&quot;</span>
-          </CommandItem>
-        </CommandGroup>
+        {results.users?.length > 0 && (
+          <CommandGroup heading="People">
+            {results.users.map(u => (
+              <CommandItem key={u.id} className="cursor-pointer">
+                <User className="mr-2 h-4 w-4 opacity-50" />
+                <span>{u.name}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
 
-        <CommandGroup heading="Channels & People">
-          <CommandItem className="cursor-pointer">
-            <Hash className="mr-2 h-4 w-4 opacity-50" />
-            <span>#engineering</span>
-          </CommandItem>
-          <CommandItem className="cursor-pointer">
-            <Hash className="mr-2 h-4 w-4 opacity-50" />
-            <span>#ai-lab</span>
-          </CommandItem>
-          <CommandItem className="cursor-pointer">
-            <User className="mr-2 h-4 w-4 opacity-50" />
-            <span>Nikko Fu (you)</span>
-          </CommandItem>
-          <CommandItem className="cursor-pointer">
-            <User className="mr-2 h-4 w-4 opacity-50" />
-            <span>AI Assistant</span>
-          </CommandItem>
-        </CommandGroup>
+        {results.messages?.length > 0 && (
+          <CommandGroup heading="Messages">
+            {results.messages.map(m => (
+              <CommandItem key={m.id} className="cursor-pointer">
+                <MessageSquare className="mr-2 h-4 w-4 opacity-50" />
+                <span className="truncate" dangerouslySetInnerHTML={{ __html: m.content }} />
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+
+        {results.dms?.length > 0 && (
+          <CommandGroup heading="DMs">
+            {results.dms.map(d => (
+              <CommandItem key={d.id} className="cursor-pointer">
+                <User className="mr-2 h-4 w-4 opacity-50" />
+                <span>{d.other_user?.name || "Direct Message"}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
       </CommandList>
     </CommandDialog>
   )

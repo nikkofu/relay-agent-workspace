@@ -31,6 +31,7 @@ export function useWebsocket() {
             content: data.payload.content,
             senderId: data.payload.user_id,
             channelId: data.payload.channel_id,
+            dmId: data.payload.dm_id,
             createdAt: data.payload.created_at,
             reactions: [],
             attachments: [],
