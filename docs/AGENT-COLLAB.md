@@ -27,11 +27,12 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Multi-User Profile API | Codex | 2026-04-17 | Implemented `GET /api/v1/users` for sender resolution. |
 | 🟢 Done | Message Threads API | Codex | 2026-04-17 | Added `thread_id` and `/messages/:id/thread` support. |
 | 🟢 Done | AI SSE Execution Layer | Codex | 2026-04-17 | Implemented `POST /api/v1/ai/execute` with SSE streaming. |
-| 🟢 Done | Frontend Integration Pass | Gemini | 2026-04-17 | Finalized User, Thread, and AI SSE integration. Fixed parsing bugs and improved UI. |
+| 🟢 Done | Frontend Integration Pass | Gemini | 2026-04-17 | Finalized User, Thread, and AI SSE integration. |
 | 🟢 Done | Dynamic AI Config API | Codex | 2026-04-17 | Implemented `GET /api/v1/ai/config` for enabled provider/model discovery. |
-| 🟢 Done | User AI Settings Persistence | Codex | 2026-04-17 | Implemented `PATCH /api/v1/me/settings` for persisted provider/model/mode preferences. |
-| 🟢 Done | Message Thread Data Integrity | Codex | 2026-04-17 | Reply creation now updates both `reply_count` and `last_reply_at` on the parent message. |
-| 🟢 Done | Dynamic AI Settings UI Wiring | Gemini | 2026-04-18 | Replaced hardcoded AI settings with dynamic config and persistence. |
+| 🟢 Done | User AI Settings Persistence | Codex | 2026-04-17 | Implemented `PATCH /api/v1/me/settings` for preferences. |
+| 🟢 Done | AI Chat UI Refinements | Gemini | 2026-04-18 | Improved ⚙️ settings UI, fixed SSE parsing, added Copy/Regenerate/Feedback. |
+| 🟡 In Progress | Message Actions Integration | Gemini | 2026-04-18 | Bind Add reaction, Delete, Pin, Save for later to UI and store. |
+| 🔴 Pending | Message Interaction APIs | Codex | 2026-04-18 | Implement backend handlers for reactions, pinning, deletion, and feedback. |
 
 ---
 
@@ -39,7 +40,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Integration complete | 100% |
+| **Gemini** | `idle` | Integration pass complete | 100% |
 | **Codex** | `idle` | Waiting for new requirements | 100% |
 | **Claude Code**| `idle` | - | - |
 
@@ -47,25 +48,42 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 ## 💬 Communication Log
 
-### 2026-04-16 - Real-time Sync Accomplished
-- **Gemini**: "WebSocket sync for `#agent-collab` is fully integrated! The dashboard now updates live from this document."
-
-### 2026-04-17 - Dynamic AI Config Handoff
-- **Codex**: "Delivered `GET /api/v1/ai/config` and `PATCH /api/v1/me/settings`."
-
-### 2026-04-18 - Full Dynamic Settings Integration
-- **Gemini**: "Dynamic AI settings are now fully wired. The ⚙️ panel now fetches available providers/models from `/ai/config`."
-- **Gemini**: "User preferences for AI (provider, model, mode) are now persisted to the backend via `/me/settings` and hydrated on load."
-- **Gemini → Nikko Fu**: "Version v0.2.9 published. The frontend is now fully decoupled from static AI configurations."
+### 2026-04-18 - AI Chat UX & Feedback Refined
+- **Gemini**: "AI Chat header now shows full `Provider • Model • Mode` details. 'Openrouter' renamed to 'Open Router'."
+- **Gemini**: "Fixed duplicate `/ai/config` calls and ensured model auto-selection on first load."
+- **Gemini**: "Message actions (Add reaction, Delete, Pin, Save) are now wired in the UI. I've added the API requirements for Codex."
+- **Gemini → Codex**: "Please implement the new interaction endpoints listed in 'Backend Specifications'. We need to move from toasts to real persistence."
+- **Nikko Fu**: "Version v0.3.0 published. Moving towards full message interaction parity with Slack."
 
 ---
 
 ## 📖 Operational Guidelines (For Agents)
 
-...
+1. **Read First**: Always start your session by reading `docs/AGENT-COLLAB.md` to get the latest context.
+2. **Update After Task**: When you finish a task, change an API spec, or switch a Superpower skill, update this file.
+3. **Be Atomic**: Keep entries concise and focused on technical requirements or progress status.
+4. **Collaboration Mode**: If you need an API change, tag **Codex**. If you need a UI change, tag **Gemini**.
 
 ---
 
 ## 🛠 Backend Specifications (Request for Codex)
 
-...
+To support real message interactions and AI quality monitoring, please deliver:
+
+1. **AI Feedback API**:
+   - **Endpoint**: `POST /api/v1/ai/feedback`
+   - **Payload**: `{ "message_id": string, "is_good": boolean }`
+
+2. **Message Reactions**:
+   - **Endpoint**: `POST /api/v1/messages/:id/reactions`
+   - **Payload**: `{ "emoji": string }`
+   - **Behavior**: Add/Toggle reaction for the current user.
+
+3. **Message Lifecycle**:
+   - **Endpoints**:
+     - `DELETE /api/v1/messages/:id`
+     - `POST /api/v1/messages/:id/pin` (Toggle)
+     - `POST /api/v1/messages/:id/later` (Save for later)
+
+4. **Message Status**:
+   - **Endpoint**: `POST /api/v1/messages/:id/unread` (Mark from this point as unread)

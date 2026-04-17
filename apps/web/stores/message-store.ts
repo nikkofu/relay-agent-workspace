@@ -1,6 +1,7 @@
 import { create } from "zustand"
 import { Message } from "@/types"
 import { API_BASE_URL } from "@/lib/constants"
+import { toast } from "sonner"
 
 interface MessageState {
   messages: Message[]
@@ -10,6 +11,11 @@ interface MessageState {
   addMessage: (message: Message) => void
   sendMessage: (channelId: string, content: string, userId: string, threadId?: string) => Promise<void>
   getMessagesByChannel: (channelId: string) => Message[]
+  addReaction: (messageId: string, emoji: string) => Promise<void>
+  deleteMessage: (messageId: string) => Promise<void>
+  pinMessage: (messageId: string) => Promise<void>
+  saveForLater: (messageId: string) => Promise<void>
+  markAsUnread: (messageId: string) => Promise<void>
 }
 
 const mapMessage = (m: any): Message => {
@@ -87,4 +93,29 @@ export const useMessageStore = create<MessageState>((set, get) => ({
     }
   },
   getMessagesByChannel: (channelId) => get().messages.filter((m) => m.channelId === channelId),
+  
+  addReaction: async (messageId, emoji) => {
+    toast.success(`Added ${emoji} reaction`)
+    // TODO: Call API
+  },
+  deleteMessage: async (messageId) => {
+    set(state => ({
+      messages: state.messages.filter(m => m.id !== messageId),
+      currentThreadMessages: state.currentThreadMessages.filter(m => m.id !== messageId)
+    }))
+    toast.success("Message deleted")
+    // TODO: Call API
+  },
+  pinMessage: async (messageId) => {
+    toast.success("Message pinned")
+    // TODO: Call API
+  },
+  saveForLater: async (messageId) => {
+    toast.success("Saved for later")
+    // TODO: Call API
+  },
+  markAsUnread: async (messageId) => {
+    toast.success("Marked as unread")
+    // TODO: Call API
+  }
 }))

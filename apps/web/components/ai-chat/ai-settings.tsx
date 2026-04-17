@@ -75,7 +75,7 @@ export function AISettings({
                       onClick={() => setProvider(p.id)}
                       className="capitalize flex items-center justify-between"
                     >
-                      {p.id}
+                      {p.id === 'openrouter' ? 'Open Router' : p.id}
                       {provider === p.id && <Check className="h-3.5 w-3.5 text-purple-500" />}
                     </DropdownMenuItem>
                   ))}

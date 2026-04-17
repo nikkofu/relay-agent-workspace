@@ -9,11 +9,15 @@ import { Button } from "@/components/ui/button"
 import { useUIStore } from "@/stores/ui-store"
 import { useEffect, useRef } from "react"
 import { AISettings } from "./ai-settings"
+import { toast } from "sonner"
 
 export function AIChatPanel() {
   const { 
     messages, 
     append, 
+    regenerate,
+    copyToClipboard,
+    submitFeedback,
     currentProvider, 
     setProvider,
     currentMode,
@@ -48,7 +52,7 @@ export function AIChatPanel() {
           <div className="flex flex-col">
             <h3 className="font-bold text-sm leading-tight">AI Assistant</h3>
             <span className="text-[10px] text-purple-200/70 font-medium capitalize">
-              {currentProvider} • {currentMode}
+              {currentProvider === 'openrouter' ? 'Open Router' : currentProvider} • {currentModel || 'No Model'} • {currentMode}
             </span>
           </div>
         </div>
@@ -100,7 +104,16 @@ export function AIChatPanel() {
                 </div>
               </div>
             ) : (
-              messages.map(msg => <AIMessageItem key={msg.id} message={msg} />)
+              messages.map((msg, idx) => (
+                <AIMessageItem 
+                  key={msg.id} 
+                  message={msg} 
+                  onCopy={copyToClipboard}
+                  onRegenerate={regenerate}
+                  onFeedback={(isGood) => submitFeedback(msg.id, isGood)}
+                  isLast={idx === messages.length - 1 && msg.role === 'assistant'}
+                />
+              ))
             )}
           </div>
         </ScrollArea>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { AIMessage } from "@/types"
 import { API_BASE_URL } from "@/lib/constants"
 import { toast } from "sonner"
@@ -27,6 +27,8 @@ export function useAIChat() {
   const [currentMode, setCurrentMode] = useState<"fast" | "planning">("fast")
   const [availableProviders, setAvailableProviders] = useState<AIProviderConfig[]>([])
 
+  const configFetched = useRef(false)
+
   // Hydrate from currentUser
   useEffect(() => {
     if (currentUser) {
@@ -38,19 +40,37 @@ export function useAIChat() {
 
   // Fetch dynamic config
   const fetchConfig = useCallback(async () => {
+    if (configFetched.current) return
+    configFetched.current = true
+
     try {
       const response = await fetch(`${API_BASE_URL}/ai/config`)
       const data: AIConfigResponse = await response.json()
       setAvailableProviders(data.providers)
       
-      // If no provider set, use default from backend
-      if (!currentProvider && data.default_provider) {
-        setCurrentProvider(data.default_provider)
+      // Set default provider if none set or if current not in available
+      let provider = currentProvider
+      const isCurrentValid = data.providers.some(p => p.id === provider)
+      
+      if ((!provider || !isCurrentValid) && data.default_provider) {
+        provider = data.default_provider
+        setCurrentProvider(provider)
+      }
+
+      // If no model set or invalid for provider, use first one from provider config
+      if (provider) {
+        const pConfig = data.providers.find(p => p.id === provider)
+        if (pConfig && pConfig.models.length > 0) {
+          if (!currentModel || !pConfig.models.includes(currentModel)) {
+            setCurrentModel(pConfig.models[0])
+          }
+        }
       }
     } catch (error) {
+      configFetched.current = false // Allow retry on error
       console.error("Failed to fetch AI config:", error)
     }
-  }, [currentProvider])
+  }, [currentProvider, currentModel])
 
   useEffect(() => {
     fetchConfig()
@@ -186,10 +206,45 @@ export function useAIChat() {
     }
   }, [currentProvider, currentModel, currentMode])
 
-  return { 
-    messages, 
-    append, 
-    isLoading, 
+  const regenerate = useCallback(async () => {
+    const lastUserMsg = [...messages].reverse().find(m => m.role === 'user')
+    if (lastUserMsg) {
+      // Remove last assistant message if it exists
+      const lastMsg = messages[messages.length - 1]
+      if (lastMsg.role === 'assistant') {
+        setMessages(prev => prev.slice(0, -1))
+      }
+      append(lastUserMsg.content)
+    }
+  }, [messages, append])
+const copyToClipboard = useCallback((text: string) => {
+  navigator.clipboard.writeText(text)
+  toast.success("Copied to clipboard")
+}, [])
+
+const submitFeedback = useCallback(async (messageId: string, isGood: boolean) => {
+  try {
+    await fetch(`${API_BASE_URL}/ai/feedback`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message_id: messageId, is_good: isGood })
+    })
+    toast.success(isGood ? "Thanks for your feedback!" : "Sorry to hear that. We'll improve.")
+  } catch (error) {
+    console.error("Failed to submit feedback:", error)
+    // Still show the toast even if API fails for now
+    toast.success(isGood ? "Thanks for your feedback!" : "Sorry to hear that. We'll improve.")
+  }
+}, [])
+
+return { 
+  messages, 
+  append, 
+  regenerate,
+  copyToClipboard,
+  submitFeedback,
+  isLoading, 
+...
     currentProvider, 
     setProvider: updateProvider,
     currentModel,

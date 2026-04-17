@@ -6,7 +6,21 @@ import { Sparkles, User, RefreshCcw, ThumbsUp, ThumbsDown, Copy } from "lucide-r
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 
-export function AIMessageItem({ message }: { message: AIMessage }) {
+interface AIMessageItemProps {
+  message: AIMessage
+  onCopy: (text: string) => void
+  onRegenerate: () => void
+  onFeedback: (isGood: boolean) => void
+  isLast: boolean
+}
+
+export function AIMessageItem({ 
+  message, 
+  onCopy, 
+  onRegenerate, 
+  onFeedback,
+  isLast 
+}: AIMessageItemProps) {
   const isAI = message.role === "assistant"
 
   return (
@@ -46,11 +60,11 @@ export function AIMessageItem({ message }: { message: AIMessage }) {
         {/* Actions for AI Response */}
         {isAI && !message.isStreaming && message.content && (
           <div className="flex items-center gap-1 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
-            <ActionButton icon={Copy} tooltip="Copy" />
-            <ActionButton icon={RefreshCcw} tooltip="Regenerate" />
+            <ActionButton icon={Copy} tooltip="Copy" onClick={() => onCopy(message.content)} />
+            {isLast && <ActionButton icon={RefreshCcw} tooltip="Regenerate" onClick={onRegenerate} />}
             <div className="w-[1px] h-3 bg-border mx-1" />
-            <ActionButton icon={ThumbsUp} tooltip="Good response" />
-            <ActionButton icon={ThumbsDown} tooltip="Bad response" />
+            <ActionButton icon={ThumbsUp} tooltip="Good response" onClick={() => onFeedback(true)} />
+            <ActionButton icon={ThumbsDown} tooltip="Bad response" onClick={() => onFeedback(false)} />
           </div>
         )}
       </div>
@@ -58,13 +72,14 @@ export function AIMessageItem({ message }: { message: AIMessage }) {
   )
 }
 
-function ActionButton({ icon: Icon, tooltip }: { icon: React.ElementType, tooltip: string }) {
+function ActionButton({ icon: Icon, tooltip, onClick }: { icon: React.ElementType, tooltip: string, onClick?: () => void }) {
   return (
     <Button 
       variant="ghost" 
       size="icon" 
       className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted"
       title={tooltip}
+      onClick={onClick}
     >
       <Icon className="w-3.5 h-3.5" />
     </Button>

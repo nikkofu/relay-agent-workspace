@@ -14,14 +14,29 @@ import {
 interface MessageActionsProps {
   onReply?: () => void
   onReact?: (emoji: string) => void
+  onForward?: () => void
+  onSave?: () => void
+  onCopyLink?: () => void
+  onMarkUnread?: () => void
+  onPin?: () => void
+  onDelete?: () => void
 }
 
-export function MessageActions({ onReply }: MessageActionsProps) {
+export function MessageActions({ 
+  onReply, 
+  onReact, 
+  onForward, 
+  onSave, 
+  onCopyLink, 
+  onMarkUnread, 
+  onPin, 
+  onDelete 
+}: MessageActionsProps) {
   return (
     <div className="flex items-center bg-white dark:bg-[#1a1d21] border rounded-lg shadow-sm p-0.5">
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted">
+          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted" onClick={() => onReact?.("👍")}>
             <Smile className="h-4 w-4" />
           </Button>
         </TooltipTrigger>
@@ -39,7 +54,7 @@ export function MessageActions({ onReply }: MessageActionsProps) {
 
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted">
+          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted" onClick={onForward}>
             <Share2 className="h-4 w-4" />
           </Button>
         </TooltipTrigger>
@@ -48,7 +63,7 @@ export function MessageActions({ onReply }: MessageActionsProps) {
 
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted">
+          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted" onClick={onSave}>
             <Bookmark className="h-4 w-4" />
           </Button>
         </TooltipTrigger>
@@ -61,13 +76,13 @@ export function MessageActions({ onReply }: MessageActionsProps) {
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
-          <DropdownMenuItem>Copy link to message</DropdownMenuItem>
-          <DropdownMenuItem>Mark as unread</DropdownMenuItem>
+        <DropdownMenuContent align="end" className="w-48 text-foreground">
+          <DropdownMenuItem onClick={onCopyLink}>Copy link to message</DropdownMenuItem>
+          <DropdownMenuItem onClick={onMarkUnread}>Mark as unread</DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem>Pin to channel</DropdownMenuItem>
+          <DropdownMenuItem onClick={onPin}>Pin to channel</DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem className="text-destructive">Delete message</DropdownMenuItem>
+          <DropdownMenuItem className="text-destructive focus:bg-destructive/10 focus:text-destructive" onClick={onDelete}>Delete message</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

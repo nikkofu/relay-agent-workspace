@@ -20,6 +20,7 @@ interface MessageItemProps {
 export function MessageItem({ message, sender, isCompact, showActions = true }: MessageItemProps) {
   const { openThread } = useUIStore()
   const { currentUser } = useUserStore()
+  const { addReaction, deleteMessage, pinMessage, saveForLater, markAsUnread } = useMessageStore()
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -102,7 +103,19 @@ export function MessageItem({ message, sender, isCompact, showActions = true }: 
       {/* Message Actions (Floating) */}
       {showActions && (
         <div className="absolute -top-4 right-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-          <MessageActions onReply={() => openThread(message.id)} />
+          <MessageActions 
+            onReply={() => openThread(message.id)} 
+            onReact={(emoji) => addReaction(message.id, emoji)}
+            onDelete={() => deleteMessage(message.id)}
+            onPin={() => pinMessage(message.id)}
+            onSave={() => saveForLater(message.id)}
+            onMarkUnread={() => markAsUnread(message.id)}
+            onCopyLink={() => {
+              navigator.clipboard.writeText(`${window.location.origin}/messages/${message.id}`)
+              toast.success("Link copied to clipboard")
+            }}
+            onForward={() => toast.info("Forwarding coming soon")}
+          />
         </div>
       )}
     </div>
