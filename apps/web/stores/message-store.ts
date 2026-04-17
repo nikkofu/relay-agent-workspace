@@ -23,7 +23,7 @@ const mapMessage = (m: any): Message => {
   let attachments = []
   if (m.metadata) {
     try {
-      const meta = JSON.parse(m.metadata)
+      const meta = typeof m.metadata === 'string' ? JSON.parse(m.metadata) : m.metadata
       reactions = meta.reactions || []
       attachments = meta.attachments || []
     } catch (e) {
@@ -40,7 +40,8 @@ const mapMessage = (m: any): Message => {
     reactions,
     attachments,
     replyCount: m.reply_count,
-    lastReplyAt: m.last_reply_at
+    lastReplyAt: m.last_reply_at,
+    isPinned: m.is_pinned
   }
 }
 
@@ -95,27 +96,80 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   getMessagesByChannel: (channelId) => get().messages.filter((m) => m.channelId === channelId),
   
   addReaction: async (messageId, emoji) => {
-    toast.success(`Added ${emoji} reaction`)
-    // TODO: Call API
+    try {
+      const response = await fetch(`${API_BASE_URL}/messages/${messageId}/reactions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emoji })
+      })
+      const data = await response.json()
+      const updatedMsg = mapMessage(data.message)
+      
+      set(state => ({
+        messages: state.messages.map(m => m.id === messageId ? updatedMsg : m),
+        currentThreadMessages: state.currentThreadMessages.map(m => m.id === messageId ? updatedMsg : m)
+      }))
+      
+      toast.success(data.added ? `Added ${emoji} reaction` : `Removed ${emoji} reaction`)
+    } catch (error) {
+      console.error("Failed to toggle reaction:", error)
+    }
   },
   deleteMessage: async (messageId) => {
-    set(state => ({
-      messages: state.messages.filter(m => m.id !== messageId),
-      currentThreadMessages: state.currentThreadMessages.filter(m => m.id !== messageId)
-    }))
-    toast.success("Message deleted")
-    // TODO: Call API
+    try {
+      const response = await fetch(`${API_BASE_URL}/messages/${messageId}`, {
+        method: "DELETE"
+      })
+      const data = await response.json()
+      
+      if (data.deleted) {
+        set(state => ({
+          messages: state.messages.filter(m => m.id !== messageId),
+          currentThreadMessages: state.currentThreadMessages.filter(m => m.id !== messageId)
+        }))
+        toast.success("Message deleted")
+      }
+    } catch (error) {
+      console.error("Failed to delete message:", error)
+    }
   },
   pinMessage: async (messageId) => {
-    toast.success("Message pinned")
-    // TODO: Call API
+    try {
+      const response = await fetch(`${API_BASE_URL}/messages/${messageId}/pin`, {
+        method: "POST"
+      })
+      const data = await response.json()
+      const updatedMsg = mapMessage(data.message)
+      
+      set(state => ({
+        messages: state.messages.map(m => m.id === messageId ? updatedMsg : m),
+        currentThreadMessages: state.currentThreadMessages.map(m => m.id === messageId ? updatedMsg : m)
+      }))
+      
+      toast.success(data.is_pinned ? "Message pinned" : "Message unpinned")
+    } catch (error) {
+      console.error("Failed to toggle pin:", error)
+    }
   },
   saveForLater: async (messageId) => {
-    toast.success("Saved for later")
-    // TODO: Call API
+    try {
+      const response = await fetch(`${API_BASE_URL}/messages/${messageId}/later`, {
+        method: "POST"
+      })
+      const data = await response.json()
+      toast.success(data.saved ? "Saved for later" : "Removed from later")
+    } catch (error) {
+      console.error("Failed to toggle save for later:", error)
+    }
   },
   markAsUnread: async (messageId) => {
-    toast.success("Marked as unread")
-    // TODO: Call API
+    try {
+      await fetch(`${API_BASE_URL}/messages/${messageId}/unread`, {
+        method: "POST"
+      })
+      toast.success("Marked as unread")
+    } catch (error) {
+      console.error("Failed to mark as unread:", error)
+    }
   }
 }))
