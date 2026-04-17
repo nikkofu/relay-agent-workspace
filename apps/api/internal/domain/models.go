@@ -41,6 +41,17 @@ type Workspace struct {
 	Name           string `json:"name"`
 }
 
+type DMConversation struct {
+	ID        string    `gorm:"primaryKey" json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type DMMember struct {
+	ID               uint   `gorm:"primaryKey" json:"id"`
+	DMConversationID string `gorm:"index;uniqueIndex:idx_dm_conversation_user" json:"dm_id"`
+	UserID           string `gorm:"uniqueIndex:idx_dm_conversation_user" json:"user_id"`
+}
+
 type Channel struct {
 	ID          string `gorm:"primaryKey" json:"id"`
 	WorkspaceID string `json:"workspace_id"`
@@ -94,4 +105,12 @@ type AIFeedback struct {
 	IsGood    bool      `json:"is_good"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type DMMessage struct {
+	ID               string    `gorm:"primaryKey" json:"id"`
+	DMConversationID string    `gorm:"index" json:"dm_id"`
+	UserID           string    `json:"user_id"`
+	Content          string    `json:"content"`
+	CreatedAt        time.Time `json:"created_at"`
 }

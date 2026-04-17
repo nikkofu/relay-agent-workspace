@@ -400,6 +400,105 @@ func TestGetAgentCollabSnapshotReturnsParsedMarkdown(t *testing.T) {
 	}
 }
 
+func TestDMEndpointsListCreateAndSendMessages(t *testing.T) {
+	setupTestDB(t)
+
+	users := []domain.User{
+		{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"},
+		{ID: "user-2", Name: "AI Assistant", Email: "ai@example.com"},
+		{ID: "user-3", Name: "Jane Smith", Email: "jane@example.com"},
+	}
+	for _, user := range users {
+		db.DB.Create(&user)
+	}
+
+	dm := domain.DMConversation{ID: "dm-1", CreatedAt: time.Now().Add(-time.Hour)}
+	db.DB.Create(&dm)
+	db.DB.Create(&domain.DMMember{DMConversationID: "dm-1", UserID: "user-1"})
+	db.DB.Create(&domain.DMMember{DMConversationID: "dm-1", UserID: "user-2"})
+	db.DB.Create(&domain.DMMessage{
+		ID:               "dm-msg-1",
+		DMConversationID: "dm-1",
+		UserID:           "user-2",
+		Content:          "Hello from DM",
+		CreatedAt:        time.Now().Add(-30 * time.Minute),
+	})
+
+	router := gin.New()
+	router.GET("/api/v1/dms", GetDMConversations)
+	router.POST("/api/v1/dms", CreateOrOpenDMConversation)
+	router.GET("/api/v1/dms/:id/messages", GetDMMessages)
+	router.POST("/api/v1/dms/:id/messages", CreateDMMessage)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/dms", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on dm list, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var listPayload struct {
+		Conversations []map[string]any `json:"conversations"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &listPayload); err != nil {
+		t.Fatalf("failed to decode dm list: %v", err)
+	}
+	if len(listPayload.Conversations) != 1 {
+		t.Fatalf("expected 1 dm conversation, got %d", len(listPayload.Conversations))
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/dms", bytes.NewBufferString(`{"user_id":"user-3"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on dm create, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var createPayload struct {
+		Conversation struct {
+			ID string `json:"id"`
+		} `json:"conversation"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &createPayload); err != nil {
+		t.Fatalf("failed to decode dm create: %v", err)
+	}
+	if createPayload.Conversation.ID == "" {
+		t.Fatal("expected created dm conversation id")
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/dms/dm-1/messages", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on dm messages, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var messagesPayload struct {
+		Messages []domain.DMMessage `json:"messages"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &messagesPayload); err != nil {
+		t.Fatalf("failed to decode dm messages: %v", err)
+	}
+	if len(messagesPayload.Messages) != 1 {
+		t.Fatalf("expected 1 dm message, got %d", len(messagesPayload.Messages))
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/dms/dm-1/messages", bytes.NewBufferString(`{"content":"Reply in DM","user_id":"user-1"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on dm send, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var count int64
+	db.DB.Model(&domain.DMMessage{}).Where("dm_conversation_id = ?", "dm-1").Count(&count)
+	if count != 2 {
+		t.Fatalf("expected 2 dm messages after send, got %d", count)
+	}
+}
+
 func TestReactionPinAndDeleteBroadcastRealtimeEvents(t *testing.T) {
 	setupTestDB(t)
 
@@ -484,7 +583,7 @@ func setupTestDB(t *testing.T) {
 	if err := db.DB.AutoMigrate(&domain.Organization{}, &domain.Team{}, &domain.User{}, &domain.Agent{}, &domain.Workspace{}, &domain.Channel{}, &domain.Message{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
-	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.UnreadMarker{}, &domain.AIFeedback{}); err != nil {
+	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.UnreadMarker{}, &domain.AIFeedback{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 }

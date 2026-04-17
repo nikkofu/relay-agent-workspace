@@ -207,4 +207,42 @@ func SeedData() {
 		"reply_count":   1,
 		"last_reply_at": &lastReplyAt,
 	})
+
+	// 6. DM conversations
+	dmConversation := domain.DMConversation{
+		ID:        "dm-1",
+		CreatedAt: time.Date(2026, 4, 15, 7, 45, 0, 0, time.UTC),
+	}
+	DB.FirstOrCreate(&dmConversation, domain.DMConversation{ID: dmConversation.ID})
+
+	dmMembers := []domain.DMMember{
+		{DMConversationID: dmConversation.ID, UserID: "user-1"},
+		{DMConversationID: dmConversation.ID, UserID: "user-2"},
+	}
+	for _, member := range dmMembers {
+		DB.FirstOrCreate(&member, domain.DMMember{
+			DMConversationID: member.DMConversationID,
+			UserID:           member.UserID,
+		})
+	}
+
+	dmMessages := []domain.DMMessage{
+		{
+			ID:               "dm-msg-1",
+			DMConversationID: dmConversation.ID,
+			UserID:           "user-2",
+			Content:          "I can help summarize the latest delivery status when you are ready.",
+			CreatedAt:        time.Date(2026, 4, 15, 7, 50, 0, 0, time.UTC),
+		},
+		{
+			ID:               "dm-msg-2",
+			DMConversationID: dmConversation.ID,
+			UserID:           "user-1",
+			Content:          "Perfect. Let's keep the launch checklist tight today.",
+			CreatedAt:        time.Date(2026, 4, 15, 7, 52, 0, 0, time.UTC),
+		},
+	}
+	for _, message := range dmMessages {
+		DB.FirstOrCreate(&message, domain.DMMessage{ID: message.ID})
+	}
 }

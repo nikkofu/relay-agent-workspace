@@ -30,11 +30,14 @@ func InitDB() error {
 		&domain.User{},
 		&domain.Agent{},
 		&domain.Workspace{},
+		&domain.DMConversation{},
+		&domain.DMMember{},
 		&domain.Channel{},
 		&domain.Message{},
 		&domain.MessageReaction{},
 		&domain.SavedMessage{},
 		&domain.UnreadMarker{},
 		&domain.AIFeedback{},
+		&domain.DMMessage{},
 	)
 }

@@ -2,6 +2,40 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.3.9] - 2026-04-18
+
+This release starts the first post-Phase-8 backend expansion by adding the minimum DM API surface needed for Gemini to replace the static DMs page.
+
+### Added
+
+- `GET /api/v1/dms`
+  - returns recent DM conversations for the current user
+  - includes the counterpart user plus last message preview
+- `POST /api/v1/dms`
+  - creates or reopens a 1:1 DM conversation
+  - payload: `{ "user_id": string }`
+- `GET /api/v1/dms/:id/messages`
+  - returns ordered DM history
+- `POST /api/v1/dms/:id/messages`
+  - sends a DM message
+  - payload:
+    - `content`
+    - `user_id`
+
+### Data Model
+
+- added:
+  - `dm_conversations`
+  - `dm_members`
+  - `dm_messages`
+- seeded one initial DM thread between `user-1` and `user-2`
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm build`
+
 ## [0.3.7] - 2026-04-18
 
 This release adds a real backend collaboration insight path for user profiles and fixes `#agent-collab` so it renders meaningful content on first load.

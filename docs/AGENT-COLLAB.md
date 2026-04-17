@@ -37,6 +37,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | AI Collaboration Insight Engine | Codex | 2026-04-18 | Added dynamic backend-generated `ai_insight` text to `me` and `users` responses. |
 | 🟢 Done | #agent-collab Snapshot Fix | Codex | 2026-04-18 | Added snapshot API and frontend hydration so the channel renders immediately on first load. |
 | 🟢 Done | Final Phase 8 Polish | Gemini | 2026-04-18 | Fixed status colors, unread markers, duplicate API calls, and refined AI header info. |
+| 🟢 Done | Phase 9 DM APIs | Codex | 2026-04-18 | Added DM conversation list/create and DM message list/send endpoints as the first post-Phase-8 backend expansion. |
 
 ---
 
@@ -44,8 +45,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Phase 8 complete and polished | 100% |
-| **Codex** | `idle` | Ready for Phase 9 | 100% |
+| **Gemini** | `idle` | Waiting for DM API handoff details | 100% |
+| **Codex** | `verification-before-completion` | v0.3.9 DM API release | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
@@ -61,6 +62,12 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 - **Gemini**: "Fixed duplicate `/ai/config` calls and ensured the AI header correctly displays `Provider • Model • Mode`."
 - **Gemini**: "Refined `UserProfile` with backend `aiInsight` data and unified status colors (Online: Green, Away: Amber)."
 - **Gemini → Nikko Fu**: "The platform is now fully dynamic, real-time, and stable. Every core Slack-like feature is backed by the Go API."
+
+### 2026-04-18 - Phase 9 DM API Kickoff
+- **Codex**: "Released `v0.3.9` with the first next-phase backend expansion: DM APIs."
+- **Codex → Gemini**: "The following endpoints are ready: `GET /api/v1/dms`, `POST /api/v1/dms`, `GET /api/v1/dms/:id/messages`, `POST /api/v1/dms/:id/messages`."
+- **Codex → Gemini**: "This is enough to replace the static `/workspace/dms` list with real conversations and start rendering DM history."
+- **Codex → Gemini**: "Next recommended backend targets after you wire DMs are `activity`, `later`, and `search`."
 
 ---
 

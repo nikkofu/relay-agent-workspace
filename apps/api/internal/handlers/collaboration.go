@@ -300,6 +300,164 @@ func GetChannels(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"channels": channels})
 }
 
+func GetDMConversations(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var memberships []domain.DMMember
+	if err := db.DB.Where("user_id = ?", currentUser.ID).Find(&memberships).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load dm memberships"})
+		return
+	}
+
+	type dmConversationResponse struct {
+		ID            string      `json:"id"`
+		User          domain.User `json:"user"`
+		LastMessage   string      `json:"last_message"`
+		LastMessageAt time.Time   `json:"last_message_at"`
+	}
+
+	conversations := make([]dmConversationResponse, 0, len(memberships))
+	for _, membership := range memberships {
+		var otherMember domain.DMMember
+		if err := db.DB.Where("dm_conversation_id = ? AND user_id <> ?", membership.DMConversationID, currentUser.ID).First(&otherMember).Error; err != nil {
+			continue
+		}
+
+		var otherUser domain.User
+		if err := db.DB.First(&otherUser, "id = ?", otherMember.UserID).Error; err != nil {
+			continue
+		}
+
+		var lastMessage domain.DMMessage
+		db.DB.Where("dm_conversation_id = ?", membership.DMConversationID).Order("created_at desc").First(&lastMessage)
+
+		conversations = append(conversations, dmConversationResponse{
+			ID:            membership.DMConversationID,
+			User:          enrichUser(otherUser),
+			LastMessage:   lastMessage.Content,
+			LastMessageAt: lastMessage.CreatedAt,
+		})
+	}
+
+	sort.Slice(conversations, func(i, j int) bool {
+		return conversations[i].LastMessageAt.After(conversations[j].LastMessageAt)
+	})
+
+	c.JSON(http.StatusOK, gin.H{"conversations": conversations})
+}
+
+func CreateOrOpenDMConversation(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var input struct {
+		UserID string `json:"user_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if input.UserID == currentUser.ID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot create dm with current user"})
+		return
+	}
+
+	var currentMemberships []domain.DMMember
+	db.DB.Where("user_id = ?", currentUser.ID).Find(&currentMemberships)
+	for _, membership := range currentMemberships {
+		var members []domain.DMMember
+		db.DB.Where("dm_conversation_id = ?", membership.DMConversationID).Order("user_id asc").Find(&members)
+		if len(members) == 2 {
+			memberIDs := []string{members[0].UserID, members[1].UserID}
+			sort.Strings(memberIDs)
+			expected := []string{currentUser.ID, input.UserID}
+			sort.Strings(expected)
+			if memberIDs[0] == expected[0] && memberIDs[1] == expected[1] {
+				var conversation domain.DMConversation
+				db.DB.First(&conversation, "id = ?", membership.DMConversationID)
+				c.JSON(http.StatusOK, gin.H{"conversation": conversation})
+				return
+			}
+		}
+	}
+
+	conversation := domain.DMConversation{
+		ID:        "dm_" + time.Now().Format("20060102150405"),
+		CreatedAt: time.Now().UTC(),
+	}
+	if err := db.DB.Create(&conversation).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create dm conversation"})
+		return
+	}
+
+	members := []domain.DMMember{
+		{DMConversationID: conversation.ID, UserID: currentUser.ID},
+		{DMConversationID: conversation.ID, UserID: input.UserID},
+	}
+	for _, member := range members {
+		if err := db.DB.Create(&member).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create dm membership"})
+			return
+		}
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"conversation": conversation})
+}
+
+func GetDMMessages(c *gin.Context) {
+	dmID := c.Param("id")
+
+	var conversation domain.DMConversation
+	if err := db.DB.First(&conversation, "id = ?", dmID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "dm conversation not found"})
+		return
+	}
+
+	var messages []domain.DMMessage
+	db.DB.Where("dm_conversation_id = ?", dmID).Order("created_at asc").Find(&messages)
+	c.JSON(http.StatusOK, gin.H{"messages": messages})
+}
+
+func CreateDMMessage(c *gin.Context) {
+	dmID := c.Param("id")
+
+	var conversation domain.DMConversation
+	if err := db.DB.First(&conversation, "id = ?", dmID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "dm conversation not found"})
+		return
+	}
+
+	var input struct {
+		Content string `json:"content" binding:"required"`
+		UserID  string `json:"user_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	message := domain.DMMessage{
+		ID:               "dm_msg_" + time.Now().Format("20060102150405"),
+		DMConversationID: dmID,
+		UserID:           input.UserID,
+		Content:          input.Content,
+		CreatedAt:        time.Now().UTC(),
+	}
+	if err := db.DB.Create(&message).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create dm message"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"message": message})
+}
+
 func GetMessages(c *gin.Context) {
 	channelID := c.Query("channel_id")
 	if channelID == "" {
