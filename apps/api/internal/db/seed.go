@@ -108,11 +108,11 @@ func SeedData() {
 			CreatedAt: "2026-04-14T11:30:00Z",
 		},
 		{
-			ID:        "msg-3",
-			Content:   "I've drafted the implementation plan for Relay Agent Workspace. Take a look: https://github.com/nikkofu/relay-agent-workspace",
-			SenderID:  "user-1",
-			ChannelID: "ch-5",
-			CreatedAt: "2026-04-15T08:00:00Z",
+			ID:          "msg-3",
+			Content:     "I've drafted the implementation plan for Relay Agent Workspace. Take a look: https://github.com/nikkofu/relay-agent-workspace",
+			SenderID:    "user-1",
+			ChannelID:   "ch-5",
+			CreatedAt:   "2026-04-15T08:00:00Z",
 			Attachments: []map[string]interface{}{{"id": "att-1", "type": "link", "url": "https://github.com/nikkofu/relay-agent-workspace", "name": "Relay Agent Workspace Repository"}},
 		},
 		{
@@ -141,7 +141,7 @@ func SeedData() {
 
 	for _, m := range mockMessages {
 		t, _ := time.Parse(time.RFC3339, m.CreatedAt)
-		
+
 		metadata := make(map[string]interface{})
 		if m.Reactions != nil {
 			metadata["reactions"] = m.Reactions
@@ -149,17 +149,32 @@ func SeedData() {
 		if m.Attachments != nil {
 			metadata["attachments"] = m.Attachments
 		}
-		
+
 		metadataJSON, _ := json.Marshal(metadata)
 
 		msg := domain.Message{
-			ID:        m.ID,
-			ChannelID: m.ChannelID,
-			UserID:    m.SenderID,
-			Content:   m.Content,
-			CreatedAt: t,
-			Metadata:  string(metadataJSON),
+			ID:         m.ID,
+			ChannelID:  m.ChannelID,
+			UserID:     m.SenderID,
+			Content:    m.Content,
+			CreatedAt:  t,
+			Metadata:   string(metadataJSON),
+			ThreadID:   "",
+			ReplyCount: 0,
 		}
 		DB.FirstOrCreate(&msg, domain.Message{ID: msg.ID})
 	}
+
+	threadReply := domain.Message{
+		ID:        "msg-7",
+		ChannelID: "ch-5",
+		UserID:    "user-4",
+		Content:   "Yes, thread support will make the channel list much cleaner.",
+		ThreadID:  "msg-3",
+		CreatedAt: time.Date(2026, 4, 15, 9, 15, 0, 0, time.UTC),
+		Metadata:  "{}",
+	}
+	DB.FirstOrCreate(&threadReply, domain.Message{ID: threadReply.ID})
+
+	DB.Model(&domain.Message{}).Where("id = ?", "msg-3").Update("reply_count", 1)
 }

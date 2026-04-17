@@ -1,0 +1,38 @@
+default_provider: gemini
+
+providers:
+  openai:
+    enabled: false
+    kind: openai
+    base_url: https://api.openai.com/v1
+    model: gpt-4.1-mini
+    api_style: responses
+    temperature: 0.2
+    max_output_tokens: 2048
+
+  openai-compatible:
+    enabled: false
+    kind: openai-compatible
+    base_url: https://api.openai.com/v1
+    model: gpt-4.1-mini
+    api_style: responses
+    temperature: 0.2
+    max_output_tokens: 2048
+
+  openrouter:
+    enabled: false
+    kind: openrouter
+    base_url: https://openrouter.ai/api/v1
+    model: openai/gpt-4.1-mini
+    api_style: responses
+    temperature: 0.2
+    max_output_tokens: 2048
+
+  gemini:
+    enabled: false
+    kind: gemini
+    base_url: https://generativelanguage.googleapis.com/v1beta
+    model: gemini-2.5-flash
+    api_style: native
+    temperature: 0.2
+    max_output_tokens: 2048

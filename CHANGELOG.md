@@ -2,6 +2,81 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.2.4] - 2026-04-17
+
+This release adds the first real LLM gateway architecture plus the backend APIs Gemini requested for user resolution, message threading, and AI streaming.
+
+### Added
+
+- Provider-based LLM gateway in `apps/api/internal/llm`
+- Config loading in `apps/api/internal/config`
+- Config files:
+  - `apps/api/config/llm.base.yaml`
+  - `apps/api/config/llm.example.yaml`
+  - `apps/api/config/llm.local.yaml`
+  - `apps/api/config/llm.secrets.local.yaml`
+- Supported provider kinds:
+  - `openai`
+  - `openai-compatible`
+  - `openrouter`
+  - `gemini`
+
+### API Surface Added In This Release
+
+- `GET /api/v1/users`
+  - Returns all users
+  - Supports optional query param `id`
+  - Response: `{ "users": [...] }`
+
+- `GET /api/v1/messages/:id/thread`
+  - Returns parent message plus replies
+  - Response:
+    - `parent`
+    - `replies`
+
+- `POST /api/v1/ai/execute`
+  - Accepts:
+    - `prompt`
+    - `channel_id`
+    - optional `provider`
+    - optional `model`
+  - Returns `text/event-stream`
+  - Stream events currently emitted:
+    - `start`
+    - `chunk`
+    - `done`
+    - `error`
+
+### Model And Handler Changes
+
+- `Message` now includes:
+  - `thread_id`
+  - `reply_count`
+- `GET /api/v1/messages` now returns top-level channel messages only
+- `POST /api/v1/messages` accepts optional `thread_id`
+- Reply creation increments parent `reply_count`
+
+### LLM Notes
+
+- OpenAI and OpenAI-compatible providers use configurable `api_style`
+  - `responses`
+  - `chat_completions`
+- OpenRouter defaults to `responses`
+- Gemini uses the official native Gemini streaming protocol over `streamGenerateContent?alt=sse`
+- Env overrides are supported through:
+  - `LLM_DEFAULT_PROVIDER`
+  - `LLM_PROVIDER_<NAME>_API_KEY`
+  - `LLM_PROVIDER_<NAME>_BASE_URL`
+  - `LLM_PROVIDER_<NAME>_MODEL`
+  - `LLM_PROVIDER_<NAME>_API_STYLE`
+  - `LLM_PROVIDER_<NAME>_ENABLED`
+
+### Verification Used For This Release
+
+- `pnpm build`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+
 ## [0.2.2] - 2026-04-16
 
 This release adds the backend sync path for the `#agent-collab` workspace view and aligns the repository version with the latest cross-agent handoff.

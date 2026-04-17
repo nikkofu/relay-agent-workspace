@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"github.com/nikkofu/relay-agent-workspace/api/internal/db"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/domain"
@@ -25,6 +26,19 @@ func GetOrganizations(c *gin.Context) {
 	var orgs []domain.Organization
 	db.DB.Order("created_at asc").Find(&orgs)
 	c.JSON(http.StatusOK, gin.H{"organizations": orgs})
+}
+
+func GetUsers(c *gin.Context) {
+	userID := c.Query("id")
+	var users []domain.User
+
+	query := db.DB.Order("name asc")
+	if userID != "" {
+		query = query.Where("id = ?", userID)
+	}
+	query.Find(&users)
+
+	c.JSON(http.StatusOK, gin.H{"users": users})
 }
 
 func GetTeams(c *gin.Context) {
@@ -91,8 +105,26 @@ func GetMessages(c *gin.Context) {
 	}
 
 	var messages []domain.Message
-	db.DB.Where("channel_id = ?", channelID).Order("created_at asc").Find(&messages)
+	db.DB.Where("channel_id = ? AND (thread_id = '' OR thread_id IS NULL)", channelID).Order("created_at asc").Find(&messages)
 	c.JSON(http.StatusOK, gin.H{"messages": messages})
+}
+
+func GetMessageThread(c *gin.Context) {
+	messageID := c.Param("id")
+
+	var parent domain.Message
+	if err := db.DB.First(&parent, "id = ?", messageID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "message not found"})
+		return
+	}
+
+	var replies []domain.Message
+	db.DB.Where("thread_id = ?", messageID).Order("created_at asc").Find(&replies)
+
+	c.JSON(http.StatusOK, gin.H{
+		"parent":  parent,
+		"replies": replies,
+	})
 }
 
 func CreateMessage(c *gin.Context) {
@@ -100,6 +132,7 @@ func CreateMessage(c *gin.Context) {
 		ChannelID string `json:"channel_id" binding:"required"`
 		Content   string `json:"content" binding:"required"`
 		UserID    string `json:"user_id" binding:"required"`
+		ThreadID  string `json:"thread_id"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -112,12 +145,19 @@ func CreateMessage(c *gin.Context) {
 		ChannelID: input.ChannelID,
 		UserID:    input.UserID,
 		Content:   input.Content,
+		ThreadID:  input.ThreadID,
 		CreatedAt: time.Now(),
 	}
 
 	if err := db.DB.Create(&msg).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create message"})
 		return
+	}
+
+	if input.ThreadID != "" {
+		db.DB.Model(&domain.Message{}).
+			Where("id = ?", input.ThreadID).
+			UpdateColumn("reply_count", gorm.Expr("reply_count + ?", 1))
 	}
 
 	if RealtimeHub != nil {

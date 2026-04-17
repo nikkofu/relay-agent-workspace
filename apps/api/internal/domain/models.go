@@ -49,10 +49,12 @@ type Channel struct {
 }
 
 type Message struct {
-	ID        string    `gorm:"primaryKey" json:"id"`
-	ChannelID string    `json:"channel_id"`
-	UserID    string    `json:"user_id"`
-	Content   string    `json:"content"`
-	CreatedAt time.Time `json:"created_at"`
-	Metadata  string    `json:"metadata"` // 用于存储 Reactions/Attachments 的 JSON 字符串
+	ID         string    `gorm:"primaryKey" json:"id"`
+	ChannelID  string    `json:"channel_id"`
+	UserID     string    `json:"user_id"`
+	Content    string    `json:"content"`
+	ThreadID   string    `json:"thread_id"`
+	ReplyCount int       `json:"reply_count"`
+	CreatedAt  time.Time `json:"created_at"`
+	Metadata   string    `json:"metadata"` // 用于存储 Reactions/Attachments 的 JSON 字符串
 }

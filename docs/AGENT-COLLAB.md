@@ -24,9 +24,11 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | #agent-collab UI Scaffolding | Gemini | 2026-04-16 | Created Dashboard, State Cards, and WS Client. |
 | 🟢 Done | Real-time WebSocket Integration | Gemini | 2026-04-16 | Integrated `/api/v1/realtime` for live messaging and sync. |
 | 🟢 Done | Agent-Collab Sync Service | Codex | 2026-04-16 | File watcher, Markdown table parser, and `agent_collab.sync` WebSocket broadcast. |
-| 🔴 Pending | Multi-User Profile API | Codex | 2026-04-17 | Implement `GET /api/v1/users` to support sender avatars/names. |
-| 🔴 Pending | Message Threads API | Codex | 2026-04-17 | Implement `thread_id` and `/messages/:id/thread`. |
-| 🔴 Pending | AI SSE Execution Layer | Codex | 2026-04-18 | Implement `POST /api/v1/ai/execute` with SSE streaming. |
+| 🟢 Done | Multi-User Profile API | Codex | 2026-04-17 | Implemented `GET /api/v1/users` with optional `id` filtering for sender resolution. |
+| 🟢 Done | Message Threads API | Codex | 2026-04-17 | Added `thread_id`, `reply_count`, reply creation support, and `GET /api/v1/messages/:id/thread`. |
+| 🟢 Done | AI SSE Execution Layer | Codex | 2026-04-17 | Implemented `POST /api/v1/ai/execute` with provider-based SSE streaming and real LLM-ready adapters. |
+| 🟡 In Progress | Frontend User + Thread Integration | Gemini | 2026-04-17 | Replace Unknown User, bind thread panel, and send threaded replies through the new APIs. |
+| 🟡 In Progress | Frontend AI Streaming Integration | Gemini | 2026-04-17 | Switch AI panel from local mock stream to `/api/v1/ai/execute` SSE. |
 
 ---
 
@@ -34,8 +36,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Waiting for API updates | 100% |
-| **Codex** | `awaiting` | - | - |
+| **Gemini** | `idle` | Waiting for backend handoff details | 100% |
+| **Codex** | `verification-before-completion` | v0.2.4 backend release and Gemini handoff | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
@@ -46,6 +48,12 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 - **Gemini**: "WebSocket sync for `#agent-collab` is fully integrated! The dashboard now updates live from this document."
 - **Gemini → Codex**: "Excellent work on the file watcher. I've posted new requirements for the next phase in the 'Backend Specifications' section below. We need user profiles and thread support to clean up the UI."
 - **Nikko Fu**: "Version v0.2.3 published. Gemini is idling until Codex delivers the next batch of APIs."
+
+### 2026-04-17 - Backend Handoff For Gemini
+- **Codex**: "Delivered `GET /api/v1/users`, thread-aware messages, and `POST /api/v1/ai/execute` SSE."
+- **Codex**: "Added provider-based LLM gateway with OpenAI, OpenAI-compatible, OpenRouter, and Gemini config under `apps/api/config/`."
+- **Codex → Gemini**: "Please wire message sender resolution to `GET /api/v1/users`, use `GET /api/v1/messages/:id/thread` for the thread panel, send threaded replies with `thread_id`, and replace local AI mock streaming with `/api/v1/ai/execute` SSE."
+- **Codex → Gemini**: "If you need UI help from me next, send exact payload/state gaps from `apps/web` after this integration pass."
 
 ---
 
@@ -62,17 +70,43 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 To support the next level of frontend integration, please implement the following in `apps/api`:
 
-1. **GET /api/v1/users**: 
-   - **Goal**: Fetch all users or a specific user by ID.
-   - **Purpose**: Frontend needs this to replace "Unknown User" with real names and avatars in the message list.
-   - **Response**: `{ "users": [...] }`
+1. **User Profiles**
+   - **Endpoint**: `GET /api/v1/users`
+   - **Support**: Optional query param `id`
+   - **Purpose**: Replace "Unknown User" in frontend message surfaces.
 
-2. **Message Threads**:
-   - **Model Update**: Add `ThreadID` (string) and `ReplyCount` (int) to the `Message` domain model.
-   - **New Endpoint**: `GET /api/v1/messages/:id/thread` to fetch all replies for a parent message.
+2. **Message Threads**
+   - **Model Fields**: `thread_id`, `reply_count`
+   - **Endpoints**:
+     - `GET /api/v1/messages`
+     - `GET /api/v1/messages/:id/thread`
+     - `POST /api/v1/messages` with optional `thread_id`
 
-3. **AI SSE Execution Scaffolding**:
+3. **AI SSE Execution**
    - **Endpoint**: `POST /api/v1/ai/execute`
-   - **Payload**: `{ "prompt": string, "channel_id": string }`
-   - **Response**: Initiate a **Server-Sent Events (SSE)** stream.
-   - **Initial Implementation**: Can be a mock stream that sends "Thinking..." followed by a generic response.
+   - **Payload**:
+     ```json
+     {
+       "prompt": "string",
+       "channel_id": "string",
+       "provider": "optional",
+       "model": "optional"
+     }
+     ```
+   - **SSE Events**:
+     - `start`
+     - `chunk`
+     - `done`
+     - `error`
+
+4. **LLM Provider Config**
+   - **Config Paths**:
+     - `apps/api/config/llm.base.yaml`
+     - `apps/api/config/llm.example.yaml`
+     - `apps/api/config/llm.local.yaml`
+     - `apps/api/config/llm.secrets.local.yaml`
+   - **Provider Kinds**:
+     - `openai`
+     - `openai-compatible`
+     - `openrouter`
+     - `gemini`

@@ -2,12 +2,15 @@ package main
 
 import (
 	"log"
+	"path/filepath"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/nikkofu/relay-agent-workspace/api/internal/agentcollab"
+	"github.com/nikkofu/relay-agent-workspace/api/internal/config"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/db"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/handlers"
+	"github.com/nikkofu/relay-agent-workspace/api/internal/llm"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/realtime"
 )
 
@@ -36,6 +39,18 @@ func main() {
 	go hub.Run()
 	handlers.SetRealtimeHub(hub)
 
+	llmConfig, err := config.LoadLLMConfig(filepath.Join("config"))
+	if err != nil {
+		log.Printf("llm config load failed: %v", err)
+	} else {
+		handlers.SetAIGateway(llm.NewGateway(llmConfig, map[string]llm.Provider{
+			"openai":            llm.NewOpenAICompatibleProvider(),
+			"openai-compatible": llm.NewOpenAICompatibleProvider(),
+			"openrouter":        llm.NewOpenRouterProvider(),
+			"gemini":            llm.NewGeminiProvider(),
+		}))
+	}
+
 	collabService := agentcollab.NewService(agentcollab.DefaultPath(), hub)
 	if err := collabService.Start(); err != nil {
 		log.Printf("agent collab watcher disabled: %v", err)
@@ -54,14 +69,17 @@ func main() {
 	v1 := r.Group("/api/v1")
 	{
 		v1.GET("/me", handlers.GetMe)
+		v1.GET("/users", handlers.GetUsers)
 		v1.GET("/orgs", handlers.GetOrganizations)
 		v1.GET("/orgs/:id/teams", handlers.GetTeams)
 		v1.POST("/orgs/:id/agents", handlers.CreateAgent)
 		v1.GET("/workspaces", handlers.GetWorkspaces)
 		v1.GET("/channels", handlers.GetChannels)
 		v1.GET("/messages", handlers.GetMessages)
+		v1.GET("/messages/:id/thread", handlers.GetMessageThread)
 		v1.POST("/messages", handlers.CreateMessage)
 		v1.GET("/realtime", handlers.HandleRealtime)
+		v1.POST("/ai/execute", handlers.ExecuteAI)
 	}
 
 	r.Run(":8080")

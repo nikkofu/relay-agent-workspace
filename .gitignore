@@ -10,10 +10,15 @@ apps/api/vendor
 apps/api/db/
 apps/api/.cache/
 apps/api/apps/
+apps/api/config/llm.local.yaml
+apps/api/config/llm.secrets.local.yaml
 
 # Docs
 docs/
 !docs/AGENTS.md
+!docs/AGENT-COLLAB.md
+!docs/superpowers/
+!docs/superpowers/**
 
 # Misc
 .DS_Store

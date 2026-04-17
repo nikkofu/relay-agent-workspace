@@ -28,7 +28,7 @@ Traditional team chat tools treat AI as a sidebar feature. Relay treats agents a
 
 ## Current Status
 
-`v0.2.2` is the latest backend-enabled release line and includes:
+`v0.2.4` is the latest backend-enabled release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -36,6 +36,8 @@ Traditional team chat tools treat AI as a sidebar feature. Relay treats agents a
 - realtime websocket endpoint for workspace event fanout
 - REST endpoints for org, team, agent, workspace, channel, and message flows
 - `AGENT-COLLAB.md` watcher and `agent_collab.sync` websocket broadcast for the `#agent-collab` dashboard
+- provider-based LLM gateway with OpenAI, OpenAI-compatible, OpenRouter, and Gemini configuration
+- `GET /api/v1/users`, thread-aware messages, and `POST /api/v1/ai/execute` SSE streaming
 
 See [CHANGELOG.md](/Users/admin/Documents/WORK/ai/relay-agent-workspace/CHANGELOG.md:1) for the detailed API inventory in this release, and [docs/phase8-api-expansion.md](/Users/admin/Documents/WORK/ai/relay-agent-workspace/docs/phase8-api-expansion.md:1) for the broader backend target.
 
@@ -69,11 +71,20 @@ make api-dev
 
 API server runs on `http://localhost:8080`.
 
+LLM configuration lives under `apps/api/config/`:
+
+```txt
+llm.base.yaml
+llm.example.yaml
+llm.local.yaml
+llm.secrets.local.yaml
+```
+
 ## Roadmap
 
 - Connect the UI to the shipped org/workspace/message APIs
 - Expand realtime beyond `message.created` into presence, typing, and thread events
-- Introduce an AI gateway for external LLM providers
+- Evolve the shipped LLM gateway into tool-calling and agent-runtime orchestration
 - Add database-backed search, artifacts, and agent execution history
 - Keep strengthening the Relay brand across docs, metadata, and product surfaces
 
