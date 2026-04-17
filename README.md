@@ -1,34 +1,33 @@
 # Relay Agent Workspace
 
-AI-native collaboration workspace for humans and agents, combining messaging, artifacts, and orchestration.
+Relay Agent Workspace is an AI-native collaboration product where humans and agents work in the same messaging surface. It combines team chat, AI execution, artifacts, and realtime coordination into a single workspace model.
 
-## Overview
+## Product Positioning
 
-Relay Agent Workspace is an AI-native collaboration workspace where people and agents can chat, think, coordinate, and execute together. The repository now includes both the Next.js app and an initial Go API for organizations, workspaces, channels, messages, and realtime events.
+Relay sits between a team messenger and an agent operating console:
 
-It started as an internal Slack-inspired UI exploration and is now being repositioned as `Relay`: a broader collaboration product centered on realtime messaging plus agent-native workflows.
+- messaging is the shared coordination layer
+- AI chat is part of the conversation flow, not a detached sidebar
+- artifacts live beside channels and threads
+- agent actions are designed to become visible, auditable workspace events
+
+For product, design, and marketing, the short version is:
+
+> `Relay` is a shared workspace for humans and agents to chat, think, execute, and hand off work in real time.
 
 ## Core Capabilities
 
 - Slack-style workspace, channel, DM, activity, and later views
 - Rich message composer with slash commands, mentions, and formatting
-- AI assistant panel with simulated streaming chat
+- AI assistant panel with provider-aware streaming chat
 - Thread panel and AI thread summary surface
 - Canvas / artifact panel for AI-generated collaborative outputs
-- Search dialog and workspace navigation patterns for future dynamic data integration
-
-## Why Relay
-
-Traditional team chat tools treat AI as a sidebar feature. Relay treats agents as first-class collaborators inside the workspace:
-
-- messaging is the shared coordination layer
-- AI chat is part of the conversation flow
-- artifacts live alongside messages
-- agent execution can become a visible, auditable workspace primitive
+- Realtime collaboration sync via WebSocket events
+- Configurable LLM gateway across OpenAI, OpenAI-compatible, OpenRouter, and Gemini
 
 ## Current Status
 
-`v0.3.1` is the latest backend-enabled release line and includes:
+`v0.3.3` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -49,8 +48,10 @@ Traditional team chat tools treat AI as a sidebar feature. Relay treats agents a
   - save for later
   - unread checkpoints
   - AI feedback
+- reasoning-aware AI SSE streaming
+- websocket sync for message reactions, pin updates, and deletions
 
-See [CHANGELOG.md](/Users/admin/Documents/WORK/ai/relay-agent-workspace/CHANGELOG.md:1) for the detailed API inventory in this release, and [docs/phase8-api-expansion.md](/Users/admin/Documents/WORK/ai/relay-agent-workspace/docs/phase8-api-expansion.md:1) for the broader backend target.
+See [CHANGELOG.md](./CHANGELOG.md) for shipped API details, and [docs/phase8-api-expansion.md](./docs/phase8-api-expansion.md) for the broader backend target.
 
 ## Tech Stack
 
@@ -93,11 +94,10 @@ llm.secrets.local.yaml
 
 ## Roadmap
 
-- Connect the UI to the shipped org/workspace/message APIs
-- Expand realtime beyond `message.created` into presence, typing, and thread events
-- Evolve the shipped LLM gateway into tool-calling and agent-runtime orchestration
-- Add database-backed search, artifacts, and agent execution history
-- Keep strengthening the Relay brand across docs, metadata, and product surfaces
+- Expand realtime into presence, typing, thread deltas, and agent execution events
+- Evolve the LLM gateway into tool-calling and agent-runtime orchestration
+- Add database-backed search, artifact lifecycle APIs, and execution history
+- Strengthen product packaging across onboarding, docs, and public-facing positioning
 
 ## Repository Structure
 

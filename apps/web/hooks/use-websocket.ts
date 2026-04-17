@@ -40,9 +40,8 @@ export function useWebsocket() {
         } else if (data.type === 'message.deleted') {
           const { message_id } = data.payload
           useMessageStore.getState().deleteMessageLocally(message_id)
-        } else if (data.type === 'message.updated' || data.type === 'reaction.added' || data.type === 'reaction.removed') {
+        } else if (data.type === 'message.updated' || data.type === 'reaction.updated') {
           const updatedMsg = data.payload.message || data.payload
-          // We need a way to update a single message in the store
           useMessageStore.getState().updateMessageLocally(updatedMsg)
         } else if (data.type === 'agent_collab.sync') {
           console.log("Syncing Agent Collab data from backend...")

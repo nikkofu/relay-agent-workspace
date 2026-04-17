@@ -16,6 +16,8 @@ interface MessageState {
   pinMessage: (messageId: string) => Promise<void>
   saveForLater: (messageId: string) => Promise<void>
   markAsUnread: (messageId: string) => Promise<void>
+  deleteMessageLocally: (messageId: string) => void
+  updateMessageLocally: (rawMessage: any) => void
 }
 
 const mapMessage = (m: any): Message => {

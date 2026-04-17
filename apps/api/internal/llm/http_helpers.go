@@ -32,7 +32,7 @@ func newJSONRequest(ctx context.Context, method string, url string, body any, he
 	return req, nil
 }
 
-func streamSSE(resp *http.Response, parse func(event string, data []byte) []string) (*StreamSession, error) {
+func streamSSE(resp *http.Response, parse func(event string, data []byte) []StreamEvent) (*StreamSession, error) {
 	if resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
@@ -69,12 +69,15 @@ func streamSSE(resp *http.Response, parse func(event string, data []byte) []stri
 				return
 			}
 
-			texts := parse(eventName, []byte(data))
-			for _, text := range texts {
-				if text == "" {
+			parsedEvents := parse(eventName, []byte(data))
+			for _, parsed := range parsedEvents {
+				if parsed.Text == "" {
 					continue
 				}
-				events <- StreamEvent{Type: "chunk", Text: text}
+				if parsed.Type == "" {
+					parsed.Type = "chunk"
+				}
+				events <- parsed
 			}
 			eventName = ""
 		}
@@ -90,15 +93,27 @@ func streamSSE(resp *http.Response, parse func(event string, data []byte) []stri
 	}, nil
 }
 
-func parseOpenAIResponsesEvent(_ string, data []byte) []string {
+func parseOpenAIResponsesEvent(eventName string, data []byte) []StreamEvent {
 	var payload map[string]any
 	if err := json.Unmarshal(data, &payload); err != nil {
 		return nil
 	}
 
-	var texts []string
+	var events []StreamEvent
+	appendEvent := func(eventType string, text string) {
+		if text == "" {
+			return
+		}
+		events = append(events, StreamEvent{Type: eventType, Text: text})
+	}
+
+	isReasoningEvent := strings.Contains(eventName, "reasoning")
 	if delta, ok := payload["delta"].(string); ok {
-		texts = append(texts, delta)
+		if isReasoningEvent {
+			appendEvent("reasoning", delta)
+		} else {
+			appendEvent("chunk", delta)
+		}
 	}
 
 	if output, ok := payload["output"].([]any); ok {
@@ -107,6 +122,7 @@ func parseOpenAIResponsesEvent(_ string, data []byte) []string {
 			if !ok {
 				continue
 			}
+			itemType, _ := obj["type"].(string)
 			content, ok := obj["content"].([]any)
 			if !ok {
 				continue
@@ -117,24 +133,41 @@ func parseOpenAIResponsesEvent(_ string, data []byte) []string {
 					continue
 				}
 				if text, ok := part["text"].(string); ok {
-					texts = append(texts, text)
+					if partType, _ := part["type"].(string); strings.Contains(partType, "reasoning") || strings.Contains(itemType, "reasoning") {
+						appendEvent("reasoning", text)
+					} else {
+						appendEvent("chunk", text)
+					}
+				}
+				if summary, ok := part["summary"].(string); ok {
+					appendEvent("reasoning", summary)
 				}
 			}
 		}
 	}
 
 	if outputText, ok := payload["output_text"].(string); ok {
-		texts = append(texts, outputText)
+		appendEvent("chunk", outputText)
 	}
 
-	return texts
+	if reasoning, ok := payload["reasoning"].(map[string]any); ok {
+		if text, ok := reasoning["text"].(string); ok {
+			appendEvent("reasoning", text)
+		}
+		if summary, ok := reasoning["summary"].(string); ok {
+			appendEvent("reasoning", summary)
+		}
+	}
+
+	return events
 }
 
-func parseChatCompletionsEvent(_ string, data []byte) []string {
+func parseChatCompletionsEvent(_ string, data []byte) []StreamEvent {
 	var payload struct {
 		Choices []struct {
 			Delta struct {
-				Content string `json:"content"`
+				Content   string `json:"content"`
+				Reasoning string `json:"reasoning"`
 			} `json:"delta"`
 		} `json:"choices"`
 	}
@@ -145,18 +178,24 @@ func parseChatCompletionsEvent(_ string, data []byte) []string {
 	if len(payload.Choices) == 0 {
 		return nil
 	}
-	if payload.Choices[0].Delta.Content == "" {
-		return nil
+
+	var events []StreamEvent
+	if payload.Choices[0].Delta.Reasoning != "" {
+		events = append(events, StreamEvent{Type: "reasoning", Text: payload.Choices[0].Delta.Reasoning})
 	}
-	return []string{payload.Choices[0].Delta.Content}
+	if payload.Choices[0].Delta.Content != "" {
+		events = append(events, StreamEvent{Type: "chunk", Text: payload.Choices[0].Delta.Content})
+	}
+	return events
 }
 
-func parseGeminiEvent(_ string, data []byte) []string {
+func parseGeminiEvent(_ string, data []byte) []StreamEvent {
 	var payload struct {
 		Candidates []struct {
 			Content struct {
 				Parts []struct {
-					Text string `json:"text"`
+					Text    string `json:"text"`
+					Thought bool   `json:"thought"`
 				} `json:"parts"`
 			} `json:"content"`
 		} `json:"candidates"`
@@ -166,13 +205,17 @@ func parseGeminiEvent(_ string, data []byte) []string {
 		return nil
 	}
 
-	var texts []string
+	var events []StreamEvent
 	for _, candidate := range payload.Candidates {
 		for _, part := range candidate.Content.Parts {
 			if part.Text != "" {
-				texts = append(texts, part.Text)
+				if part.Thought {
+					events = append(events, StreamEvent{Type: "reasoning", Text: part.Text})
+				} else {
+					events = append(events, StreamEvent{Type: "chunk", Text: part.Text})
+				}
 			}
 		}
 	}
-	return texts
+	return events
 }

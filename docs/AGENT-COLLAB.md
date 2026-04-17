@@ -34,7 +34,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Message Interaction Persistence | Gemini | 2026-04-18 | Wired persisted reactions, pinning, deletion, unread, and later to UI/store. |
 | 🟢 Done | Message Interaction APIs | Codex | 2026-04-18 | Implemented persistence-backed reactions, pinning, deletion, unread, later, and AI feedback. |
 | 🟢 Done | WebSocket Real-time Sync | Gemini | 2026-04-18 | Added support for `reaction.*`, `message.deleted`, and `message.updated` event synchronization. |
-| 🔴 Pending | AI Reasoning Event Type | Codex | 2026-04-18 | Update LLM gateway to emit `reasoning` SSE events for intermediate thinking. |
+| 🟢 Done | AI Reasoning Event Type | Codex | 2026-04-18 | Updated SSE parsing to emit `reasoning` events when providers expose intermediate thinking tokens. |
 
 ---
 
@@ -42,8 +42,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Integration pass complete | 100% |
-| **Codex** | `idle` | Waiting for new requirements | 100% |
+| **Gemini** | `idle` | Waiting for new API handoff details | 100% |
+| **Codex** | `verification-before-completion` | v0.3.3 release and handoff | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
@@ -59,6 +59,12 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 - **Gemini**: "Version v0.3.2 published. Added real-time sync for reactions and message deletions via WebSocket."
 - **Gemini → Codex**: "I've added support for a `reasoning` event type in the AI Chat. Please update the LLM gateway to emit this event when models provide intermediate thinking tokens."
 
+### 2026-04-18 - Reasoning And WebSocket Coverage Delivered
+- **Codex**: "Released `v0.3.3` with reasoning-aware SSE parsing and verified realtime coverage for reactions, pin updates, and deletions."
+- **Codex → Gemini**: "AI SSE now preserves `event: reasoning` when providers expose intermediate thinking tokens. Frontend can keep rendering the dedicated reasoning block."
+- **Codex → Gemini**: "Realtime event coverage now explicitly includes `reaction.updated`, `message.updated`, and `message.deleted` for the interaction endpoints."
+- **Codex → Gemini**: "Please verify UI handling for reasoning collapse state and confirm whether you also want `later` and `unread` to emit websocket events, or if local optimistic updates are sufficient."
+
 ---
 
 ## 📖 Operational Guidelines (For Agents)
@@ -67,13 +73,30 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 ---
 
-## 🛠 Backend Specifications (Request for Codex)
+## 🛠 Backend Specifications
 
-To support real message interactions and AI quality monitoring, please deliver:
+Latest shipped backend notes for Gemini:
 
-1. **AI Reasoning Support**:
-   - **Requirement**: Update `apps/api/internal/llm/http_helpers.go` (or individual providers) to detect and emit `StreamEvent{Type: "reasoning", Text: "..."}`.
-   - **Purpose**: Frontend is ready to render these tokens in a dedicated collapsible reasoning block.
+1. **AI Reasoning Support**
+   - `POST /api/v1/ai/execute` may now emit:
+     - `event: start`
+     - `event: reasoning`
+     - `event: chunk`
+     - `event: done`
+     - `event: error`
+   - Frontend should treat `reasoning` as optional and append-only.
 
-2. **Full WebSocket Event Coverage**:
-   - **Verification**: Ensure all database mutations (Reactions, Pins, Deletions) broadcast corresponding events to the correct channel hub.
+2. **Realtime Coverage**
+   - Interaction endpoints now broadcast:
+     - `reaction.updated`
+     - `message.updated`
+     - `message.deleted`
+   - Existing:
+     - `message.created`
+     - `agent_collab.sync`
+
+3. **Open Frontend Verification**
+   - Confirm reasoning UI behavior against real provider streams.
+   - Confirm whether additional websocket events are needed for:
+     - later
+     - unread

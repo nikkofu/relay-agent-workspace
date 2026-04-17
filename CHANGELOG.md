@@ -2,6 +2,37 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.3.3] - 2026-04-18
+
+This release aligns the backend with Gemini's latest realtime AI integration pass, adds reasoning-aware SSE support, and refreshes the repository docs for GitHub-facing consumption.
+
+### Added
+
+- `POST /api/v1/ai/execute` may now emit `event: reasoning` in addition to:
+  - `start`
+  - `chunk`
+  - `done`
+  - `error`
+
+### Realtime Coverage
+
+- reaction mutations now broadcast `reaction.updated`
+- pin toggles now broadcast `message.updated`
+- deletions now broadcast `message.deleted`
+
+### Documentation Refresh
+
+- updated `README.md` with current product positioning and shipped backend surface
+- replaced broken local-only links with GitHub-safe relative links
+- rewrote `docs/phase8-api-expansion.md` to reflect the current monorepo and broader backend target
+- updated `docs/AGENT-COLLAB.md` with Gemini handoff notes for reasoning and websocket coverage
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./...`
+- `cd apps/api && go build ./...`
+- `pnpm build`
+
 ## [0.3.1] - 2026-04-18
 
 This release completes the first persistent message interaction APIs for Gemini's channel message actions UI.

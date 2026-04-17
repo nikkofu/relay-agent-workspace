@@ -15,6 +15,7 @@ import (
 
 	"github.com/nikkofu/relay-agent-workspace/api/internal/db"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/domain"
+	"github.com/nikkofu/relay-agent-workspace/api/internal/realtime"
 )
 
 func TestGetUsersReturnsUsers(t *testing.T) {
@@ -343,6 +344,77 @@ func TestPinSaveUnreadAndFeedbackEndpointsPersistState(t *testing.T) {
 	}
 	if !feedback.IsGood {
 		t.Fatal("expected feedback to be persisted as positive")
+	}
+}
+
+func TestReactionPinAndDeleteBroadcastRealtimeEvents(t *testing.T) {
+	setupTestDB(t)
+
+	hub := realtime.NewHub()
+	go hub.Run()
+	SetRealtimeHub(hub)
+	defer SetRealtimeHub(nil)
+
+	client := realtime.NewTestClient(8)
+	hub.RegisterTestClient(client)
+	defer hub.UnregisterTestClient(client)
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public"})
+	db.DB.Create(&domain.Message{
+		ID:        "msg-1",
+		ChannelID: "ch-1",
+		UserID:    "user-2",
+		Content:   "Hello",
+		CreatedAt: time.Now(),
+		Metadata:  "{}",
+	})
+
+	router := gin.New()
+	router.POST("/api/v1/messages/:id/reactions", ToggleReaction)
+	router.POST("/api/v1/messages/:id/pin", TogglePinMessage)
+	router.DELETE("/api/v1/messages/:id", DeleteMessage)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/messages/msg-1/reactions", bytes.NewBufferString(`{"emoji":"🔥"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on reaction, got %d", rec.Code)
+	}
+	assertRealtimeEventType(t, client, "reaction.updated")
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/messages/msg-1/pin", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on pin, got %d", rec.Code)
+	}
+	assertRealtimeEventType(t, client, "message.updated")
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodDelete, "/api/v1/messages/msg-1", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on delete, got %d", rec.Code)
+	}
+	assertRealtimeEventType(t, client, "message.deleted")
+}
+
+func assertRealtimeEventType(t *testing.T, client *realtime.TestClient, expectedType string) {
+	t.Helper()
+
+	raw, err := client.Receive(2 * time.Second)
+	if err != nil {
+		t.Fatalf("failed to receive realtime event: %v", err)
+	}
+
+	var event realtime.Event
+	if err := json.Unmarshal(raw, &event); err != nil {
+		t.Fatalf("failed to decode realtime event: %v", err)
+	}
+	if event.Type != expectedType {
+		t.Fatalf("expected realtime event %s, got %s", expectedType, event.Type)
 	}
 }
 

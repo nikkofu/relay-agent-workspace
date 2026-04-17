@@ -34,6 +34,27 @@ func getCurrentUser() (domain.User, error) {
 	return user, nil
 }
 
+func broadcastRealtimeEvent(eventType string, message domain.Message, payload any) error {
+	if RealtimeHub == nil {
+		return nil
+	}
+
+	var channel domain.Channel
+	if err := db.DB.First(&channel, "id = ?", message.ChannelID).Error; err != nil {
+		return err
+	}
+
+	return RealtimeHub.Broadcast(realtime.Event{
+		ID:          "evt_" + time.Now().Format("20060102150405.000000"),
+		Type:        eventType,
+		WorkspaceID: channel.WorkspaceID,
+		ChannelID:   message.ChannelID,
+		EntityID:    message.ID,
+		TS:          time.Now().UTC().Format(time.RFC3339Nano),
+		Payload:     payload,
+	})
+}
+
 func decodeMessageMetadata(message domain.Message) messageMetadata {
 	if message.Metadata == "" {
 		return messageMetadata{}
@@ -314,18 +335,7 @@ func CreateMessage(c *gin.Context) {
 	}
 
 	if RealtimeHub != nil {
-		var channel domain.Channel
-		db.DB.First(&channel, "id = ?", input.ChannelID)
-
-		if err := RealtimeHub.Broadcast(realtime.Event{
-			ID:          "evt_" + time.Now().Format("20060102150405.000000"),
-			Type:        "message.created",
-			WorkspaceID: channel.WorkspaceID,
-			ChannelID:   msg.ChannelID,
-			EntityID:    msg.ID,
-			TS:          time.Now().UTC().Format(time.RFC3339Nano),
-			Payload:     msg,
-		}); err != nil {
+		if err := broadcastRealtimeEvent("message.created", msg, msg); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to broadcast message event"})
 			return
 		}
@@ -385,6 +395,15 @@ func ToggleReaction(c *gin.Context) {
 	refreshed, err := refreshMessageMetadata(messageID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to refresh message metadata"})
+		return
+	}
+
+	if err := broadcastRealtimeEvent("reaction.updated", *refreshed, gin.H{
+		"message": refreshed,
+		"added":   added,
+		"emoji":   input.Emoji,
+	}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to broadcast reaction event"})
 		return
 	}
 
@@ -450,6 +469,11 @@ func DeleteMessage(c *gin.Context) {
 		return
 	}
 
+	if err := broadcastRealtimeEvent("message.deleted", message, gin.H{"message_id": messageID}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to broadcast delete event"})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{"deleted": true, "message_id": messageID})
 }
 
@@ -465,6 +489,15 @@ func TogglePinMessage(c *gin.Context) {
 	message.IsPinned = !message.IsPinned
 	if err := db.DB.Save(&message).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update pin state"})
+		return
+	}
+
+	if err := broadcastRealtimeEvent("message.updated", message, gin.H{
+		"message":   message,
+		"is_pinned": message.IsPinned,
+		"field":     "is_pinned",
+	}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to broadcast pin event"})
 		return
 	}
 

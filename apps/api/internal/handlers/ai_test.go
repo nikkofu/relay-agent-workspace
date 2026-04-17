@@ -16,8 +16,9 @@ import (
 type stubGateway struct{}
 
 func (stubGateway) Stream(_ context.Context, _ llm.Request) (*llm.StreamSession, error) {
-	events := make(chan llm.StreamEvent, 2)
+	events := make(chan llm.StreamEvent, 3)
 	errs := make(chan error, 1)
+	events <- llm.StreamEvent{Type: "reasoning", Text: "Considering options..."}
 	events <- llm.StreamEvent{Type: "chunk", Text: "Thinking..."}
 	events <- llm.StreamEvent{Type: "chunk", Text: "Done."}
 	close(events)
@@ -52,6 +53,9 @@ func TestExecuteAIStreamsSSE(t *testing.T) {
 	body := rec.Body.String()
 	if !strings.Contains(body, "event: start") {
 		t.Fatalf("expected start event, got %s", body)
+	}
+	if !strings.Contains(body, "event: reasoning") || !strings.Contains(body, "Considering options...") {
+		t.Fatalf("expected reasoning event in stream, got %s", body)
 	}
 	if !strings.Contains(body, "Thinking...") || !strings.Contains(body, "Done.") {
 		t.Fatalf("expected chunk texts in stream, got %s", body)
