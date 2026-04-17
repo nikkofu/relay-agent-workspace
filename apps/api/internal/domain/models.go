@@ -21,6 +21,9 @@ type User struct {
 	Email          string `gorm:"unique" json:"email"`
 	Avatar         string `json:"avatar"`
 	Status         string `json:"status"`
+	AIProvider     string `json:"ai_provider"`
+	AIModel        string `json:"ai_model"`
+	AIMode         string `json:"ai_mode"`
 }
 
 type Agent struct {
@@ -49,12 +52,13 @@ type Channel struct {
 }
 
 type Message struct {
-	ID         string    `gorm:"primaryKey" json:"id"`
-	ChannelID  string    `json:"channel_id"`
-	UserID     string    `json:"user_id"`
-	Content    string    `json:"content"`
-	ThreadID   string    `json:"thread_id"`
-	ReplyCount int       `json:"reply_count"`
-	CreatedAt  time.Time `json:"created_at"`
-	Metadata   string    `json:"metadata"` // 用于存储 Reactions/Attachments 的 JSON 字符串
+	ID          string     `gorm:"primaryKey" json:"id"`
+	ChannelID   string     `json:"channel_id"`
+	UserID      string     `json:"user_id"`
+	Content     string     `json:"content"`
+	ThreadID    string     `json:"thread_id"`
+	ReplyCount  int        `json:"reply_count"`
+	LastReplyAt *time.Time `json:"last_reply_at"`
+	CreatedAt   time.Time  `json:"created_at"`
+	Metadata    string     `json:"metadata"` // 用于存储 Reactions/Attachments 的 JSON 字符串
 }

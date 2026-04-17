@@ -28,7 +28,7 @@ Traditional team chat tools treat AI as a sidebar feature. Relay treats agents a
 
 ## Current Status
 
-`v0.2.5` is the latest backend-enabled release line and includes:
+`v0.2.8` is the latest backend-enabled release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -39,6 +39,9 @@ Traditional team chat tools treat AI as a sidebar feature. Relay treats agents a
 - provider-based LLM gateway with OpenAI, OpenAI-compatible, OpenRouter, and Gemini configuration
 - `GET /api/v1/users`, thread-aware messages, and `POST /api/v1/ai/execute` SSE streaming
 - local LLM config merge fixes and real provider validation
+- `GET /api/v1/ai/config` for dynamic provider discovery
+- `PATCH /api/v1/me/settings` for persisted AI preferences
+- parent thread metadata updates including `reply_count` and `last_reply_at`
 
 See [CHANGELOG.md](/Users/admin/Documents/WORK/ai/relay-agent-workspace/CHANGELOG.md:1) for the detailed API inventory in this release, and [docs/phase8-api-expansion.md](/Users/admin/Documents/WORK/ai/relay-agent-workspace/docs/phase8-api-expansion.md:1) for the broader backend target.
 

@@ -28,8 +28,10 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Message Threads API | Codex | 2026-04-17 | Added `thread_id` and `/messages/:id/thread` support. |
 | 🟢 Done | AI SSE Execution Layer | Codex | 2026-04-17 | Implemented `POST /api/v1/ai/execute` with SSE streaming. |
 | 🟢 Done | Frontend Integration Pass | Gemini | 2026-04-17 | Finalized User, Thread, and AI SSE integration. Fixed parsing bugs and improved UI. |
-| 🔴 Pending | Dynamic AI Config API | Codex | 2026-04-18 | Implement `GET /api/v1/ai/config` to return enabled providers/models. |
-| 🔴 Pending | User AI Settings Persistence | Codex | 2026-04-18 | Implement settings persistence for preferred provider/model. |
+| 🟢 Done | Dynamic AI Config API | Codex | 2026-04-17 | Implemented `GET /api/v1/ai/config` for enabled provider/model discovery. |
+| 🟢 Done | User AI Settings Persistence | Codex | 2026-04-17 | Implemented `PATCH /api/v1/me/settings` for persisted provider/model/mode preferences. |
+| 🟢 Done | Message Thread Data Integrity | Codex | 2026-04-17 | Reply creation now updates both `reply_count` and `last_reply_at` on the parent message. |
+| 🟡 In Progress | Dynamic AI Settings UI Wiring | Gemini | 2026-04-18 | Replace hardcoded AI settings with `/api/v1/ai/config` and persisted `/api/v1/me/settings`. |
 
 ---
 
@@ -37,8 +39,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Waiting for AI Config API | 100% |
-| **Codex** | `idle` | Waiting for new requirements | 100% |
+| **Gemini** | `idle` | Waiting for API handoff details | 100% |
+| **Codex** | `verification-before-completion` | v0.2.8 AI config and preference persistence handoff | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
@@ -50,6 +52,13 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 - **Gemini**: "AI settings UI has been upgraded with a ⚙️ panel. Currently hardcoded to Gemini/OpenRouter."
 - **Gemini → Codex**: "I need a dynamic config API to show only enabled providers. Please see the new Backend Specifications below."
 - **Nikko Fu**: "Version v0.2.7 published. Handoff to Codex for dynamic AI discovery."
+
+### 2026-04-17 - Dynamic AI Config Handoff
+- **Codex**: "Delivered `GET /api/v1/ai/config` and `PATCH /api/v1/me/settings`."
+- **Codex**: "Thread replies now update both `reply_count` and `last_reply_at` on the parent message."
+- **Codex → Gemini**: "Replace the hardcoded AI provider/model lists with `/api/v1/ai/config`."
+- **Codex → Gemini**: "Persist the selected `provider`, `model`, and `mode` through `PATCH /api/v1/me/settings` and hydrate the initial settings state from `GET /api/v1/me`."
+- **Codex → Gemini**: "Use `last_reply_at` if you need better sorting or freshness indicators for thread summaries."
 
 ---
 
@@ -66,15 +75,30 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 To further improve the AI integration and remove hardcoded logic, please deliver:
 
-1. **GET /api/v1/ai/config**: 
-   - **Goal**: Expose enabled LLM providers and their available models defined in `apps/api/config/*.yaml`.
-   - **Purpose**: Frontend will use this to populate the ⚙️ settings dropdown dynamically (e.g., hiding OpenAI if it's disabled).
-   - **Response Shape**: `{ "providers": [ { "id": "gemini", "models": ["..."] }, ... ] }`
+1. **AI Config Discovery**
+   - **Endpoint**: `GET /api/v1/ai/config`
+   - **Response Shape**:
+     ```json
+     {
+       "default_provider": "openrouter",
+       "providers": [
+         { "id": "gemini", "models": ["gemini-3-flash-preview"] }
+       ]
+     }
+     ```
 
-2. **User Preference Persistence**:
+2. **User Preference Persistence**
    - **Endpoint**: `PATCH /api/v1/me/settings`
-   - **Goal**: Allow the user (or Gemini) to save preferred AI `provider`, `model`, and `mode` (fast/planning) in the database.
-   - **Persistence**: Store in `User` model or a new `UserSettings` model.
+   - **Payload**:
+     ```json
+     {
+       "provider": "gemini",
+       "model": "gemini-3-flash-preview",
+       "mode": "planning"
+     }
+     ```
+   - **Read Path**:
+     - `GET /api/v1/me` now includes persisted `ai_provider`, `ai_model`, and `ai_mode`
 
-3. **Message Thread Data Integrity**:
-   - **Action**: Ensure that when a reply is posted, the parent message's `reply_count` and `last_reply_at` are incremented/updated in the DB automatically.
+3. **Message Thread Data Integrity**
+   - **Behavior**: Reply creation updates both `reply_count` and `last_reply_at` on the parent message.

@@ -24,6 +24,9 @@ func SeedData() {
 			Email:          "nikko@example.com",
 			Avatar:         "https://github.com/nikkofu.png",
 			Status:         "online",
+			AIProvider:     "gemini",
+			AIModel:        "gemini-3-flash-preview",
+			AIMode:         "fast",
 		},
 		{
 			ID:             "user-2",
@@ -176,5 +179,9 @@ func SeedData() {
 	}
 	DB.FirstOrCreate(&threadReply, domain.Message{ID: threadReply.ID})
 
-	DB.Model(&domain.Message{}).Where("id = ?", "msg-3").Update("reply_count", 1)
+	lastReplyAt := threadReply.CreatedAt
+	DB.Model(&domain.Message{}).Where("id = ?", "msg-3").Updates(map[string]any{
+		"reply_count":   1,
+		"last_reply_at": &lastReplyAt,
+	})
 }

@@ -2,6 +2,40 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.2.8] - 2026-04-17
+
+This release removes the last hardcoded AI settings path for the frontend and adds persistence for user AI preferences plus stronger thread reply metadata.
+
+### Added
+
+- `GET /api/v1/ai/config`
+  - Returns enabled providers and configured models
+  - Response shape:
+    - `default_provider`
+    - `providers[]`
+- `PATCH /api/v1/me/settings`
+  - Persists AI preference fields on the current user:
+    - `provider`
+    - `model`
+    - `mode`
+
+### Thread Integrity Improvements
+
+- reply creation now updates:
+  - `reply_count`
+  - `last_reply_at`
+- `Message` model now stores:
+  - `last_reply_at`
+- `User` model now stores:
+  - `ai_provider`
+  - `ai_model`
+  - `ai_mode`
+
+### Verification Used For This Release
+
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+
 ## [0.2.5] - 2026-04-17
 
 This release hardens local LLM configuration loading and records the first real upstream validation pass against the configured providers.

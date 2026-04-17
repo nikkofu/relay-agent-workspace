@@ -22,6 +22,35 @@ func GetMe(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"user": user})
 }
 
+func PatchMeSettings(c *gin.Context) {
+	var user domain.User
+	if err := db.DB.First(&user).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var input struct {
+		Provider string `json:"provider"`
+		Model    string `json:"model"`
+		Mode     string `json:"mode"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	user.AIProvider = input.Provider
+	user.AIModel = input.Model
+	user.AIMode = input.Mode
+
+	if err := db.DB.Save(&user).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update settings"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"user": user})
+}
+
 func GetOrganizations(c *gin.Context) {
 	var orgs []domain.Organization
 	db.DB.Order("created_at asc").Find(&orgs)
@@ -155,9 +184,13 @@ func CreateMessage(c *gin.Context) {
 	}
 
 	if input.ThreadID != "" {
+		lastReplyAt := msg.CreatedAt
 		db.DB.Model(&domain.Message{}).
 			Where("id = ?", input.ThreadID).
-			UpdateColumn("reply_count", gorm.Expr("reply_count + ?", 1))
+			Updates(map[string]any{
+				"reply_count":   gorm.Expr("reply_count + ?", 1),
+				"last_reply_at": &lastReplyAt,
+			})
 	}
 
 	if RealtimeHub != nil {

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -57,5 +58,57 @@ func TestExecuteAIStreamsSSE(t *testing.T) {
 	}
 	if !strings.Contains(body, "event: done") {
 		t.Fatalf("expected done event, got %s", body)
+	}
+}
+
+func TestGetAIConfigReturnsEnabledProvidersAndModels(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	AIConfig = llm.Config{
+		DefaultProvider: "gemini",
+		Providers: map[string]llm.ProviderConfig{
+			"gemini": {
+				Name:    "gemini",
+				Enabled: true,
+				Model:   "gemini-3-flash-preview",
+			},
+			"openrouter": {
+				Name:    "openrouter",
+				Enabled: true,
+				Model:   "nvidia/nemotron-3-super-120b-a12b:free",
+			},
+			"openai": {
+				Name:    "openai",
+				Enabled: false,
+				Model:   "gpt-4.1-mini",
+			},
+		},
+	}
+
+	router := gin.New()
+	router.GET("/api/v1/ai/config", GetAIConfig)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/ai/config", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	var payload struct {
+		DefaultProvider string `json:"default_provider"`
+		Providers       []struct {
+			ID     string   `json:"id"`
+			Models []string `json:"models"`
+		} `json:"providers"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if payload.DefaultProvider != "gemini" {
+		t.Fatalf("unexpected default provider: %s", payload.DefaultProvider)
+	}
+	if len(payload.Providers) != 2 {
+		t.Fatalf("expected 2 enabled providers, got %d", len(payload.Providers))
 	}
 }

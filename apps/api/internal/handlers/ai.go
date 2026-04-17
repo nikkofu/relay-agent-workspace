@@ -15,9 +15,32 @@ type AIStreamer interface {
 }
 
 var AIGateway AIStreamer
+var AIConfig llm.Config
 
 func SetAIGateway(gateway AIStreamer) {
 	AIGateway = gateway
+}
+
+func SetAIConfig(config llm.Config) {
+	AIConfig = config
+}
+
+func GetAIConfig(c *gin.Context) {
+	providers := make([]gin.H, 0, len(AIConfig.Providers))
+	for id, provider := range AIConfig.Providers {
+		if !provider.Enabled {
+			continue
+		}
+		providers = append(providers, gin.H{
+			"id":     id,
+			"models": []string{provider.Model},
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"default_provider": AIConfig.DefaultProvider,
+		"providers":        providers,
+	})
 }
 
 func ExecuteAI(c *gin.Context) {

@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -96,11 +98,81 @@ func TestGetMessageThreadReturnsParentAndReplies(t *testing.T) {
 	}
 }
 
+func TestPatchMeSettingsPersistsPreferences(t *testing.T) {
+	setupTestDB(t)
+
+	user := domain.User{
+		ID:             "user-1",
+		OrganizationID: "org-1",
+		Name:           "Nikko Fu",
+		Email:          "nikko@example.com",
+	}
+	db.DB.Create(&user)
+
+	router := gin.New()
+	router.PATCH("/api/v1/me/settings", PatchMeSettings)
+
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/me/settings", bytes.NewBufferString(`{"provider":"gemini","model":"gemini-3-flash-preview","mode":"planning"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	var refreshed domain.User
+	if err := db.DB.First(&refreshed, "id = ?", "user-1").Error; err != nil {
+		t.Fatalf("failed to reload user: %v", err)
+	}
+	if refreshed.AIProvider != "gemini" || refreshed.AIModel != "gemini-3-flash-preview" || refreshed.AIMode != "planning" {
+		t.Fatalf("settings were not persisted: %#v", refreshed)
+	}
+}
+
+func TestCreateMessageReplyUpdatesParentReplyMetadata(t *testing.T) {
+	setupTestDB(t)
+
+	parent := domain.Message{
+		ID:         "msg-parent",
+		ChannelID:  "ch-1",
+		UserID:     "user-1",
+		Content:    "Parent",
+		ReplyCount: 0,
+		CreatedAt:  time.Now().Add(-time.Minute),
+	}
+	db.DB.Create(&parent)
+
+	router := gin.New()
+	router.POST("/api/v1/messages", CreateMessage)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/messages", bytes.NewBufferString(`{"channel_id":"ch-1","content":"Reply","user_id":"user-2","thread_id":"msg-parent"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d", rec.Code)
+	}
+
+	var refreshed domain.Message
+	if err := db.DB.First(&refreshed, "id = ?", "msg-parent").Error; err != nil {
+		t.Fatalf("failed to reload parent: %v", err)
+	}
+	if refreshed.ReplyCount != 1 {
+		t.Fatalf("expected reply_count=1, got %d", refreshed.ReplyCount)
+	}
+	if refreshed.LastReplyAt == nil {
+		t.Fatal("expected last_reply_at to be set")
+	}
+}
+
 func setupTestDB(t *testing.T) {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
-	testDB, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
+	dsn := fmt.Sprintf("file:test_%d?mode=memory&cache=shared", time.Now().UnixNano())
+	testDB, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("failed to open sqlite test db: %v", err)
 	}

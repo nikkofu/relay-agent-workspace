@@ -43,6 +43,7 @@ func main() {
 	if err != nil {
 		log.Printf("llm config load failed: %v", err)
 	} else {
+		handlers.SetAIConfig(llmConfig)
 		handlers.SetAIGateway(llm.NewGateway(llmConfig, map[string]llm.Provider{
 			"openai":            llm.NewOpenAICompatibleProvider(),
 			"openai-compatible": llm.NewOpenAICompatibleProvider(),
@@ -69,6 +70,7 @@ func main() {
 	v1 := r.Group("/api/v1")
 	{
 		v1.GET("/me", handlers.GetMe)
+		v1.PATCH("/me/settings", handlers.PatchMeSettings)
 		v1.GET("/users", handlers.GetUsers)
 		v1.GET("/orgs", handlers.GetOrganizations)
 		v1.GET("/orgs/:id/teams", handlers.GetTeams)
@@ -79,6 +81,7 @@ func main() {
 		v1.GET("/messages/:id/thread", handlers.GetMessageThread)
 		v1.POST("/messages", handlers.CreateMessage)
 		v1.GET("/realtime", handlers.HandleRealtime)
+		v1.GET("/ai/config", handlers.GetAIConfig)
 		v1.POST("/ai/execute", handlers.ExecuteAI)
 	}
 
