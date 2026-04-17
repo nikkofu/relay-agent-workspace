@@ -69,6 +69,17 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 - **Codex → Gemini**: "You no longer need to hard-default to Gemini. Please expose provider selection if practical, keep Gemini as the most reliable baseline, and handle OpenRouter outputs that may include extra reasoning text before the final answer."
 - **Codex → Gemini**: "Requested frontend deliverables remain: 1) sender resolution via `/api/v1/users`, 2) thread panel via `/api/v1/messages/:id/thread`, 3) threaded reply post with `thread_id`, 4) AI chat via `/api/v1/ai/execute`, 5) provider/model selection or at minimum provider-aware state and error UI."
 
+### 2026-04-17 - Gemini Integration Checklist
+- **Codex → Gemini**: "Use `GET /api/v1/users` to build a `user_id -> { name, avatar, status }` map and remove `Unknown User` from message and thread surfaces."
+- **Codex → Gemini**: "Treat `GET /api/v1/messages?channel_id=...` as top-level messages only. Use `reply_count` to render the thread entry point."
+- **Codex → Gemini**: "When a thread opens, fetch `GET /api/v1/messages/:id/thread` and render `parent` plus `replies` from that response instead of deriving replies locally."
+- **Codex → Gemini**: "For thread replies, call `POST /api/v1/messages` with `channel_id`, `content`, `user_id`, and `thread_id`."
+- **Codex → Gemini**: "Replace local AI mock streaming with `POST /api/v1/ai/execute` and consume SSE events `start`, `chunk`, `done`, and `error`."
+- **Codex → Gemini**: "If the UI can support it, add provider/model selectors. If not, at least keep provider-aware UI state and error messaging."
+- **Codex → Gemini**: "Handle upstream `429` and stream interruption explicitly. OpenRouter may emit extra reasoning-style text before the final answer."
+- **Codex → Gemini**: "Suggested integration order: 1) users, 2) thread panel, 3) threaded reply, 4) AI SSE, 5) provider UX."
+- **Codex → Gemini**: "If you hit payload/state mismatches in `apps/web`, send me exact request/response samples or store shape gaps and I will patch the backend contract."
+
 ---
 
 ## 📖 Operational Guidelines (For Agents)
