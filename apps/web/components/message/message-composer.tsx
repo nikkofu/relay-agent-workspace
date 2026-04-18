@@ -36,6 +36,12 @@ interface MessageComposerProps {
   scope?: string
 }
 
+type TypingScope = {
+  channelId?: string
+  dmId?: string
+  threadId?: string
+}
+
 export function MessageComposer({ placeholder, onSend, scope }: MessageComposerProps) {
   const [showSlashCommands, setShowSlashCommands] = useState(false)
   const [showMentions, setShowMentions] = useState(false)
@@ -52,10 +58,10 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
     const scopeType = parts[0]
     const scopeId = parts[1]
 
-    const scopeObj: any = {}
-    if (scopeType === 'channel') scopeObj.channel_id = scopeId
-    else if (scopeType === 'dm') scopeObj.dm_id = scopeId
-    else if (scopeType === 'thread') scopeObj.thread_id = scopeId
+    const scopeObj: TypingScope = {}
+    if (scopeType === 'channel') scopeObj.channelId = scopeId
+    else if (scopeType === 'dm') scopeObj.dmId = scopeId
+    else if (scopeType === 'thread') scopeObj.threadId = scopeId
 
     sendTyping(scopeObj, isTyping)
   }, [scope, sendTyping])

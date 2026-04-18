@@ -899,6 +899,100 @@ func TestPresenceAndTypingBroadcastRealtimeEvents(t *testing.T) {
 	assertRealtimeEventType(t, client, "typing.updated")
 }
 
+func TestStarredChannelsEndpointsListAndToggle(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public", IsStarred: true})
+	db.DB.Create(&domain.Channel{ID: "ch-2", WorkspaceID: "ws-1", Name: "design", Type: "public", IsStarred: false})
+
+	router := gin.New()
+	router.GET("/api/v1/starred", GetStarredChannels)
+	router.POST("/api/v1/channels/:id/star", ToggleChannelStar)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/starred", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on starred list, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var listPayload struct {
+		Channels []domain.Channel `json:"channels"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &listPayload); err != nil {
+		t.Fatalf("failed to decode starred channels: %v", err)
+	}
+	if len(listPayload.Channels) != 1 || listPayload.Channels[0].ID != "ch-1" {
+		t.Fatalf("expected only starred channel, got %#v", listPayload.Channels)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/channels/ch-2/star", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on toggle star, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var refreshed domain.Channel
+	if err := db.DB.First(&refreshed, "id = ?", "ch-2").Error; err != nil {
+		t.Fatalf("failed to reload channel: %v", err)
+	}
+	if !refreshed.IsStarred {
+		t.Fatal("expected channel to be starred")
+	}
+}
+
+func TestGetPinsReturnsPinnedMessagesWithChannelAndUser(t *testing.T) {
+	setupTestDB(t)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.User{ID: "user-2", Name: "AI Assistant", Email: "ai@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public"})
+	db.DB.Create(&domain.Message{
+		ID:        "msg-1",
+		ChannelID: "ch-1",
+		UserID:    "user-2",
+		Content:   "Pinned update",
+		IsPinned:  true,
+		CreatedAt: now,
+		Metadata:  "{}",
+	})
+	db.DB.Create(&domain.Message{
+		ID:        "msg-2",
+		ChannelID: "ch-1",
+		UserID:    "user-2",
+		Content:   "Regular update",
+		IsPinned:  false,
+		CreatedAt: now.Add(time.Minute),
+		Metadata:  "{}",
+	})
+
+	router := gin.New()
+	router.GET("/api/v1/pins", GetPins)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/pins", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on pins list, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode pins payload: %v", err)
+	}
+	if len(payload.Items) != 1 {
+		t.Fatalf("expected 1 pinned item, got %d", len(payload.Items))
+	}
+	message, ok := payload.Items[0]["message"].(map[string]any)
+	if !ok || message["id"] != "msg-1" {
+		t.Fatalf("expected pinned message payload, got %#v", payload.Items[0]["message"])
+	}
+}
+
 func TestSearchReturnsChannelUserMessageAndDMHits(t *testing.T) {
 	setupTestDB(t)
 

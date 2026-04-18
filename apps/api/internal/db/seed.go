@@ -199,6 +199,7 @@ func SeedData() {
 			Metadata:   string(metadataJSON),
 			ThreadID:   "",
 			ReplyCount: 0,
+			IsPinned:   m.ID == "msg-3",
 		}
 		DB.FirstOrCreate(&msg, domain.Message{ID: msg.ID})
 

@@ -938,6 +938,16 @@ func GetPresence(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"users": users})
 }
 
+func GetStarredChannels(c *gin.Context) {
+	var channels []domain.Channel
+	if err := db.DB.Where("is_starred = ?", true).Order("name asc").Find(&channels).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load starred channels"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"channels": channels})
+}
+
 func UpdatePresence(c *gin.Context) {
 	currentUser, err := getCurrentUser()
 	if err != nil {
@@ -972,6 +982,36 @@ func UpdatePresence(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"user": user})
+}
+
+func ToggleChannelStar(c *gin.Context) {
+	channelID := c.Param("id")
+
+	var channel domain.Channel
+	if err := db.DB.First(&channel, "id = ?", channelID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "channel not found"})
+		return
+	}
+
+	channel.IsStarred = !channel.IsStarred
+	if err := db.DB.Save(&channel).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update channel star state"})
+		return
+	}
+
+	if RealtimeHub != nil {
+		_ = RealtimeHub.Broadcast(realtime.Event{
+			ID:          "evt_" + time.Now().Format("20060102150405.000000"),
+			Type:        "channel.updated",
+			WorkspaceID: channel.WorkspaceID,
+			ChannelID:   channel.ID,
+			EntityID:    channel.ID,
+			TS:          time.Now().UTC().Format(time.RFC3339Nano),
+			Payload:     gin.H{"channel": channel, "is_starred": channel.IsStarred, "field": "is_starred"},
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"channel": channel, "is_starred": channel.IsStarred})
 }
 
 func UpdateTyping(c *gin.Context) {
@@ -1025,6 +1065,46 @@ func UpdateTyping(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"typing": payload})
+}
+
+func GetPins(c *gin.Context) {
+	type pinItem struct {
+		Message domain.Message `json:"message"`
+		Channel domain.Channel `json:"channel"`
+		User    domain.User    `json:"user"`
+	}
+
+	var messages []domain.Message
+	if err := db.DB.Where("is_pinned = ?", true).Order("created_at desc").Find(&messages).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load pins"})
+		return
+	}
+
+	items := make([]pinItem, 0, len(messages))
+	for _, message := range messages {
+		refreshed, err := refreshMessageMetadata(message.ID)
+		if err == nil && refreshed != nil {
+			message = *refreshed
+		}
+
+		var channel domain.Channel
+		if err := db.DB.First(&channel, "id = ?", message.ChannelID).Error; err != nil {
+			continue
+		}
+
+		var user domain.User
+		if err := db.DB.First(&user, "id = ?", message.UserID).Error; err != nil {
+			continue
+		}
+
+		items = append(items, pinItem{
+			Message: message,
+			Channel: channel,
+			User:    enrichUser(user),
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"items": items})
 }
 
 func GetDrafts(c *gin.Context) {

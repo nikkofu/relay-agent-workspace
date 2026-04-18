@@ -87,6 +87,9 @@ Current backend surface already available:
 - `GET /api/v1/presence`
 - `POST /api/v1/presence`
 - `POST /api/v1/typing`
+- `GET /api/v1/starred`
+- `POST /api/v1/channels/:id/star`
+- `GET /api/v1/pins`
 - `GET /api/v1/drafts`
 - `PUT /api/v1/drafts/:scope`
 - `GET /api/v1/search`
@@ -177,9 +180,13 @@ Recommended additions:
   - `POST /api/v1/workspaces/:id/invites`
   - `GET /api/v1/workspaces/:id/invites`
 - sidebar and discovery surfaces:
-  - `GET /api/v1/starred`
-  - `POST /api/v1/channels/:id/star`
-  - `GET /api/v1/pins`
+  - shipped baseline:
+    - `GET /api/v1/starred`
+    - `POST /api/v1/channels/:id/star`
+    - `GET /api/v1/pins`
+  - likely follow-up:
+    - pinned filters by channel or user
+    - star sorting and manual ordering
 - notification and inbox surfaces:
   - `GET /api/v1/inbox`
   - `GET /api/v1/mentions`

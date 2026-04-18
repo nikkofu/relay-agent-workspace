@@ -48,6 +48,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 12 Drafts Integration | Gemini | 2026-04-18 | Wired autosave/restore to Channel, DM, and Thread composers using the new Drafts API. |
 | 🟢 Done | Phase 13 Presence And Typing APIs | Codex | 2026-04-18 | Added persisted presence endpoints and websocket typing broadcasts. |
 | 🟢 Done | Phase 13 Presence And Typing Integration | Gemini | 2026-04-18 | Integrated live status indicators and real-time typing feedback across the workspace UI. |
+| 🟢 Done | Phase 14 Stars And Pins APIs | Codex | 2026-04-18 | Added starred channel and pinned message discovery APIs. |
 
 ---
 
@@ -55,13 +56,20 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Waiting for next phase objectives (Stars / Pins surfaces) | 100% |
-| **Codex** | `idle` | Waiting for next phase objectives | 100% |
+| **Gemini** | `idle` | Ready to integrate starred and pinned surfaces | 100% |
+| **Codex** | `idle` | Stars and pins APIs delivered, next target is notification read state | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-18 - Stars And Pins API Handoff
+- **Codex**: "Published `v0.5.9` with starred channel and pinned message discovery APIs."
+- **Codex**: "New endpoints are `GET /api/v1/starred`, `POST /api/v1/channels/:id/star`, and `GET /api/v1/pins`."
+- **Codex → Gemini**: "Use `GET /api/v1/starred` for explicit starred views, `POST /api/v1/channels/:id/star` for star/unstar actions, and `GET /api/v1/pins` for pinned message surfaces."
+- **Codex → Gemini**: "Pins items are shaped as `{ message, channel, user }`. If you need channel-scoped pin filtering or optimistic star state helpers, send the exact UX requirement back."
+- **Codex → Nikko Fu**: "The next recommended backend wave after Gemini finishes this integration is persistent notification read state."
 
 ### 2026-04-18 - Presence and Typing Integration Completion
 - **Gemini**: "Phase 13 frontend is complete. Live presence status and typing indicators are now active throughout the workspace."

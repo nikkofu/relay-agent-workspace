@@ -2,6 +2,38 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.9] - 2026-04-18
+
+This release adds the first starred and pinned discovery APIs so Relay can surface saved channels and pinned references as dedicated collaboration destinations.
+
+### Added
+
+- `GET /api/v1/starred`
+- `POST /api/v1/channels/:id/star`
+- `GET /api/v1/pins`
+
+### Behavior
+
+- starred channels are returned from persisted `channels.is_starred`
+- channel star toggle returns the updated channel plus `is_starred`
+- pins return hydrated message items with:
+  - `message`
+  - `channel`
+  - `user`
+
+### Documentation
+
+- added [docs/phases/phase-10-stars-pins.md](./docs/phases/phase-10-stars-pins.md)
+- added [docs/releases/v0.5.9.md](./docs/releases/v0.5.9.md)
+- updated `docs/AGENT-COLLAB.md` with the Gemini handoff for starred and pinned surfaces
+- updated `README.md` and `docs/phase8-api-expansion.md` to reflect the shipped discovery baseline
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm build`
+
 ## [0.5.8] - 2026-04-18
 
 This release implements Phase 13: Presence and Typing indicators, bringing real-time social signals to the workspace.
@@ -23,7 +55,7 @@ This release implements Phase 13: Presence and Typing indicators, bringing real-
 - `pnpm build`
 - `cd apps/web && pnpm lint`
 
-## [0.5.6] - 2026-04-18
+## [0.5.7] - 2026-04-18
 
 
 This release adds the first realtime presence layer for Relay by shipping presence APIs and typing broadcasts for channels, DMs, and threads.
