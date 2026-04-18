@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.5.13` is the current release line and includes:
+`v0.5.15` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -68,6 +68,7 @@ For product, design, and marketing, the short version is:
 - Starred channel and pinned message discovery APIs
 - Persistent notification read state for inbox and mentions
 - Persistent AI conversation history for assistant chat
+- Persistent AI thread and channel summaries
 - Workspace search API across channels, users, messages, and DM conversations
 - Docked DM chat windows in the workspace shell
 - Phase 10 Slack-parity foundation APIs for:

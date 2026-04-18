@@ -3,10 +3,14 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"github.com/nikkofu/relay-agent-workspace/api/internal/db"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/domain"
@@ -83,6 +87,86 @@ func GetAIConversation(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"conversation": conversation, "messages": messages})
+}
+
+func GetThreadSummary(c *gin.Context) {
+	summary, err := getStoredSummary("thread", c.Param("id"))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusOK, gin.H{"summary": nil})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load thread summary"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"summary": summary})
+}
+
+func GenerateThreadSummary(c *gin.Context) {
+	parentID := c.Param("id")
+
+	var parent domain.Message
+	if err := db.DB.First(&parent, "id = ?", parentID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "thread parent not found"})
+		return
+	}
+
+	var replies []domain.Message
+	if err := db.DB.Where("thread_id = ?", parentID).Order("created_at asc").Find(&replies).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load thread replies"})
+		return
+	}
+
+	messages := append([]domain.Message{parent}, replies...)
+	summary, err := generateSummaryFromMessages(c, "thread", parentID, parent.ChannelID, messages)
+	if err != nil {
+		handleSummaryGenerationError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"summary": summary})
+}
+
+func GetChannelSummary(c *gin.Context) {
+	summary, err := getStoredSummary("channel", c.Param("id"))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusOK, gin.H{"summary": nil})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load channel summary"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"summary": summary})
+}
+
+func GenerateChannelSummary(c *gin.Context) {
+	channelID := c.Param("id")
+
+	var channel domain.Channel
+	if err := db.DB.First(&channel, "id = ?", channelID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "channel not found"})
+		return
+	}
+
+	var messages []domain.Message
+	if err := db.DB.Where("channel_id = ?", channelID).Order("created_at desc").Limit(50).Find(&messages).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load channel messages"})
+		return
+	}
+	if len(messages) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "channel has no messages to summarize"})
+		return
+	}
+	reverseMessages(messages)
+
+	summary, err := generateSummaryFromMessages(c, "channel", channelID, channelID, messages)
+	if err != nil {
+		handleSummaryGenerationError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"summary": summary})
 }
 
 func ExecuteAI(c *gin.Context) {
@@ -179,6 +263,134 @@ func ExecuteAI(c *gin.Context) {
 		case <-c.Request.Context().Done():
 			return
 		}
+	}
+}
+
+func getStoredSummary(scopeType, scopeID string) (*domain.AISummary, error) {
+	var summary domain.AISummary
+	if err := db.DB.Where("scope_type = ? AND scope_id = ?", scopeType, scopeID).First(&summary).Error; err != nil {
+		return nil, err
+	}
+	return &summary, nil
+}
+
+func generateSummaryFromMessages(c *gin.Context, scopeType, scopeID, channelID string, messages []domain.Message) (*domain.AISummary, error) {
+	if AIGateway == nil {
+		return nil, errors.New("ai gateway is not configured")
+	}
+
+	var input struct {
+		Provider string `json:"provider"`
+		Model    string `json:"model"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil && !errors.Is(err, io.EOF) {
+		return nil, err
+	}
+
+	req := llm.Request{
+		Prompt:    buildSummaryPrompt(scopeType, messages),
+		ChannelID: channelID,
+		Provider:  input.Provider,
+		Model:     input.Model,
+	}
+
+	session, err := AIGateway.Stream(c.Request.Context(), req)
+	if err != nil {
+		return nil, err
+	}
+
+	content, reasoning, err := collectStreamOutput(c.Request.Context(), session)
+	if err != nil {
+		return nil, err
+	}
+
+	lastMessageAt := messages[len(messages)-1].CreatedAt
+	summary := domain.AISummary{
+		ScopeType:     scopeType,
+		ScopeID:       scopeID,
+		ChannelID:     channelID,
+		Provider:      session.Provider,
+		Model:         session.Model,
+		Content:       strings.TrimSpace(content),
+		Reasoning:     strings.TrimSpace(reasoning),
+		MessageCount:  len(messages),
+		LastMessageAt: &lastMessageAt,
+		UpdatedAt:     time.Now().UTC(),
+	}
+
+	if err := db.DB.Where("scope_type = ? AND scope_id = ?", scopeType, scopeID).
+		Assign(summary).
+		FirstOrCreate(&summary).Error; err != nil {
+		return nil, err
+	}
+
+	return &summary, nil
+}
+
+func buildSummaryPrompt(scopeType string, messages []domain.Message) string {
+	var builder strings.Builder
+	if scopeType == "thread" {
+		builder.WriteString("Summarize the following Slack-style thread for a busy teammate. Focus on decisions, owners, risks, and next steps.\n\n")
+	} else {
+		builder.WriteString("Summarize the following Slack-style channel activity for a busy teammate. Focus on themes, decisions, blockers, owners, and next steps.\n\n")
+	}
+
+	for _, message := range messages {
+		builder.WriteString("- [")
+		builder.WriteString(message.UserID)
+		builder.WriteString("] ")
+		builder.WriteString(message.Content)
+		builder.WriteString("\n")
+	}
+
+	builder.WriteString("\nReturn a concise paragraph summary.")
+	return builder.String()
+}
+
+func collectStreamOutput(ctx context.Context, session *llm.StreamSession) (string, string, error) {
+	content := ""
+	reasoning := ""
+
+	for {
+		select {
+		case event, ok := <-session.Events:
+			if !ok {
+				return content, reasoning, nil
+			}
+			switch event.Type {
+			case "chunk":
+				content += event.Text
+			case "reasoning":
+				reasoning += event.Text
+			}
+		case err, ok := <-session.Errors:
+			if !ok {
+				session.Errors = nil
+				continue
+			}
+			if err != nil {
+				return "", "", err
+			}
+		case <-ctx.Done():
+			return "", "", ctx.Err()
+		}
+	}
+}
+
+func reverseMessages(messages []domain.Message) {
+	for left, right := 0, len(messages)-1; left < right; left, right = left+1, right-1 {
+		messages[left], messages[right] = messages[right], messages[left]
+	}
+}
+
+func handleSummaryGenerationError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, context.Canceled):
+		c.JSON(http.StatusRequestTimeout, gin.H{"error": "summary generation canceled"})
+	case strings.Contains(err.Error(), "ai gateway is not configured"):
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": err.Error()})
+	default:
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 	}
 }
 

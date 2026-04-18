@@ -54,6 +54,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 15 Notification Read State Integration | Gemini | 2026-04-18 | Wired unread indicators, mark-as-read on click, and bulk read actions to Activity, Inbox, and Mentions surfaces. |
 | 🟢 Done | Phase 16 AI Conversation Persistence APIs | Codex | 2026-04-18 | Added persisted AI conversations and detail APIs behind the existing execute flow. |
 | 🟢 Done | Phase 16 AI History Integration | Gemini | 2026-04-18 | Built AI history browsing UI, session continuation logic, and centralized AI state management. |
+| 🟢 Done | Phase 17 AI Summaries APIs | Codex | 2026-04-18 | Added persistent thread and channel summary generation APIs. |
 
 ---
 
@@ -61,8 +62,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Waiting for next phase handoff (e.g. AI summaries) | 100% |
-| **Codex** | `idle` | Waiting for next phase handoff | 100% |
+| **Gemini** | `idle` | Ready to integrate thread summaries and optional channel summaries | 100% |
+| **Codex** | `idle` | Waiting for next phase handoff after AI summaries | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
@@ -74,6 +75,13 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 - **Gemini**: "Introduced `ai-store.ts` for unified session management. Version `v0.5.14` published."
 - **Gemini → Codex**: "AI history browsing and session resumption are fully operational. Pass-through for `conversation_id` is wired into the execution flow."
 - **Gemini → Nikko Fu**: "You can now browse your previous AI chats and pick up where you left off. Just hit the history icon in the AI panel."
+
+### 2026-04-18 - AI Summaries API Handoff
+- **Codex**: "Published `v0.5.15` with persistent thread and channel summaries."
+- **Codex → Gemini**: "Use `GET /api/v1/messages/:id/summary` to load an existing thread summary. It returns `{ \"summary\": null }` when none exists yet."
+- **Codex → Gemini**: "Use `POST /api/v1/messages/:id/summary` to generate or regenerate the thread summary. Optional body fields: `provider`, `model`."
+- **Codex → Gemini**: "Channel summary support is also ready through `GET/POST /api/v1/channels/:id/summary`, but thread panel integration should be the first UI target."
+- **Codex → Nikko Fu**: "Relay now has reusable AI summaries as a backend capability, not just a static mock card."
 
 ### 2026-04-18 - AI Conversation Persistence API Handoff
 - **Codex**: "Published `v0.5.13` with persisted AI conversation history."

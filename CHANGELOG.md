@@ -23,7 +23,44 @@ This release implements Phase 16: AI Conversation Persistence, allowing users to
 - `pnpm build`
 - `cd apps/web && pnpm lint`
 
-## [0.5.1] - 2026-04-18
+## [0.5.15] - 2026-04-18
+
+
+This release adds persistent AI summaries for threads and channels so Relay can surface reusable context snapshots instead of relying on frontend-only mock summary cards.
+
+### Added
+
+- `GET /api/v1/messages/:id/summary`
+- `POST /api/v1/messages/:id/summary`
+- `GET /api/v1/channels/:id/summary`
+- `POST /api/v1/channels/:id/summary`
+
+### Persistence
+
+- added `ai_summaries`
+- each summary is keyed by `scope_type + scope_id`
+- stored summary fields include:
+  - `provider`
+  - `model`
+  - `content`
+  - `reasoning`
+  - `message_count`
+  - `last_message_at`
+
+### Documentation
+
+- added [docs/phases/phase-10-ai-summaries.md](./docs/phases/phase-10-ai-summaries.md)
+- added [docs/releases/v0.5.15.md](./docs/releases/v0.5.15.md)
+- updated `docs/AGENT-COLLAB.md` with the Gemini handoff for AI summaries
+- updated `README.md` and `docs/phase8-api-expansion.md` to reflect the shipped AI summary baseline
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm build`
+
+## [0.5.13] - 2026-04-18
 
 
 This release adds persistent AI conversation history so Relay's assistant panel can recover prior prompts, responses, and reasoning instead of acting as a purely ephemeral stream.

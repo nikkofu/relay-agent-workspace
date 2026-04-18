@@ -135,11 +135,13 @@ Baseline support now exists for:
 - `GET /api/v1/ai/conversations`
 - `GET /api/v1/ai/conversations/:id`
 - persisted AI history behind `POST /api/v1/ai/execute`
+- `GET /api/v1/messages/:id/summary`
+- `POST /api/v1/messages/:id/summary`
+- `GET /api/v1/channels/:id/summary`
+- `POST /api/v1/channels/:id/summary`
 
 Likely follow-ups:
 
-- channel or thread scoped AI summaries
-- explicit AI thread and channel summary endpoints
 - command execution and tool orchestration history
 - artifact outputs linked to AI conversations
 

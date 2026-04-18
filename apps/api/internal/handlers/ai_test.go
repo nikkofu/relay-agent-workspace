@@ -212,6 +212,120 @@ func TestGetAIConfigReturnsEnabledProvidersAndModels(t *testing.T) {
 	}
 }
 
+func TestGenerateAndGetThreadSummary(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+	AIGateway = stubGateway{}
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "general"})
+	db.DB.Create(&domain.Message{
+		ID:        "msg-parent",
+		ChannelID: "ch-1",
+		UserID:    "user-1",
+		Content:   "We should finalize the launch checklist today.",
+		CreatedAt: mustParseAITestTime(t, "2026-04-18T12:00:00Z"),
+	})
+	db.DB.Create(&domain.Message{
+		ID:        "msg-reply",
+		ChannelID: "ch-1",
+		UserID:    "user-1",
+		ThreadID:  "msg-parent",
+		Content:   "I can handle the API validation and release notes.",
+		CreatedAt: mustParseAITestTime(t, "2026-04-18T12:02:00Z"),
+	})
+
+	router := gin.New()
+	router.POST("/api/v1/messages/:id/summary", GenerateThreadSummary)
+	router.GET("/api/v1/messages/:id/summary", GetThreadSummary)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/messages/msg-parent/summary", strings.NewReader(`{"provider":"gemini"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on thread summary generate, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var generatePayload struct {
+		Summary domain.AISummary `json:"summary"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &generatePayload); err != nil {
+		t.Fatalf("failed to decode generate payload: %v", err)
+	}
+	if generatePayload.Summary.ScopeType != "thread" || generatePayload.Summary.ScopeID != "msg-parent" {
+		t.Fatalf("unexpected generated thread summary: %#v", generatePayload.Summary)
+	}
+	if generatePayload.Summary.Content == "" || generatePayload.Summary.Reasoning == "" {
+		t.Fatalf("expected generated content and reasoning: %#v", generatePayload.Summary)
+	}
+	if generatePayload.Summary.MessageCount != 2 {
+		t.Fatalf("expected message count 2, got %#v", generatePayload.Summary)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/messages/msg-parent/summary", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on thread summary get, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var getPayload struct {
+		Summary *domain.AISummary `json:"summary"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &getPayload); err != nil {
+		t.Fatalf("failed to decode get payload: %v", err)
+	}
+	if getPayload.Summary == nil || getPayload.Summary.ScopeID != "msg-parent" {
+		t.Fatalf("unexpected stored thread summary: %#v", getPayload.Summary)
+	}
+}
+
+func TestGenerateChannelSummary(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+	AIGateway = stubGateway{}
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "general"})
+	db.DB.Create(&domain.Message{
+		ID:        "msg-1",
+		ChannelID: "ch-1",
+		UserID:    "user-1",
+		Content:   "Launch blockers are mostly resolved.",
+		CreatedAt: mustParseAITestTime(t, "2026-04-18T12:00:00Z"),
+	})
+	db.DB.Create(&domain.Message{
+		ID:        "msg-2",
+		ChannelID: "ch-1",
+		UserID:    "user-1",
+		Content:   "Still waiting on final QA notes.",
+		CreatedAt: mustParseAITestTime(t, "2026-04-18T12:03:00Z"),
+	})
+
+	router := gin.New()
+	router.POST("/api/v1/channels/:id/summary", GenerateChannelSummary)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/channels/ch-1/summary", strings.NewReader(`{"provider":"openrouter","model":"test-model"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on channel summary generate, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Summary domain.AISummary `json:"summary"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode channel summary payload: %v", err)
+	}
+	if payload.Summary.ScopeType != "channel" || payload.Summary.ScopeID != "ch-1" {
+		t.Fatalf("unexpected channel summary payload: %#v", payload.Summary)
+	}
+	if payload.Summary.MessageCount != 2 {
+		t.Fatalf("expected message count 2, got %#v", payload.Summary)
+	}
+}
+
 func mustParseAITestTime(t *testing.T, raw string) time.Time {
 	t.Helper()
 	parsed, err := time.Parse(time.RFC3339, raw)

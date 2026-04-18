@@ -44,6 +44,7 @@ func InitDB() error {
 		&domain.AIFeedback{},
 		&domain.AIConversation{},
 		&domain.AIConversationMessage{},
+		&domain.AISummary{},
 		&domain.DMMessage{},
 	)
 }

@@ -170,3 +170,18 @@ type AIConversationMessage struct {
 	Reasoning      string    `json:"reasoning,omitempty"`
 	CreatedAt      time.Time `json:"created_at"`
 }
+
+type AISummary struct {
+	ID            uint       `gorm:"primaryKey" json:"id"`
+	ScopeType     string     `gorm:"index;uniqueIndex:idx_ai_summary_scope" json:"scope_type"`
+	ScopeID       string     `gorm:"uniqueIndex:idx_ai_summary_scope" json:"scope_id"`
+	ChannelID     string     `gorm:"index" json:"channel_id"`
+	Provider      string     `json:"provider"`
+	Model         string     `json:"model"`
+	Content       string     `json:"content"`
+	Reasoning     string     `json:"reasoning,omitempty"`
+	MessageCount  int        `json:"message_count"`
+	LastMessageAt *time.Time `json:"last_message_at,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
+}
