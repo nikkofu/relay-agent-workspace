@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.5.5` is the current release line and includes:
+`v0.5.7` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -63,6 +63,7 @@ For product, design, and marketing, the short version is:
 - DM realtime sync for `message.created` payloads that include `dm_id`
 - Activity API for mentions, reactions, thread replies, and DM signals
 - Later API for saved message retrieval
+- Presence and typing APIs with websocket event fanout
 - Draft persistence APIs for channel, DM, and thread composer state
 - Workspace search API across channels, users, messages, and DM conversations
 - Docked DM chat windows in the workspace shell

@@ -84,6 +84,9 @@ Current backend surface already available:
 - `GET /api/v1/inbox`
 - `GET /api/v1/mentions`
 - `GET /api/v1/later`
+- `GET /api/v1/presence`
+- `POST /api/v1/presence`
+- `POST /api/v1/typing`
 - `GET /api/v1/drafts`
 - `PUT /api/v1/drafts/:scope`
 - `GET /api/v1/search`
@@ -104,15 +107,20 @@ Current backend surface already available:
 
 ### 4.1 Presence And Typing
 
-Realtime infrastructure exists, but workspace presence is still incomplete.
-
-Recommended additions:
+Baseline support now exists for:
 
 - `GET /api/v1/presence`
 - `POST /api/v1/presence`
+- `POST /api/v1/typing`
 - realtime events:
   - `presence.updated`
   - `typing.updated`
+
+Likely follow-ups:
+
+- heartbeat / expiry semantics
+- scoped presence subscriptions
+- debounce and timeout conventions for typing indicators
 
 ### 4.2 AI Conversation State
 

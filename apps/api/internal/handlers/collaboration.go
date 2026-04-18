@@ -925,6 +925,108 @@ func GetLater(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"items": items})
 }
 
+func GetPresence(c *gin.Context) {
+	var users []domain.User
+	if err := db.DB.Order("name asc").Find(&users).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load presence"})
+		return
+	}
+	for idx := range users {
+		users[idx] = enrichUser(users[idx])
+	}
+
+	c.JSON(http.StatusOK, gin.H{"users": users})
+}
+
+func UpdatePresence(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var input struct {
+		Status string `json:"status" binding:"required,oneof=online away busy offline"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	currentUser.Status = input.Status
+	if err := db.DB.Save(&currentUser).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update presence"})
+		return
+	}
+
+	user := enrichUser(currentUser)
+	if RealtimeHub != nil {
+		_ = RealtimeHub.Broadcast(realtime.Event{
+			ID:          "evt_" + time.Now().Format("20060102150405.000000"),
+			Type:        "presence.updated",
+			WorkspaceID: currentUser.OrganizationID,
+			EntityID:    currentUser.ID,
+			TS:          time.Now().UTC().Format(time.RFC3339Nano),
+			Payload: gin.H{"user": user},
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"user": user})
+}
+
+func UpdateTyping(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var input struct {
+		ChannelID string `json:"channel_id"`
+		ThreadID  string `json:"thread_id"`
+		DMID      string `json:"dm_id"`
+		IsTyping  bool   `json:"is_typing"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if input.ChannelID == "" && input.DMID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "channel_id or dm_id is required"})
+		return
+	}
+
+	workspaceID := currentUser.OrganizationID
+	if input.ChannelID != "" {
+		var channel domain.Channel
+		if err := db.DB.First(&channel, "id = ?", input.ChannelID).Error; err == nil {
+			workspaceID = channel.WorkspaceID
+		}
+	}
+
+	payload := gin.H{
+		"user_id":    currentUser.ID,
+		"channel_id": input.ChannelID,
+		"thread_id":  input.ThreadID,
+		"dm_id":      input.DMID,
+		"is_typing":  input.IsTyping,
+	}
+
+	if RealtimeHub != nil {
+		_ = RealtimeHub.Broadcast(realtime.Event{
+			ID:          "evt_" + time.Now().Format("20060102150405.000000"),
+			Type:        "typing.updated",
+			WorkspaceID: workspaceID,
+			ChannelID:   input.ChannelID,
+			EntityID:    currentUser.ID,
+			TS:          time.Now().UTC().Format(time.RFC3339Nano),
+			Payload:     payload,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"typing": payload})
+}
+
 func GetDrafts(c *gin.Context) {
 	currentUser, err := getCurrentUser()
 	if err != nil {

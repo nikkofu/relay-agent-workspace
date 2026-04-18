@@ -817,6 +817,88 @@ func TestPutDraftCreatesAndUpdatesByScope(t *testing.T) {
 	}
 }
 
+func TestPresenceEndpointsListAndUpdateStatus(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com", Status: "online"})
+	db.DB.Create(&domain.User{ID: "user-2", Name: "Jane Smith", Email: "jane@example.com", Status: "away"})
+
+	router := gin.New()
+	router.GET("/api/v1/presence", GetPresence)
+	router.POST("/api/v1/presence", UpdatePresence)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/presence", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on presence list, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var listPayload struct {
+		Users []domain.User `json:"users"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &listPayload); err != nil {
+		t.Fatalf("failed to decode presence list: %v", err)
+	}
+	if len(listPayload.Users) != 2 {
+		t.Fatalf("expected 2 users in presence list, got %d", len(listPayload.Users))
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/presence", bytes.NewBufferString(`{"status":"busy"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on presence update, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var refreshed domain.User
+	if err := db.DB.First(&refreshed, "id = ?", "user-1").Error; err != nil {
+		t.Fatalf("failed to reload user: %v", err)
+	}
+	if refreshed.Status != "busy" {
+		t.Fatalf("expected busy status, got %q", refreshed.Status)
+	}
+}
+
+func TestPresenceAndTypingBroadcastRealtimeEvents(t *testing.T) {
+	setupTestDB(t)
+
+	hub := realtime.NewHub()
+	go hub.Run()
+	SetRealtimeHub(hub)
+	defer SetRealtimeHub(nil)
+
+	client := realtime.NewTestClient(8)
+	hub.RegisterTestClient(client)
+	defer hub.UnregisterTestClient(client)
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com", Status: "online"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public"})
+
+	router := gin.New()
+	router.POST("/api/v1/presence", UpdatePresence)
+	router.POST("/api/v1/typing", UpdateTyping)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/presence", bytes.NewBufferString(`{"status":"away"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on presence update, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	assertRealtimeEventType(t, client, "presence.updated")
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/typing", bytes.NewBufferString(`{"channel_id":"ch-1","is_typing":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on typing update, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	assertRealtimeEventType(t, client, "typing.updated")
+}
+
 func TestSearchReturnsChannelUserMessageAndDMHits(t *testing.T) {
 	setupTestDB(t)
 

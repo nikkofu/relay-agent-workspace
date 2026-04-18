@@ -2,6 +2,34 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.7] - 2026-04-18
+
+This release adds the first realtime presence layer for Relay by shipping presence APIs and typing broadcasts for channels, DMs, and threads.
+
+### Added
+
+- `GET /api/v1/presence`
+- `POST /api/v1/presence`
+- `POST /api/v1/typing`
+
+### Realtime
+
+- `POST /api/v1/presence` broadcasts `presence.updated`
+- `POST /api/v1/typing` broadcasts `typing.updated`
+
+### Documentation
+
+- added [docs/phases/phase-10-presence-typing.md](./docs/phases/phase-10-presence-typing.md)
+- added [docs/releases/v0.5.7.md](./docs/releases/v0.5.7.md)
+- updated `docs/AGENT-COLLAB.md` with the Gemini handoff for presence and typing
+- updated `README.md` and `docs/phase8-api-expansion.md` to reflect the shipped realtime baseline
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm build`
+
 ## [0.5.6] - 2026-04-18
 
 This release implements the Phase 12 Drafts integration, bringing autosave persistence to all composer surfaces.
@@ -18,7 +46,7 @@ This release implements the Phase 12 Drafts integration, bringing autosave persi
 - `pnpm build`
 - `cd apps/web && pnpm lint`
 
-## [0.5.1] - 2026-04-18
+## [0.5.5] - 2026-04-18
 
 
 This release starts the next Slack-parity backend wave by adding draft persistence APIs for channel, DM, and thread composers.
