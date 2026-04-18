@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.5.1` is the current release line and includes:
+`v0.5.3` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -69,6 +69,7 @@ For product, design, and marketing, the short version is:
   - channel members
   - workspace invites
   - channel topic, purpose, and archive state
+- Inbox and mentions APIs for notification-oriented workspace surfaces
 
 See [CHANGELOG.md](./CHANGELOG.md) for shipped API details, and [docs/phase8-api-expansion.md](./docs/phase8-api-expansion.md) for the broader backend target.
 

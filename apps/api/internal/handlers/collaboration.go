@@ -192,6 +192,131 @@ func recomputeThreadParentWithDB(conn *gorm.DB, parentID string) error {
 	return conn.Model(&domain.Message{}).Where("id = ?", parentID).Updates(updates).Error
 }
 
+type activityItem struct {
+	ID         string      `json:"id"`
+	Type       string      `json:"type"`
+	User       domain.User `json:"user"`
+	Channel    any         `json:"channel,omitempty"`
+	Message    any         `json:"message,omitempty"`
+	Target     string      `json:"target,omitempty"`
+	Summary    string      `json:"summary"`
+	OccurredAt time.Time   `json:"occurred_at"`
+}
+
+func buildActivityFeed(currentUser domain.User) []activityItem {
+	activities := make([]activityItem, 0)
+	nameNeedle := strings.ToLower(currentUser.Name)
+
+	var mentionMessages []domain.Message
+	db.DB.Where("user_id <> ? AND LOWER(content) LIKE ?", currentUser.ID, "%"+nameNeedle+"%").Order("created_at desc").Find(&mentionMessages)
+	for _, message := range mentionMessages {
+		var actor domain.User
+		var channel domain.Channel
+		if err := db.DB.First(&actor, "id = ?", message.UserID).Error; err != nil {
+			continue
+		}
+		_ = db.DB.First(&channel, "id = ?", message.ChannelID).Error
+		activities = append(activities, activityItem{
+			ID:         "activity-mention-" + message.ID,
+			Type:       "mention",
+			User:       enrichUser(actor),
+			Channel:    channel,
+			Message:    message,
+			Target:     "#" + channel.Name,
+			Summary:    actor.Name + " mentioned you in #" + channel.Name,
+			OccurredAt: message.CreatedAt,
+		})
+	}
+
+	var replies []domain.Message
+	db.DB.Where("thread_id <> ''").Order("created_at desc").Find(&replies)
+	for _, reply := range replies {
+		var parent domain.Message
+		if err := db.DB.First(&parent, "id = ?", reply.ThreadID).Error; err != nil || parent.UserID != currentUser.ID || reply.UserID == currentUser.ID {
+			continue
+		}
+		var actor domain.User
+		var channel domain.Channel
+		if err := db.DB.First(&actor, "id = ?", reply.UserID).Error; err != nil {
+			continue
+		}
+		_ = db.DB.First(&channel, "id = ?", reply.ChannelID).Error
+		activities = append(activities, activityItem{
+			ID:         "activity-thread-" + reply.ID,
+			Type:       "thread_reply",
+			User:       enrichUser(actor),
+			Channel:    channel,
+			Message:    reply,
+			Target:     "#" + channel.Name,
+			Summary:    actor.Name + " replied to your thread in #" + channel.Name,
+			OccurredAt: reply.CreatedAt,
+		})
+	}
+
+	var reactions []domain.MessageReaction
+	if err := db.DB.Table("message_reactions").
+		Select("message_reactions.*").
+		Joins("JOIN messages ON messages.id = message_reactions.message_id").
+		Where("messages.user_id = ?", currentUser.ID).
+		Order("message_reactions.created_at desc").
+		Find(&reactions).Error; err == nil {
+		for _, reaction := range reactions {
+			var actor domain.User
+			var message domain.Message
+			var channel domain.Channel
+			if err := db.DB.First(&actor, "id = ?", reaction.UserID).Error; err != nil {
+				continue
+			}
+			if err := db.DB.First(&message, "id = ?", reaction.MessageID).Error; err != nil {
+				continue
+			}
+			_ = db.DB.First(&channel, "id = ?", message.ChannelID).Error
+			activities = append(activities, activityItem{
+				ID:         "activity-reaction-" + reaction.MessageID + "-" + reaction.Emoji,
+				Type:       "reaction",
+				User:       enrichUser(actor),
+				Channel:    channel,
+				Message:    message,
+				Target:     reaction.Emoji,
+				Summary:    actor.Name + " reacted " + reaction.Emoji + " to your message in #" + channel.Name,
+				OccurredAt: reaction.CreatedAt,
+			})
+		}
+	}
+
+	var dmMemberships []domain.DMMember
+	db.DB.Where("user_id = ?", currentUser.ID).Find(&dmMemberships)
+	for _, membership := range dmMemberships {
+		var dmMessages []domain.DMMessage
+		db.DB.Where("dm_conversation_id = ? AND user_id <> ?", membership.DMConversationID, currentUser.ID).Order("created_at desc").Find(&dmMessages)
+		for _, message := range dmMessages {
+			var actor domain.User
+			if err := db.DB.First(&actor, "id = ?", message.UserID).Error; err != nil {
+				continue
+			}
+			activities = append(activities, activityItem{
+				ID:         "activity-dm-" + message.ID,
+				Type:       "dm_message",
+				User:       enrichUser(actor),
+				Message:    message,
+				Target:     "Direct messages",
+				Summary:    actor.Name + " sent you a DM",
+				OccurredAt: message.CreatedAt,
+			})
+		}
+	}
+
+	sort.Slice(activities, func(i, j int) bool {
+		return activities[i].OccurredAt.After(activities[j].OccurredAt)
+	})
+
+	if len(activities) > 50 {
+		activities = activities[:50]
+	}
+
+	return activities
+}
+
 func GetMe(c *gin.Context) {
 	var user domain.User
 	if err := db.DB.First(&user).Error; err != nil {
@@ -729,128 +854,34 @@ func GetActivity(c *gin.Context) {
 		return
 	}
 
-	type activityItem struct {
-		ID         string      `json:"id"`
-		Type       string      `json:"type"`
-		User       domain.User `json:"user"`
-		Channel    any         `json:"channel,omitempty"`
-		Message    any         `json:"message,omitempty"`
-		Target     string      `json:"target,omitempty"`
-		Summary    string      `json:"summary"`
-		OccurredAt time.Time   `json:"occurred_at"`
+	c.JSON(http.StatusOK, gin.H{"activities": buildActivityFeed(currentUser)})
+}
+
+func GetInbox(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
 	}
 
-	activities := make([]activityItem, 0)
-	nameNeedle := strings.ToLower(currentUser.Name)
+	c.JSON(http.StatusOK, gin.H{"items": buildActivityFeed(currentUser)})
+}
 
-	var mentionMessages []domain.Message
-	db.DB.Where("user_id <> ? AND LOWER(content) LIKE ?", currentUser.ID, "%"+nameNeedle+"%").Order("created_at desc").Find(&mentionMessages)
-	for _, message := range mentionMessages {
-		var actor domain.User
-		var channel domain.Channel
-		if err := db.DB.First(&actor, "id = ?", message.UserID).Error; err != nil {
-			continue
-		}
-		_ = db.DB.First(&channel, "id = ?", message.ChannelID).Error
-		activities = append(activities, activityItem{
-			ID:         "activity-mention-" + message.ID,
-			Type:       "mention",
-			User:       enrichUser(actor),
-			Channel:    channel,
-			Message:    message,
-			Target:     "#" + channel.Name,
-			Summary:    actor.Name + " mentioned you in #" + channel.Name,
-			OccurredAt: message.CreatedAt,
-		})
+func GetMentions(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
 	}
 
-	var replies []domain.Message
-	db.DB.Where("thread_id <> ''").Order("created_at desc").Find(&replies)
-	for _, reply := range replies {
-		var parent domain.Message
-		if err := db.DB.First(&parent, "id = ?", reply.ThreadID).Error; err != nil || parent.UserID != currentUser.ID || reply.UserID == currentUser.ID {
-			continue
-		}
-		var actor domain.User
-		var channel domain.Channel
-		if err := db.DB.First(&actor, "id = ?", reply.UserID).Error; err != nil {
-			continue
-		}
-		_ = db.DB.First(&channel, "id = ?", reply.ChannelID).Error
-		activities = append(activities, activityItem{
-			ID:         "activity-thread-" + reply.ID,
-			Type:       "thread_reply",
-			User:       enrichUser(actor),
-			Channel:    channel,
-			Message:    reply,
-			Target:     "#" + channel.Name,
-			Summary:    actor.Name + " replied to your thread in #" + channel.Name,
-			OccurredAt: reply.CreatedAt,
-		})
-	}
-
-	var reactions []domain.MessageReaction
-	if err := db.DB.Table("message_reactions").
-		Select("message_reactions.*").
-		Joins("JOIN messages ON messages.id = message_reactions.message_id").
-		Where("messages.user_id = ?", currentUser.ID).
-		Order("message_reactions.created_at desc").
-		Find(&reactions).Error; err == nil {
-		for _, reaction := range reactions {
-			var actor domain.User
-			var message domain.Message
-			var channel domain.Channel
-			if err := db.DB.First(&actor, "id = ?", reaction.UserID).Error; err != nil {
-				continue
-			}
-			if err := db.DB.First(&message, "id = ?", reaction.MessageID).Error; err != nil {
-				continue
-			}
-			_ = db.DB.First(&channel, "id = ?", message.ChannelID).Error
-			activities = append(activities, activityItem{
-				ID:         "activity-reaction-" + reaction.MessageID + "-" + reaction.Emoji,
-				Type:       "reaction",
-				User:       enrichUser(actor),
-				Channel:    channel,
-				Message:    message,
-				Target:     reaction.Emoji,
-				Summary:    actor.Name + " reacted " + reaction.Emoji + " to your message in #" + channel.Name,
-				OccurredAt: reaction.CreatedAt,
-			})
+	items := make([]activityItem, 0)
+	for _, item := range buildActivityFeed(currentUser) {
+		if item.Type == "mention" {
+			items = append(items, item)
 		}
 	}
 
-	var dmMemberships []domain.DMMember
-	db.DB.Where("user_id = ?", currentUser.ID).Find(&dmMemberships)
-	for _, membership := range dmMemberships {
-		var dmMessages []domain.DMMessage
-		db.DB.Where("dm_conversation_id = ? AND user_id <> ?", membership.DMConversationID, currentUser.ID).Order("created_at desc").Find(&dmMessages)
-		for _, message := range dmMessages {
-			var actor domain.User
-			if err := db.DB.First(&actor, "id = ?", message.UserID).Error; err != nil {
-				continue
-			}
-			activities = append(activities, activityItem{
-				ID:         "activity-dm-" + message.ID,
-				Type:       "dm_message",
-				User:       enrichUser(actor),
-				Message:    message,
-				Target:     "Direct messages",
-				Summary:    actor.Name + " sent you a DM",
-				OccurredAt: message.CreatedAt,
-			})
-		}
-	}
-
-	sort.Slice(activities, func(i, j int) bool {
-		return activities[i].OccurredAt.After(activities[j].OccurredAt)
-	})
-
-	if len(activities) > 50 {
-		activities = activities[:50]
-	}
-
-	c.JSON(http.StatusOK, gin.H{"activities": activities})
+	c.JSON(http.StatusOK, gin.H{"items": items})
 }
 
 func GetLater(c *gin.Context) {

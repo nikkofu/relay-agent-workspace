@@ -600,6 +600,87 @@ func TestGetActivityReturnsRecentWorkspaceSignals(t *testing.T) {
 	}
 }
 
+func TestGetInboxReturnsAggregatedSignals(t *testing.T) {
+	setupTestDB(t)
+
+	now := time.Now().UTC()
+	users := []domain.User{
+		{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"},
+		{ID: "user-2", Name: "AI Assistant", Email: "ai@example.com"},
+		{ID: "user-3", Name: "Jane Smith", Email: "jane@example.com"},
+	}
+	for _, user := range users {
+		db.DB.Create(&user)
+	}
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public"})
+	parent := domain.Message{ID: "msg-parent", ChannelID: "ch-1", UserID: "user-1", Content: "Root update", CreatedAt: now.Add(-2 * time.Hour), Metadata: "{}"}
+	reply := domain.Message{ID: "msg-reply", ChannelID: "ch-1", UserID: "user-3", Content: "Replying in thread", ThreadID: "msg-parent", CreatedAt: now.Add(-time.Hour), Metadata: "{}"}
+	mention := domain.Message{ID: "msg-mention", ChannelID: "ch-1", UserID: "user-2", Content: "Looping in Nikko Fu for review", CreatedAt: now.Add(-30 * time.Minute), Metadata: "{}"}
+	db.DB.Create(&parent)
+	db.DB.Create(&reply)
+	db.DB.Create(&mention)
+	db.DB.Create(&domain.MessageReaction{MessageID: "msg-parent", UserID: "user-2", Emoji: "🔥", CreatedAt: now.Add(-20 * time.Minute)})
+
+	router := gin.New()
+	router.GET("/api/v1/inbox", GetInbox)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/inbox", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on inbox, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode inbox payload: %v", err)
+	}
+	if len(payload.Items) < 3 {
+		t.Fatalf("expected at least 3 inbox items, got %d", len(payload.Items))
+	}
+}
+
+func TestGetMentionsReturnsOnlyDirectMentions(t *testing.T) {
+	setupTestDB(t)
+
+	now := time.Now().UTC()
+	users := []domain.User{
+		{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"},
+		{ID: "user-2", Name: "AI Assistant", Email: "ai@example.com"},
+	}
+	for _, user := range users {
+		db.DB.Create(&user)
+	}
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public"})
+	db.DB.Create(&domain.Message{ID: "msg-mention", ChannelID: "ch-1", UserID: "user-2", Content: "Looping in Nikko Fu for review", CreatedAt: now.Add(-10 * time.Minute), Metadata: "{}"})
+	db.DB.Create(&domain.Message{ID: "msg-other", ChannelID: "ch-1", UserID: "user-2", Content: "No direct mention here", CreatedAt: now.Add(-5 * time.Minute), Metadata: "{}"})
+
+	router := gin.New()
+	router.GET("/api/v1/mentions", GetMentions)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/mentions", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on mentions, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode mentions payload: %v", err)
+	}
+	if len(payload.Items) != 1 {
+		t.Fatalf("expected exactly 1 mention item, got %d", len(payload.Items))
+	}
+	if payload.Items[0]["type"] != "mention" {
+		t.Fatalf("expected mention type, got %#v", payload.Items[0])
+	}
+}
+
 func TestGetLaterReturnsSavedMessages(t *testing.T) {
 	setupTestDB(t)
 

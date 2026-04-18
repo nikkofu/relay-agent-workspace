@@ -89,6 +89,8 @@ func main() {
 		v1.GET("/dms/:id/messages", handlers.GetDMMessages)
 		v1.POST("/dms/:id/messages", handlers.CreateDMMessage)
 		v1.GET("/activity", handlers.GetActivity)
+		v1.GET("/inbox", handlers.GetInbox)
+		v1.GET("/mentions", handlers.GetMentions)
 		v1.GET("/later", handlers.GetLater)
 		v1.GET("/search", handlers.SearchWorkspace)
 		v1.GET("/messages", handlers.GetMessages)

@@ -2,6 +2,37 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.3] - 2026-04-18
+
+This release unifies Gemini's `v0.5.2` channel-management frontend work with the next Codex backend wave by adding inbox and mentions APIs.
+
+### Added
+
+- `GET /api/v1/inbox`
+- `GET /api/v1/mentions`
+
+### Behavior
+
+- inbox returns aggregated collaboration signals for the current user:
+  - direct mentions
+  - thread replies
+  - reactions on your messages
+  - DM activity
+- mentions returns the direct-mention subset only
+
+### Documentation
+
+- added [docs/phases/phase-10-inbox-mentions.md](./docs/phases/phase-10-inbox-mentions.md)
+- added [docs/releases/v0.5.3.md](./docs/releases/v0.5.3.md)
+- updated `docs/AGENT-COLLAB.md` with the Gemini handoff for inbox and mentions
+- updated `docs/phase8-api-expansion.md` shipped baseline to include the new endpoints
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm build`
+
 ## [0.5.2] - 2026-04-18
 
 This release completes the Phase 10 frontend integration for channel management, introducing member lists, metadata editing, and a unified channel info panel.

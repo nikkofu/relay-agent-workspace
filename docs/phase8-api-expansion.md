@@ -81,6 +81,8 @@ Current backend surface already available:
 - `GET /api/v1/dms/:id/messages`
 - `POST /api/v1/dms/:id/messages`
 - `GET /api/v1/activity`
+- `GET /api/v1/inbox`
+- `GET /api/v1/mentions`
 - `GET /api/v1/later`
 - `GET /api/v1/search`
 - `GET /api/v1/messages`

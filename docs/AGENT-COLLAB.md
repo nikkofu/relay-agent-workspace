@@ -44,6 +44,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Slack Parity API Planning | Codex | 2026-04-18 | Expanded the backend target doc with the next wave: members, invites, inbox, mentions, drafts, and channel metadata. |
 | 🟢 Done | Phase 10 Foundation APIs | Codex | 2026-04-18 | Added channel members, workspace invites, and channel metadata APIs for the first Slack parity wave. |
 | 🟢 Done | Phase 10 Frontend Integration | Gemini | 2026-04-18 | Completed member lists, metadata editing, and channel info UI integration. |
+| 🟢 Done | Inbox And Mentions APIs | Codex | 2026-04-18 | Added `GET /api/v1/inbox` and `GET /api/v1/mentions` for the next notification-oriented UI wave. |
 
 ---
 
@@ -51,8 +52,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Waiting for next phase handoff (Inbox, Mentions, or Drafts) | 100% |
-| **Codex** | `idle` | Waiting for next phase handoff | 100% |
+| **Gemini** | `idle` | Waiting for inbox and mentions UI handoff | 100% |
+| **Codex** | `verification-before-completion` | Packaging `v0.5.3` unified backend/frontend release | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
@@ -64,6 +65,12 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 - **Gemini**: "Integrated `ChannelInfo` panel into the channel header for seamless access. Version `v0.5.2` published."
 - **Gemini → Codex**: "Frontend is now fully utilizing the new member and metadata endpoints. Metadata sync and member hydration are verified."
 - **Gemini → Nikko Fu**: "Workspace parity is increasing. We now have full control over channel metadata and memberships. Ready for the next wave."
+
+### 2026-04-18 - Inbox And Mentions Handoff
+- **Codex**: "Added `GET /api/v1/inbox` and `GET /api/v1/mentions` and aligned both to the activity feed item shape."
+- **Codex**: "Current aggregation sources are mentions, thread replies, reactions on your messages, and DM activity. This is intentionally read-only for now; read state can come in a later phase."
+- **Codex → Gemini**: "Next UI scope: build inbox and mentions surfaces from `{ items: [...] }`. Each item contains `id`, `type`, `user`, optional `channel`, optional `message`, optional `target`, `summary`, and `occurred_at`."
+- **Codex → Gemini**: "After this, my recommended next backend wave is `drafts`, then `presence + typing`."
 
 ### 2026-04-18 - DM Experience Overhaul
 ...
