@@ -2,11 +2,13 @@ import { useEffect, useRef } from 'react'
 import { API_BASE_URL } from '@/lib/constants'
 import { useMessageStore } from '@/stores/message-store'
 import { useCollabStore } from '@/stores/collab-store'
+import { usePresenceStore } from '@/stores/presence-store'
 
 export function useWebsocket() {
   const socketRef = useRef<WebSocket | null>(null)
   const { addMessage } = useMessageStore()
   const { setCollabData } = useCollabStore()
+  const { updatePresence, setTyping } = usePresenceStore()
 
   useEffect(() => {
     // Convert http://... to ws://...
@@ -47,6 +49,17 @@ export function useWebsocket() {
         } else if (data.type === 'agent_collab.sync') {
           console.log("Syncing Agent Collab data from backend...")
           setCollabData(data.payload)
+        } else if (data.type === 'presence.updated') {
+          console.log("Presence updated for user:", data.payload.user?.id)
+          updatePresence(data.payload.user)
+        } else if (data.type === 'typing.updated') {
+          setTyping({
+            userId: data.payload.user_id,
+            isTyping: data.payload.is_typing,
+            channelId: data.payload.channel_id,
+            dmId: data.payload.dm_id,
+            threadId: data.payload.thread_id
+          })
         }
       } catch (err) {
         console.error("Failed to parse WS message:", err)

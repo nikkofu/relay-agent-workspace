@@ -12,6 +12,7 @@ import { useUIStore } from "@/stores/ui-store"
 import { useWorkspaceStore } from "@/stores/workspace-store"
 import { useChannelStore } from "@/stores/channel-store"
 import { useUserStore } from "@/stores/user-store"
+import { usePresenceStore } from "@/stores/presence-store"
 import { useEffect, useRef } from "react"
 import { useWebsocket } from "@/hooks/use-websocket"
 
@@ -24,6 +25,7 @@ export default function WorkspaceLayout({
   const { fetchWorkspaces, currentWorkspace } = useWorkspaceStore()
   const { fetchChannels } = useChannelStore()
   const { fetchMe, fetchUsers } = useUserStore()
+  const { fetchPresence } = usePresenceStore()
   const showRightPanel = isThreadOpen || isAIPanelOpen || isCanvasOpen
   
   useWebsocket()
@@ -37,8 +39,9 @@ export default function WorkspaceLayout({
       fetchMe()
       fetchUsers()
       fetchWorkspaces()
+      fetchPresence()
     }
-  }, [fetchMe, fetchUsers, fetchWorkspaces])
+  }, [fetchMe, fetchUsers, fetchWorkspaces, fetchPresence])
 
   useEffect(() => {
     if (currentWorkspace && currentWorkspace.id !== lastChannelsWorkspaceId.current) {

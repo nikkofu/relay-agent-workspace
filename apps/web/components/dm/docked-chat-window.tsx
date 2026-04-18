@@ -12,6 +12,7 @@ import { useMessageStore } from "@/stores/message-store"
 import { useUIStore } from "@/stores/ui-store"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { TypingIndicator } from "@/components/message/typing-indicator"
 
 interface DockedChatWindowProps {
   userId: string
@@ -90,6 +91,8 @@ export function DockedChatWindow({ userId, index }: DockedChatWindowProps) {
               </div>
             </ScrollArea>
           </div>
+
+          <TypingIndicator scope={`dm:${conversation?.id}`} />
 
           {/* Composer Area */}
           <div className="border-t">

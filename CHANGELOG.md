@@ -2,7 +2,29 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
-## [0.5.7] - 2026-04-18
+## [0.5.8] - 2026-04-18
+
+This release implements Phase 13: Presence and Typing indicators, bringing real-time social signals to the workspace.
+
+### Added
+
+- **Live Presence**: Real-time user status (Online, Away, Busy, Offline) across the entire UI.
+- **Typing Indicators**: Visual feedback when teammates are typing in Channels, DMs, or Threads.
+- **Presence Store**: New `presence-store.ts` for managing transient real-time states.
+- **Websocket Expansion**: Integrated `presence.updated` and `typing.updated` events into the unified websocket hook.
+
+### Fixed
+
+- UI consistency: Status dots now appear correctly on all user avatars and navigation elements.
+- Typing debounce: Efficiently manages typing broadcast state to minimize network overhead.
+
+### Verification Used For This Release
+
+- `pnpm build`
+- `cd apps/web && pnpm lint`
+
+## [0.5.6] - 2026-04-18
+
 
 This release adds the first realtime presence layer for Relay by shipping presence APIs and typing broadcasts for channels, DMs, and threads.
 

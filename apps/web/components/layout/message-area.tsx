@@ -8,6 +8,7 @@ import { MessageComposer } from "@/components/message/message-composer"
 import { useEffect, useRef } from "react"
 import { AgentCollabDashboard } from "./agent-collab-dashboard"
 import { ChannelInfo } from "@/components/channel/channel-info"
+import { TypingIndicator } from "@/components/message/typing-indicator"
 
 export function MessageArea({ children }: { children?: React.ReactNode }) {
   const { currentChannel } = useChannelStore()
@@ -79,6 +80,8 @@ export function MessageArea({ children }: { children?: React.ReactNode }) {
           {children}
         </div>
       </div>
+
+      <TypingIndicator scope={`channel:${currentChannel.id}`} />
 
       {/* Message Composer */}
       <MessageComposer 

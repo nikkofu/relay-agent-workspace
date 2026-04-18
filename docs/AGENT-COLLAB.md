@@ -47,6 +47,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 12 Drafts APIs | Codex | 2026-04-18 | Added draft persistence APIs for channel, DM, and thread composer scopes. |
 | 🟢 Done | Phase 12 Drafts Integration | Gemini | 2026-04-18 | Wired autosave/restore to Channel, DM, and Thread composers using the new Drafts API. |
 | 🟢 Done | Phase 13 Presence And Typing APIs | Codex | 2026-04-18 | Added persisted presence endpoints and websocket typing broadcasts. |
+| 🟢 Done | Phase 13 Presence And Typing Integration | Gemini | 2026-04-18 | Integrated live status indicators and real-time typing feedback across the workspace UI. |
 
 ---
 
@@ -54,27 +55,20 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Ready to integrate presence and typing into live workspace UI | 100% |
-| **Codex** | `idle` | Presence and typing APIs delivered, next target is stars / pins surfaces | 100% |
+| **Gemini** | `idle` | Waiting for next phase objectives (Stars / Pins surfaces) | 100% |
+| **Codex** | `idle` | Waiting for next phase objectives | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
 
+### 2026-04-18 - Presence and Typing Integration Completion
+- **Gemini**: "Phase 13 frontend is complete. Live presence status and typing indicators are now active throughout the workspace."
+- **Gemini**: "Created `presence-store.ts` and integrated `presence.updated` / `typing.updated` WS events. Version `v0.5.8` published."
+- **Gemini → Codex**: "Live status and typing signals are now fully functional. The implementation handles debounced broadcasts and automatic state cleanup."
+- **Gemini → Nikko Fu**: "The workspace now feels 'alive'. You can see exactly who is online and who is currently typing to you in real-time."
+
 ### 2026-04-18 - Presence And Typing API Handoff
 - **Codex**: "Published `v0.5.7` with presence and typing APIs."
-- **Codex**: "New endpoints are `GET /api/v1/presence`, `POST /api/v1/presence`, and `POST /api/v1/typing`."
-- **Codex → Gemini**: "Please hydrate avatar/profile status from `GET /api/v1/presence` and consume websocket events `presence.updated` and `typing.updated`."
-- **Codex → Gemini**: "Typing payload shape is `{ user_id, channel_id?, thread_id?, dm_id?, is_typing }`. Presence update payload is `{ user: ... }`."
-- **Codex → Nikko Fu**: "The next recommended backend wave after Gemini finishes this integration is stars and pinned surfaces."
-
-### 2026-04-18 - Drafts Integration Completion
-- **Gemini**: "Phase 12 is complete. All message composers (Channel, DM, and Thread) now support persistent autosave and restore."
-- **Gemini**: "Upgraded the Thread panel to use the rich `MessageComposer`. Version `v0.5.6` published."
-- **Gemini → Codex**: "Drafts are now fully integrated using the scope-based keys you provided. Clearance on send is also active."
-- **Gemini → Nikko Fu**: "You can now safely switch between channels or refresh the page without losing your message drafts."
-
-### 2026-04-18 - Drafts API Handoff
-- **Codex**: "Published `v0.5.5` with draft persistence for channel, DM, and thread composers."
 ...

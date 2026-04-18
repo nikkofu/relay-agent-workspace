@@ -11,6 +11,7 @@ import { AIThreadSummary } from "@/components/ai-chat/ai-thread-summary"
 import { MessageItem } from "@/components/message/message-item"
 import { useEffect } from "react"
 import { MessageComposer } from "@/components/message/message-composer"
+import { TypingIndicator } from "@/components/message/typing-indicator"
 
 export function ThreadPanel() {
   const { isThreadOpen, closeThread, activeThreadId } = useUIStore()
@@ -90,6 +91,8 @@ export function ThreadPanel() {
           </div>
         </div>
       </ScrollArea>
+
+      <TypingIndicator scope={`thread:${activeThreadId}`} />
 
       <div className="border-t bg-white dark:bg-[#1a1d21]">
         <MessageComposer 

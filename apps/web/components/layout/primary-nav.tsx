@@ -119,13 +119,24 @@ export function PrimaryNav() {
 
         <Tooltip>
           <TooltipTrigger asChild>
-            <Avatar className="w-8 h-8 cursor-pointer border border-white/10">
-              <AvatarImage src={currentUser?.avatar} />
-              <AvatarFallback>{currentUser?.name?.substring(0, 2).toUpperCase() || "NF"}</AvatarFallback>
-            </Avatar>
+            <div className="relative cursor-pointer">
+              <Avatar className="w-8 h-8 border border-white/10">
+                <AvatarImage src={currentUser?.avatar} />
+                <AvatarFallback>{currentUser?.name?.substring(0, 2).toUpperCase() || "NF"}</AvatarFallback>
+              </Avatar>
+              <div 
+                className={cn(
+                  "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#3f0e40] dark:border-[#1a1d21]",
+                  currentUser?.status === "online" && "bg-green-500",
+                  currentUser?.status === "away" && "bg-amber-500",
+                  currentUser?.status === "busy" && "bg-red-500",
+                  currentUser?.status === "offline" && "bg-slate-500"
+                )}
+              />
+            </div>
           </TooltipTrigger>
           <TooltipContent side="right">
-            <p>{currentUser?.name} ({currentUser?.status})</p>
+            <p>{currentUser?.name} ({currentUser?.status || "offline"})</p>
           </TooltipContent>
         </Tooltip>
       </div>

@@ -26,8 +26,9 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import TiptapLink from '@tiptap/extension-link'
-import { useMemo, useEffect } from "react"
+import { useMemo, useEffect, useCallback } from "react"
 import { useDraftStore } from "@/stores/draft-store"
+import { usePresenceStore } from "@/stores/presence-store"
 
 interface MessageComposerProps {
   placeholder?: string
@@ -41,7 +42,36 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
   const [showFormatting, setShowFormatting] = useState(false)
   const { openCanvas } = useUIStore()
   const { saveDraft, drafts, fetchDrafts } = useDraftStore()
+  const { sendTyping } = usePresenceStore()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  const broadcastTyping = useCallback((isTyping: boolean) => {
+    if (!scope) return
+    const parts = scope.split(':')
+    const scopeType = parts[0]
+    const scopeId = parts[1]
+
+    const scopeObj: any = {}
+    if (scopeType === 'channel') scopeObj.channel_id = scopeId
+    else if (scopeType === 'dm') scopeObj.dm_id = scopeId
+    else if (scopeType === 'thread') scopeObj.thread_id = scopeId
+
+    sendTyping(scopeObj, isTyping)
+  }, [scope, sendTyping])
+
+  const handleTyping = useCallback(() => {
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current)
+    } else {
+      broadcastTyping(true)
+    }
+
+    typingTimeoutRef.current = setTimeout(() => {
+      broadcastTyping(false)
+      typingTimeoutRef.current = null
+    }, 2000)
+  }, [broadcastTyping])
 
   const extensions = useMemo(() => [
     StarterKit.configure({}),
@@ -107,6 +137,9 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
           saveDraft(scope, content)
         }
       }
+
+      // Broadcast typing
+      handleTyping()
     },
   })
 

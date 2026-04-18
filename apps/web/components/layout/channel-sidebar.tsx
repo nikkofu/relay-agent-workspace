@@ -157,12 +157,21 @@ export function ChannelSidebar() {
                     <div className="relative shrink-0">
                       <div className={cn(
                         "w-5 h-5 rounded flex items-center justify-center",
-                        user.status === 'online' ? "bg-green-500/20" : "bg-white/10"
+                        user.status === 'online' && "bg-green-500/20",
+                        user.status === 'away' && "bg-amber-500/20",
+                        user.status === 'busy' && "bg-red-500/20",
+                        user.status === 'offline' && "bg-white/10"
                       )}>
                         {user.id === 'user-2' ? (
                           <Sparkles className="w-3 h-3 text-purple-400" />
                         ) : (
-                          <div className={cn("w-2 h-2 rounded-full", user.status === 'online' ? "bg-green-500" : "bg-white/30")} />
+                          <div className={cn(
+                            "w-2 h-2 rounded-full", 
+                            user.status === 'online' && "bg-green-500",
+                            user.status === 'away' && "bg-amber-500",
+                            user.status === 'busy' && "bg-red-500",
+                            user.status === 'offline' && "bg-white/30"
+                          )} />
                         )}
                       </div>
                     </div>
