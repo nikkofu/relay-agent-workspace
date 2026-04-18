@@ -2,7 +2,29 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
-## [0.5.13] - 2026-04-18
+## [0.5.14] - 2026-04-18
+
+This release implements Phase 16: AI Conversation Persistence, allowing users to browse and resume previous AI assistant chats.
+
+### Added
+
+- **AI History View**: Integrated a history list in the AI Assistant panel to browse previous conversations.
+- **Session Continuation**: AI chats now persist across sessions and can be resumed by passing `conversation_id`.
+- **New Chat**: Added a "New Chat" button to quickly reset the assistant context.
+- **AI Store**: Introduced `ai-store.ts` for centralized management of AI messages and conversation history.
+
+### Fixed
+
+- **Store Sync**: Unified message handling between `useAIChat` and the persistent conversation list.
+- **UI Interaction**: History toggle automatically fetches the latest list when opened.
+
+### Verification Used For This Release
+
+- `pnpm build`
+- `cd apps/web && pnpm lint`
+
+## [0.5.1] - 2026-04-18
+
 
 This release adds persistent AI conversation history so Relay's assistant panel can recover prior prompts, responses, and reasoning instead of acting as a purely ephemeral stream.
 

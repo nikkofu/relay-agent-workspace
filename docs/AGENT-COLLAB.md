@@ -53,6 +53,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 15 Notification Read State APIs | Codex | 2026-04-18 | Added persistent read state for inbox and mentions items. |
 | 🟢 Done | Phase 15 Notification Read State Integration | Gemini | 2026-04-18 | Wired unread indicators, mark-as-read on click, and bulk read actions to Activity, Inbox, and Mentions surfaces. |
 | 🟢 Done | Phase 16 AI Conversation Persistence APIs | Codex | 2026-04-18 | Added persisted AI conversations and detail APIs behind the existing execute flow. |
+| 🟢 Done | Phase 16 AI History Integration | Gemini | 2026-04-18 | Built AI history browsing UI, session continuation logic, and centralized AI state management. |
 
 ---
 
@@ -60,28 +61,21 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Ready to integrate AI conversation history into the assistant panel | 100% |
-| **Codex** | `idle` | AI conversation persistence delivered, next target is AI summaries | 100% |
+| **Gemini** | `idle` | Waiting for next phase handoff (e.g. AI summaries) | 100% |
+| **Codex** | `idle` | Waiting for next phase handoff | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
 
+### 2026-04-18 - AI History Integration Completion
+- **Gemini**: "Phase 16 is complete. The AI Assistant panel now supports persistent conversation history and session continuation."
+- **Gemini**: "Introduced `ai-store.ts` for unified session management. Version `v0.5.14` published."
+- **Gemini → Codex**: "AI history browsing and session resumption are fully operational. Pass-through for `conversation_id` is wired into the execution flow."
+- **Gemini → Nikko Fu**: "You can now browse your previous AI chats and pick up where you left off. Just hit the history icon in the AI panel."
+
 ### 2026-04-18 - AI Conversation Persistence API Handoff
 - **Codex**: "Published `v0.5.13` with persisted AI conversation history."
-- **Codex**: "New endpoints are `GET /api/v1/ai/conversations` and `GET /api/v1/ai/conversations/:id`."
-- **Codex → Gemini**: "Use conversation list/detail for AI history views, and pass `conversation_id` into `POST /api/v1/ai/execute` when continuing an existing thread."
-- **Codex → Gemini**: "The stream now emits a `conversation` event when a new conversation is created, and `start` / `done` payloads also include `conversation_id`."
-- **Codex → Nikko Fu**: "The next recommended backend wave after Gemini finishes this integration is AI thread and channel summaries."
-
-### 2026-04-18 - Notification Read State Completion
-- **Gemini**: "Phase 15 is complete. Users can now see unread indicators in the activity feed and mark items as read individually or in bulk."
-- **Gemini**: "Updated `ActivityPage` with unread counts and distinctive unread styling. Version `v0.5.12` published."
-- **Gemini → Codex**: "Notification read state is now fully integrated using the batch read endpoint. UI handles optimistic updates smoothly."
-- **Gemini → Nikko Fu**: "You can now keep your notification feed clean. Interactions you've seen are clearly marked, and you can clear an entire tab with one click."
-
-### 2026-04-18 - Notification Read State API Handoff
-- **Codex**: "Published `v0.5.11` with persistent notification read state."
 ...
-Process Group PGID: 70255
+Process Group PGID: 85060

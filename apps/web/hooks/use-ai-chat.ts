@@ -5,6 +5,7 @@ import { AIMessage } from "@/types"
 import { API_BASE_URL } from "@/lib/constants"
 import { toast } from "sonner"
 import { useUserStore } from "@/stores/user-store"
+import { useAIStore } from "@/stores/ai-store"
 
 interface AIProviderConfig {
   id: string
@@ -18,8 +19,10 @@ interface AIConfigResponse {
 
 export function useAIChat() {
   const { currentUser } = useUserStore()
-  const [messages, setMessages] = useState<AIMessage[]>([])
-  const [isLoading, setIsLoading] = useState(false)
+  const { 
+    messages, currentConversationId, isLoading,
+    addMessage, updateMessage, setLoading, fetchConversations, setCurrentConversation
+  } = useAIStore()
   
   // State initialized from user preferences
   const [currentProvider, setCurrentProvider] = useState<string>("gemini")
@@ -120,8 +123,8 @@ export function useAIChat() {
       createdAt: new Date().toISOString()
     }
     
-    setMessages(prev => [...prev, userMsg])
-    setIsLoading(true)
+    addMessage(userMsg)
+    setLoading(true)
 
     const assistantId = (Date.now() + 1).toString()
     const initialAssistantMsg: AIMessage = {
@@ -132,7 +135,7 @@ export function useAIChat() {
       createdAt: new Date().toISOString()
     }
     
-    setMessages(prev => [...prev, initialAssistantMsg])
+    addMessage(initialAssistantMsg)
 
     try {
       const response = await fetch(`${API_BASE_URL}/ai/execute`, {
@@ -141,6 +144,7 @@ export function useAIChat() {
         body: JSON.stringify({ 
           prompt: content, 
           channel_id: "ai-chat", 
+          conversation_id: currentConversationId,
           provider: currentProvider,
           model: currentModel,
           mode: currentMode
@@ -179,22 +183,27 @@ export function useAIChat() {
             try {
               const data = JSON.parse(trimmed.slice(6))
               
-              if (currentEvent === "start") {
+              if (currentEvent === "conversation") {
+                // If it's a new conversation, update the store and fetch list
+                if (data.id && data.id !== currentConversationId) {
+                  useAIStore.setState({ currentConversationId: data.id })
+                  fetchConversations()
+                }
+              } else if (currentEvent === "start") {
                 if (data.model) setCurrentModel(data.model)
+                if (data.conversation_id && data.conversation_id !== currentConversationId) {
+                  useAIStore.setState({ currentConversationId: data.conversation_id })
+                  fetchConversations()
+                }
               } else if (currentEvent === "chunk") {
                 fullContent += data.text || ""
-                setMessages(prev => prev.map(m => 
-                  m.id === assistantId ? { ...m, content: fullContent } : m
-                ))
+                updateMessage(assistantId, { content: fullContent })
               } else if (currentEvent === "reasoning") {
                 reasoningContent += data.text || ""
-                setMessages(prev => prev.map(m => 
-                  m.id === assistantId ? { ...m, reasoning: reasoningContent } : m
-                ))
+                updateMessage(assistantId, { reasoning: reasoningContent })
               } else if (currentEvent === "done") {
-                setMessages(prev => prev.map(m => 
-                  m.id === assistantId ? { ...m, isStreaming: false } : m
-                ))
+                updateMessage(assistantId, { isStreaming: false })
+                fetchConversations() // Refresh titles
               } else if (currentEvent === "error") {
                 toast.error(data.message || "Streaming error")
               }
@@ -206,13 +215,11 @@ export function useAIChat() {
       }
     } catch (error) {
       console.error("AI Chat failed:", error)
-      setMessages(prev => prev.map(m => 
-        m.id === assistantId ? { ...m, content: "Error communicating with AI service.", isStreaming: false } : m
-      ))
+      updateMessage(assistantId, { content: "Error communicating with AI service.", isStreaming: false })
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
-  }, [currentProvider, currentModel, currentMode])
+  }, [currentProvider, currentModel, currentMode, currentConversationId, addMessage, setLoading, updateMessage, fetchConversations])
 
   const regenerate = useCallback(async () => {
     const lastUserMsg = [...messages].reverse().find(m => m.role === 'user')
@@ -220,44 +227,50 @@ export function useAIChat() {
       // Remove last assistant message if it exists
       const lastMsg = messages[messages.length - 1]
       if (lastMsg.role === 'assistant') {
-        setMessages(prev => prev.slice(0, -1))
+        useAIStore.setState((state) => ({ messages: state.messages.slice(0, -1) }))
       }
       append(lastUserMsg.content)
     }
   }, [messages, append])
-const copyToClipboard = useCallback((text: string) => {
-  navigator.clipboard.writeText(text)
-  toast.success("Copied to clipboard")
-}, [])
 
-const submitFeedback = useCallback(async (messageId: string, isGood: boolean) => {
-  try {
-    await fetch(`${API_BASE_URL}/ai/feedback`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message_id: messageId, is_good: isGood })
-    })
-    toast.success(isGood ? "Thanks for your feedback!" : "Sorry to hear that. We'll improve.")
-  } catch (error) {
-    console.error("Failed to submit feedback:", error)
-    // Still show the toast even if API fails for now
-    toast.success(isGood ? "Thanks for your feedback!" : "Sorry to hear that. We'll improve.")
+  const copyToClipboard = useCallback((text: string) => {
+    navigator.clipboard.writeText(text)
+    toast.success("Copied to clipboard")
+  }, [])
+
+  const submitFeedback = useCallback(async (messageId: string, isGood: boolean) => {
+    try {
+      await fetch(`${API_BASE_URL}/ai/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message_id: messageId, is_good: isGood })
+      })
+      toast.success(isGood ? "Thanks for your feedback!" : "Sorry to hear that. We'll improve.")
+    } catch (error) {
+      console.error("Failed to submit feedback:", error)
+      toast.success(isGood ? "Thanks for your feedback!" : "Sorry to hear that. We'll improve.")
+    }
+  }, [])
+
+  const startNewChat = useCallback(() => {
+    setCurrentConversation(null)
+  }, [setCurrentConversation])
+
+  return { 
+    messages, 
+    append, 
+    regenerate,
+    copyToClipboard,
+    submitFeedback,
+    startNewChat,
+    isLoading, 
+    currentProvider, 
+    setProvider: updateProvider,
+    currentModel,
+    setModel: updateModel,
+    currentMode,
+    setMode: updateMode,
+    availableProviders,
+    currentConversationId
   }
-}, [])
-
-return { 
-  messages, 
-  append, 
-  regenerate,
-  copyToClipboard,
-  submitFeedback,
-  isLoading, 
-  currentProvider, 
-  setProvider: updateProvider,
-  currentModel,
-  setModel: updateModel,
-  currentMode,
-  setMode: updateMode,
-  availableProviders
-}
 }

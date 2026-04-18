@@ -5,11 +5,14 @@ import type { AIMessage } from "@/types"
 import { AIMessageItem } from "./ai-message"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { MessageComposer } from "@/components/message/message-composer"
-import { X, Sparkles, Wand2 } from "lucide-react"
+import { X, Sparkles, Wand2, History, Plus, MessageSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useUIStore } from "@/stores/ui-store"
-import { useEffect, useRef } from "react"
+import { useAIStore } from "@/stores/ai-store"
+import { useEffect, useRef, useState } from "react"
 import { AISettings } from "./ai-settings"
+import { formatDistanceToNow } from "date-fns"
+import { cn } from "@/lib/utils"
 
 export function AIChatPanel() {
   const { 
@@ -18,16 +21,26 @@ export function AIChatPanel() {
     regenerate,
     copyToClipboard,
     submitFeedback,
+    startNewChat,
     currentProvider, 
     setProvider,
     currentMode,
     setMode,
     currentModel,
     setModel,
-    availableProviders
+    availableProviders,
+    currentConversationId
   } = useAIChat()
+  const { conversations, fetchConversations, setCurrentConversation } = useAIStore()
   const { isAIPanelOpen, closeAIPanel } = useUIStore()
+  const [showHistory, setShowHistory] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (isAIPanelOpen) {
+      fetchConversations()
+    }
+  }, [isAIPanelOpen, fetchConversations])
 
   // Auto-scroll to bottom on new AI messages
   useEffect(() => {
@@ -57,6 +70,25 @@ export function AIChatPanel() {
           </div>
         </div>
         <div className="flex items-center gap-1">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className={cn("h-8 w-8 rounded-full transition-colors", showHistory ? "text-purple-400 bg-white/10" : "text-white/70 hover:text-white hover:bg-white/10")}
+            onClick={() => setShowHistory(!showHistory)}
+          >
+            <History className="w-4 h-4" />
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-8 w-8 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+            onClick={() => {
+              startNewChat()
+              setShowHistory(false)
+            }}
+          >
+            <Plus className="w-4 h-4" />
+          </Button>
           <AISettings 
             provider={currentProvider}
             setProvider={setProvider}
@@ -77,55 +109,104 @@ export function AIChatPanel() {
         </div>
       </header>
 
-      {/* Messages Area - Ensure this fills space and scrolls */}
-      <div className="flex-1 min-h-0 relative">
-        <ScrollArea ref={scrollRef} className="h-full bg-slate-50/30 dark:bg-transparent">
-          <div className="flex flex-col min-h-full pb-4">
-            {messages.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center gap-6 mt-12">
-                <div className="relative">
-                  <div className="w-20 h-20 rounded-full bg-purple-100 dark:bg-purple-900/20 flex items-center justify-center animate-pulse">
-                    <Wand2 className="w-10 h-10 text-purple-600 dark:text-purple-400" />
+      {/* Main Area */}
+      <div className="flex-1 flex flex-col min-h-0 relative">
+        {showHistory ? (
+          <ScrollArea className="flex-1">
+            <div className="p-4 flex flex-col gap-2">
+              <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Previous Chats</h4>
+              {conversations.length === 0 ? (
+                <div className="py-12 text-center text-muted-foreground text-sm italic">
+                  No conversation history yet.
+                </div>
+              ) : (
+                conversations.map((conv) => (
+                  <button
+                    key={conv.id}
+                    onClick={() => {
+                      setCurrentConversation(conv.id)
+                      setShowHistory(false)
+                    }}
+                    className={cn(
+                      "w-full text-left p-3 rounded-lg border transition-all group flex flex-col gap-1.5",
+                      currentConversationId === conv.id 
+                        ? "bg-purple-50 dark:bg-purple-900/10 border-purple-200 dark:border-purple-800/50" 
+                        : "bg-white dark:bg-transparent border-transparent hover:bg-slate-50 dark:hover:bg-slate-900/30"
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <MessageSquare className={cn("w-3.5 h-3.5", currentConversationId === conv.id ? "text-purple-500" : "text-muted-foreground")} />
+                        <span className={cn("text-sm font-bold truncate max-w-[180px]", currentConversationId === conv.id ? "text-purple-700 dark:text-purple-300" : "text-foreground")}>
+                          {conv.title || "Untitled Chat"}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                        {formatDistanceToNow(new Date(conv.updatedAt), { addSuffix: true })}
+                      </span>
+                    </div>
+                    {conv.lastMessage && (
+                      <p className="text-xs text-muted-foreground line-clamp-1 italic">
+                        {conv.lastMessage}
+                      </p>
+                    )}
+                  </button>
+                ))
+              )}
+            </div>
+          </ScrollArea>
+        ) : (
+          /* Messages Area */
+          <ScrollArea ref={scrollRef} className="flex-1 bg-slate-50/30 dark:bg-transparent">
+            <div className="flex flex-col min-h-full pb-4">
+              {messages.length === 0 ? (
+                <div className="flex-1 flex flex-col items-center justify-center p-8 text-center gap-6 mt-12">
+                  <div className="relative">
+                    <div className="w-20 h-20 rounded-full bg-purple-100 dark:bg-purple-900/20 flex items-center justify-center animate-pulse">
+                      <Wand2 className="w-10 h-10 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center border-2 border-white dark:border-[#1a1d21]">
+                      <Sparkles className="w-3 h-3 text-white" />
+                    </div>
                   </div>
-                  <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center border-2 border-white dark:border-[#1a1d21]">
-                    <Sparkles className="w-3 h-3 text-white" />
+                  <div className="max-w-[240px]">
+                    <h4 className="font-bold text-lg mb-2">I&apos;m your AI sidekick</h4>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      Ask me to summarize channels, help with code, or draft messages. I&apos;m here to make you faster.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 w-full mt-4">
+                    <SuggestionButton text="Summarize this channel" onClick={() => append("Summarize this channel")} />
+                    <SuggestionButton text="Help me draft a professional reply" onClick={() => append("Help me draft a professional reply")} />
+                    <SuggestionButton text="Explain current engineering trends" onClick={() => append("Explain current engineering trends")} />
                   </div>
                 </div>
-                <div className="max-w-[240px]">
-                  <h4 className="font-bold text-lg mb-2">I&apos;m your AI sidekick</h4>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    Ask me to summarize channels, help with code, or draft messages. I&apos;m here to make you faster.
-                  </p>
-                </div>
-                <div className="grid grid-cols-1 gap-2 w-full mt-4">
-                  <SuggestionButton text="Summarize this channel" onClick={() => append("Summarize this channel")} />
-                  <SuggestionButton text="Help me draft a professional reply" onClick={() => append("Help me draft a professional reply")} />
-                  <SuggestionButton text="Explain current engineering trends" onClick={() => append("Explain current engineering trends")} />
-                </div>
-              </div>
-            ) : (
-              messages.map((msg: AIMessage, idx: number) => (
-                <AIMessageItem 
-                  key={msg.id} 
-                  message={msg} 
-                  onCopy={copyToClipboard}
-                  onRegenerate={regenerate}
-                  onFeedback={(isGood) => submitFeedback(msg.id, isGood)}
-                  isLast={idx === messages.length - 1 && msg.role === 'assistant'}
-                />
-              ))
-            )}
-          </div>
-        </ScrollArea>
+              ) : (
+                messages.map((msg: AIMessage, idx: number) => (
+                  <AIMessageItem 
+                    key={msg.id} 
+                    message={msg} 
+                    onCopy={copyToClipboard}
+                    onRegenerate={regenerate}
+                    onFeedback={(isGood) => submitFeedback(msg.id, isGood)}
+                    isLast={idx === messages.length - 1 && msg.role === 'assistant'}
+                  />
+                ))
+              )}
+            </div>
+          </ScrollArea>
+        )}
       </div>
 
-      {/* Input Area - Stay at bottom */}
-      <div className="p-4 border-t bg-white dark:bg-[#1a1d21] shrink-0 shadow-[0_-4px_12px_rgba(0,0,0,0.02)]">
-        <MessageComposer 
-          placeholder="Message AI Assistant..." 
-          onSend={append} 
-        />
-      </div>
+      {/* Input Area */}
+      {!showHistory && (
+        <div className="p-4 border-t bg-white dark:bg-[#1a1d21] shrink-0 shadow-[0_-4px_12px_rgba(0,0,0,0.02)]">
+          <MessageComposer 
+            placeholder="Message AI Assistant..." 
+            onSend={append} 
+          />
+        </div>
+      )}
     </div>
   )
 }
