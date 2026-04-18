@@ -111,6 +111,15 @@ type SavedMessage struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type Draft struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	UserID    string    `gorm:"index;uniqueIndex:idx_draft_user_scope" json:"user_id"`
+	Scope     string    `gorm:"uniqueIndex:idx_draft_user_scope" json:"scope"`
+	Content   string    `json:"content"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type UnreadMarker struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
 	MessageID string    `gorm:"index;uniqueIndex:idx_unread_message_user" json:"message_id"`

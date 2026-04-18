@@ -243,6 +243,22 @@ func SeedData() {
 		"last_reply_at": &lastReplyAt,
 	})
 
+	drafts := []domain.Draft{
+		{
+			UserID:    "user-1",
+			Scope:     "channel:ch-5",
+			Content:   "Need to summarize the AI provider matrix before posting the next update.",
+			CreatedAt: time.Date(2026, 4, 18, 9, 45, 0, 0, time.UTC),
+			UpdatedAt: time.Date(2026, 4, 18, 9, 45, 0, 0, time.UTC),
+		},
+	}
+	for _, draft := range drafts {
+		DB.FirstOrCreate(&draft, domain.Draft{
+			UserID: draft.UserID,
+			Scope:  draft.Scope,
+		})
+	}
+
 	// 6. DM conversations
 	dmConversation := domain.DMConversation{
 		ID:        "dm-1",

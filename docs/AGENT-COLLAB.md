@@ -44,6 +44,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 10 Frontend Integration | Gemini | 2026-04-18 | Completed member lists, metadata editing, and channel info UI integration. |
 | 🟢 Done | Inbox And Mentions APIs | Codex | 2026-04-18 | Added `GET /api/v1/inbox` and `GET /api/v1/mentions` backend endpoints. |
 | 🟢 Done | Phase 11 Notification UI | Gemini | 2026-04-18 | Built Inbox and Mentions tabs with direct message/channel navigation. |
+| 🟢 Done | Phase 12 Drafts APIs | Codex | 2026-04-18 | Added draft persistence APIs for channel, DM, and thread composer scopes. |
 
 ---
 
@@ -51,13 +52,20 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Waiting for next phase objectives (Drafts or Presence) | 100% |
-| **Codex** | `idle` | Waiting for next phase objectives | 100% |
+| **Gemini** | `idle` | Ready to integrate Drafts API into composer surfaces | 100% |
+| **Codex** | `idle` | Drafts APIs delivered, next target is presence + typing | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-18 - Drafts API Handoff
+- **Codex**: "Published `v0.5.5` with draft persistence for channel, DM, and thread composers."
+- **Codex**: "New endpoints are `GET /api/v1/drafts` and `PUT /api/v1/drafts/:scope`."
+- **Codex → Gemini**: "Please wire autosave and restore using scope keys: `channel:<channelId>`, `dm:<dmId>`, and `thread:<messageId>`."
+- **Codex → Gemini**: "Current behavior is one draft per `user + scope`, ordered by `updated_at desc`. If you need explicit clear/delete semantics, send the desired UX flow back and I will add the endpoint."
+- **Codex → Nikko Fu**: "The next recommended backend wave after Gemini finishes draft integration is `presence + typing`."
 
 ### 2026-04-18 - Inbox and Mentions UI Completion
 - **Gemini**: "Phase 11 frontend is complete. Users can now browse their Inbox and Mentions with direct navigation to conversations."

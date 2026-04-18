@@ -92,6 +92,8 @@ func main() {
 		v1.GET("/inbox", handlers.GetInbox)
 		v1.GET("/mentions", handlers.GetMentions)
 		v1.GET("/later", handlers.GetLater)
+		v1.GET("/drafts", handlers.GetDrafts)
+		v1.PUT("/drafts/:scope", handlers.PutDraft)
 		v1.GET("/search", handlers.SearchWorkspace)
 		v1.GET("/messages", handlers.GetMessages)
 		v1.GET("/messages/:id/thread", handlers.GetMessageThread)

@@ -925,6 +925,70 @@ func GetLater(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"items": items})
 }
 
+func GetDrafts(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	scope := c.Query("scope")
+	var drafts []domain.Draft
+	query := db.DB.Where("user_id = ?", currentUser.ID).Order("updated_at desc")
+	if scope != "" {
+		query = query.Where("scope = ?", scope)
+	}
+	if err := query.Find(&drafts).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load drafts"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"drafts": drafts})
+}
+
+func PutDraft(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	scope := c.Param("scope")
+	if scope == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "scope is required"})
+		return
+	}
+
+	var input struct {
+		Content string `json:"content"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	now := time.Now().UTC()
+	draft := domain.Draft{
+		UserID:    currentUser.ID,
+		Scope:     scope,
+		Content:   input.Content,
+		UpdatedAt: now,
+	}
+
+	if err := db.DB.Where("user_id = ? AND scope = ?", currentUser.ID, scope).
+		Assign(domain.Draft{Content: input.Content, UpdatedAt: now}).
+		FirstOrCreate(&draft).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save draft"})
+		return
+	}
+	if err := db.DB.First(&draft, "user_id = ? AND scope = ?", currentUser.ID, scope).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load saved draft"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"draft": draft})
+}
+
 func SearchWorkspace(c *gin.Context) {
 	query := strings.TrimSpace(c.Query("q"))
 	if query == "" {

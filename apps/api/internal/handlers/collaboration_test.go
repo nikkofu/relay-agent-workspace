@@ -722,6 +722,101 @@ func TestGetLaterReturnsSavedMessages(t *testing.T) {
 	}
 }
 
+func TestGetDraftsReturnsCurrentUserDrafts(t *testing.T) {
+	setupTestDB(t)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.User{ID: "user-2", Name: "Jane Smith", Email: "jane@example.com"})
+	db.DB.Create(&domain.Draft{
+		UserID:    "user-1",
+		Scope:     "channel:ch-1",
+		Content:   "Draft for general",
+		CreatedAt: now.Add(-time.Hour),
+		UpdatedAt: now.Add(-time.Hour),
+	})
+	db.DB.Create(&domain.Draft{
+		UserID:    "user-1",
+		Scope:     "dm:dm-1",
+		Content:   "Draft for DM",
+		CreatedAt: now.Add(-30 * time.Minute),
+		UpdatedAt: now.Add(-30 * time.Minute),
+	})
+	db.DB.Create(&domain.Draft{
+		UserID:    "user-2",
+		Scope:     "channel:ch-2",
+		Content:   "Other user's draft",
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+
+	router := gin.New()
+	router.GET("/api/v1/drafts", GetDrafts)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/drafts", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on drafts list, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Drafts []domain.Draft `json:"drafts"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode drafts payload: %v", err)
+	}
+	if len(payload.Drafts) != 2 {
+		t.Fatalf("expected 2 drafts for current user, got %d", len(payload.Drafts))
+	}
+	if payload.Drafts[0].Scope != "dm:dm-1" {
+		t.Fatalf("expected newest draft first, got %#v", payload.Drafts)
+	}
+}
+
+func TestPutDraftCreatesAndUpdatesByScope(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+
+	router := gin.New()
+	router.PUT("/api/v1/drafts/:scope", PutDraft)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/drafts/channel:ch-1", bytes.NewBufferString(`{"content":"First draft"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on draft create, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var created struct {
+		Draft domain.Draft `json:"draft"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("failed to decode create draft response: %v", err)
+	}
+	if created.Draft.Scope != "channel:ch-1" || created.Draft.Content != "First draft" {
+		t.Fatalf("unexpected created draft: %#v", created.Draft)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPut, "/api/v1/drafts/channel:ch-1", bytes.NewBufferString(`{"content":"Updated draft"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on draft update, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var draft domain.Draft
+	if err := db.DB.First(&draft, "user_id = ? AND scope = ?", "user-1", "channel:ch-1").Error; err != nil {
+		t.Fatalf("failed to reload draft: %v", err)
+	}
+	if draft.Content != "Updated draft" {
+		t.Fatalf("expected updated content, got %#v", draft)
+	}
+}
+
 func TestSearchReturnsChannelUserMessageAndDMHits(t *testing.T) {
 	setupTestDB(t)
 
@@ -1005,7 +1100,7 @@ func setupTestDB(t *testing.T) {
 	if err := db.DB.AutoMigrate(&domain.Organization{}, &domain.Team{}, &domain.User{}, &domain.Agent{}, &domain.Workspace{}, &domain.WorkspaceInvite{}, &domain.Channel{}, &domain.ChannelMember{}, &domain.Message{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
-	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.UnreadMarker{}, &domain.AIFeedback{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}); err != nil {
+	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.AIFeedback{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 }

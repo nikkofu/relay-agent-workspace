@@ -2,6 +2,43 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.5] - 2026-04-18
+
+This release starts the next Slack-parity backend wave by adding draft persistence APIs for channel, DM, and thread composers.
+
+### Added
+
+- `GET /api/v1/drafts`
+- `PUT /api/v1/drafts/:scope`
+
+### Behavior
+
+- drafts are returned for the current user only
+- drafts are ordered by `updated_at desc`
+- one draft is stored per `user_id + scope`
+- recommended scope keys:
+  - `channel:<channelId>`
+  - `dm:<dmId>`
+  - `thread:<messageId>`
+
+### Persistence
+
+- added `drafts`
+- seeded one example draft for local development visibility
+
+### Documentation
+
+- added [docs/phases/phase-10-drafts.md](./docs/phases/phase-10-drafts.md)
+- added [docs/releases/v0.5.5.md](./docs/releases/v0.5.5.md)
+- updated `docs/AGENT-COLLAB.md` with the Gemini handoff for drafts
+- updated `README.md` and `docs/phase8-api-expansion.md` to reflect the shipped drafts baseline
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm build`
+
 ## [0.5.4] - 2026-04-18
 
 This release implements the Phase 11 notification UI wave, introducing a unified Activity, Inbox, and Mentions experience.
@@ -18,7 +55,7 @@ This release implements the Phase 11 notification UI wave, introducing a unified
 - `pnpm build`
 - `cd apps/web && pnpm lint`
 
-## [0.5.1] - 2026-04-18
+## [0.5.3] - 2026-04-18
 
 
 This release unifies Gemini's `v0.5.2` channel-management frontend work with the next Codex backend wave by adding inbox and mentions APIs.

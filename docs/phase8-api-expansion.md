@@ -84,6 +84,8 @@ Current backend surface already available:
 - `GET /api/v1/inbox`
 - `GET /api/v1/mentions`
 - `GET /api/v1/later`
+- `GET /api/v1/drafts`
+- `PUT /api/v1/drafts/:scope`
 - `GET /api/v1/search`
 - `GET /api/v1/messages`
 - `GET /api/v1/messages/:id/thread`
@@ -174,8 +176,11 @@ Recommended additions:
   - `GET /api/v1/inbox`
   - `GET /api/v1/mentions`
 - drafts:
-  - `GET /api/v1/drafts`
-  - `PUT /api/v1/drafts/:scope`
+  - shipped baseline:
+    - `GET /api/v1/drafts`
+    - `PUT /api/v1/drafts/:scope`
+  - likely follow-up:
+    - `DELETE /api/v1/drafts/:scope`
 
 ## 5. Realtime Target State
 

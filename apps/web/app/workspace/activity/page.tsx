@@ -1,6 +1,6 @@
 "use client"
 
-import { AtSign, ThumbsUp, MessageSquare, UserPlus, Inbox, Bell, Mail } from "lucide-react"
+import { AtSign, ThumbsUp, MessageSquare, UserPlus, Mail } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useActivityStore, ActivityItem } from "@/stores/activity-store"
