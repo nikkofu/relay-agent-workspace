@@ -2,7 +2,25 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
-## [0.5.11] - 2026-04-18
+## [0.5.12] - 2026-04-18
+
+This release implements persistent notification read states across the activity feed, inbox, and mentions views.
+
+### Added
+
+- **Unread Indicators**: Integrated blue dot indicators and distinctive styling for unread notification items.
+- **Mark as Read**: Clicking an activity item now automatically marks it as read in the backend.
+- **Bulk Read Action**: Added a "Mark all as read" button to clear notifications in the current view.
+- **Unread Counts**: Live unread count badges on Activity, Inbox, and Mentions tabs.
+- **Store Support**: Updated `activity-store.ts` with optimistic read state updates and persistent API synchronization.
+
+### Verification Used For This Release
+
+- `pnpm build`
+- `cd apps/web && pnpm lint`
+
+## [0.5.1] - 2026-04-18
+
 
 This release adds persistent notification read state so Relay inbox and mentions surfaces can track which collaboration signals have already been acknowledged.
 

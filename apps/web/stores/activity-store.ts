@@ -10,6 +10,7 @@ export interface ActivityItem {
   target?: string
   summary: string
   occurredAt: string
+  isRead: boolean
 }
 
 interface ActivityState {
@@ -19,9 +20,16 @@ interface ActivityState {
   fetchActivities: () => Promise<void>
   fetchInbox: () => Promise<void>
   fetchMentions: () => Promise<void>
+  markAsRead: (itemIds: string[]) => Promise<void>
 }
 
-export const useActivityStore = create<ActivityState>((set) => ({
+const mapActivity = (a: any): ActivityItem => ({
+  ...a,
+  occurredAt: a.occurred_at,
+  isRead: a.is_read
+})
+
+export const useActivityStore = create<ActivityState>((set, get) => ({
   activities: [],
   inboxItems: [],
   mentionItems: [],
@@ -29,10 +37,7 @@ export const useActivityStore = create<ActivityState>((set) => ({
     try {
       const response = await fetch(`${API_BASE_URL}/activity`)
       const data = await response.json()
-      set({ activities: data.activities.map((a: any) => ({
-        ...a,
-        occurredAt: a.occurred_at
-      })) })
+      set({ activities: data.activities.map(mapActivity) })
     } catch (error) {
       console.error("Failed to fetch activities:", error)
     }
@@ -41,10 +46,7 @@ export const useActivityStore = create<ActivityState>((set) => ({
     try {
       const response = await fetch(`${API_BASE_URL}/inbox`)
       const data = await response.json()
-      set({ inboxItems: data.items.map((a: any) => ({
-        ...a,
-        occurredAt: a.occurred_at
-      })) })
+      set({ inboxItems: data.items.map(mapActivity) })
     } catch (error) {
       console.error("Failed to fetch inbox:", error)
     }
@@ -53,12 +55,37 @@ export const useActivityStore = create<ActivityState>((set) => ({
     try {
       const response = await fetch(`${API_BASE_URL}/mentions`)
       const data = await response.json()
-      set({ mentionItems: data.items.map((a: any) => ({
-        ...a,
-        occurredAt: a.occurred_at
-      })) })
+      set({ mentionItems: data.items.map(mapActivity) })
     } catch (error) {
       console.error("Failed to fetch mentions:", error)
+    }
+  },
+  markAsRead: async (itemIds) => {
+    if (itemIds.length === 0) return
+
+    try {
+      // Optimistic update
+      set((state) => ({
+        inboxItems: state.inboxItems.map(item => 
+          itemIds.includes(item.id) ? { ...item, isRead: true } : item
+        ),
+        mentionItems: state.mentionItems.map(item => 
+          itemIds.includes(item.id) ? { ...item, isRead: true } : item
+        ),
+        activities: state.activities.map(item => 
+          itemIds.includes(item.id) ? { ...item, isRead: true } : item
+        )
+      }))
+
+      await fetch(`${API_BASE_URL}/notifications/read`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ item_ids: itemIds })
+      })
+    } catch (error) {
+      console.error("Failed to mark as read:", error)
+      // We could revert here, but for simple read state, 
+      // it's usually fine to just let the next fetch fix it
     }
   }
 }))

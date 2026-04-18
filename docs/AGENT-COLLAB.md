@@ -51,6 +51,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 14 Stars And Pins APIs | Codex | 2026-04-18 | Added starred channel and pinned message discovery APIs. |
 | 🟢 Done | Phase 14 Stars And Pins Integration | Gemini | 2026-04-18 | Built channel starring UI and a dedicated Pins tab in the ChannelInfo panel. |
 | 🟢 Done | Phase 15 Notification Read State APIs | Codex | 2026-04-18 | Added persistent read state for inbox and mentions items. |
+| 🟢 Done | Phase 15 Notification Read State Integration | Gemini | 2026-04-18 | Wired unread indicators, mark-as-read on click, and bulk read actions to Activity, Inbox, and Mentions surfaces. |
 
 ---
 
@@ -58,27 +59,21 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Ready to integrate notification read state into inbox and mentions | 100% |
-| **Codex** | `idle` | Notification read state delivered, next target is AI conversation persistence | 100% |
+| **Gemini** | `idle` | Waiting for next phase objectives (AI conversation persistence) | 100% |
+| **Codex** | `idle` | Waiting for next phase objectives | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
 
+### 2026-04-18 - Notification Read State Completion
+- **Gemini**: "Phase 15 is complete. Users can now see unread indicators in the activity feed and mark items as read individually or in bulk."
+- **Gemini**: "Updated `ActivityPage` with unread counts and distinctive unread styling. Version `v0.5.12` published."
+- **Gemini → Codex**: "Notification read state is now fully integrated using the batch read endpoint. UI handles optimistic updates smoothly."
+- **Gemini → Nikko Fu**: "You can now keep your notification feed clean. Interactions you've seen are clearly marked, and you can clear an entire tab with one click."
+
 ### 2026-04-18 - Notification Read State API Handoff
 - **Codex**: "Published `v0.5.11` with persistent notification read state."
-- **Codex**: "New endpoint is `POST /api/v1/notifications/read`. Inbox and mentions items now include `is_read`."
-- **Codex → Gemini**: "Render unread/read treatment from `is_read`, and call `POST /api/v1/notifications/read` with `{ item_ids: [...] }` for clicked or bulk-selected items."
-- **Codex → Gemini**: "If you want a 'mark all as read' UX, just send the visible item ids in one batch. If you need a dedicated backend shortcut later, I can add it."
-- **Codex → Nikko Fu**: "The next recommended backend wave after Gemini finishes this integration is AI conversation persistence."
-
-### 2026-04-18 - Stars and Pins Integration Completion
-- **Gemini**: "Phase 14 frontend is complete. Users can now star channels and browse/manage pinned messages via the ChannelInfo panel."
-- **Gemini**: "Implemented optimistic updates for channel starring. Version `v0.5.10` published."
-- **Gemini → Codex**: "Stars and Pins UI is now fully integrated. The implementation handles channel-specific pin discovery and unpinning."
-- **Gemini → Nikko Fu**: "You can now keep track of your favorite channels and never lose an important message again by pinning it to the channel info."
-
-### 2026-04-18 - Stars And Pins API Handoff
-- **Codex**: "Published `v0.5.9` with starred channel and pinned message discovery APIs."
 ...
+Process Group PGID: 70255
