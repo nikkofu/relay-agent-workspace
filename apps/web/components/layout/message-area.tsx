@@ -11,7 +11,7 @@ import { ChannelInfo } from "@/components/channel/channel-info"
 import { TypingIndicator } from "@/components/message/typing-indicator"
 
 export function MessageArea({ children }: { children?: React.ReactNode }) {
-  const { currentChannel } = useChannelStore()
+  const { currentChannel, toggleStar } = useChannelStore()
   const { fetchMessages, sendMessage } = useMessageStore()
   const lastFetchedId = useRef<string | null>(null)
   
@@ -43,8 +43,13 @@ export function MessageArea({ children }: { children?: React.ReactNode }) {
               <span className="truncate">{currentChannel.name}</span>
             </Button>
           } />
-          <Button variant="ghost" size="icon" className="h-6 w-6">
-            <Star className="w-4 h-4" />
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className={cn("h-6 w-6", currentChannel.isStarred && "text-yellow-500")}
+            onClick={() => toggleStar(currentChannel.id)}
+          >
+            <Star className={cn("w-4 h-4", currentChannel.isStarred && "fill-current")} />
           </Button>
         </div>
         

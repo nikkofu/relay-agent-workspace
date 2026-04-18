@@ -50,6 +50,42 @@ export const useChannelStore = create<ChannelState>((set, get) => ({
       get().fetchMembers(id)
     }
   },
+  toggleStar: async (id) => {
+    const channel = get().channels.find(c => c.id === id)
+    if (!channel) return
+
+    // Optimistic update
+    const newStarred = !channel.isStarred
+    set((state) => ({
+      channels: state.channels.map(c => c.id === id ? { ...c, isStarred: newStarred } : c),
+      currentChannel: state.currentChannel?.id === id ? { ...state.currentChannel, isStarred: newStarred } : state.currentChannel
+    }))
+
+    try {
+      await fetch(`${API_BASE_URL}/channels/${id}/star`, {
+        method: "POST"
+      })
+      toast.success(newStarred ? "Channel starred" : "Channel unstarred")
+    } catch (error) {
+      // Revert on error
+      set((state) => ({
+        channels: state.channels.map(c => c.id === id ? { ...c, isStarred: !newStarred } : c),
+        currentChannel: state.currentChannel?.id === id ? { ...state.currentChannel, isStarred: !newStarred } : state.currentChannel
+      }))
+      console.error("Failed to toggle star:", error)
+      toast.error("Failed to update star status")
+    }
+  },
+  fetchStarredChannels: async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/starred`)
+      const data = await response.json()
+      // Update local isStarred state based on server response if needed
+      // but for now we just rely on fetchChannels bringing all data
+    } catch (error) {
+      console.error("Failed to fetch starred channels:", error)
+    }
+  },
   updateChannel: async (id, updates) => {
     try {
       const response = await fetch(`${API_BASE_URL}/channels/${id}`, {

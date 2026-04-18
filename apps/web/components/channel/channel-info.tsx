@@ -2,29 +2,34 @@
 
 import { useState } from "react"
 import { 
-  Bell, Hash, Lock, 
-  ChevronRight, Plus, Trash2 
+  Users, Info, Bell, Star, Hash, Lock, 
+  ChevronRight, Plus, X, Pencil, Trash2, Pin 
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
+Sheet,
+SheetContent,
+SheetDescription,
+SheetHeader,
+SheetTitle,
+SheetTrigger,
 } from "@/components/ui/sheet"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useChannelStore } from "@/stores/channel-store"
 import { useUserStore } from "@/stores/user-store"
+import { useMessageStore } from "@/stores/message-store"
 import { UserAvatar } from "@/components/common/user-avatar"
+import { cn } from "@/lib/utils"
+import { formatDistanceToNow } from "date-fns"
 
 export function ChannelInfo({ trigger }: { trigger: React.ReactNode }) {
   const { currentChannel, members, updateChannel, addMember, removeMember } = useChannelStore()
   const { users, currentUser } = useUserStore()
+  const { pinnedMessages, fetchPins, pinMessage } = useMessageStore()
   const [isEditing, setIsEditing] = useState(false)
   const [editForm, setEditForm] = useState({
     topic: currentChannel?.topic || "",
@@ -45,7 +50,11 @@ export function ChannelInfo({ trigger }: { trigger: React.ReactNode }) {
   }
 
   return (
-    <Sheet>
+    <Sheet onOpenChange={(open) => {
+      if (open && currentChannel) {
+        fetchPins(currentChannel.id)
+      }
+    }}>
       <SheetTrigger asChild>
         {trigger}
       </SheetTrigger>
@@ -64,6 +73,7 @@ export function ChannelInfo({ trigger }: { trigger: React.ReactNode }) {
             <TabsList className="bg-transparent h-12 p-0 gap-6">
               <TabsTrigger value="about" className="rounded-none border-b-2 border-transparent data-[state=active]:border-[#1164a3] data-[state=active]:bg-transparent px-0 text-sm font-medium">About</TabsTrigger>
               <TabsTrigger value="members" className="rounded-none border-b-2 border-transparent data-[state=active]:border-[#1164a3] data-[state=active]:bg-transparent px-0 text-sm font-medium">Members <span className="ml-1 text-xs opacity-50">{members.length}</span></TabsTrigger>
+              <TabsTrigger value="pins" className="rounded-none border-b-2 border-transparent data-[state=active]:border-[#1164a3] data-[state=active]:bg-transparent px-0 text-sm font-medium">Pins <span className="ml-1 text-xs opacity-50">{pinnedMessages.length}</span></TabsTrigger>
               <TabsTrigger value="settings" className="rounded-none border-b-2 border-transparent data-[state=active]:border-[#1164a3] data-[state=active]:bg-transparent px-0 text-sm font-medium">Settings</TabsTrigger>
             </TabsList>
           </div>
@@ -209,6 +219,45 @@ export function ChannelInfo({ trigger }: { trigger: React.ReactNode }) {
                   </div>
                 ))}
               </div>
+            </TabsContent>
+
+            <TabsContent value="pins" className="p-0 m-0 flex flex-col">
+              {pinnedMessages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 px-10 text-center text-muted-foreground">
+                  <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
+                    <Pin className="w-6 h-6 rotate-45" />
+                  </div>
+                  <p className="text-sm font-bold">No pinned messages</p>
+                  <p className="text-xs mt-1 italic">Pin important messages, files, or common questions so anyone can find them.</p>
+                </div>
+              ) : (
+                <div className="flex flex-col">
+                  {pinnedMessages.map(({ message, user }) => (
+                    <div key={message.id} className="p-4 hover:bg-muted/30 group border-b last:border-0 transition-colors">
+                      <div className="flex items-start gap-3">
+                        <UserAvatar src={user?.avatar} name={user?.name || "Unknown"} className="h-8 w-8" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-bold">{user?.name || "Someone"}</span>
+                            <span className="text-[10px] text-muted-foreground uppercase font-medium ml-2">
+                              {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
+                            </span>
+                          </div>
+                          <div className="text-sm mt-1 break-words line-clamp-3 text-foreground" dangerouslySetInnerHTML={{ __html: message.content }} />
+                        </div>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 text-muted-foreground hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => pinMessage(message.id)}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </TabsContent>
 
             <TabsContent value="settings" className="p-4 m-0 space-y-6">

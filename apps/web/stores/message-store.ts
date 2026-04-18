@@ -6,9 +6,11 @@ import { toast } from "sonner"
 interface MessageState {
   messages: Message[]
   currentThreadMessages: Message[]
+  pinnedMessages: { message: Message, channel: any, user: any }[]
   fetchMessages: (channelId: string) => Promise<void>
   fetchDMMessages: (dmId: string) => Promise<void>
   fetchThread: (messageId: string) => Promise<void>
+  fetchPins: (channelId?: string) => Promise<void>
   addMessage: (message: Message) => void
   sendMessage: (channelId: string, content: string, userId: string, threadId?: string) => Promise<void>
   sendDMMessage: (dmId: string, content: string, userId: string) => Promise<void>
@@ -55,6 +57,7 @@ const mapMessage = (m: any): Message => {
 export const useMessageStore = create<MessageState>((set, get) => ({
   messages: [],
   currentThreadMessages: [],
+  pinnedMessages: [],
   fetchMessages: async (channelId) => {
     try {
       const response = await fetch(`${API_BASE_URL}/messages?channel_id=${channelId}`)
@@ -84,6 +87,19 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       set({ currentThreadMessages: [parent, ...replies] })
     } catch (error) {
       console.error("Failed to fetch thread:", error)
+    }
+  },
+  fetchPins: async (channelId) => {
+    try {
+      const url = channelId ? `${API_BASE_URL}/pins?channel_id=${channelId}` : `${API_BASE_URL}/pins`
+      const response = await fetch(url)
+      const data = await response.json()
+      set({ pinnedMessages: (data.items || []).map((item: any) => ({
+        ...item,
+        message: mapMessage(item.message)
+      })) })
+    } catch (error) {
+      console.error("Failed to fetch pins:", error)
     }
   },
   addMessage: (message) => set((state) => {
@@ -204,6 +220,9 @@ export const useMessageStore = create<MessageState>((set, get) => ({
         currentThreadMessages: state.currentThreadMessages.map(m => m.id === messageId ? updatedMsg : m)
       }))
       
+      // Refresh pins list
+      get().fetchPins(updatedMsg.channelId)
+
       toast.success(data.is_pinned ? "Message pinned" : "Message unpinned")
     } catch (error) {
       console.error("Failed to toggle pin:", error)

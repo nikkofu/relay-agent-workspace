@@ -2,7 +2,29 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
-## [0.5.9] - 2026-04-18
+## [0.5.10] - 2026-04-18
+
+This release implements Phase 14: Stars and Pins integration, providing persistent surfaces for important channels and messages.
+
+### Added
+
+- **Channel Starring**: Users can now star/unstar channels directly from the message area header.
+- **Pinned Messages Tab**: Integrated a new "Pins" tab in the `ChannelInfo` panel to display all pinned messages for the current channel.
+- **Unpin Action**: Conveniently unpin messages directly from the `ChannelInfo` panel.
+- **Store Expansion**: Added `toggleStar` to `ChannelStore` and `fetchPins` to `MessageStore` with optimistic UI updates.
+
+### Fixed
+
+- **Header UI**: Synchronized the header star button state with the backend `isStarred` attribute.
+- **Data Integrity**: Automatically refreshes the pinned messages list when a message's pin state is toggled.
+
+### Verification Used For This Release
+
+- `pnpm build`
+- `cd apps/web && pnpm lint`
+
+## [0.5.1] - 2026-04-18
+
 
 This release adds the first starred and pinned discovery APIs so Relay can surface saved channels and pinned references as dedicated collaboration destinations.
 

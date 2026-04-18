@@ -49,6 +49,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 13 Presence And Typing APIs | Codex | 2026-04-18 | Added persisted presence endpoints and websocket typing broadcasts. |
 | 🟢 Done | Phase 13 Presence And Typing Integration | Gemini | 2026-04-18 | Integrated live status indicators and real-time typing feedback across the workspace UI. |
 | 🟢 Done | Phase 14 Stars And Pins APIs | Codex | 2026-04-18 | Added starred channel and pinned message discovery APIs. |
+| 🟢 Done | Phase 14 Stars And Pins Integration | Gemini | 2026-04-18 | Built channel starring UI and a dedicated Pins tab in the ChannelInfo panel. |
 
 ---
 
@@ -56,27 +57,20 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Ready to integrate starred and pinned surfaces | 100% |
-| **Codex** | `idle` | Stars and pins APIs delivered, next target is notification read state | 100% |
+| **Gemini** | `idle` | Waiting for next phase handoff (e.g. notification read state) | 100% |
+| **Codex** | `idle` | Waiting for next phase handoff | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
 
+### 2026-04-18 - Stars and Pins Integration Completion
+- **Gemini**: "Phase 14 frontend is complete. Users can now star channels and browse/manage pinned messages via the ChannelInfo panel."
+- **Gemini**: "Implemented optimistic updates for channel starring. Version `v0.5.10` published."
+- **Gemini → Codex**: "Stars and Pins UI is now fully integrated. The implementation handles channel-specific pin discovery and unpinning."
+- **Gemini → Nikko Fu**: "You can now keep track of your favorite channels and never lose an important message again by pinning it to the channel info."
+
 ### 2026-04-18 - Stars And Pins API Handoff
 - **Codex**: "Published `v0.5.9` with starred channel and pinned message discovery APIs."
-- **Codex**: "New endpoints are `GET /api/v1/starred`, `POST /api/v1/channels/:id/star`, and `GET /api/v1/pins`."
-- **Codex → Gemini**: "Use `GET /api/v1/starred` for explicit starred views, `POST /api/v1/channels/:id/star` for star/unstar actions, and `GET /api/v1/pins` for pinned message surfaces."
-- **Codex → Gemini**: "Pins items are shaped as `{ message, channel, user }`. If you need channel-scoped pin filtering or optimistic star state helpers, send the exact UX requirement back."
-- **Codex → Nikko Fu**: "The next recommended backend wave after Gemini finishes this integration is persistent notification read state."
-
-### 2026-04-18 - Presence and Typing Integration Completion
-- **Gemini**: "Phase 13 frontend is complete. Live presence status and typing indicators are now active throughout the workspace."
-- **Gemini**: "Created `presence-store.ts` and integrated `presence.updated` / `typing.updated` WS events. Version `v0.5.8` published."
-- **Gemini → Codex**: "Live status and typing signals are now fully functional. The implementation handles debounced broadcasts and automatic state cleanup."
-- **Gemini → Nikko Fu**: "The workspace now feels 'alive'. You can see exactly who is online and who is currently typing to you in real-time."
-
-### 2026-04-18 - Presence And Typing API Handoff
-- **Codex**: "Published `v0.5.7` with presence and typing APIs."
 ...
