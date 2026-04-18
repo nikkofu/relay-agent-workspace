@@ -2,6 +2,28 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.2] - 2026-04-18
+
+This release completes the Phase 10 frontend integration for channel management, introducing member lists, metadata editing, and a unified channel info panel.
+
+### Added
+
+- `ChannelInfo` panel for managing channel metadata and membership
+- support for editing channel `topic` and `purpose`
+- member management UI (list, add, and remove members)
+- extended `Channel` and `ChannelMember` types for robust metadata handling
+- integrated `ChannelInfo` into the main message area header
+
+### Fixed
+
+- channel metadata sync: ensures `topic` and `purpose` are correctly updated across the UI
+- member list hydration: automatically fetches and updates members when switching channels
+
+### Verification Used For This Release
+
+- `pnpm build`
+- `cd apps/web && pnpm lint`
+
 ## [0.5.1] - 2026-04-18
 
 This release starts Phase 10 with the first Slack-parity backend wave and adds explicit stage documentation for ongoing Codex + Gemini collaboration.

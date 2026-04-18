@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { MessageComposer } from "@/components/message/message-composer"
 import { useEffect, useRef } from "react"
 import { AgentCollabDashboard } from "./agent-collab-dashboard"
+import { ChannelInfo } from "@/components/channel/channel-info"
 
 export function MessageArea({ children }: { children?: React.ReactNode }) {
   const { currentChannel } = useChannelStore()
@@ -35,10 +36,12 @@ export function MessageArea({ children }: { children?: React.ReactNode }) {
       {/* Channel Header */}
       <header className="h-14 px-4 flex items-center justify-between border-b shrink-0">
         <div className="flex items-center gap-1.5 min-w-0">
-          <Button variant="ghost" size="sm" className="px-1 hover:bg-muted font-bold text-lg text-foreground">
-            <Icon className="w-4 h-4 mr-1" />
-            <span className="truncate">{currentChannel.name}</span>
-          </Button>
+          <ChannelInfo trigger={
+            <Button variant="ghost" size="sm" className="px-1 hover:bg-muted font-bold text-lg text-foreground">
+              <Icon className="w-4 h-4 mr-1" />
+              <span className="truncate">{currentChannel.name}</span>
+            </Button>
+          } />
           <Button variant="ghost" size="icon" className="h-6 w-6">
             <Star className="w-4 h-4" />
           </Button>
@@ -61,9 +64,11 @@ export function MessageArea({ children }: { children?: React.ReactNode }) {
           <Button variant="ghost" size="icon" className="h-8 w-8">
             <Video className="w-4 h-4" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8">
-            <Info className="w-4 h-4" />
-          </Button>
+          <ChannelInfo trigger={
+            <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Info className="w-4 h-4" />
+            </Button>
+          } />
         </div>
       </header>
 

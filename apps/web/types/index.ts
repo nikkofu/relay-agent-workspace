@@ -25,11 +25,19 @@ export interface Channel {
   id: string
   name: string
   description?: string
+  topic?: string
+  purpose?: string
   type: "public" | "private"
   workspaceId: string
   isStarred?: boolean
   unreadCount?: number
   memberCount: number
+  isArchived?: boolean
+}
+
+export interface ChannelMember {
+  user: User
+  role: "admin" | "member"
 }
 
 export interface DirectMessage {
