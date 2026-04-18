@@ -70,17 +70,52 @@ func SeedData() {
 
 	// 4. Channels (from mock-data.ts)
 	channels := []domain.Channel{
-		{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public", Description: "Company-wide announcements and work-based matters", MemberCount: 15, IsStarred: true},
-		{ID: "ch-2", WorkspaceID: "ws-1", Name: "random", Type: "public", Description: "Non-work-related banter and water cooler talk", MemberCount: 12},
-		{ID: "ch-3", WorkspaceID: "ws-1", Name: "engineering", Type: "public", Description: "Technical discussions and code reviews", MemberCount: 8, UnreadCount: 3},
-		{ID: "ch-4", WorkspaceID: "ws-1", Name: "design", Type: "public", Description: "UI/UX design critiques and inspiration", MemberCount: 5},
-		{ID: "ch-5", WorkspaceID: "ws-1", Name: "ai-lab", Type: "public", Description: "Exploring the future of AI-native applications", MemberCount: 10, IsStarred: true, UnreadCount: 12},
-		{ID: "ch-6", WorkspaceID: "ws-1", Name: "private-deal", Type: "private", MemberCount: 3},
-		{ID: "ch-collab", WorkspaceID: "ws-1", Name: "agent-collab", Type: "public", Description: "Real-time Agent collaboration and synchronization hub", MemberCount: 3, IsStarred: true},
+		{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public", Description: "Company-wide announcements and work-based matters", Topic: "Announcements and team alignment", Purpose: "Keep everyone aligned on company progress", MemberCount: 15, IsStarred: true},
+		{ID: "ch-2", WorkspaceID: "ws-1", Name: "random", Type: "public", Description: "Non-work-related banter and water cooler talk", Topic: "Watercooler", Purpose: "Casual team conversation", MemberCount: 12},
+		{ID: "ch-3", WorkspaceID: "ws-1", Name: "engineering", Type: "public", Description: "Technical discussions and code reviews", Topic: "Build and ship", Purpose: "Coordinate engineering decisions", MemberCount: 8, UnreadCount: 3},
+		{ID: "ch-4", WorkspaceID: "ws-1", Name: "design", Type: "public", Description: "UI/UX design critiques and inspiration", Topic: "Design reviews", Purpose: "Centralize design critique and exploration", MemberCount: 5},
+		{ID: "ch-5", WorkspaceID: "ws-1", Name: "ai-lab", Type: "public", Description: "Exploring the future of AI-native applications", Topic: "AI-native collaboration", Purpose: "Prototype the Relay AI surface", MemberCount: 10, IsStarred: true, UnreadCount: 12},
+		{ID: "ch-6", WorkspaceID: "ws-1", Name: "private-deal", Type: "private", Topic: "Sensitive planning", Purpose: "Private coordination for leadership topics", MemberCount: 3},
+		{ID: "ch-collab", WorkspaceID: "ws-1", Name: "agent-collab", Type: "public", Description: "Real-time Agent collaboration and synchronization hub", Topic: "Agent command center", Purpose: "Track humans and agents working together", MemberCount: 3, IsStarred: true},
 	}
 
 	for _, ch := range channels {
 		DB.FirstOrCreate(&ch, domain.Channel{ID: ch.ID})
+	}
+
+	channelMembers := []domain.ChannelMember{
+		{ChannelID: "ch-1", UserID: "user-1", Role: "owner"},
+		{ChannelID: "ch-1", UserID: "user-2", Role: "member"},
+		{ChannelID: "ch-1", UserID: "user-3", Role: "member"},
+		{ChannelID: "ch-1", UserID: "user-4", Role: "member"},
+		{ChannelID: "ch-3", UserID: "user-1", Role: "owner"},
+		{ChannelID: "ch-3", UserID: "user-2", Role: "member"},
+		{ChannelID: "ch-3", UserID: "user-3", Role: "member"},
+		{ChannelID: "ch-5", UserID: "user-1", Role: "owner"},
+		{ChannelID: "ch-5", UserID: "user-2", Role: "member"},
+		{ChannelID: "ch-5", UserID: "user-4", Role: "member"},
+		{ChannelID: "ch-collab", UserID: "user-1", Role: "owner"},
+		{ChannelID: "ch-collab", UserID: "user-2", Role: "member"},
+	}
+	for _, member := range channelMembers {
+		DB.FirstOrCreate(&member, domain.ChannelMember{
+			ChannelID: member.ChannelID,
+			UserID:    member.UserID,
+		})
+	}
+
+	workspaceInvites := []domain.WorkspaceInvite{
+		{
+			ID:          "invite-1",
+			WorkspaceID: "ws-1",
+			Email:       "new.designer@example.com",
+			Role:        "member",
+			Status:      "pending",
+			CreatedAt:   time.Date(2026, 4, 17, 8, 0, 0, 0, time.UTC),
+		},
+	}
+	for _, invite := range workspaceInvites {
+		DB.FirstOrCreate(&invite, domain.WorkspaceInvite{ID: invite.ID})
 	}
 
 	// 5. Messages (from mock-data.ts)

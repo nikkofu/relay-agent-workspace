@@ -322,6 +322,213 @@ func GetChannels(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"channels": channels})
 }
 
+func GetChannelMembers(c *gin.Context) {
+	channelID := c.Param("id")
+
+	var channel domain.Channel
+	if err := db.DB.First(&channel, "id = ?", channelID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "channel not found"})
+		return
+	}
+
+	type channelMemberResponse struct {
+		User domain.User `json:"user"`
+		Role string      `json:"role"`
+	}
+
+	var memberships []domain.ChannelMember
+	if err := db.DB.Where("channel_id = ?", channelID).Order("created_at asc").Find(&memberships).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load channel members"})
+		return
+	}
+
+	members := make([]channelMemberResponse, 0, len(memberships))
+	for _, membership := range memberships {
+		var user domain.User
+		if err := db.DB.First(&user, "id = ?", membership.UserID).Error; err != nil {
+			continue
+		}
+		members = append(members, channelMemberResponse{
+			User: enrichUser(user),
+			Role: membership.Role,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"members": members})
+}
+
+func AddChannelMember(c *gin.Context) {
+	channelID := c.Param("id")
+
+	var channel domain.Channel
+	if err := db.DB.First(&channel, "id = ?", channelID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "channel not found"})
+		return
+	}
+
+	var input struct {
+		UserID string `json:"user_id" binding:"required"`
+		Role   string `json:"role"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var user domain.User
+	if err := db.DB.First(&user, "id = ?", input.UserID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	role := input.Role
+	if role == "" {
+		role = "member"
+	}
+
+	membership := domain.ChannelMember{
+		ChannelID: channelID,
+		UserID:    input.UserID,
+		Role:      role,
+		CreatedAt: time.Now().UTC(),
+	}
+	if err := db.DB.FirstOrCreate(&membership, domain.ChannelMember{
+		ChannelID: channelID,
+		UserID:    input.UserID,
+	}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add channel member"})
+		return
+	}
+
+	var memberCount int64
+	db.DB.Model(&domain.ChannelMember{}).Where("channel_id = ?", channelID).Count(&memberCount)
+	db.DB.Model(&channel).Update("member_count", int(memberCount))
+
+	c.JSON(http.StatusCreated, gin.H{
+		"member": gin.H{
+			"user": enrichUser(user),
+			"role": role,
+		},
+	})
+}
+
+func RemoveChannelMember(c *gin.Context) {
+	channelID := c.Param("id")
+	userID := c.Param("userId")
+
+	var channel domain.Channel
+	if err := db.DB.First(&channel, "id = ?", channelID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "channel not found"})
+		return
+	}
+
+	if err := db.DB.Where("channel_id = ? AND user_id = ?", channelID, userID).Delete(&domain.ChannelMember{}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to remove channel member"})
+		return
+	}
+
+	var memberCount int64
+	db.DB.Model(&domain.ChannelMember{}).Where("channel_id = ?", channelID).Count(&memberCount)
+	db.DB.Model(&channel).Update("member_count", int(memberCount))
+
+	c.JSON(http.StatusOK, gin.H{"removed": true, "user_id": userID})
+}
+
+func UpdateChannel(c *gin.Context) {
+	channelID := c.Param("id")
+
+	var channel domain.Channel
+	if err := db.DB.First(&channel, "id = ?", channelID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "channel not found"})
+		return
+	}
+
+	var input struct {
+		Topic      *string `json:"topic"`
+		Purpose    *string `json:"purpose"`
+		IsArchived *bool   `json:"is_archived"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	updates := map[string]any{}
+	if input.Topic != nil {
+		updates["topic"] = *input.Topic
+	}
+	if input.Purpose != nil {
+		updates["purpose"] = *input.Purpose
+	}
+	if input.IsArchived != nil {
+		updates["is_archived"] = *input.IsArchived
+	}
+
+	if len(updates) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no channel updates provided"})
+		return
+	}
+
+	if err := db.DB.Model(&channel).Updates(updates).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update channel"})
+		return
+	}
+	db.DB.First(&channel, "id = ?", channelID)
+
+	c.JSON(http.StatusOK, gin.H{"channel": channel})
+}
+
+func GetWorkspaceInvites(c *gin.Context) {
+	workspaceID := c.Param("id")
+
+	var invites []domain.WorkspaceInvite
+	if err := db.DB.Where("workspace_id = ?", workspaceID).Order("created_at desc").Find(&invites).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load invites"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"invites": invites})
+}
+
+func CreateWorkspaceInvite(c *gin.Context) {
+	workspaceID := c.Param("id")
+
+	var workspace domain.Workspace
+	if err := db.DB.First(&workspace, "id = ?", workspaceID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "workspace not found"})
+		return
+	}
+
+	var input struct {
+		Email string `json:"email" binding:"required,email"`
+		Role  string `json:"role"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	role := input.Role
+	if role == "" {
+		role = "member"
+	}
+
+	invite := domain.WorkspaceInvite{
+		ID:          "invite_" + time.Now().Format("20060102150405"),
+		WorkspaceID: workspaceID,
+		Email:       input.Email,
+		Role:        role,
+		Status:      "pending",
+		CreatedAt:   time.Now().UTC(),
+	}
+	if err := db.DB.Create(&invite).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create workspace invite"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"invite": invite})
+}
+
 func GetDMConversations(c *gin.Context) {
 	currentUser, err := getCurrentUser()
 	if err != nil {

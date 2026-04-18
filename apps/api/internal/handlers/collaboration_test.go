@@ -696,6 +696,150 @@ func TestSearchReturnsChannelUserMessageAndDMHits(t *testing.T) {
 	}
 }
 
+func TestChannelMembersEndpointsListAddAndRemoveMembers(t *testing.T) {
+	setupTestDB(t)
+
+	users := []domain.User{
+		{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"},
+		{ID: "user-2", Name: "AI Assistant", Email: "ai@example.com"},
+		{ID: "user-3", Name: "Jane Smith", Email: "jane@example.com"},
+	}
+	for _, user := range users {
+		db.DB.Create(&user)
+	}
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public"})
+	db.DB.Create(&domain.ChannelMember{ChannelID: "ch-1", UserID: "user-1", Role: "owner"})
+	db.DB.Create(&domain.ChannelMember{ChannelID: "ch-1", UserID: "user-2", Role: "member"})
+
+	router := gin.New()
+	router.GET("/api/v1/channels/:id/members", GetChannelMembers)
+	router.POST("/api/v1/channels/:id/members", AddChannelMember)
+	router.DELETE("/api/v1/channels/:id/members/:userId", RemoveChannelMember)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/channels/ch-1/members", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on members list, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var listPayload struct {
+		Members []map[string]any `json:"members"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &listPayload); err != nil {
+		t.Fatalf("failed to decode members list: %v", err)
+	}
+	if len(listPayload.Members) != 2 {
+		t.Fatalf("expected 2 members, got %d", len(listPayload.Members))
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/channels/ch-1/members", bytes.NewBufferString(`{"user_id":"user-3","role":"member"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on add member, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var memberCount int64
+	db.DB.Model(&domain.ChannelMember{}).Where("channel_id = ?", "ch-1").Count(&memberCount)
+	if memberCount != 3 {
+		t.Fatalf("expected 3 channel members, got %d", memberCount)
+	}
+
+	var channel domain.Channel
+	if err := db.DB.First(&channel, "id = ?", "ch-1").Error; err != nil {
+		t.Fatalf("failed to reload channel: %v", err)
+	}
+	if channel.MemberCount != 3 {
+		t.Fatalf("expected channel member_count=3, got %d", channel.MemberCount)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodDelete, "/api/v1/channels/ch-1/members/user-2", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on remove member, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	db.DB.Model(&domain.ChannelMember{}).Where("channel_id = ?", "ch-1").Count(&memberCount)
+	if memberCount != 2 {
+		t.Fatalf("expected 2 channel members after delete, got %d", memberCount)
+	}
+}
+
+func TestPatchChannelUpdatesTopicPurposeAndArchiveState(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.Channel{
+		ID:          "ch-1",
+		WorkspaceID: "ws-1",
+		Name:        "general",
+		Type:        "public",
+		Description: "General discussion",
+	})
+
+	router := gin.New()
+	router.PATCH("/api/v1/channels/:id", UpdateChannel)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/channels/ch-1", bytes.NewBufferString(`{"topic":"Launch coordination","purpose":"Keep launch work aligned","is_archived":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on patch channel, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var channel domain.Channel
+	if err := db.DB.First(&channel, "id = ?", "ch-1").Error; err != nil {
+		t.Fatalf("failed to reload channel: %v", err)
+	}
+	if channel.Topic != "Launch coordination" || channel.Purpose != "Keep launch work aligned" || !channel.IsArchived {
+		t.Fatalf("channel patch was not persisted: %#v", channel)
+	}
+}
+
+func TestWorkspaceInvitesEndpointsCreateAndListInvites(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.Workspace{ID: "ws-1", OrganizationID: "org-1", Name: "Acme Corp"})
+
+	router := gin.New()
+	router.GET("/api/v1/workspaces/:id/invites", GetWorkspaceInvites)
+	router.POST("/api/v1/workspaces/:id/invites", CreateWorkspaceInvite)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/workspaces/ws-1/invites", bytes.NewBufferString(`{"email":"new.member@example.com","role":"member"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on create invite, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var inviteCount int64
+	db.DB.Model(&domain.WorkspaceInvite{}).Where("workspace_id = ?", "ws-1").Count(&inviteCount)
+	if inviteCount != 1 {
+		t.Fatalf("expected 1 workspace invite, got %d", inviteCount)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/workspaces/ws-1/invites", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on list invites, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var listPayload struct {
+		Invites []map[string]any `json:"invites"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &listPayload); err != nil {
+		t.Fatalf("failed to decode invite list: %v", err)
+	}
+	if len(listPayload.Invites) != 1 {
+		t.Fatalf("expected 1 invite in response, got %d", len(listPayload.Invites))
+	}
+}
+
 func TestReactionPinAndDeleteBroadcastRealtimeEvents(t *testing.T) {
 	setupTestDB(t)
 
@@ -777,7 +921,7 @@ func setupTestDB(t *testing.T) {
 		t.Fatalf("failed to open sqlite test db: %v", err)
 	}
 	db.DB = testDB
-	if err := db.DB.AutoMigrate(&domain.Organization{}, &domain.Team{}, &domain.User{}, &domain.Agent{}, &domain.Workspace{}, &domain.Channel{}, &domain.Message{}); err != nil {
+	if err := db.DB.AutoMigrate(&domain.Organization{}, &domain.Team{}, &domain.User{}, &domain.Agent{}, &domain.Workspace{}, &domain.WorkspaceInvite{}, &domain.Channel{}, &domain.ChannelMember{}, &domain.Message{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.UnreadMarker{}, &domain.AIFeedback{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}); err != nil {

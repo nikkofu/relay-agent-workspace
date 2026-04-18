@@ -69,7 +69,13 @@ Current backend surface already available:
 - `GET /api/v1/orgs/:id/teams`
 - `POST /api/v1/orgs/:id/agents`
 - `GET /api/v1/workspaces`
+- `GET /api/v1/workspaces/:id/invites`
+- `POST /api/v1/workspaces/:id/invites`
 - `GET /api/v1/channels`
+- `GET /api/v1/channels/:id/members`
+- `POST /api/v1/channels/:id/members`
+- `DELETE /api/v1/channels/:id/members/:userId`
+- `PATCH /api/v1/channels/:id`
 - `GET /api/v1/dms`
 - `POST /api/v1/dms`
 - `GET /api/v1/dms/:id/messages`

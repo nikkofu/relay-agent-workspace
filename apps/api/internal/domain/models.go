@@ -41,6 +41,15 @@ type Workspace struct {
 	Name           string `json:"name"`
 }
 
+type WorkspaceInvite struct {
+	ID          string    `gorm:"primaryKey" json:"id"`
+	WorkspaceID string    `gorm:"index" json:"workspace_id"`
+	Email       string    `json:"email"`
+	Role        string    `json:"role"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
 type DMConversation struct {
 	ID        string    `gorm:"primaryKey" json:"id"`
 	CreatedAt time.Time `json:"created_at"`
@@ -58,9 +67,20 @@ type Channel struct {
 	Name        string `json:"name"`
 	Type        string `json:"type"`
 	Description string `json:"description"`
+	Topic       string `json:"topic"`
+	Purpose     string `json:"purpose"`
+	IsArchived  bool   `json:"is_archived"`
 	MemberCount int    `json:"member_count"`
 	UnreadCount int    `json:"unread_count"`
 	IsStarred   bool   `json:"is_starred"`
+}
+
+type ChannelMember struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	ChannelID string    `gorm:"index;uniqueIndex:idx_channel_user" json:"channel_id"`
+	UserID    string    `gorm:"uniqueIndex:idx_channel_user" json:"user_id"`
+	Role      string    `json:"role"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type Message struct {

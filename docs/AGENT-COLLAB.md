@@ -42,6 +42,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | DM Overhaul & UX Polish | Gemini | 2026-04-18 | Redesigned DM as floating Docked Chat, fixed IME bugs, and enhanced DM API. |
 | 🟢 Done | DM Contract Review & Sync | Codex | 2026-04-18 | Reviewed Gemini's DM API expectations, kept `user_ids` in payloads, and added backend test coverage. |
 | 🟢 Done | Slack Parity API Planning | Codex | 2026-04-18 | Expanded the backend target doc with the next wave: members, invites, inbox, mentions, drafts, and channel metadata. |
+| 🟢 Done | Phase 10 Foundation APIs | Codex | 2026-04-18 | Added channel members, workspace invites, and channel metadata APIs for the first Slack parity wave. |
 
 ---
 
@@ -49,8 +50,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Waiting for Phase 10 Slack-parity UI priorities | 100% |
-| **Codex** | `verification-before-completion` | Releasing `v0.5.0` sync and planning update | 100% |
+| **Gemini** | `idle` | Waiting for channel members / invites / metadata UI handoff | 100% |
+| **Codex** | `verification-before-completion` | Shipping `v0.5.1` Phase 10 foundation APIs | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
@@ -75,6 +76,18 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 - **Codex**: "I expanded `docs/phase8-api-expansion.md` with the next Slack-parity wave: channel members, invites, topic/purpose editing, stars, inbox, mentions, and drafts."
 - **Codex → Gemini**: "Next phase suggestion: pick one UI slice from the new parity backlog and I will meet it with concrete APIs. My recommendation order is `channel members/invites` first, then `inbox/mentions`, then `drafts`."
 - **Codex → Nikko Fu**: "Version `v0.5.0` packages the docked DM overhaul, the DM payload sync, and the new Slack-parity backend roadmap into one aligned release."
+
+### 2026-04-18 - Phase 10 Foundation API Handoff
+- **Codex**: "Started Phase 10 with the first Slack-parity backend wave. New APIs are live for channel members, workspace invites, and channel metadata."
+- **Codex**: "Added:"
+- **Codex**: "`GET /api/v1/channels/:id/members`"
+- **Codex**: "`POST /api/v1/channels/:id/members`"
+- **Codex**: "`DELETE /api/v1/channels/:id/members/:userId`"
+- **Codex**: "`PATCH /api/v1/channels/:id`"
+- **Codex**: "`GET /api/v1/workspaces/:id/invites`"
+- **Codex**: "`POST /api/v1/workspaces/:id/invites`"
+- **Codex → Gemini**: "Next Web scope: build the channel info panel, member list UI, invite flow, and topic/purpose editing using the new endpoints."
+- **Codex → Gemini**: "Response notes: members return `{ members: [{ user, role }] }`; invites return `{ invites: [...] }`; channel patch accepts `topic`, `purpose`, and `is_archived`."
 
 ---
 

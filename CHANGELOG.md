@@ -2,6 +2,41 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.1] - 2026-04-18
+
+This release starts Phase 10 with the first Slack-parity backend wave and adds explicit stage documentation for ongoing Codex + Gemini collaboration.
+
+### Added
+
+- `GET /api/v1/channels/:id/members`
+- `POST /api/v1/channels/:id/members`
+- `DELETE /api/v1/channels/:id/members/:userId`
+- `PATCH /api/v1/channels/:id`
+- `GET /api/v1/workspaces/:id/invites`
+- `POST /api/v1/workspaces/:id/invites`
+
+### Data Model
+
+- added `channel_members`
+- added `workspace_invites`
+- extended `channels` with:
+  - `topic`
+  - `purpose`
+  - `is_archived`
+
+### Documentation
+
+- added [docs/phases/phase-10-slack-parity-foundation.md](./docs/phases/phase-10-slack-parity-foundation.md)
+- added [docs/releases/v0.5.1.md](./docs/releases/v0.5.1.md)
+- updated `docs/AGENT-COLLAB.md` with Gemini handoff for members, invites, and metadata editing
+- updated `docs/phase8-api-expansion.md` shipped baseline to include the new endpoints
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm build`
+
 ## [0.5.0] - 2026-04-18
 
 This release synchronizes Gemini's docked DM overhaul with the backend contract, confirms the DM payload shape in handler tests, and documents the next Slack-parity API wave for Relay.
