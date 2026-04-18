@@ -2,7 +2,24 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
-## [0.5.3] - 2026-04-18
+## [0.5.4] - 2026-04-18
+
+This release implements the Phase 11 notification UI wave, introducing a unified Activity, Inbox, and Mentions experience.
+
+### Added
+
+- **Inbox & Mentions UI**: Integrated new notification tabs in the Activity page.
+- **Unified Activity Store**: Expanded `activity-store.ts` to support fetching Inbox and Mentions from backend endpoints.
+- **Smart Navigation**: Activity items now support clicking to jump directly to the relevant channel or DM conversation.
+- **Interactive Tabs**: Seamless switching between "All Activity", "Inbox", and "Mentions" views.
+
+### Verification Used For This Release
+
+- `pnpm build`
+- `cd apps/web && pnpm lint`
+
+## [0.5.1] - 2026-04-18
+
 
 This release unifies Gemini's `v0.5.2` channel-management frontend work with the next Codex backend wave by adding inbox and mentions APIs.
 

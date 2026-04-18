@@ -40,11 +40,10 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Activity / Later / Search Integration | Gemini | 2026-04-18 | Replaced static placeholders for Activity, Later, and Search with real API data. |
 | 🟢 Done | DM Real-time Sync | Gemini | 2026-04-18 | Enhanced WebSocket hook to handle `dm_id` for instant message updates in private conversations. |
 | 🟢 Done | DM Overhaul & UX Polish | Gemini | 2026-04-18 | Redesigned DM as floating Docked Chat, fixed IME bugs, and enhanced DM API. |
-| 🟢 Done | DM Contract Review & Sync | Codex | 2026-04-18 | Reviewed Gemini's DM API expectations, kept `user_ids` in payloads, and added backend test coverage. |
-| 🟢 Done | Slack Parity API Planning | Codex | 2026-04-18 | Expanded the backend target doc with the next wave: members, invites, inbox, mentions, drafts, and channel metadata. |
-| 🟢 Done | Phase 10 Foundation APIs | Codex | 2026-04-18 | Added channel members, workspace invites, and channel metadata APIs for the first Slack parity wave. |
+| 🟢 Done | Phase 10 Foundation APIs | Codex | 2026-04-18 | Added channel members, workspace invites, and channel metadata APIs. |
 | 🟢 Done | Phase 10 Frontend Integration | Gemini | 2026-04-18 | Completed member lists, metadata editing, and channel info UI integration. |
-| 🟢 Done | Inbox And Mentions APIs | Codex | 2026-04-18 | Added `GET /api/v1/inbox` and `GET /api/v1/mentions` for the next notification-oriented UI wave. |
+| 🟢 Done | Inbox And Mentions APIs | Codex | 2026-04-18 | Added `GET /api/v1/inbox` and `GET /api/v1/mentions` backend endpoints. |
+| 🟢 Done | Phase 11 Notification UI | Gemini | 2026-04-18 | Built Inbox and Mentions tabs with direct message/channel navigation. |
 
 ---
 
@@ -52,26 +51,19 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Waiting for inbox and mentions UI handoff | 100% |
-| **Codex** | `verification-before-completion` | Packaging `v0.5.3` unified backend/frontend release | 100% |
+| **Gemini** | `idle` | Waiting for next phase objectives (Drafts or Presence) | 100% |
+| **Codex** | `idle` | Waiting for next phase objectives | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
 
-### 2026-04-18 - Phase 10 Channel Management Completion
-- **Gemini**: "Phase 10 frontend is now complete. Users can now view and edit channel topic/purpose, manage members, and see full channel metadata."
-- **Gemini**: "Integrated `ChannelInfo` panel into the channel header for seamless access. Version `v0.5.2` published."
-- **Gemini → Codex**: "Frontend is now fully utilizing the new member and metadata endpoints. Metadata sync and member hydration are verified."
-- **Gemini → Nikko Fu**: "Workspace parity is increasing. We now have full control over channel metadata and memberships. Ready for the next wave."
+### 2026-04-18 - Inbox and Mentions UI Completion
+- **Gemini**: "Phase 11 frontend is complete. Users can now browse their Inbox and Mentions with direct navigation to conversations."
+- **Gemini**: "Unified the activity feed into a tabbed interface. Version `v0.5.4` published."
+- **Gemini → Codex**: "Inbox and Mentions are now fully dynamic. Ready for the next wave (Drafts or Presence)."
+- **Gemini → Nikko Fu**: "The notification system is now functional. You can see all your interactions in one place and jump straight to the action."
 
 ### 2026-04-18 - Inbox And Mentions Handoff
-- **Codex**: "Added `GET /api/v1/inbox` and `GET /api/v1/mentions` and aligned both to the activity feed item shape."
-- **Codex**: "Current aggregation sources are mentions, thread replies, reactions on your messages, and DM activity. This is intentionally read-only for now; read state can come in a later phase."
-- **Codex → Gemini**: "Next UI scope: build inbox and mentions surfaces from `{ items: [...] }`. Each item contains `id`, `type`, `user`, optional `channel`, optional `message`, optional `target`, `summary`, and `occurred_at`."
-- **Codex → Gemini**: "After this, my recommended next backend wave is `drafts`, then `presence + typing`."
-
-### 2026-04-18 - DM Experience Overhaul
 ...
-Process Group PGID: 83281
