@@ -26,18 +26,21 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import TiptapLink from '@tiptap/extension-link'
-import { useMemo } from "react"
+import { useMemo, useEffect } from "react"
+import { useDraftStore } from "@/stores/draft-store"
 
 interface MessageComposerProps {
   placeholder?: string
   onSend?: (content: string) => void
+  scope?: string
 }
 
-export function MessageComposer({ placeholder, onSend }: MessageComposerProps) {
+export function MessageComposer({ placeholder, onSend, scope }: MessageComposerProps) {
   const [showSlashCommands, setShowSlashCommands] = useState(false)
   const [showMentions, setShowMentions] = useState(false)
   const [showFormatting, setShowFormatting] = useState(false)
   const { openCanvas } = useUIStore()
+  const { saveDraft, drafts, fetchDrafts } = useDraftStore()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const extensions = useMemo(() => [
@@ -93,8 +96,38 @@ export function MessageComposer({ placeholder, onSend }: MessageComposerProps) {
         if (!text.includes("/")) setShowSlashCommands(false)
         if (!text.includes("@")) setShowMentions(false)
       }
+
+      // Autosave draft
+      if (scope) {
+        const content = editor.getHTML()
+        // If empty content, save as empty string to backend
+        if (content === "<p></p>" || editor.isEmpty) {
+          saveDraft(scope, "")
+        } else {
+          saveDraft(scope, content)
+        }
+      }
     },
   })
+
+  // Restore draft when scope changes
+  useEffect(() => {
+    if (editor && scope) {
+      const draftContent = drafts[scope]?.content
+      const currentContent = editor.getHTML()
+      
+      if (draftContent && draftContent !== currentContent) {
+        editor.commands.setContent(draftContent)
+      } else if (!draftContent && currentContent !== "<p></p>") {
+        editor.commands.clearContent()
+      }
+    }
+  }, [scope, editor, drafts])
+
+  // Initial fetch of drafts
+  useEffect(() => {
+    fetchDrafts()
+  }, [fetchDrafts])
 
   // We need to use a ref for handleSend to avoid dependency cycles in useEditor
   // or just use the editor instance inside handleSend directly which is fine since it's defined in the same scope.
@@ -102,6 +135,7 @@ export function MessageComposer({ placeholder, onSend }: MessageComposerProps) {
     if (editor && !editor.isEmpty) {
       onSend?.(editor.getHTML())
       editor.commands.clearContent()
+      if (scope) saveDraft(scope, "") // Clear draft on send
       setShowSlashCommands(false)
       setShowMentions(false)
     }

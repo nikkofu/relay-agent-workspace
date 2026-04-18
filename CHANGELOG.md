@@ -2,7 +2,24 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
-## [0.5.5] - 2026-04-18
+## [0.5.6] - 2026-04-18
+
+This release implements the Phase 12 Drafts integration, bringing autosave persistence to all composer surfaces.
+
+### Added
+
+- **Drafts Persistence**: Integrated `GET /api/v1/drafts` and `PUT /api/v1/drafts/:scope` for reliable message autosaving.
+- **Rich Thread Replies**: Replaced the basic thread textarea with the rich `MessageComposer`, enabling bold, italic, and slash commands in threads.
+- **Unified Draft Store**: Added `draft-store.ts` to manage draft state across Channels, DMs, and Threads.
+- **Autosave & Restore**: Content is automatically saved as you type and restored when you return to a conversation.
+
+### Verification Used For This Release
+
+- `pnpm build`
+- `cd apps/web && pnpm lint`
+
+## [0.5.1] - 2026-04-18
+
 
 This release starts the next Slack-parity backend wave by adding draft persistence APIs for channel, DM, and thread composers.
 

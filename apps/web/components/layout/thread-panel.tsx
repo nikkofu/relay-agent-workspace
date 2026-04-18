@@ -9,14 +9,14 @@ import { useMessageStore } from "@/stores/message-store"
 import { useUserStore } from "@/stores/user-store"
 import { AIThreadSummary } from "@/components/ai-chat/ai-thread-summary"
 import { MessageItem } from "@/components/message/message-item"
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
+import { MessageComposer } from "@/components/message/message-composer"
 
 export function ThreadPanel() {
   const { isThreadOpen, closeThread, activeThreadId } = useUIStore()
   const { currentChannel } = useChannelStore()
   const { currentThreadMessages, fetchThread, sendMessage } = useMessageStore()
   const { currentUser, users } = useUserStore()
-  const [replyText, setReplyText] = useState("")
 
   useEffect(() => {
     if (isThreadOpen && activeThreadId) {
@@ -27,13 +27,6 @@ export function ThreadPanel() {
   if (!isThreadOpen) return null
 
   const Icon = currentChannel?.type === "private" ? Lock : Hash
-
-  const handleReply = async () => {
-    if (replyText.trim() && activeThreadId && currentChannel && currentUser) {
-      await sendMessage(currentChannel.id, replyText, currentUser.id, activeThreadId)
-      setReplyText("")
-    }
-  }
 
   const parentMessage = currentThreadMessages[0]
   const replies = currentThreadMessages.slice(1)
@@ -98,31 +91,16 @@ export function ThreadPanel() {
         </div>
       </ScrollArea>
 
-      <div className="p-4 border-t bg-white dark:bg-[#1a1d21]">
-        <div className="border rounded-lg p-2 focus-within:ring-1 focus-within:ring-ring transition-all bg-muted/20">
-          <textarea 
-            placeholder="Reply..." 
-            value={replyText}
-            onChange={(e) => setReplyText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault()
-                handleReply()
-              }
-            }}
-            className="w-full resize-none bg-transparent border-none focus:ring-0 text-sm h-20 outline-none placeholder:text-muted-foreground/50"
-          />
-          <div className="flex justify-end mt-1">
-            <Button 
-              size="sm" 
-              className="h-7 text-[11px] bg-[#007a5a] hover:bg-[#007a5a]/90"
-              onClick={handleReply}
-              disabled={!replyText.trim()}
-            >
-              Reply
-            </Button>
-          </div>
-        </div>
+      <div className="border-t bg-white dark:bg-[#1a1d21]">
+        <MessageComposer 
+          placeholder="Reply..."
+          scope={`thread:${activeThreadId}`}
+          onSend={async (content) => {
+            if (activeThreadId && currentChannel && currentUser) {
+              await sendMessage(currentChannel.id, content, currentUser.id, activeThreadId)
+            }
+          }}
+        />
       </div>
     </div>
   )

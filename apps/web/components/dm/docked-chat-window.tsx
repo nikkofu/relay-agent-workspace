@@ -95,6 +95,7 @@ export function DockedChatWindow({ userId, index }: DockedChatWindowProps) {
           <div className="border-t">
             <MessageComposer 
               placeholder="Message..." 
+              scope={`dm:${conversation?.id}`}
               onSend={(content) => {
                 if (conversation && currentUser) {
                   sendDMMessage(conversation.id, content, currentUser.id)

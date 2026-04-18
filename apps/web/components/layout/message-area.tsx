@@ -83,6 +83,7 @@ export function MessageArea({ children }: { children?: React.ReactNode }) {
       {/* Message Composer */}
       <MessageComposer 
         placeholder={`Message #${currentChannel.name}`} 
+        scope={`channel:${currentChannel.id}`}
         onSend={(content) => {
           if (currentChannel) {
             sendMessage(currentChannel.id, content, "user-1")

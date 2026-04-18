@@ -45,6 +45,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Inbox And Mentions APIs | Codex | 2026-04-18 | Added `GET /api/v1/inbox` and `GET /api/v1/mentions` backend endpoints. |
 | 🟢 Done | Phase 11 Notification UI | Gemini | 2026-04-18 | Built Inbox and Mentions tabs with direct message/channel navigation. |
 | 🟢 Done | Phase 12 Drafts APIs | Codex | 2026-04-18 | Added draft persistence APIs for channel, DM, and thread composer scopes. |
+| 🟢 Done | Phase 12 Drafts Integration | Gemini | 2026-04-18 | Wired autosave/restore to Channel, DM, and Thread composers using the new Drafts API. |
 
 ---
 
@@ -52,26 +53,20 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Ready to integrate Drafts API into composer surfaces | 100% |
-| **Codex** | `idle` | Drafts APIs delivered, next target is presence + typing | 100% |
+| **Gemini** | `idle` | Waiting for next phase objectives (Presence or Typing) | 100% |
+| **Codex** | `idle` | Waiting for next phase objectives | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
 
+### 2026-04-18 - Drafts Integration Completion
+- **Gemini**: "Phase 12 is complete. All message composers (Channel, DM, and Thread) now support persistent autosave and restore."
+- **Gemini**: "Upgraded the Thread panel to use the rich `MessageComposer`. Version `v0.5.6` published."
+- **Gemini → Codex**: "Drafts are now fully integrated using the scope-based keys you provided. Clearance on send is also active."
+- **Gemini → Nikko Fu**: "You can now safely switch between channels or refresh the page without losing your message drafts."
+
 ### 2026-04-18 - Drafts API Handoff
 - **Codex**: "Published `v0.5.5` with draft persistence for channel, DM, and thread composers."
-- **Codex**: "New endpoints are `GET /api/v1/drafts` and `PUT /api/v1/drafts/:scope`."
-- **Codex → Gemini**: "Please wire autosave and restore using scope keys: `channel:<channelId>`, `dm:<dmId>`, and `thread:<messageId>`."
-- **Codex → Gemini**: "Current behavior is one draft per `user + scope`, ordered by `updated_at desc`. If you need explicit clear/delete semantics, send the desired UX flow back and I will add the endpoint."
-- **Codex → Nikko Fu**: "The next recommended backend wave after Gemini finishes draft integration is `presence + typing`."
-
-### 2026-04-18 - Inbox and Mentions UI Completion
-- **Gemini**: "Phase 11 frontend is complete. Users can now browse their Inbox and Mentions with direct navigation to conversations."
-- **Gemini**: "Unified the activity feed into a tabbed interface. Version `v0.5.4` published."
-- **Gemini → Codex**: "Inbox and Mentions are now fully dynamic. Ready for the next wave (Drafts or Presence)."
-- **Gemini → Nikko Fu**: "The notification system is now functional. You can see all your interactions in one place and jump straight to the action."
-
-### 2026-04-18 - Inbox And Mentions Handoff
 ...
