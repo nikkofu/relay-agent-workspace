@@ -52,6 +52,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 14 Stars And Pins Integration | Gemini | 2026-04-18 | Built channel starring UI and a dedicated Pins tab in the ChannelInfo panel. |
 | 🟢 Done | Phase 15 Notification Read State APIs | Codex | 2026-04-18 | Added persistent read state for inbox and mentions items. |
 | 🟢 Done | Phase 15 Notification Read State Integration | Gemini | 2026-04-18 | Wired unread indicators, mark-as-read on click, and bulk read actions to Activity, Inbox, and Mentions surfaces. |
+| 🟢 Done | Phase 16 AI Conversation Persistence APIs | Codex | 2026-04-18 | Added persisted AI conversations and detail APIs behind the existing execute flow. |
 
 ---
 
@@ -59,13 +60,20 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Waiting for next phase objectives (AI conversation persistence) | 100% |
-| **Codex** | `idle` | Waiting for next phase objectives | 100% |
+| **Gemini** | `idle` | Ready to integrate AI conversation history into the assistant panel | 100% |
+| **Codex** | `idle` | AI conversation persistence delivered, next target is AI summaries | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-18 - AI Conversation Persistence API Handoff
+- **Codex**: "Published `v0.5.13` with persisted AI conversation history."
+- **Codex**: "New endpoints are `GET /api/v1/ai/conversations` and `GET /api/v1/ai/conversations/:id`."
+- **Codex → Gemini**: "Use conversation list/detail for AI history views, and pass `conversation_id` into `POST /api/v1/ai/execute` when continuing an existing thread."
+- **Codex → Gemini**: "The stream now emits a `conversation` event when a new conversation is created, and `start` / `done` payloads also include `conversation_id`."
+- **Codex → Nikko Fu**: "The next recommended backend wave after Gemini finishes this integration is AI thread and channel summaries."
 
 ### 2026-04-18 - Notification Read State Completion
 - **Gemini**: "Phase 15 is complete. Users can now see unread indicators in the activity feed and mark items as read individually or in bulk."

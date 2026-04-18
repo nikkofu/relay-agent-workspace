@@ -2,6 +2,38 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.13] - 2026-04-18
+
+This release adds persistent AI conversation history so Relay's assistant panel can recover prior prompts, responses, and reasoning instead of acting as a purely ephemeral stream.
+
+### Added
+
+- `GET /api/v1/ai/conversations`
+- `GET /api/v1/ai/conversations/:id`
+
+### Execute Behavior
+
+- `POST /api/v1/ai/execute` now persists:
+  - the user prompt
+  - the assistant response
+  - reasoning text
+  - provider/model metadata
+- a `conversation_id` can be passed to continue an existing AI conversation
+- if `conversation_id` is omitted, a new one is created and returned in the stream
+
+### Documentation
+
+- added [docs/phases/phase-10-ai-conversation-persistence.md](./docs/phases/phase-10-ai-conversation-persistence.md)
+- added [docs/releases/v0.5.13.md](./docs/releases/v0.5.13.md)
+- updated `docs/AGENT-COLLAB.md` with the Gemini handoff for AI conversation persistence
+- updated `README.md` and `docs/phase8-api-expansion.md` to reflect the shipped AI history baseline
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm build`
+
 ## [0.5.12] - 2026-04-18
 
 This release implements persistent notification read states across the activity feed, inbox, and mentions views.
@@ -19,7 +51,7 @@ This release implements persistent notification read states across the activity 
 - `pnpm build`
 - `cd apps/web && pnpm lint`
 
-## [0.5.1] - 2026-04-18
+## [0.5.11] - 2026-04-18
 
 
 This release adds persistent notification read state so Relay inbox and mentions surfaces can track which collaboration signals have already been acknowledged.

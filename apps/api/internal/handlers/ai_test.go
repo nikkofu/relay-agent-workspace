@@ -7,9 +7,12 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/nikkofu/relay-agent-workspace/api/internal/db"
+	"github.com/nikkofu/relay-agent-workspace/api/internal/domain"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/llm"
 )
 
@@ -33,8 +36,10 @@ func (stubGateway) Stream(_ context.Context, _ llm.Request) (*llm.StreamSession,
 }
 
 func TestExecuteAIStreamsSSE(t *testing.T) {
+	setupTestDB(t)
 	gin.SetMode(gin.TestMode)
 	AIGateway = stubGateway{}
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
 
 	router := gin.New()
 	router.POST("/api/v1/ai/execute", ExecuteAI)
@@ -62,6 +67,96 @@ func TestExecuteAIStreamsSSE(t *testing.T) {
 	}
 	if !strings.Contains(body, "event: done") {
 		t.Fatalf("expected done event, got %s", body)
+	}
+
+	var conversations []domain.AIConversation
+	if err := db.DB.Find(&conversations).Error; err != nil {
+		t.Fatalf("failed to load conversations: %v", err)
+	}
+	if len(conversations) != 1 {
+		t.Fatalf("expected 1 ai conversation, got %d", len(conversations))
+	}
+
+	var messages []domain.AIConversationMessage
+	if err := db.DB.Where("conversation_id = ?", conversations[0].ID).Order("created_at asc").Find(&messages).Error; err != nil {
+		t.Fatalf("failed to load ai conversation messages: %v", err)
+	}
+	if len(messages) != 2 {
+		t.Fatalf("expected 2 persisted ai messages, got %d", len(messages))
+	}
+	if messages[0].Role != "user" || messages[1].Role != "assistant" {
+		t.Fatalf("unexpected ai message roles: %#v", messages)
+	}
+	if messages[1].Reasoning == "" {
+		t.Fatalf("expected assistant reasoning to be persisted: %#v", messages[1])
+	}
+}
+
+func TestGetAIConversationsAndDetail(t *testing.T) {
+	setupTestDB(t)
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.AIConversation{
+		ID:        "ai-conv-1",
+		UserID:    "user-1",
+		ChannelID: "ai-chat",
+		Provider:  "gemini",
+		Model:     "gemini-2.5-flash",
+		CreatedAt: mustParseAITestTime(t, "2026-04-18T12:00:00Z"),
+		UpdatedAt: mustParseAITestTime(t, "2026-04-18T12:01:00Z"),
+	})
+	db.DB.Create(&domain.AIConversationMessage{
+		ID:             "ai-msg-1",
+		ConversationID: "ai-conv-1",
+		Role:           "user",
+		Content:        "Summarize this channel",
+		CreatedAt:      mustParseAITestTime(t, "2026-04-18T12:00:00Z"),
+	})
+	db.DB.Create(&domain.AIConversationMessage{
+		ID:             "ai-msg-2",
+		ConversationID: "ai-conv-1",
+		Role:           "assistant",
+		Content:        "Here is the summary.",
+		Reasoning:      "Considering recent messages...",
+		CreatedAt:      mustParseAITestTime(t, "2026-04-18T12:01:00Z"),
+	})
+
+	router := gin.New()
+	router.GET("/api/v1/ai/conversations", GetAIConversations)
+	router.GET("/api/v1/ai/conversations/:id", GetAIConversation)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/ai/conversations", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on ai conversations list, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var listPayload struct {
+		Conversations []domain.AIConversation `json:"conversations"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &listPayload); err != nil {
+		t.Fatalf("failed to decode ai conversations list: %v", err)
+	}
+	if len(listPayload.Conversations) != 1 || listPayload.Conversations[0].ID != "ai-conv-1" {
+		t.Fatalf("unexpected ai conversation list payload: %#v", listPayload.Conversations)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/ai/conversations/ai-conv-1", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on ai conversation detail, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var detailPayload struct {
+		Conversation domain.AIConversation        `json:"conversation"`
+		Messages     []domain.AIConversationMessage `json:"messages"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &detailPayload); err != nil {
+		t.Fatalf("failed to decode ai conversation detail: %v", err)
+	}
+	if detailPayload.Conversation.ID != "ai-conv-1" || len(detailPayload.Messages) != 2 {
+		t.Fatalf("unexpected ai conversation detail payload: %#v", detailPayload)
 	}
 }
 
@@ -115,4 +210,13 @@ func TestGetAIConfigReturnsEnabledProvidersAndModels(t *testing.T) {
 	if len(payload.Providers) != 2 {
 		t.Fatalf("expected 2 enabled providers, got %d", len(payload.Providers))
 	}
+}
+
+func mustParseAITestTime(t *testing.T, raw string) time.Time {
+	t.Helper()
+	parsed, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		t.Fatalf("failed to parse test time %q: %v", raw, err)
+	}
+	return parsed
 }

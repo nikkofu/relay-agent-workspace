@@ -3,10 +3,11 @@ package llm
 import "context"
 
 type Request struct {
-	Prompt    string `json:"prompt"`
-	ChannelID string `json:"channel_id"`
-	Provider  string `json:"provider,omitempty"`
-	Model     string `json:"model,omitempty"`
+	Prompt         string `json:"prompt"`
+	ChannelID      string `json:"channel_id"`
+	ConversationID string `json:"conversation_id,omitempty"`
+	Provider       string `json:"provider,omitempty"`
+	Model          string `json:"model,omitempty"`
 }
 
 type StreamEvent struct {

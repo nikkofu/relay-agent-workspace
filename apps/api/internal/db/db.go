@@ -42,6 +42,8 @@ func InitDB() error {
 		&domain.UnreadMarker{},
 		&domain.NotificationRead{},
 		&domain.AIFeedback{},
+		&domain.AIConversation{},
+		&domain.AIConversationMessage{},
 		&domain.DMMessage{},
 	)
 }

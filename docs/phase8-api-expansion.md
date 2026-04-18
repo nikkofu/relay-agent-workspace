@@ -103,6 +103,8 @@ Current backend surface already available:
 - `POST /api/v1/messages/:id/later`
 - `POST /api/v1/messages/:id/unread`
 - `GET /api/v1/ai/config`
+- `GET /api/v1/ai/conversations`
+- `GET /api/v1/ai/conversations/:id`
 - `POST /api/v1/ai/execute`
 - `POST /api/v1/ai/feedback`
 - `GET /api/v1/realtime`
@@ -128,19 +130,18 @@ Likely follow-ups:
 
 ### 4.2 AI Conversation State
 
-The current AI path is execution-oriented and streaming-first. To support richer AI collaboration, we still need:
-
-- AI conversation persistence
-- channel or thread scoped AI history
-- summaries and artifact outputs
-
-Recommended additions:
+Baseline support now exists for:
 
 - `GET /api/v1/ai/conversations`
 - `GET /api/v1/ai/conversations/:id`
-- `POST /api/v1/ai/threads/:id/summary`
-- `POST /api/v1/ai/channels/:id/summary`
-- `POST /api/v1/ai/commands/execute`
+- persisted AI history behind `POST /api/v1/ai/execute`
+
+Likely follow-ups:
+
+- channel or thread scoped AI summaries
+- explicit AI thread and channel summary endpoints
+- command execution and tool orchestration history
+- artifact outputs linked to AI conversations
 
 ### 4.3 Canvas / Artifact Lifecycle
 

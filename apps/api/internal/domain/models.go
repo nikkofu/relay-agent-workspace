@@ -151,3 +151,22 @@ type NotificationRead struct {
 	ReadAt    time.Time `json:"read_at"`
 	CreatedAt time.Time `json:"created_at"`
 }
+
+type AIConversation struct {
+	ID        string    `gorm:"primaryKey" json:"id"`
+	UserID    string    `gorm:"index" json:"user_id"`
+	ChannelID string    `gorm:"index" json:"channel_id"`
+	Provider  string    `json:"provider"`
+	Model     string    `json:"model"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type AIConversationMessage struct {
+	ID             string    `gorm:"primaryKey" json:"id"`
+	ConversationID string    `gorm:"index" json:"conversation_id"`
+	Role           string    `json:"role"`
+	Content        string    `json:"content"`
+	Reasoning      string    `json:"reasoning,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+}

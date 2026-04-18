@@ -112,6 +112,8 @@ func main() {
 		v1.POST("/messages/:id/unread", handlers.MarkMessageUnread)
 		v1.GET("/realtime", handlers.HandleRealtime)
 		v1.GET("/ai/config", handlers.GetAIConfig)
+		v1.GET("/ai/conversations", handlers.GetAIConversations)
+		v1.GET("/ai/conversations/:id", handlers.GetAIConversation)
 		v1.POST("/ai/execute", handlers.ExecuteAI)
 		v1.POST("/ai/feedback", handlers.SubmitAIFeedback)
 	}

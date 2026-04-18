@@ -46,6 +46,45 @@ func GetAIConfig(c *gin.Context) {
 	})
 }
 
+func GetAIConversations(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var conversations []domain.AIConversation
+	if err := db.DB.Where("user_id = ?", currentUser.ID).Order("updated_at desc").Find(&conversations).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load ai conversations"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"conversations": conversations})
+}
+
+func GetAIConversation(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	conversationID := c.Param("id")
+	var conversation domain.AIConversation
+	if err := db.DB.Where("id = ? AND user_id = ?", conversationID, currentUser.ID).First(&conversation).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "ai conversation not found"})
+		return
+	}
+
+	var messages []domain.AIConversationMessage
+	if err := db.DB.Where("conversation_id = ?", conversationID).Order("created_at asc").Find(&messages).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load ai conversation messages"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"conversation": conversation, "messages": messages})
+}
+
 func ExecuteAI(c *gin.Context) {
 	if AIGateway == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ai gateway is not configured"})
@@ -59,6 +98,12 @@ func ExecuteAI(c *gin.Context) {
 	}
 	if input.Prompt == "" || input.ChannelID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "prompt and channel_id are required"})
+		return
+	}
+
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
 	}
 
@@ -79,22 +124,45 @@ func ExecuteAI(c *gin.Context) {
 		return
 	}
 
+	fullContent := ""
+	reasoningContent := ""
+	conversationID := input.ConversationID
+	if conversationID == "" {
+		conversationID = "ai-conv-" + time.Now().Format("20060102150405.000000")
+	}
+
 	writeSSE(writer, "start", map[string]any{
-		"provider": session.Provider,
-		"model":    session.Model,
+		"provider":        session.Provider,
+		"model":           session.Model,
+		"conversation_id": conversationID,
 	})
 	flusher.Flush()
+	if input.ConversationID == "" {
+		writeSSE(writer, "conversation", map[string]any{"conversation_id": conversationID})
+		flusher.Flush()
+	}
 
 	for {
 		select {
 		case event, ok := <-session.Events:
 			if !ok {
+				if err := persistAIConversation(currentUser, input, session, conversationID, fullContent, reasoningContent); err != nil {
+					writeSSE(writer, "error", map[string]any{"message": "failed to persist ai conversation"})
+					flusher.Flush()
+					return
+				}
 				writeSSE(writer, "done", map[string]any{
-					"provider": session.Provider,
-					"model":    session.Model,
+					"provider":        session.Provider,
+					"model":           session.Model,
+					"conversation_id": conversationID,
 				})
 				flusher.Flush()
 				return
+			}
+			if event.Type == "chunk" {
+				fullContent += event.Text
+			} else if event.Type == "reasoning" {
+				reasoningContent += event.Text
 			}
 			writeSSE(writer, event.Type, map[string]any{"text": event.Text})
 			flusher.Flush()
@@ -112,6 +180,54 @@ func ExecuteAI(c *gin.Context) {
 			return
 		}
 	}
+}
+
+func persistAIConversation(user domain.User, input llm.Request, session *llm.StreamSession, conversationID, assistantContent, reasoning string) error {
+	now := time.Now().UTC()
+	conversation := domain.AIConversation{
+		ID:        conversationID,
+		UserID:    user.ID,
+		ChannelID: input.ChannelID,
+		Provider:  session.Provider,
+		Model:     session.Model,
+		UpdatedAt: now,
+	}
+	if err := db.DB.Where("id = ?", conversationID).
+		Assign(domain.AIConversation{
+			UserID:    user.ID,
+			ChannelID: input.ChannelID,
+			Provider:  session.Provider,
+			Model:     session.Model,
+			UpdatedAt: now,
+		}).
+		FirstOrCreate(&conversation).Error; err != nil {
+		return err
+	}
+
+	userMessage := domain.AIConversationMessage{
+		ID:             "ai-msg-" + time.Now().Format("20060102150405.000001"),
+		ConversationID: conversationID,
+		Role:           "user",
+		Content:        input.Prompt,
+		CreatedAt:      now,
+	}
+	if err := db.DB.Create(&userMessage).Error; err != nil {
+		return err
+	}
+
+	assistantMessage := domain.AIConversationMessage{
+		ID:             "ai-msg-" + time.Now().Format("20060102150405.000002"),
+		ConversationID: conversationID,
+		Role:           "assistant",
+		Content:        assistantContent,
+		Reasoning:      reasoning,
+		CreatedAt:      now,
+	}
+	if err := db.DB.Create(&assistantMessage).Error; err != nil {
+		return err
+	}
+
+	return db.DB.Model(&domain.AIConversation{}).Where("id = ?", conversationID).Update("updated_at", now).Error
 }
 
 func SubmitAIFeedback(c *gin.Context) {
