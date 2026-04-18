@@ -83,6 +83,7 @@ Current backend surface already available:
 - `GET /api/v1/activity`
 - `GET /api/v1/inbox`
 - `GET /api/v1/mentions`
+- `POST /api/v1/notifications/read`
 - `GET /api/v1/later`
 - `GET /api/v1/presence`
 - `POST /api/v1/presence`
@@ -188,8 +189,14 @@ Recommended additions:
     - pinned filters by channel or user
     - star sorting and manual ordering
 - notification and inbox surfaces:
-  - `GET /api/v1/inbox`
-  - `GET /api/v1/mentions`
+  - shipped baseline:
+    - `GET /api/v1/inbox`
+    - `GET /api/v1/mentions`
+    - `POST /api/v1/notifications/read`
+  - likely follow-up:
+    - notification preferences
+    - mute rules
+    - read-state websocket sync
 - drafts:
   - shipped baseline:
     - `GET /api/v1/drafts`

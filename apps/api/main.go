@@ -92,6 +92,7 @@ func main() {
 		v1.GET("/activity", handlers.GetActivity)
 		v1.GET("/inbox", handlers.GetInbox)
 		v1.GET("/mentions", handlers.GetMentions)
+		v1.POST("/notifications/read", handlers.MarkNotificationsRead)
 		v1.GET("/later", handlers.GetLater)
 		v1.GET("/starred", handlers.GetStarredChannels)
 		v1.GET("/pins", handlers.GetPins)

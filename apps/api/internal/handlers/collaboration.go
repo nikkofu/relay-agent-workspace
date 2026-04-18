@@ -201,6 +201,7 @@ type activityItem struct {
 	Target     string      `json:"target,omitempty"`
 	Summary    string      `json:"summary"`
 	OccurredAt time.Time   `json:"occurred_at"`
+	IsRead     bool        `json:"is_read"`
 }
 
 func buildActivityFeed(currentUser domain.User) []activityItem {
@@ -312,6 +313,27 @@ func buildActivityFeed(currentUser domain.User) []activityItem {
 
 	if len(activities) > 50 {
 		activities = activities[:50]
+	}
+
+	if len(activities) == 0 {
+		return activities
+	}
+
+	itemIDs := make([]string, 0, len(activities))
+	for _, item := range activities {
+		itemIDs = append(itemIDs, item.ID)
+	}
+
+	var reads []domain.NotificationRead
+	db.DB.Where("user_id = ? AND item_id IN ?", currentUser.ID, itemIDs).Find(&reads)
+	readSet := make(map[string]struct{}, len(reads))
+	for _, read := range reads {
+		readSet[read.ItemID] = struct{}{}
+	}
+
+	for idx := range activities {
+		_, ok := readSet[activities[idx].ID]
+		activities[idx].IsRead = ok
 	}
 
 	return activities
@@ -882,6 +904,42 @@ func GetMentions(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"items": items})
+}
+
+func MarkNotificationsRead(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var input struct {
+		ItemIDs []string `json:"item_ids" binding:"required,min=1"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	now := time.Now().UTC()
+	for _, itemID := range input.ItemIDs {
+		if itemID == "" {
+			continue
+		}
+		read := domain.NotificationRead{
+			UserID: currentUser.ID,
+			ItemID: itemID,
+			ReadAt: now,
+		}
+		if err := db.DB.Where("user_id = ? AND item_id = ?", currentUser.ID, itemID).
+			Assign(domain.NotificationRead{ReadAt: now}).
+			FirstOrCreate(&read).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to persist notification read state"})
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"read": true, "item_ids": input.ItemIDs})
 }
 
 func GetLater(c *gin.Context) {

@@ -50,6 +50,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 13 Presence And Typing Integration | Gemini | 2026-04-18 | Integrated live status indicators and real-time typing feedback across the workspace UI. |
 | 🟢 Done | Phase 14 Stars And Pins APIs | Codex | 2026-04-18 | Added starred channel and pinned message discovery APIs. |
 | 🟢 Done | Phase 14 Stars And Pins Integration | Gemini | 2026-04-18 | Built channel starring UI and a dedicated Pins tab in the ChannelInfo panel. |
+| 🟢 Done | Phase 15 Notification Read State APIs | Codex | 2026-04-18 | Added persistent read state for inbox and mentions items. |
 
 ---
 
@@ -57,13 +58,20 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Waiting for next phase handoff (e.g. notification read state) | 100% |
-| **Codex** | `idle` | Waiting for next phase handoff | 100% |
+| **Gemini** | `idle` | Ready to integrate notification read state into inbox and mentions | 100% |
+| **Codex** | `idle` | Notification read state delivered, next target is AI conversation persistence | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-18 - Notification Read State API Handoff
+- **Codex**: "Published `v0.5.11` with persistent notification read state."
+- **Codex**: "New endpoint is `POST /api/v1/notifications/read`. Inbox and mentions items now include `is_read`."
+- **Codex → Gemini**: "Render unread/read treatment from `is_read`, and call `POST /api/v1/notifications/read` with `{ item_ids: [...] }` for clicked or bulk-selected items."
+- **Codex → Gemini**: "If you want a 'mark all as read' UX, just send the visible item ids in one batch. If you need a dedicated backend shortcut later, I can add it."
+- **Codex → Nikko Fu**: "The next recommended backend wave after Gemini finishes this integration is AI conversation persistence."
 
 ### 2026-04-18 - Stars and Pins Integration Completion
 - **Gemini**: "Phase 14 frontend is complete. Users can now star channels and browse/manage pinned messages via the ChannelInfo panel."

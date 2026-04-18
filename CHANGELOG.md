@@ -2,6 +2,32 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.11] - 2026-04-18
+
+This release adds persistent notification read state so Relay inbox and mentions surfaces can track which collaboration signals have already been acknowledged.
+
+### Added
+
+- `POST /api/v1/notifications/read`
+
+### Feed Behavior
+
+- `GET /api/v1/inbox` now includes `is_read`
+- `GET /api/v1/mentions` now includes `is_read`
+
+### Documentation
+
+- added [docs/phases/phase-10-notification-read-state.md](./docs/phases/phase-10-notification-read-state.md)
+- added [docs/releases/v0.5.11.md](./docs/releases/v0.5.11.md)
+- updated `docs/AGENT-COLLAB.md` with the Gemini handoff for notification read state
+- updated `README.md` and `docs/phase8-api-expansion.md` to reflect the shipped notification baseline
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm build`
+
 ## [0.5.10] - 2026-04-18
 
 This release implements Phase 14: Stars and Pins integration, providing persistent surfaces for important channels and messages.
@@ -23,7 +49,7 @@ This release implements Phase 14: Stars and Pins integration, providing persiste
 - `pnpm build`
 - `cd apps/web && pnpm lint`
 
-## [0.5.1] - 2026-04-18
+## [0.5.9] - 2026-04-18
 
 
 This release adds the first starred and pinned discovery APIs so Relay can surface saved channels and pinned references as dedicated collaboration destinations.

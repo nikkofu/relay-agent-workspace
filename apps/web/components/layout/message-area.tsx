@@ -9,6 +9,7 @@ import { useEffect, useRef } from "react"
 import { AgentCollabDashboard } from "./agent-collab-dashboard"
 import { ChannelInfo } from "@/components/channel/channel-info"
 import { TypingIndicator } from "@/components/message/typing-indicator"
+import { cn } from "@/lib/utils"
 
 export function MessageArea({ children }: { children?: React.ReactNode }) {
   const { currentChannel, toggleStar } = useChannelStore()

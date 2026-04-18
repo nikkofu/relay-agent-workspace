@@ -993,6 +993,84 @@ func TestGetPinsReturnsPinnedMessagesWithChannelAndUser(t *testing.T) {
 	}
 }
 
+func TestInboxIncludesReadStateAndNotificationsCanBeMarkedRead(t *testing.T) {
+	setupTestDB(t)
+
+	now := time.Now().UTC()
+	users := []domain.User{
+		{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"},
+		{ID: "user-2", Name: "AI Assistant", Email: "ai@example.com"},
+	}
+	for _, user := range users {
+		db.DB.Create(&user)
+	}
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public"})
+	db.DB.Create(&domain.Message{
+		ID:        "msg-mention",
+		ChannelID: "ch-1",
+		UserID:    "user-2",
+		Content:   "Looping in Nikko Fu for review",
+		CreatedAt: now,
+		Metadata:  "{}",
+	})
+
+	router := gin.New()
+	router.GET("/api/v1/inbox", GetInbox)
+	router.POST("/api/v1/notifications/read", MarkNotificationsRead)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/inbox", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on inbox, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var inboxPayload struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &inboxPayload); err != nil {
+		t.Fatalf("failed to decode inbox payload: %v", err)
+	}
+	if len(inboxPayload.Items) != 1 {
+		t.Fatalf("expected 1 inbox item, got %d", len(inboxPayload.Items))
+	}
+	if inboxPayload.Items[0]["is_read"] != false {
+		t.Fatalf("expected unread inbox item, got %#v", inboxPayload.Items[0])
+	}
+
+	itemID, ok := inboxPayload.Items[0]["id"].(string)
+	if !ok || itemID == "" {
+		t.Fatalf("expected inbox item id, got %#v", inboxPayload.Items[0]["id"])
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/notifications/read", bytes.NewBufferString(`{"item_ids":["`+itemID+`"]}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on mark read, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var reads int64
+	db.DB.Model(&domain.NotificationRead{}).Where("user_id = ? AND item_id = ?", "user-1", itemID).Count(&reads)
+	if reads != 1 {
+		t.Fatalf("expected notification read row, got %d", reads)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/inbox", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on inbox refetch, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &inboxPayload); err != nil {
+		t.Fatalf("failed to decode inbox payload after mark read: %v", err)
+	}
+	if inboxPayload.Items[0]["is_read"] != true {
+		t.Fatalf("expected read inbox item after mark read, got %#v", inboxPayload.Items[0])
+	}
+}
+
 func TestSearchReturnsChannelUserMessageAndDMHits(t *testing.T) {
 	setupTestDB(t)
 
@@ -1276,7 +1354,7 @@ func setupTestDB(t *testing.T) {
 	if err := db.DB.AutoMigrate(&domain.Organization{}, &domain.Team{}, &domain.User{}, &domain.Agent{}, &domain.Workspace{}, &domain.WorkspaceInvite{}, &domain.Channel{}, &domain.ChannelMember{}, &domain.Message{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
-	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.AIFeedback{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}); err != nil {
+	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.AIFeedback{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 }

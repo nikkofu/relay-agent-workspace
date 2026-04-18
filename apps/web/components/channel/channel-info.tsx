@@ -2,8 +2,7 @@
 
 import { useState } from "react"
 import { 
-  Users, Info, Bell, Star, Hash, Lock, 
-  ChevronRight, Plus, X, Pencil, Trash2, Pin 
+  Bell, Hash, Lock, ChevronRight, Plus, X, Trash2, Pin 
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -11,7 +10,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
 Sheet,
 SheetContent,
-SheetDescription,
 SheetHeader,
 SheetTitle,
 SheetTrigger,
@@ -23,7 +21,6 @@ import { useChannelStore } from "@/stores/channel-store"
 import { useUserStore } from "@/stores/user-store"
 import { useMessageStore } from "@/stores/message-store"
 import { UserAvatar } from "@/components/common/user-avatar"
-import { cn } from "@/lib/utils"
 import { formatDistanceToNow } from "date-fns"
 
 export function ChannelInfo({ trigger }: { trigger: React.ReactNode }) {

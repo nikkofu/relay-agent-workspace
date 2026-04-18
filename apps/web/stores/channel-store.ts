@@ -11,6 +11,8 @@ interface ChannelState {
   fetchChannels: (workspaceId: string) => Promise<void>
   addChannel: (channel: Channel) => void
   setCurrentChannelById: (id: string) => void
+  toggleStar: (id: string) => Promise<void>
+  fetchStarredChannels: () => Promise<void>
   updateChannel: (id: string, updates: Partial<Channel>) => Promise<void>
   fetchMembers: (id: string) => Promise<void>
   addMember: (channelId: string, userId: string) => Promise<void>

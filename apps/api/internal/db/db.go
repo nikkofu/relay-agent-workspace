@@ -40,6 +40,7 @@ func InitDB() error {
 		&domain.SavedMessage{},
 		&domain.Draft{},
 		&domain.UnreadMarker{},
+		&domain.NotificationRead{},
 		&domain.AIFeedback{},
 		&domain.DMMessage{},
 	)

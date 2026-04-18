@@ -143,3 +143,11 @@ type DMMessage struct {
 	Content          string    `json:"content"`
 	CreatedAt        time.Time `json:"created_at"`
 }
+
+type NotificationRead struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	UserID    string    `gorm:"index;uniqueIndex:idx_notification_user_item" json:"user_id"`
+	ItemID    string    `gorm:"uniqueIndex:idx_notification_user_item" json:"item_id"`
+	ReadAt    time.Time `json:"read_at"`
+	CreatedAt time.Time `json:"created_at"`
+}
