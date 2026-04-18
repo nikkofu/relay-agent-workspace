@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.4.1` is the current release line and includes:
+`v0.5.0` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -57,10 +57,14 @@ For product, design, and marketing, the short version is:
   - creating/opening a DM
   - loading DM history
   - sending DM messages
+- DM response parity for docked chat UX:
+  - `user_ids` on conversation payloads
+  - DM realtime sync through websocket `message.created`
 - DM realtime sync for `message.created` payloads that include `dm_id`
 - Activity API for mentions, reactions, thread replies, and DM signals
 - Later API for saved message retrieval
 - Workspace search API across channels, users, messages, and DM conversations
+- Docked DM chat windows in the workspace shell
 
 See [CHANGELOG.md](./CHANGELOG.md) for shipped API details, and [docs/phase8-api-expansion.md](./docs/phase8-api-expansion.md) for the broader backend target.
 
@@ -106,6 +110,7 @@ llm.secrets.local.yaml
 ## Roadmap
 
 - Expand realtime into presence, typing, thread deltas, and agent execution events
+- Add Slack parity APIs for members, invites, drafts, inbox, mentions, and channel metadata
 - Evolve the LLM gateway into tool-calling and agent-runtime orchestration
 - Add database-backed search, artifact lifecycle APIs, and execution history
 - Strengthen product packaging across onboarding, docs, and public-facing positioning

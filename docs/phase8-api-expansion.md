@@ -139,6 +139,36 @@ If message attachments and artifact references are to become real:
 - `POST /api/v1/files/upload`
 - `GET /api/v1/files/:id`
 
+### 4.5 Slack Parity Layer
+
+The current workspace is already functionally dynamic, but there is still a layer of classic Slack-style collaboration APIs that should be planned explicitly instead of being discovered ad hoc.
+
+Recommended additions:
+
+- channel membership and directory:
+  - `GET /api/v1/channels/:id/members`
+  - `POST /api/v1/channels/:id/members`
+  - `DELETE /api/v1/channels/:id/members/:userId`
+- channel metadata and admin actions:
+  - `PATCH /api/v1/channels/:id`
+  - fields such as:
+    - `topic`
+    - `purpose`
+    - `is_archived`
+- invitations:
+  - `POST /api/v1/workspaces/:id/invites`
+  - `GET /api/v1/workspaces/:id/invites`
+- sidebar and discovery surfaces:
+  - `GET /api/v1/starred`
+  - `POST /api/v1/channels/:id/star`
+  - `GET /api/v1/pins`
+- notification and inbox surfaces:
+  - `GET /api/v1/inbox`
+  - `GET /api/v1/mentions`
+- drafts:
+  - `GET /api/v1/drafts`
+  - `PUT /api/v1/drafts/:scope`
+
 ## 5. Realtime Target State
 
 Current websocket support is enough for message creation and interaction sync.  
@@ -164,10 +194,16 @@ The broader target should cover:
 Recommended sequence from here:
 
 1. Expand realtime into presence, typing, and richer thread updates.
-2. Persist AI conversation state and summaries.
-3. Introduce artifact and file lifecycle APIs.
-4. Add richer search layers such as suggestions and semantic retrieval.
-5. Move toward explicit agent runtime APIs once the collaboration foundation is stable.
+2. Add the Slack parity layer:
+   - members
+   - invites
+   - channel metadata
+   - inbox and mentions
+   - drafts and stars
+3. Persist AI conversation state and summaries.
+4. Introduce artifact and file lifecycle APIs.
+5. Add richer search layers such as suggestions and semantic retrieval.
+6. Move toward explicit agent runtime APIs once the collaboration foundation is stable.
 
 ## 7. Summary
 

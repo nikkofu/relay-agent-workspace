@@ -36,7 +36,7 @@ interface MessageComposerProps {
 export function MessageComposer({ placeholder, onSend }: MessageComposerProps) {
   const [showSlashCommands, setShowSlashCommands] = useState(false)
   const [showMentions, setShowMentions] = useState(false)
-  const [showFormatting, setShowFormatting] = useState(true)
+  const [showFormatting, setShowFormatting] = useState(false)
   const { openCanvas } = useUIStore()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -62,7 +62,9 @@ export function MessageComposer({ placeholder, onSend }: MessageComposerProps) {
         class: 'min-h-[72px] max-h-[200px] overflow-y-auto px-3 py-2 text-sm block w-full',
       },
       handleKeyDown: (view, event) => {
-        if (event.key === 'Enter' && !event.shiftKey) {
+        const keyboardEvent = event as KeyboardEvent & { isComposing?: boolean }
+
+        if (event.key === 'Enter' && !event.shiftKey && !keyboardEvent.isComposing) {
           event.preventDefault()
           handleSend()
           return true

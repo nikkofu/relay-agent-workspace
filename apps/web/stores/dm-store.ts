@@ -13,7 +13,7 @@ interface DMState {
 const mapConversation = (c: any): DirectMessage => ({
   ...c,
   userIds: c.user_ids || [],
-  lastMessageAt: c.last_message_at,
+  lastMessageAt: c.last_message_at || c.created_at || new Date().toISOString(),
   unreadCount: c.unread_count
 })
 

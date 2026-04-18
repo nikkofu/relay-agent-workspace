@@ -338,6 +338,7 @@ func GetDMConversations(c *gin.Context) {
 	type dmConversationResponse struct {
 		ID            string      `json:"id"`
 		User          domain.User `json:"user"`
+		UserIDs       []string    `json:"user_ids"`
 		LastMessage   string      `json:"last_message"`
 		LastMessageAt time.Time   `json:"last_message_at"`
 	}
@@ -360,6 +361,7 @@ func GetDMConversations(c *gin.Context) {
 		conversations = append(conversations, dmConversationResponse{
 			ID:            membership.DMConversationID,
 			User:          enrichUser(otherUser),
+			UserIDs:       []string{currentUser.ID, otherUser.ID},
 			LastMessage:   lastMessage.Content,
 			LastMessageAt: lastMessage.CreatedAt,
 		})
@@ -418,7 +420,11 @@ func CreateOrOpenDMConversation(c *gin.Context) {
 			if memberIDs[0] == expected[0] && memberIDs[1] == expected[1] {
 				var conversation domain.DMConversation
 				db.DB.First(&conversation, "id = ?", membership.DMConversationID)
-				c.JSON(http.StatusOK, gin.H{"conversation": conversation})
+				c.JSON(http.StatusOK, gin.H{"conversation": gin.H{
+					"id":         conversation.ID,
+					"user_ids":   []string{currentUser.ID, targetUserID},
+					"created_at": conversation.CreatedAt,
+				}})
 				return
 			}
 		}
@@ -444,7 +450,11 @@ func CreateOrOpenDMConversation(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"conversation": conversation})
+	c.JSON(http.StatusCreated, gin.H{"conversation": gin.H{
+		"id":         conversation.ID,
+		"user_ids":   []string{currentUser.ID, targetUserID},
+		"created_at": conversation.CreatedAt,
+	}})
 }
 
 func GetDMMessages(c *gin.Context) {

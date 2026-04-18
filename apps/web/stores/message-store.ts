@@ -101,13 +101,18 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       const msg = mapMessage(data.message)
       
       if (threadId) {
-        set((state) => ({ 
-          currentThreadMessages: [...state.currentThreadMessages, msg],
-          // Update parent message reply count locally if needed
-          messages: state.messages.map(m => m.id === threadId ? { ...m, replyCount: (m.replyCount || 0) + 1 } : m)
-        }))
+        set((state) => {
+          if (state.currentThreadMessages.find(m => m.id === msg.id)) return state;
+          return { 
+            currentThreadMessages: [...state.currentThreadMessages, msg],
+            messages: state.messages.map(m => m.id === threadId ? { ...m, replyCount: (m.replyCount || 0) + 1 } : m)
+          };
+        })
       } else {
-        set((state) => ({ messages: [...state.messages, msg] }))
+        set((state) => {
+          if (state.messages.find(m => m.id === msg.id)) return state;
+          return { messages: [...state.messages, msg] };
+        })
       }
     } catch (error) {
       console.error("Failed to send message:", error)
@@ -122,7 +127,10 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       })
       const data = await response.json()
       const msg = mapMessage(data.message)
-      set((state) => ({ messages: [...state.messages, msg] }))
+      set((state) => {
+        if (state.messages.find(m => m.id === msg.id)) return state;
+        return { messages: [...state.messages, msg] };
+      })
     } catch (error) {
       console.error("Failed to send DM message:", error)
     }

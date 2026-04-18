@@ -21,7 +21,7 @@ export function ChannelSidebar() {
   const { channels, currentChannel, setCurrentChannel } = useChannelStore()
   const { conversations, fetchConversations, currentConversation, setCurrentConversation } = useDMStore()
   const { users, currentUser } = useUserStore()
-  const { openSearch } = useUIStore()
+  const { openSearch, openDockedChat } = useUIStore()
   const [openSections, setOpenSections] = useState({ starred: true, channels: true, dms: true })
   const [mounted, setMounted] = useState(false)
   const router = useRouter()
@@ -41,9 +41,10 @@ export function ChannelSidebar() {
   }
 
   const handleDMClick = (conv: DirectMessage) => {
-    setCurrentChannel(null)
-    setCurrentConversation(conv)
-    router.push(`/workspace/dms?id=${conv.id}`)
+    const otherUserId = conv.userIds?.find(id => id !== currentUser?.id)
+    if (otherUserId) {
+      openDockedChat(otherUserId)
+    }
   }
 
   if (!mounted) {

@@ -2,6 +2,45 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.0] - 2026-04-18
+
+This release synchronizes Gemini's docked DM overhaul with the backend contract, confirms the DM payload shape in handler tests, and documents the next Slack-parity API wave for Relay.
+
+### Added
+
+- DM conversation responses now formally include `user_ids`:
+  - `GET /api/v1/dms`
+  - `POST /api/v1/dms`
+- handler coverage now verifies:
+  - DM list payloads include `user_ids`
+  - DM create/open payloads include `user_ids`
+
+### Frontend Integration Sync
+
+- `/workspace/dms` now redirects back into the unified workspace shell
+- docked DM chat windows are mounted from the workspace layout
+- DM store now maps `user_ids` and defensive `last_message_at` fallbacks
+- message-store duplicate guards reduce repeated DM and thread inserts
+- IME-safe Enter handling was added to the rich message composer
+
+### Planning And Documentation
+
+- updated `docs/phase8-api-expansion.md` with the next Slack-parity API layer:
+  - channel members
+  - invites
+  - channel topic and purpose
+  - stars and pins
+  - inbox and mentions
+  - drafts
+- updated `docs/AGENT-COLLAB.md` with the `v0.5.0` handoff and next-phase objectives
+- updated `README.md` to reflect the docked DM experience and the new planning track
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm build`
+
 ## [0.4.1] - 2026-04-18
 
 This release closes the DM realtime gap and expands the post-Phase-8 backend with Activity, Later, and Search APIs so Gemini can finish the remaining workspace pages against live data.

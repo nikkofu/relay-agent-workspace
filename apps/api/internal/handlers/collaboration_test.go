@@ -446,6 +446,10 @@ func TestDMEndpointsListCreateAndSendMessages(t *testing.T) {
 	if len(listPayload.Conversations) != 1 {
 		t.Fatalf("expected 1 dm conversation, got %d", len(listPayload.Conversations))
 	}
+	userIDs, ok := listPayload.Conversations[0]["user_ids"].([]any)
+	if !ok || len(userIDs) != 2 {
+		t.Fatalf("expected user_ids in dm list response, got %#v", listPayload.Conversations[0]["user_ids"])
+	}
 
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/dms", bytes.NewBufferString(`{"user_id":"user-3"}`))
@@ -457,7 +461,8 @@ func TestDMEndpointsListCreateAndSendMessages(t *testing.T) {
 
 	var createPayload struct {
 		Conversation struct {
-			ID string `json:"id"`
+			ID      string   `json:"id"`
+			UserIDs []string `json:"user_ids"`
 		} `json:"conversation"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &createPayload); err != nil {
@@ -465,6 +470,9 @@ func TestDMEndpointsListCreateAndSendMessages(t *testing.T) {
 	}
 	if createPayload.Conversation.ID == "" {
 		t.Fatal("expected created dm conversation id")
+	}
+	if len(createPayload.Conversation.UserIDs) != 2 {
+		t.Fatalf("expected created conversation user_ids, got %#v", createPayload.Conversation.UserIDs)
 	}
 
 	rec = httptest.NewRecorder()

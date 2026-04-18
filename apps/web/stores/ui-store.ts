@@ -8,6 +8,7 @@ interface UIState {
   isSearchOpen: boolean
   isCanvasOpen: boolean
   activeCanvasId: string | null
+  dockedChats: string[] // List of user IDs with open chats
   toggleSidebar: () => void
   openThread: (threadId: string) => void
   closeThread: () => void
@@ -19,6 +20,8 @@ interface UIState {
   closeSearch: () => void
   openCanvas: (canvasId: string) => void
   closeCanvas: () => void
+  openDockedChat: (userId: string) => void
+  closeDockedChat: (userId: string) => void
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -29,6 +32,7 @@ export const useUIStore = create<UIState>((set) => ({
   isSearchOpen: false,
   isCanvasOpen: false,
   activeCanvasId: null,
+  dockedChats: [],
   toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
   openThread: (threadId) => set({ isThreadOpen: true, activeThreadId: threadId, isAIPanelOpen: false, isCanvasOpen: false }),
   closeThread: () => set({ isThreadOpen: false, activeThreadId: null }),
@@ -40,4 +44,12 @@ export const useUIStore = create<UIState>((set) => ({
   closeSearch: () => set({ isSearchOpen: false }),
   openCanvas: (canvasId) => set({ isCanvasOpen: true, activeCanvasId: canvasId, isThreadOpen: false, isAIPanelOpen: false }),
   closeCanvas: () => set({ isCanvasOpen: false, activeCanvasId: null }),
+  openDockedChat: (userId) => set((state) => ({ 
+    dockedChats: state.dockedChats.includes(userId) 
+      ? [userId, ...state.dockedChats.filter(id => id !== userId)] // Bring to front
+      : [userId, ...state.dockedChats].slice(0, 3) // Max 3 windows
+  })),
+  closeDockedChat: (userId) => set((state) => ({ 
+    dockedChats: state.dockedChats.filter(id => id !== userId) 
+  })),
 }))

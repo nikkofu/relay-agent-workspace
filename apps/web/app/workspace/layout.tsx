@@ -6,6 +6,7 @@ import { ThreadPanel } from "@/components/layout/thread-panel"
 import { AIChatPanel } from "@/components/ai-chat/ai-chat-panel"
 import { CanvasPanel } from "@/components/layout/canvas-panel"
 import { SearchDialog } from "@/components/search/search-dialog"
+import { DockedChatContainer } from "@/components/dm/docked-chat-container"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
 import { useUIStore } from "@/stores/ui-store"
 import { useWorkspaceStore } from "@/stores/workspace-store"
@@ -81,6 +82,7 @@ export default function WorkspaceLayout({
         </ResizablePanelGroup>
       </div>
       <SearchDialog />
+      <DockedChatContainer />
     </div>
   )
 }
