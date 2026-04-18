@@ -2,7 +2,29 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
-## [0.5.14] - 2026-04-18
+## [0.5.16] - 2026-04-18
+
+This release implements Phase 17: AI Summaries integration, providing instant insights for both message threads and channels.
+
+### Added
+
+- **AI Thread Summaries**: Integrated persistent thread summary generation in the Thread Panel.
+- **AI Channel Summaries**: Added a dedicated AI summary section in the Channel Info panel for high-level context.
+- **Dynamic Summarization**: Real-time summary generation and regeneration supported via the backend AI flow.
+- **Store Integration**: Expanded `MessageStore` and `ChannelStore` to handle summary state and automatic hydration.
+
+### Fixed
+
+- **UI Polish**: Replaced static thread summary mocks with real API-driven content and loading states.
+- **Hydration**: Summaries are now automatically fetched when opening threads or switching channels.
+
+### Verification Used For This Release
+
+- `pnpm build`
+- `cd apps/web && pnpm lint`
+
+## [0.5.1] - 2026-04-18
+
 
 This release implements Phase 16: AI Conversation Persistence, allowing users to browse and resume previous AI assistant chats.
 

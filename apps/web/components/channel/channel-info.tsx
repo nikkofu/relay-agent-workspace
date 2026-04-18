@@ -2,7 +2,8 @@
 
 import { useState } from "react"
 import { 
-  Bell, Hash, Lock, ChevronRight, Plus, X, Trash2, Pin 
+  Bell, Hash, Lock, ChevronRight, Plus, X, Trash2, Pin,
+  Sparkles, Loader2, RefreshCw
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -24,7 +25,10 @@ import { UserAvatar } from "@/components/common/user-avatar"
 import { formatDistanceToNow } from "date-fns"
 
 export function ChannelInfo({ trigger }: { trigger: React.ReactNode }) {
-  const { currentChannel, members, updateChannel, addMember, removeMember } = useChannelStore()
+  const { 
+    currentChannel, members, updateChannel, addMember, removeMember,
+    currentChannelSummary, isSummaryLoading, generateChannelSummary
+  } = useChannelStore()
   const { users, currentUser } = useUserStore()
   const { pinnedMessages, fetchPins, pinMessage } = useMessageStore()
   const [isEditing, setIsEditing] = useState(false)
@@ -100,6 +104,45 @@ export function ChannelInfo({ trigger }: { trigger: React.ReactNode }) {
                   <p className="text-sm text-muted-foreground italic">
                     {currentChannel.topic || "Add a topic to help people know what this channel is for."}
                   </p>
+                )}
+              </div>
+
+              {/* AI Summary Section */}
+              <div className="space-y-3 bg-purple-50/50 dark:bg-purple-900/10 p-4 rounded-xl border border-purple-100 dark:border-purple-800/30">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-purple-700 dark:text-purple-400">
+                    <Sparkles className="w-4 h-4" />
+                    <span className="text-sm font-bold">AI Channel Summary</span>
+                  </div>
+                  {currentChannelSummary && !isSummaryLoading && (
+                    <Button variant="ghost" size="icon" className="h-6 w-6 text-purple-400 hover:text-purple-600 hover:bg-transparent" onClick={() => generateChannelSummary(currentChannel.id)}>
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
+                </div>
+                
+                {isSummaryLoading ? (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse py-2">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Analyzing channel history...
+                  </div>
+                ) : currentChannelSummary ? (
+                  <p className="text-sm leading-relaxed text-foreground/80 font-medium">
+                    {currentChannelSummary}
+                  </p>
+                ) : (
+                  <div className="space-y-3 py-1">
+                    <p className="text-xs text-muted-foreground">
+                      Get a high-level overview of recent activities, decisions, and discussions in this channel.
+                    </p>
+                    <Button 
+                      size="sm" 
+                      className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs h-8"
+                      onClick={() => generateChannelSummary(currentChannel.id)}
+                    >
+                      Generate Summary
+                    </Button>
+                  </div>
                 )}
               </div>
 

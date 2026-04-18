@@ -7,10 +7,14 @@ interface MessageState {
   messages: Message[]
   currentThreadMessages: Message[]
   pinnedMessages: { message: Message, channel: any, user: any }[]
+  currentThreadSummary: string | null
+  isSummaryLoading: boolean
   fetchMessages: (channelId: string) => Promise<void>
   fetchDMMessages: (dmId: string) => Promise<void>
   fetchThread: (messageId: string) => Promise<void>
   fetchPins: (channelId?: string) => Promise<void>
+  fetchThreadSummary: (messageId: string) => Promise<void>
+  generateThreadSummary: (messageId: string) => Promise<void>
   addMessage: (message: Message) => void
   sendMessage: (channelId: string, content: string, userId: string, threadId?: string) => Promise<void>
   sendDMMessage: (dmId: string, content: string, userId: string) => Promise<void>
@@ -58,6 +62,8 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   messages: [],
   currentThreadMessages: [],
   pinnedMessages: [],
+  currentThreadSummary: null,
+  isSummaryLoading: false,
   fetchMessages: async (channelId) => {
     try {
       const response = await fetch(`${API_BASE_URL}/messages?channel_id=${channelId}`)
@@ -85,8 +91,35 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       const parent = mapMessage(data.parent)
       const replies = data.replies.map(mapMessage)
       set({ currentThreadMessages: [parent, ...replies] })
+      
+      // Fetch summary when opening thread
+      get().fetchThreadSummary(messageId)
     } catch (error) {
       console.error("Failed to fetch thread:", error)
+    }
+  },
+  fetchThreadSummary: async (messageId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/messages/${messageId}/summary`)
+      const data = await response.json()
+      set({ currentThreadSummary: data.summary })
+    } catch (error) {
+      console.error("Failed to fetch thread summary:", error)
+    }
+  },
+  generateThreadSummary: async (messageId) => {
+    try {
+      set({ isSummaryLoading: true })
+      const response = await fetch(`${API_BASE_URL}/messages/${messageId}/summary`, {
+        method: "POST"
+      })
+      const data = await response.json()
+      set({ currentThreadSummary: data.summary, isSummaryLoading: false })
+      toast.success("Thread summary generated")
+    } catch (error) {
+      console.error("Failed to generate thread summary:", error)
+      set({ isSummaryLoading: false })
+      toast.error("Failed to generate summary")
     }
   },
   fetchPins: async (channelId) => {

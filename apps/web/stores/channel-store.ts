@@ -7,6 +7,8 @@ interface ChannelState {
   channels: Channel[]
   currentChannel: Channel | null
   members: ChannelMember[]
+  currentChannelSummary: string | null
+  isSummaryLoading: boolean
   setCurrentChannel: (channel: Channel | null) => void
   fetchChannels: (workspaceId: string) => Promise<void>
   addChannel: (channel: Channel) => void
@@ -17,16 +19,21 @@ interface ChannelState {
   fetchMembers: (id: string) => Promise<void>
   addMember: (channelId: string, userId: string) => Promise<void>
   removeMember: (channelId: string, userId: string) => Promise<void>
+  fetchChannelSummary: (id: string) => Promise<void>
+  generateChannelSummary: (id: string) => Promise<void>
 }
 
 export const useChannelStore = create<ChannelState>((set, get) => ({
   channels: [],
   currentChannel: null,
   members: [],
+  currentChannelSummary: null,
+  isSummaryLoading: false,
   setCurrentChannel: (channel) => {
-    set({ currentChannel: channel })
+    set({ currentChannel: channel, currentChannelSummary: null })
     if (channel) {
       get().fetchMembers(channel.id)
+      get().fetchChannelSummary(channel.id)
     }
   },
   fetchChannels: async (workspaceId) => {
@@ -141,6 +148,30 @@ export const useChannelStore = create<ChannelState>((set, get) => ({
     } catch (error) {
       console.error("Failed to remove member:", error)
       toast.error("Failed to remove member")
+    }
+  },
+  fetchChannelSummary: async (id) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/channels/${id}/summary`)
+      const data = await response.json()
+      set({ currentChannelSummary: data.summary })
+    } catch (error) {
+      console.error("Failed to fetch channel summary:", error)
+    }
+  },
+  generateChannelSummary: async (id) => {
+    try {
+      set({ isSummaryLoading: true })
+      const response = await fetch(`${API_BASE_URL}/channels/${id}/summary`, {
+        method: "POST"
+      })
+      const data = await response.json()
+      set({ currentChannelSummary: data.summary, isSummaryLoading: false })
+      toast.success("Channel summary generated")
+    } catch (error) {
+      console.error("Failed to generate channel summary:", error)
+      set({ isSummaryLoading: false })
+      toast.error("Failed to generate summary")
     }
   }
 }))

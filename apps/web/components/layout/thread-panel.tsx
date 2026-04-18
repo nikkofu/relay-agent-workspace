@@ -47,7 +47,7 @@ export function ThreadPanel() {
         </Button>
       </header>
       
-      <AIThreadSummary />
+      <AIThreadSummary messageId={activeThreadId || ""} />
 
       <ScrollArea className="flex-1">
         <div className="flex flex-col">
