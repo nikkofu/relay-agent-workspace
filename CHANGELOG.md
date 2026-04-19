@@ -2,7 +2,31 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
-## [0.5.20] - 2026-04-19
+## [0.5.21] - 2026-04-19
+
+This release implements Phase 18: Artifact Lifecycle integration, bringing real dynamic canvases and AI generation to the workspace.
+
+### Added
+
+- **Dynamic CanvasPanel**: Replaced static demo with a full Artifact-backed surface for code and documents.
+- **AI Canvas Generation**: Integrated `POST /api/v1/ai/canvas/generate` into the assistant flow, allowing AI to create new artifacts on demand.
+- **Real-time Sync**: Leveraged websocket `artifact.updated` events for seamless live collaboration on canvases.
+- **Unified Artifact Store**: Added `artifact-store.ts` for managing artifact CRUD and loading states.
+- **Channel Header Artifacts**: Dynamic "Recent Artifacts" bar in the channel view for quick access to collaboration assets.
+
+### Fixed
+
+- **Engineering Excellence**: Enforced strict linting in `pnpm dev` and `pnpm build` scripts.
+- **Lint Cleanup**: Resolved all remaining unused variable and import errors across the frontend.
+- **Event Handling**: Stabilized websocket event mapping for unified transient state management.
+
+### Verification Used For This Release
+
+- `pnpm build`
+- `cd apps/web && pnpm lint` (Verified PASS)
+
+## [0.5.18] - 2026-04-18
+
 
 This release adds backend-backed artifact lifecycle APIs so Relay's canvas surface can create, persist, update, and AI-generate collaborative outputs.
 

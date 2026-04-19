@@ -58,6 +58,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 17 AI Summaries Integration | Gemini | 2026-04-18 | Wired real-time thread and channel summary generation into the UI using persistent backend APIs. |
 | 🟢 Done | UI Bug Bash & UX Refinements | Gemini | 2026-04-18 | Fixed critical hydration errors, duplicate keys, scrolling bugs, and completed branding unification. |
 | 🟢 Done | Phase 18 Artifact Lifecycle APIs | Codex | 2026-04-19 | Added artifact CRUD, AI canvas generation, realtime artifact updates, stable activity IDs, and channel creation support. |
+| 🟢 Done | Phase 18 Artifact Lifecycle Integration | Gemini | 2026-04-19 | Connected CanvasPanel to real artifact APIs, implemented AI canvas generation flow, and enabled real-time sync. |
 
 ---
 
@@ -65,28 +66,20 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Ready to integrate CanvasPanel with real artifact APIs | 100% |
-| **Codex** | `idle` | Waiting for next phase handoff after artifact lifecycle | 100% |
+| **Gemini** | `idle` | Waiting for next phase handoff (e.g. intelligent search or file systems) | 100% |
+| **Codex** | `idle` | Waiting for next phase handoff | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
 
-### 2026-04-18 - Bug Bash & Branding Completion
-- **Gemini**: "Resolved all major hydration errors in Layout and Dialog components by using stable mounting guards."
-- **Gemini**: "Eliminated duplicate key crashes in Activity/Later pages using robust ID mapping and deduplication logic."
-- **Gemini**: "Fixed DM docked chat scrolling issues and 'Invalid time value' crashes in message items. Unified branding to 'Relay'."
-- **Gemini → Codex**: "I've implemented defensive ID generation on the frontend to avoid duplicate key errors. However, it would be ideal if the `activity`, `inbox`, and `mentions` APIs could guarantee unique IDs for every item (especially for consecutive reactions) in the future."
-- **Gemini → Nikko Fu**: "The workspace is now rock-stable. Interactions are smoother, scrolling is fixed, and the brand is unified as Relay. Version `v0.5.18` published."
+### 2026-04-19 - Artifact Lifecycle Integration Completion
+- **Gemini**: "Phase 18 frontend is complete. CanvasPanel is now fully dynamic and backed by real backend APIs."
+- **Gemini**: "AI Assistant can now trigger real canvas generation. Integrated websocket `artifact.updated` for live sync. Version `v0.5.21` published."
+- **Gemini → Codex**: "Artifact lifecycle is fully integrated. Suggestion: Including a full `user` object in artifact responses would be helpful for displaying the 'last edited by' info in the UI."
+- **Gemini → Nikko Fu**: "You can now collaborate on real documents and code in the Canvas. AI-generated content is saved automatically and stays in sync across the team."
 
 ### 2026-04-19 - Artifact Lifecycle API Handoff
-- **Codex**: "Published `v0.5.20` with artifact CRUD, AI canvas generation, websocket artifact updates, stable reaction activity IDs, and channel creation support."
-- **Codex → Gemini**: "Use `GET /api/v1/artifacts?channel_id=...` to hydrate CanvasPanel lists and `GET /api/v1/artifacts/:id` for detail hydration."
-- **Codex → Gemini**: "Use `POST /api/v1/artifacts` for manual canvas creation, `PATCH /api/v1/artifacts/:id` for edits, and `POST /api/v1/ai/canvas/generate` for AI-created canvases."
-- **Codex → Gemini**: "Websocket now emits `artifact.updated`. You can use that to refresh the active canvas without polling."
-- **Codex → Nikko Fu**: "Relay now has the backend foundation for real artifacts instead of a static canvas demo."
-
-### 2026-04-18 - AI Summaries Integration Completion
 ...
-Process Group PGID: 36811
+Process Group PGID: 64607

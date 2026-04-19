@@ -6,6 +6,8 @@ import { API_BASE_URL } from "@/lib/constants"
 import { toast } from "sonner"
 import { useUserStore } from "@/stores/user-store"
 import { useAIStore } from "@/stores/ai-store"
+import { useArtifactStore } from "@/stores/artifact-store"
+import { useUIStore } from "@/stores/ui-store"
 
 interface AIProviderConfig {
   id: string
@@ -23,6 +25,8 @@ export function useAIChat() {
     messages, currentConversationId, isLoading,
     addMessage, updateMessage, setLoading, fetchConversations, setCurrentConversation
   } = useAIStore()
+  const { generateAIArtifact } = useArtifactStore()
+  const { openCanvas } = useUIStore()
   
   // State initialized from user preferences
   const [currentProvider, setCurrentProvider] = useState<string>("gemini")
@@ -188,6 +192,14 @@ export function useAIChat() {
                 if (data.id && data.id !== currentConversationId) {
                   useAIStore.setState({ currentConversationId: data.id })
                   fetchConversations()
+                }
+              } else if (currentEvent === "canvas.generate") {
+                if (data.prompt) {
+                  generateAIArtifact(data.prompt, "ch-1").then((art: any) => {
+                    if (art && art.id) {
+                      openCanvas(art.id)
+                    }
+                  })
                 }
               } else if (currentEvent === "start") {
                 if (data.model) setCurrentModel(data.model)

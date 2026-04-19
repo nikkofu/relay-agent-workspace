@@ -1,136 +1,139 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { useUIStore } from "@/stores/ui-store"
-import { X, Sparkles, Share2, Copy, Edit3, Maximize2, CheckCircle2 } from "lucide-react"
+import { useArtifactStore } from "@/stores/artifact-store"
+import { X, Maximize2, RotateCcw, Share2, Save, Wand2, History, MessageSquare, Copy, Code, Type, ExternalLink, MoreVertical } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 
 export function CanvasPanel() {
-  const { isCanvasOpen, closeCanvas } = useUIStore()
+  const { isCanvasOpen, closeCanvas, activeCanvasId } = useUIStore()
+  const { activeArtifact, fetchArtifactDetail, updateArtifact, isLoading } = useArtifactStore()
+  const [content, setContent] = useState("")
+  const [isEditing, setIsEditing] = useState(false)
 
-  if (!isCanvasOpen) return null
+  useEffect(() => {
+    if (activeCanvasId) {
+      fetchArtifactDetail(activeCanvasId)
+    }
+  }, [activeCanvasId, fetchArtifactDetail])
+
+  useEffect(() => {
+    if (activeArtifact) {
+      setContent(activeArtifact.content)
+    }
+  }, [activeArtifact])
+
+  const handleSave = async () => {
+    if (activeArtifact) {
+      await updateArtifact(activeArtifact.id, { content })
+      setIsEditing(false)
+    }
+  }
+
+  if (!isCanvasOpen || !activeArtifact) return null
 
   return (
-    <div className="w-full h-full flex flex-col bg-white dark:bg-[#1a1d21] border-l animate-in slide-in-from-right duration-500 ease-out shadow-2xl">
-      {/* Canvas Header */}
-      <header className="h-14 px-6 flex items-center justify-between border-b shrink-0 bg-slate-50 dark:bg-muted/20">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-600/20">
-            <Sparkles className="w-4 h-4 text-white" />
+    <div className="w-full h-full flex flex-col bg-white dark:bg-[#1a1d21] border-l shadow-2xl relative overflow-hidden animate-in slide-in-from-right duration-300">
+      {/* Header */}
+      <header className="h-14 px-4 flex items-center justify-between border-b shrink-0 bg-muted/30">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+            {activeArtifact.type === 'code' ? <Code className="w-4 h-4 text-blue-600" /> : <Type className="w-4 h-4 text-blue-600" />}
           </div>
-          <div>
-            <h3 className="font-black text-sm tracking-tight">AI Canvas</h3>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Draft v1.2</span>
-              <Badge variant="outline" className="h-4 text-[9px] px-1 bg-green-500/10 text-green-600 border-green-200">Live</Badge>
-            </div>
+          <div className="flex flex-col min-w-0">
+            <h3 className="font-bold text-sm truncate">{activeArtifact.title}</h3>
+            <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">v{activeArtifact.version} • {activeArtifact.type}</span>
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" className="h-8 text-xs font-bold px-2">
-            <Share2 className="w-3.5 h-3.5 mr-1.5" /> Share
+          {isEditing ? (
+            <Button size="sm" variant="default" className="h-8 bg-blue-600 hover:bg-blue-700 text-white" onClick={handleSave} disabled={isLoading}>
+              <Save className="w-3.5 h-3.5 mr-2" />
+              Save
+            </Button>
+          ) : (
+            <Button size="sm" variant="ghost" className="h-8" onClick={() => setIsEditing(true)}>
+              Edit
+            </Button>
+          )}
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
+            <Share2 className="w-4 h-4" />
           </Button>
-          <Separator orientation="vertical" className="h-4 mx-1" />
           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={closeCanvas}>
             <X className="w-4 h-4" />
           </Button>
         </div>
       </header>
 
-      <ScrollArea className="flex-1">
-        <div className="max-w-3xl mx-auto px-8 py-12 flex flex-col gap-8">
-          {/* Document Content */}
-          <div className="flex flex-col gap-4">
-            <h1 className="text-4xl font-black tracking-tighter leading-none">Relay Agent Workspace Launch Roadmap</h1>
-            <div className="flex items-center gap-4 text-sm text-muted-foreground font-medium">
-              <div className="flex items-center gap-1.5">
-                <div className="w-5 h-5 rounded-full bg-purple-100 flex items-center justify-center">
-                  <Sparkles className="w-3 h-3 text-purple-600" />
-                </div>
-                Generated by AI
-              </div>
-              <span>•</span>
-              <span>Updated 2 mins ago</span>
-            </div>
-          </div>
-
-          <div className="prose dark:prose-invert max-w-none">
-            <p className="text-lg text-muted-foreground leading-relaxed">
-              This document outlines the strategic steps for the alpha release of Relay Agent Workspace. 
-              Focus is on ensuring the AI-native features feel seamless and intuitive for Slack power users.
-            </p>
-
-            <div className="grid grid-cols-1 gap-4 my-8">
-              <TaskItem title="Core Layout Implementation" completed />
-              <TaskItem title="Simulated Streaming API" completed />
-              <TaskItem title="AI Canvas & Artifacts Panel" current />
-              <TaskItem title="User Collaboration Insights" />
-            </div>
-
-            <h2 className="text-2xl font-black mt-8 mb-4 tracking-tight">Key Architectural Decisions</h2>
-            <div className="bg-muted/30 border rounded-xl p-6 font-mono text-xs leading-relaxed overflow-x-auto">
-              {`// Modular UI Architecture
-export const WorkspaceLayout = ({ children }) => {
-  const { isCanvasOpen } = useUIStore();
-  return (
-    <div className="flex h-screen overflow-hidden">
-      <PrimaryNav />
-      <div className="flex-1 flex overflow-hidden">
-        <ChannelSidebar />
-        <MainContent width={isCanvasOpen ? '60%' : '100%'}>
-          {children}
-        </MainContent>
-        {isCanvasOpen && <CanvasPanel width="40%" />}
-      </div>
-    </div>
-  );
-};`}
-            </div>
-          </div>
+      {/* Toolbar */}
+      <div className="h-10 px-4 flex items-center gap-2 border-b bg-muted/10">
+        <div className="flex items-center gap-1 pr-2 border-r">
+          <Button variant="ghost" size="icon" className="h-7 w-7"><RotateCcw className="w-3.5 h-3.5" /></Button>
+          <Button variant="ghost" size="icon" className="h-7 w-7"><History className="w-3.5 h-3.5" /></Button>
         </div>
-      </ScrollArea>
-
-      {/* Canvas Footer */}
-      <footer className="p-4 border-t bg-slate-50/50 dark:bg-muted/10">
-        <div className="flex items-center justify-between gap-4 max-w-3xl mx-auto">
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="h-8 font-bold text-xs">
-              <Edit3 className="w-3.5 h-3.5 mr-1.5" /> Edit document
-            </Button>
-            <Button variant="outline" size="sm" className="h-8 font-bold text-xs">
-              <Copy className="w-3.5 h-3.5 mr-1.5" /> Copy code
-            </Button>
-          </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
-            <Maximize2 className="w-4 h-4" />
+        <div className="flex items-center gap-1 pl-1">
+          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs font-bold text-purple-600 bg-purple-50 dark:bg-purple-900/20">
+            <Wand2 className="w-3 h-3 mr-1.5" />
+            AI Fix
+          </Button>
+          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs font-medium">
+            <Copy className="w-3 h-3 mr-1.5" />
+            Copy
           </Button>
         </div>
-      </footer>
-    </div>
-  )
-}
+        <div className="ml-auto flex items-center gap-1">
+          <Button variant="ghost" size="icon" className="h-7 w-7"><Maximize2 className="w-3.5 h-3.5" /></Button>
+          <Button variant="ghost" size="icon" className="h-7 w-7"><MoreVertical className="w-3.5 h-3.5" /></Button>
+        </div>
+      </div>
 
-function TaskItem({ title, completed, current }: { title: string, completed?: boolean, current?: boolean }) {
-  return (
-    <div className={cn(
-      "flex items-center gap-3 p-3 rounded-lg border transition-all",
-      completed ? "bg-green-50/50 border-green-100 dark:bg-green-500/5 dark:border-green-900/20" : 
-      current ? "bg-blue-50 border-blue-200 dark:bg-blue-500/10 dark:border-blue-800 ring-1 ring-blue-500/20" : "bg-white dark:bg-[#1a1d21] border-border"
-    )}>
-      {completed ? (
-        <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />
-      ) : (
-        <div className={cn("w-5 h-5 rounded-full border-2 shrink-0", current ? "border-blue-500" : "border-muted")} />
-      )}
-      <span className={cn("text-sm font-bold", completed ? "text-green-700 dark:text-green-400 line-through opacity-50" : "text-foreground")}>
-        {title}
-      </span>
-      {current && (
-        <Badge className="ml-auto bg-blue-500 text-[9px] uppercase font-black px-1.5 h-4">In Progress</Badge>
-      )}
+      {/* Content Area */}
+      <div className="flex-1 min-h-0 relative flex flex-col">
+        {isLoading ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-white/50 dark:bg-black/20 z-10">
+            <div className="flex flex-col items-center gap-3">
+              <Wand2 className="w-8 h-8 text-purple-500 animate-bounce" />
+              <span className="text-xs font-bold text-purple-600 animate-pulse uppercase tracking-widest">Processing Artifact...</span>
+            </div>
+          </div>
+        ) : null}
+
+        <ScrollArea className="flex-1">
+          <div className="p-8 max-w-3xl mx-auto">
+            {isEditing ? (
+              <textarea
+                className="w-full min-h-[500px] bg-transparent border-none outline-none resize-none font-mono text-sm leading-relaxed"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                spellCheck={false}
+              />
+            ) : (
+              <div 
+                className={cn(
+                  "prose dark:prose-invert max-w-none",
+                  activeArtifact.type === 'code' && "font-mono text-sm bg-slate-50 dark:bg-slate-900/50 p-6 rounded-xl border border-slate-100 dark:border-slate-800 whitespace-pre"
+                )}
+                dangerouslySetInnerHTML={{ __html: activeArtifact.type === 'code' ? content : content }}
+              />
+            )}
+          </div>
+        </ScrollArea>
+      </div>
+
+      {/* Footer / Context */}
+      <footer className="h-12 px-4 border-t flex items-center justify-between shrink-0 bg-muted/5">
+        <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+          <MessageSquare className="w-3 h-3" />
+          Refers to #general discussion
+        </div>
+        <Button variant="ghost" size="sm" className="h-8 text-[10px] font-bold uppercase tracking-widest">
+          Open in Tab
+          <ExternalLink className="w-3 h-3 ml-1.5" />
+        </Button>
+      </footer>
     </div>
   )
 }

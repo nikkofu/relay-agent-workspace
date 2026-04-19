@@ -3,12 +3,14 @@ import { API_BASE_URL } from '@/lib/constants'
 import { useMessageStore } from '@/stores/message-store'
 import { useCollabStore } from '@/stores/collab-store'
 import { usePresenceStore } from '@/stores/presence-store'
+import { useArtifactStore } from '@/stores/artifact-store'
 
 export function useWebsocket() {
   const socketRef = useRef<WebSocket | null>(null)
   const { addMessage } = useMessageStore()
   const { setCollabData } = useCollabStore()
   const { updatePresence, setTyping } = usePresenceStore()
+  const { updateArtifactLocally } = useArtifactStore()
 
   useEffect(() => {
     // Convert http://... to ws://...
@@ -60,6 +62,8 @@ export function useWebsocket() {
             dmId: data.payload.dm_id,
             threadId: data.payload.thread_id
           })
+        } else if (data.type === 'artifact.updated') {
+          updateArtifactLocally(data.payload)
         }
       } catch (err) {
         console.error("Failed to parse WS message:", err)

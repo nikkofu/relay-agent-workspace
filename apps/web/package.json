@@ -1,6 +1,7 @@
 {
   "name": "relay-agent-workspace",
-  "version": "0.5.20",
+  "version": "0.5.21",
+
 
 
 
@@ -13,7 +14,7 @@
   },
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build",
+    "build": "next lint && next build",
     "start": "next start",
     "lint": "next lint"
   },
