@@ -1,6 +1,7 @@
 import { create } from "zustand"
 import { API_BASE_URL } from "@/lib/constants"
 import { toast } from "sonner"
+import { User } from "@/types"
 
 export interface Artifact {
   id: string
@@ -12,6 +13,8 @@ export interface Artifact {
   version: number
   createdAt: string
   updatedAt: string
+  createdByUser?: User
+  updatedByUser?: User
 }
 
 interface ArtifactState {
@@ -32,7 +35,9 @@ const mapArtifact = (a: any): Artifact => ({
   channelId: a.channel_id,
   userId: a.user_id,
   createdAt: a.created_at,
-  updatedAt: a.updated_at
+  updatedAt: a.updated_at,
+  createdByUser: a.created_by_user,
+  updatedByUser: a.updated_by_user
 })
 
 export const useArtifactStore = create<ArtifactState>((set, get) => ({

@@ -29,6 +29,7 @@ import TiptapLink from '@tiptap/extension-link'
 import { useMemo, useEffect, useCallback } from "react"
 import { useDraftStore } from "@/stores/draft-store"
 import { usePresenceStore } from "@/stores/presence-store"
+import { useFileStore } from "@/stores/file-store"
 
 interface MessageComposerProps {
   placeholder?: string
@@ -49,6 +50,7 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
   const { openCanvas } = useUIStore()
   const { saveDraft, drafts, fetchDrafts } = useDraftStore()
   const { sendTyping } = usePresenceStore()
+  const { uploadFile, isUploading } = useFileStore()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -205,10 +207,37 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
     editor?.commands.focus()
   }
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
-      toast.success(`Attached file: ${file.name}`)
+    if (file && editor) {
+      let channelId: string | undefined
+      if (scope?.startsWith('channel:')) {
+        channelId = scope.split(':')[1]
+      }
+
+      const uploadedFile = await uploadFile(file, channelId)
+      if (uploadedFile) {
+        // Insert a link to the file in the editor
+        editor.chain().focus().insertContent([
+          {
+            type: 'text',
+            text: `📎 ${uploadedFile.name}`,
+            marks: [
+              {
+                type: 'link',
+                attrs: {
+                  href: uploadedFile.url,
+                  target: '_blank',
+                },
+              },
+            ],
+          },
+          {
+            type: 'text',
+            text: ' ',
+          },
+        ]).run()
+      }
       e.target.value = ''
     }
   }

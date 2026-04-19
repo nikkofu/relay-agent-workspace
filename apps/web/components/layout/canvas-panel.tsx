@@ -3,10 +3,11 @@
 import { useState, useEffect } from "react"
 import { useUIStore } from "@/stores/ui-store"
 import { useArtifactStore } from "@/stores/artifact-store"
-import { X, Maximize2, RotateCcw, Share2, Save, Wand2, History, MessageSquare, Copy, Code, Type, ExternalLink, MoreVertical } from "lucide-react"
+import { X, Maximize2, RotateCcw, Share2, Save, Wand2, History, MessageSquare, Copy, Code, Type, ExternalLink, MoreVertical, User as UserIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
+import { UserAvatar } from "@/components/common/user-avatar"
 
 export function CanvasPanel() {
   const { isCanvasOpen, closeCanvas, activeCanvasId } = useUIStore()
@@ -45,7 +46,18 @@ export function CanvasPanel() {
           </div>
           <div className="flex flex-col min-w-0">
             <h3 className="font-bold text-sm truncate">{activeArtifact.title}</h3>
-            <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">v{activeArtifact.version} • {activeArtifact.type}</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider whitespace-nowrap">v{activeArtifact.version} • {activeArtifact.type}</span>
+              {activeArtifact.updatedByUser && (
+                <>
+                  <span className="text-[10px] text-muted-foreground">•</span>
+                  <div className="flex items-center gap-1 min-w-0">
+                    <UserAvatar src={activeArtifact.updatedByUser.avatar} name={activeArtifact.updatedByUser.name} className="h-3 w-3" />
+                    <span className="text-[10px] text-muted-foreground truncate italic opacity-80">Edited by {activeArtifact.updatedByUser.name}</span>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-1">

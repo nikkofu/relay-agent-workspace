@@ -2,7 +2,30 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
-## [0.5.22] - 2026-04-19
+## [0.5.24] - 2026-04-19
+
+This release implements Phase 19: File Assets and Artifact Identity, enabling real file uploads and richer collaboration context.
+
+### Added
+
+- **Real File Uploads**: Integrated multipart file upload API in the message composer.
+- **File Attachments**: Uploaded files are automatically linked in the editor for instant sharing.
+- **Channel Files Tab**: New "Files" tab in the `ChannelInfo` panel to browse and download all assets shared in a channel.
+- **Unified File Store**: Added `file-store.ts` for managing file uploads and listing.
+- **Artifact Identity**: The `CanvasPanel` now displays the user who last edited the artifact.
+- **Hydrated Metadata**: The `Artifact` model now includes full `createdByUser` and `updatedByUser` objects.
+
+### Fixed
+
+- **Store Types**: Updated `Artifact` interface to support rich user metadata.
+
+### Verification Used For This Release
+
+- `pnpm build`
+- `cd apps/web && pnpm lint` (Verified PASS)
+
+## [0.5.21] - 2026-04-19
+
 
 This release adds file asset APIs and upgrades artifact responses so Relay can support real attachments and richer canvas identity context.
 

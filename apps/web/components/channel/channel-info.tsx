@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { 
   Bell, Hash, Lock, ChevronRight, Plus, X, Trash2, Pin,
-  Sparkles, Loader2, RefreshCw
+  Sparkles, Loader2, RefreshCw, FileText, Download, File
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -21,6 +21,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useChannelStore } from "@/stores/channel-store"
 import { useUserStore } from "@/stores/user-store"
 import { useMessageStore } from "@/stores/message-store"
+import { useFileStore } from "@/stores/file-store"
 import { UserAvatar } from "@/components/common/user-avatar"
 import { formatDistanceToNow } from "date-fns"
 
@@ -31,6 +32,7 @@ export function ChannelInfo({ trigger }: { trigger: React.ReactNode }) {
   } = useChannelStore()
   const { users, currentUser } = useUserStore()
   const { pinnedMessages, fetchPins, pinMessage } = useMessageStore()
+  const { files, fetchFiles } = useFileStore()
   const [isEditing, setIsEditing] = useState(false)
   const [editForm, setEditForm] = useState({
     topic: currentChannel?.topic || "",
@@ -54,6 +56,7 @@ export function ChannelInfo({ trigger }: { trigger: React.ReactNode }) {
     <Sheet onOpenChange={(open) => {
       if (open && currentChannel) {
         fetchPins(currentChannel.id)
+        fetchFiles(currentChannel.id)
       }
     }}>
       <SheetTrigger asChild>
@@ -75,6 +78,7 @@ export function ChannelInfo({ trigger }: { trigger: React.ReactNode }) {
               <TabsTrigger value="about" className="rounded-none border-b-2 border-transparent data-[state=active]:border-[#1164a3] data-[state=active]:bg-transparent px-0 text-sm font-medium">About</TabsTrigger>
               <TabsTrigger value="members" className="rounded-none border-b-2 border-transparent data-[state=active]:border-[#1164a3] data-[state=active]:bg-transparent px-0 text-sm font-medium">Members <span className="ml-1 text-xs opacity-50">{members.length}</span></TabsTrigger>
               <TabsTrigger value="pins" className="rounded-none border-b-2 border-transparent data-[state=active]:border-[#1164a3] data-[state=active]:bg-transparent px-0 text-sm font-medium">Pins <span className="ml-1 text-xs opacity-50">{pinnedMessages.length}</span></TabsTrigger>
+              <TabsTrigger value="files" className="rounded-none border-b-2 border-transparent data-[state=active]:border-[#1164a3] data-[state=active]:bg-transparent px-0 text-sm font-medium">Files <span className="ml-1 text-xs opacity-50">{files.length}</span></TabsTrigger>
               <TabsTrigger value="settings" className="rounded-none border-b-2 border-transparent data-[state=active]:border-[#1164a3] data-[state=active]:bg-transparent px-0 text-sm font-medium">Settings</TabsTrigger>
             </TabsList>
           </div>
@@ -292,6 +296,43 @@ export function ChannelInfo({ trigger }: { trigger: React.ReactNode }) {
                           onClick={() => pinMessage(message.id)}
                         >
                           <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="files" className="p-0 m-0 flex flex-col">
+              {files.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 px-10 text-center text-muted-foreground">
+                  <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
+                    <File className="w-6 h-6" />
+                  </div>
+                  <p className="text-sm font-bold">No files yet</p>
+                  <p className="text-xs mt-1 italic">Files shared in this channel will appear here for everyone to find.</p>
+                </div>
+              ) : (
+                <div className="flex flex-col">
+                  {files.map((file) => (
+                    <div key={file.id} className="p-4 hover:bg-muted/30 group border-b last:border-0 transition-colors">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-8 h-8 rounded bg-blue-500/10 flex items-center justify-center shrink-0 text-blue-600">
+                            <FileText className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold truncate">{file.name}</p>
+                            <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+                              {(file.size / 1024).toFixed(1)} KB • {formatDistanceToNow(new Date(file.createdAt), { addSuffix: true })}
+                            </p>
+                          </div>
+                        </div>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0" asChild>
+                          <a href={file.url} target="_blank" rel="noopener noreferrer" download={file.name}>
+                            <Download className="w-4 h-4" />
+                          </a>
                         </Button>
                       </div>
                     </div>
