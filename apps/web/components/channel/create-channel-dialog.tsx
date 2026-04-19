@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { useChannelStore } from "@/stores/channel-store"
 import { useState, useEffect } from "react"
+import { toast } from "sonner"
 
 export function CreateChannelDialog({ 
   open, 
@@ -46,7 +47,7 @@ export function CreateChannelDialog({
       setName("")
       setDescription("")
       setIsPrivate(false)
-    } catch (error) {
+    } catch {
       toast.error("Failed to create channel")
     } finally {
       setLoading(false)

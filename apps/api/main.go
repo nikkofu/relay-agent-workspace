@@ -80,6 +80,7 @@ func main() {
 		v1.GET("/workspaces/:id/invites", handlers.GetWorkspaceInvites)
 		v1.POST("/workspaces/:id/invites", handlers.CreateWorkspaceInvite)
 		v1.GET("/channels", handlers.GetChannels)
+		v1.POST("/channels", handlers.CreateChannel)
 		v1.GET("/channels/:id/members", handlers.GetChannelMembers)
 		v1.POST("/channels/:id/members", handlers.AddChannelMember)
 		v1.DELETE("/channels/:id/members/:userId", handlers.RemoveChannelMember)
@@ -104,6 +105,10 @@ func main() {
 		v1.GET("/drafts", handlers.GetDrafts)
 		v1.PUT("/drafts/:scope", handlers.PutDraft)
 		v1.GET("/search", handlers.SearchWorkspace)
+		v1.GET("/artifacts", handlers.GetArtifacts)
+		v1.POST("/artifacts", handlers.CreateArtifact)
+		v1.GET("/artifacts/:id", handlers.GetArtifact)
+		v1.PATCH("/artifacts/:id", handlers.UpdateArtifact)
 		v1.GET("/messages", handlers.GetMessages)
 		v1.GET("/messages/:id/thread", handlers.GetMessageThread)
 		v1.GET("/messages/:id/summary", handlers.GetThreadSummary)
@@ -119,6 +124,7 @@ func main() {
 		v1.GET("/ai/conversations", handlers.GetAIConversations)
 		v1.GET("/ai/conversations/:id", handlers.GetAIConversation)
 		v1.POST("/ai/execute", handlers.ExecuteAI)
+		v1.POST("/ai/canvas/generate", handlers.GenerateCanvasArtifact)
 		v1.POST("/ai/feedback", handlers.SubmitAIFeedback)
 	}
 

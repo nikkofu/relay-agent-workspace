@@ -147,15 +147,20 @@ Likely follow-ups:
 
 ### 4.3 Canvas / Artifact Lifecycle
 
-The canvas panel is already a meaningful product surface, but backend artifact lifecycle is still missing.
-
-Recommended additions:
+Baseline support now exists for:
 
 - `GET /api/v1/artifacts`
 - `POST /api/v1/artifacts`
 - `GET /api/v1/artifacts/:id`
 - `PATCH /api/v1/artifacts/:id`
 - `POST /api/v1/ai/canvas/generate`
+
+Likely follow-ups:
+
+- artifact version history
+- canvas collaboration cursors or presence
+- artifact-to-message references
+- artifact templates and generation presets
 
 ### 4.4 Files
 
@@ -225,7 +230,7 @@ The broader target should cover:
 - later agent runtime events such as:
   - `agent.run.updated`
   - `agent.step.updated`
-  - `artifact.updated`
+- `artifact.updated`
 
 ## 6. Recommended Next Phases
 

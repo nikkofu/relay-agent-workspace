@@ -2,19 +2,16 @@
 
 import { useChannelStore } from "@/stores/channel-store"
 import { useMessageStore } from "@/stores/message-store"
-import { useUserStore } from "@/stores/user-store"
-import { Star, Hash, Lock, MessageSquare, Pin, ChevronRight } from "lucide-react"
+import { Star, Hash, Lock, Pin, ChevronRight } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useEffect } from "react"
 import { formatDistanceToNow } from "date-fns"
 import { useRouter } from "next/navigation"
 import { UserAvatar } from "@/components/common/user-avatar"
-import { cn } from "@/lib/utils"
 
 export default function StarredPage() {
   const { channels, fetchStarredChannels, setCurrentChannelById } = useChannelStore()
   const { pinnedMessages, fetchPins } = useMessageStore()
-  const { users } = useUserStore()
   const router = useRouter()
 
   useEffect(() => {

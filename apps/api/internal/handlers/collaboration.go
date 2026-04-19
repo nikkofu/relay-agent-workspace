@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -273,7 +274,7 @@ func buildActivityFeed(currentUser domain.User) []activityItem {
 			}
 			_ = db.DB.First(&channel, "id = ?", message.ChannelID).Error
 			activities = append(activities, activityItem{
-				ID:         "activity-reaction-" + reaction.MessageID + "-" + reaction.Emoji,
+				ID:         "activity-reaction-" + strconv.FormatUint(uint64(reaction.ID), 10),
 				Type:       "reaction",
 				User:       enrichUser(actor),
 				Channel:    channel,
@@ -467,6 +468,56 @@ func GetChannels(c *gin.Context) {
 	query.Find(&channels)
 
 	c.JSON(http.StatusOK, gin.H{"channels": channels})
+}
+
+func CreateChannel(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var input struct {
+		WorkspaceID string `json:"workspace_id" binding:"required"`
+		Name        string `json:"name" binding:"required"`
+		Description string `json:"description"`
+		Type        string `json:"type"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	channelType := input.Type
+	if channelType == "" {
+		channelType = "public"
+	}
+
+	channel := domain.Channel{
+		ID:          "ch-" + time.Now().UTC().Format("20060102150405.000000"),
+		WorkspaceID: input.WorkspaceID,
+		Name:        input.Name,
+		Type:        channelType,
+		Description: input.Description,
+		MemberCount: 1,
+	}
+	if err := db.DB.Create(&channel).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create channel"})
+		return
+	}
+
+	member := domain.ChannelMember{
+		ChannelID: channel.ID,
+		UserID:    currentUser.ID,
+		Role:      "owner",
+		CreatedAt: time.Now().UTC(),
+	}
+	if err := db.DB.Create(&member).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add creator to channel"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"channel": channel})
 }
 
 func GetChannelMembers(c *gin.Context) {

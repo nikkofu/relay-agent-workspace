@@ -227,6 +227,27 @@ func SeedData() {
 		}
 	}
 
+	artifacts := []domain.Artifact{
+		{
+			ID:        "artifact-1",
+			ChannelID: "ch-5",
+			Title:     "Relay Launch Roadmap",
+			Type:      "document",
+			Status:    "live",
+			Content:   "This draft captures the launch sequencing for Relay Agent Workspace, including API validation, UI integration, and release readiness.",
+			Source:    "ai",
+			Provider:  "gemini",
+			Model:     "gemini-3-flash-preview",
+			CreatedBy: "user-2",
+			UpdatedBy: "user-2",
+			CreatedAt: time.Date(2026, 4, 18, 9, 0, 0, 0, time.UTC),
+			UpdatedAt: time.Date(2026, 4, 18, 9, 5, 0, 0, time.UTC),
+		},
+	}
+	for _, artifact := range artifacts {
+		DB.FirstOrCreate(&artifact, domain.Artifact{ID: artifact.ID})
+	}
+
 	threadReply := domain.Message{
 		ID:        "msg-7",
 		ChannelID: "ch-5",

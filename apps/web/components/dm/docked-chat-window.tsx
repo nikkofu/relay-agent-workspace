@@ -11,7 +11,6 @@ import { useDMStore } from "@/stores/dm-store"
 import { useMessageStore } from "@/stores/message-store"
 import { useUIStore } from "@/stores/ui-store"
 import { cn } from "@/lib/utils"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { TypingIndicator } from "@/components/message/typing-indicator"
 
 interface DockedChatWindowProps {

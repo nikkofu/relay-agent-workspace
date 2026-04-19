@@ -40,7 +40,7 @@ export function InviteMemberDialog({
       toast.success(`Invitation sent to ${email}`)
       onOpenChange(false)
       setEmail("")
-    } catch (error) {
+    } catch {
       toast.error("Failed to send invitation")
     } finally {
       setLoading(false)

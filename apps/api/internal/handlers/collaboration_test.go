@@ -1229,6 +1229,42 @@ func TestPatchChannelUpdatesTopicPurposeAndArchiveState(t *testing.T) {
 	}
 }
 
+func TestCreateChannelCreatesChannelAndOwnerMembership(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Workspace{ID: "ws-1", OrganizationID: "org-1", Name: "Relay"})
+
+	router := gin.New()
+	router.POST("/api/v1/channels", CreateChannel)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/channels", bytes.NewBufferString(`{"workspace_id":"ws-1","name":"launch","description":"Launch planning","type":"private"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on create channel, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Channel domain.Channel `json:"channel"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode create channel payload: %v", err)
+	}
+	if payload.Channel.Name != "launch" || payload.Channel.Type != "private" || payload.Channel.MemberCount != 1 {
+		t.Fatalf("unexpected created channel payload: %#v", payload.Channel)
+	}
+
+	var membership domain.ChannelMember
+	if err := db.DB.First(&membership, "channel_id = ? AND user_id = ?", payload.Channel.ID, "user-1").Error; err != nil {
+		t.Fatalf("expected creator membership to exist: %v", err)
+	}
+	if membership.Role != "owner" {
+		t.Fatalf("expected creator role owner, got %#v", membership)
+	}
+}
+
 func TestWorkspaceInvitesEndpointsCreateAndListInvites(t *testing.T) {
 	setupTestDB(t)
 
@@ -1354,7 +1390,7 @@ func setupTestDB(t *testing.T) {
 	if err := db.DB.AutoMigrate(&domain.Organization{}, &domain.Team{}, &domain.User{}, &domain.Agent{}, &domain.Workspace{}, &domain.WorkspaceInvite{}, &domain.Channel{}, &domain.ChannelMember{}, &domain.Message{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
-	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.AIFeedback{}, &domain.AIConversation{}, &domain.AIConversationMessage{}, &domain.AISummary{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}); err != nil {
+	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.AIFeedback{}, &domain.AIConversation{}, &domain.AIConversationMessage{}, &domain.AISummary{}, &domain.Artifact{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 }

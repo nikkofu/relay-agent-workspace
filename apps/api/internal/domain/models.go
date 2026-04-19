@@ -185,3 +185,19 @@ type AISummary struct {
 	CreatedAt     time.Time  `json:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at"`
 }
+
+type Artifact struct {
+	ID        string    `gorm:"primaryKey" json:"id"`
+	ChannelID string    `gorm:"index" json:"channel_id"`
+	Title     string    `json:"title"`
+	Type      string    `json:"type"`
+	Status    string    `json:"status"`
+	Content   string    `json:"content"`
+	Source    string    `json:"source"`
+	Provider  string    `json:"provider,omitempty"`
+	Model     string    `json:"model,omitempty"`
+	CreatedBy string    `json:"created_by"`
+	UpdatedBy string    `json:"updated_by"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}

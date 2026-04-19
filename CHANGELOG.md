@@ -2,6 +2,36 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.19] - 2026-04-19
+
+This release adds backend-backed artifact lifecycle APIs so Relay's canvas surface can create, persist, update, and AI-generate collaborative outputs.
+
+### Added
+
+- `GET /api/v1/artifacts`
+- `POST /api/v1/artifacts`
+- `GET /api/v1/artifacts/:id`
+- `PATCH /api/v1/artifacts/:id`
+- `POST /api/v1/ai/canvas/generate`
+
+### Realtime And Hardening
+
+- artifact mutations now broadcast `artifact.updated`
+- activity feed reaction items now use stable unique IDs, avoiding duplicate-key collisions when the same emoji appears multiple times on one message
+
+### Documentation
+
+- added [docs/phases/phase-10-artifact-lifecycle.md](./docs/phases/phase-10-artifact-lifecycle.md)
+- added [docs/releases/v0.5.19.md](./docs/releases/v0.5.19.md)
+- updated `docs/AGENT-COLLAB.md` with the Gemini handoff for canvas and artifacts
+- updated `README.md` and `docs/phase8-api-expansion.md` to reflect the shipped artifact baseline
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm build`
+
 ## [0.5.18] - 2026-04-18
 
 This release focuses on UX polish, branding consistency, and critical UI bug fixes including hydration errors and list rendering stability.
@@ -25,7 +55,7 @@ This release focuses on UX polish, branding consistency, and critical UI bug fix
 - `pnpm build`
 - `cd apps/web && pnpm lint`
 
-## [0.5.1] - 2026-04-18
+## [0.5.17] - 2026-04-18
 
 
 This release implements Phase 17: AI Summaries integration, providing instant insights for both message threads and channels.
@@ -47,7 +77,7 @@ This release implements Phase 17: AI Summaries integration, providing instant in
 - `pnpm build`
 - `cd apps/web && pnpm lint`
 
-## [0.5.1] - 2026-04-18
+## [0.5.16] - 2026-04-18
 
 
 This release implements Phase 16: AI Conversation Persistence, allowing users to browse and resume previous AI assistant chats.
