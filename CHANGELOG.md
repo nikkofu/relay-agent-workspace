@@ -2,7 +2,7 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
-## [0.5.19] - 2026-04-19
+## [0.5.20] - 2026-04-19
 
 This release adds backend-backed artifact lifecycle APIs so Relay's canvas surface can create, persist, update, and AI-generate collaborative outputs.
 
@@ -22,7 +22,7 @@ This release adds backend-backed artifact lifecycle APIs so Relay's canvas surfa
 ### Documentation
 
 - added [docs/phases/phase-10-artifact-lifecycle.md](./docs/phases/phase-10-artifact-lifecycle.md)
-- added [docs/releases/v0.5.19.md](./docs/releases/v0.5.19.md)
+- added [docs/releases/v0.5.20.md](./docs/releases/v0.5.20.md)
 - updated `docs/AGENT-COLLAB.md` with the Gemini handoff for canvas and artifacts
 - updated `README.md` and `docs/phase8-api-expansion.md` to reflect the shipped artifact baseline
 

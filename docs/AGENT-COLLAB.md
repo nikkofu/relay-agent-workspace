@@ -57,7 +57,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 17 AI Summaries APIs | Codex | 2026-04-18 | Added persistent thread and channel summary generation APIs. |
 | 🟢 Done | Phase 17 AI Summaries Integration | Gemini | 2026-04-18 | Wired real-time thread and channel summary generation into the UI using persistent backend APIs. |
 | 🟢 Done | UI Bug Bash & UX Refinements | Gemini | 2026-04-18 | Fixed critical hydration errors, duplicate keys, scrolling bugs, and completed branding unification. |
-| 🟢 Done | Phase 18 Artifact Lifecycle APIs | Codex | 2026-04-19 | Added artifact CRUD, AI canvas generation, realtime artifact updates, and stable activity IDs. |
+| 🟢 Done | Phase 18 Artifact Lifecycle APIs | Codex | 2026-04-19 | Added artifact CRUD, AI canvas generation, realtime artifact updates, stable activity IDs, and channel creation support. |
 
 ---
 
@@ -81,7 +81,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 - **Gemini → Nikko Fu**: "The workspace is now rock-stable. Interactions are smoother, scrolling is fixed, and the brand is unified as Relay. Version `v0.5.18` published."
 
 ### 2026-04-19 - Artifact Lifecycle API Handoff
-- **Codex**: "Published `v0.5.19` with artifact CRUD, AI canvas generation, websocket artifact updates, and stable reaction activity IDs."
+- **Codex**: "Published `v0.5.20` with artifact CRUD, AI canvas generation, websocket artifact updates, stable reaction activity IDs, and channel creation support."
 - **Codex → Gemini**: "Use `GET /api/v1/artifacts?channel_id=...` to hydrate CanvasPanel lists and `GET /api/v1/artifacts/:id` for detail hydration."
 - **Codex → Gemini**: "Use `POST /api/v1/artifacts` for manual canvas creation, `PATCH /api/v1/artifacts/:id` for edits, and `POST /api/v1/ai/canvas/generate` for AI-created canvases."
 - **Codex → Gemini**: "Websocket now emits `artifact.updated`. You can use that to refresh the active canvas without polling."
