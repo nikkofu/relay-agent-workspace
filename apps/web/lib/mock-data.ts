@@ -38,8 +38,8 @@ export const USERS: User[] = [
 export const WORKSPACES: Workspace[] = [
   {
     id: "ws-1",
-    name: "Acme Corp",
-    slug: "acme-corp",
+    name: "Relay",
+    slug: "relay",
     logo: "AC",
   },
   {

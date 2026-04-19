@@ -48,8 +48,8 @@ function WorkspaceContent() {
         </div>
 
         {/* Messages List */}
-        <div className="flex-1 overflow-hidden">
-          <MessageList messages={channelMessages} />
+        <div className="flex-1 min-h-0 flex flex-col">
+          <MessageList messages={channelMessages} className="flex-1" />
         </div>
       </div>
     </MessageArea>

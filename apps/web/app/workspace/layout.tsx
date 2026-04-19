@@ -13,7 +13,7 @@ import { useWorkspaceStore } from "@/stores/workspace-store"
 import { useChannelStore } from "@/stores/channel-store"
 import { useUserStore } from "@/stores/user-store"
 import { usePresenceStore } from "@/stores/presence-store"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useWebsocket } from "@/hooks/use-websocket"
 
 export default function WorkspaceLayout({
@@ -26,6 +26,7 @@ export default function WorkspaceLayout({
   const { fetchChannels } = useChannelStore()
   const { fetchMe, fetchUsers } = useUserStore()
   const { fetchPresence } = usePresenceStore()
+  const [mounted, setMounted] = useState(false)
   const showRightPanel = isThreadOpen || isAIPanelOpen || isCanvasOpen
   
   useWebsocket()
@@ -34,6 +35,7 @@ export default function WorkspaceLayout({
   const lastChannelsWorkspaceId = useRef<string | null>(null)
 
   useEffect(() => {
+    setMounted(true)
     if (!workspacesFetched.current) {
       workspacesFetched.current = true
       fetchMe()
@@ -67,22 +69,28 @@ export default function WorkspaceLayout({
       <PrimaryNav />
       <div className="flex-1 flex overflow-hidden rounded-tl-lg bg-white dark:bg-[#1a1d21]">
         <ChannelSidebar />
-        <ResizablePanelGroup direction="horizontal" className="flex-1">
-          <ResizablePanel defaultSize={showRightPanel ? (isCanvasOpen ? 50 : 65) : 100} minSize={30}>
+        {mounted ? (
+          <ResizablePanelGroup direction="horizontal" className="flex-1">
+            <ResizablePanel defaultSize={showRightPanel ? (isCanvasOpen ? 50 : 65) : 100} minSize={30}>
+              {children}
+            </ResizablePanel>
+            
+            {showRightPanel && (
+              <>
+                <ResizableHandle withHandle />
+                <ResizablePanel defaultSize={isCanvasOpen ? 50 : 35} minSize={25}>
+                  {isThreadOpen && <ThreadPanel />}
+                  {isAIPanelOpen && <AIChatPanel />}
+                  {isCanvasOpen && <CanvasPanel />}
+                </ResizablePanel>
+              </>
+            )}
+          </ResizablePanelGroup>
+        ) : (
+          <div className="flex-1 overflow-hidden">
             {children}
-          </ResizablePanel>
-          
-          {showRightPanel && (
-            <>
-              <ResizableHandle withHandle />
-              <ResizablePanel defaultSize={isCanvasOpen ? 50 : 35} minSize={25}>
-                {isThreadOpen && <ThreadPanel />}
-                {isAIPanelOpen && <AIChatPanel />}
-                {isCanvasOpen && <CanvasPanel />}
-              </ResizablePanel>
-            </>
-          )}
-        </ResizablePanelGroup>
+          </div>
+        )}
       </div>
       <SearchDialog />
       <DockedChatContainer />

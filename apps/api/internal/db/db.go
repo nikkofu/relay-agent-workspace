@@ -24,7 +24,7 @@ func InitDB() error {
 		return err
 	}
 
-	return DB.AutoMigrate(
+	if err := DB.AutoMigrate(
 		&domain.Organization{},
 		&domain.Team{},
 		&domain.User{},
@@ -46,5 +46,13 @@ func InitDB() error {
 		&domain.AIConversationMessage{},
 		&domain.AISummary{},
 		&domain.DMMessage{},
-	)
+	); err != nil {
+		return err
+	}
+
+	// Fixup: Rename Acme Corp to Relay
+	DB.Model(&domain.Organization{}).Where("name = ?", "Acme Corp").Update("name", "Relay")
+	DB.Model(&domain.Workspace{}).Where("name = ?", "Acme Corp").Update("name", "Relay")
+
+	return nil
 }

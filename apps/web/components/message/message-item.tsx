@@ -30,6 +30,13 @@ export function MessageItem({ message, sender, isCompact, showActions = true }: 
     setMounted(true)
   }, [])
 
+  const safeFormat = (dateStr: string, formatStr: string) => {
+    if (!dateStr) return ""
+    const date = new Date(dateStr)
+    if (isNaN(date.getTime())) return ""
+    return format(date, formatStr)
+  }
+
   return (
     <div className={cn(
       "group flex items-start gap-3 hover:bg-muted/50 -mx-4 px-4 py-1 transition-colors relative",
@@ -47,7 +54,7 @@ export function MessageItem({ message, sender, isCompact, showActions = true }: 
           <UserAvatar src={sender.avatar} name={sender.name} status={sender.status} user={sender} />
         ) : (
           <span className="text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
-            {mounted ? format(new Date(message.createdAt), "h:mm") : null}
+            {mounted ? safeFormat(message.createdAt, "h:mm") : null}
           </span>
         )}
       </div>
@@ -58,7 +65,7 @@ export function MessageItem({ message, sender, isCompact, showActions = true }: 
           <div className="flex items-center gap-2 leading-tight">
             <span className="font-bold text-sm hover:underline cursor-pointer">{sender.name}</span>
             <span className="text-[11px] text-muted-foreground">
-              {mounted ? format(new Date(message.createdAt), "h:mm a") : null}
+              {mounted ? safeFormat(message.createdAt, "h:mm a") : null}
             </span>
           </div>
         )}

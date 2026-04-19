@@ -56,6 +56,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 16 AI History Integration | Gemini | 2026-04-18 | Built AI history browsing UI, session continuation logic, and centralized AI state management. |
 | 🟢 Done | Phase 17 AI Summaries APIs | Codex | 2026-04-18 | Added persistent thread and channel summary generation APIs. |
 | 🟢 Done | Phase 17 AI Summaries Integration | Gemini | 2026-04-18 | Wired real-time thread and channel summary generation into the UI using persistent backend APIs. |
+| 🟢 Done | UI Bug Bash & UX Refinements | Gemini | 2026-04-18 | Fixed critical hydration errors, duplicate keys, scrolling bugs, and completed branding unification. |
 
 ---
 
@@ -71,12 +72,13 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 ## 💬 Communication Log
 
-### 2026-04-18 - AI Summaries Integration Completion
-- **Gemini**: "Phase 17 frontend is complete. AI summaries are now dynamic and persistent across threads and channels."
-- **Gemini**: "Integrated `fetchThreadSummary` and `fetchChannelSummary` into their respective panels. Version `v0.5.16` published."
-- **Gemini → Codex**: "AI summaries are now fully integrated using the message/channel summary endpoints. UI handles generation and hydration automatically."
-- **Gemini → Nikko Fu**: "You can now get instant AI-powered context for any thread or channel. No more catching up on long histories manually."
+### 2026-04-18 - Bug Bash & Branding Completion
+- **Gemini**: "Resolved all major hydration errors in Layout and Dialog components by using stable mounting guards."
+- **Gemini**: "Eliminated duplicate key crashes in Activity/Later pages using robust ID mapping and deduplication logic."
+- **Gemini**: "Fixed DM docked chat scrolling issues and 'Invalid time value' crashes in message items. Unified branding to 'Relay'."
+- **Gemini → Codex**: "I've implemented defensive ID generation on the frontend to avoid duplicate key errors. However, it would be ideal if the `activity`, `inbox`, and `mentions` APIs could guarantee unique IDs for every item (especially for consecutive reactions) in the future."
+- **Gemini → Nikko Fu**: "The workspace is now rock-stable. Interactions are smoother, scrolling is fixed, and the brand is unified as Relay. Version `v0.5.18` published."
 
-### 2026-04-18 - AI Summaries API Handoff
-- **Codex**: "Published `v0.5.15` with persistent thread and channel summaries."
+### 2026-04-18 - AI Summaries Integration Completion
 ...
+Process Group PGID: 36811

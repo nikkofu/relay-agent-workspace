@@ -25,9 +25,19 @@ interface ActivityState {
 
 const mapActivity = (a: any): ActivityItem => ({
   ...a,
+  id: a.id || `${a.type}-${a.message?.id || 'no-msg'}-${a.user?.id || 'no-user'}-${a.target || 'no-target'}-${a.occurred_at}`,
   occurredAt: a.occurred_at,
   isRead: a.is_read
 })
+
+const deduplicateItems = (items: ActivityItem[]): ActivityItem[] => {
+  const seen = new Set();
+  return items.filter(item => {
+    if (seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
+}
 
 export const useActivityStore = create<ActivityState>((set, get) => ({
   activities: [],
@@ -37,7 +47,7 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
     try {
       const response = await fetch(`${API_BASE_URL}/activity`)
       const data = await response.json()
-      set({ activities: data.activities.map(mapActivity) })
+      set({ activities: deduplicateItems(data.activities.map(mapActivity)) })
     } catch (error) {
       console.error("Failed to fetch activities:", error)
     }
@@ -46,7 +56,7 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
     try {
       const response = await fetch(`${API_BASE_URL}/inbox`)
       const data = await response.json()
-      set({ inboxItems: data.items.map(mapActivity) })
+      set({ inboxItems: deduplicateItems(data.items.map(mapActivity)) })
     } catch (error) {
       console.error("Failed to fetch inbox:", error)
     }
@@ -55,7 +65,7 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
     try {
       const response = await fetch(`${API_BASE_URL}/mentions`)
       const data = await response.json()
-      set({ mentionItems: data.items.map(mapActivity) })
+      set({ mentionItems: deduplicateItems(data.items.map(mapActivity)) })
     } catch (error) {
       console.error("Failed to fetch mentions:", error)
     }

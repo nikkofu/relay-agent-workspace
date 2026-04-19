@@ -22,6 +22,7 @@ export const useLaterStore = create<LaterState>((set) => ({
       const data = await response.json()
       set({ items: data.items.map((i: any) => ({
         ...i,
+        id: i.id || i.message?.id,
         savedAt: i.saved_at
       })) })
     } catch (error) {

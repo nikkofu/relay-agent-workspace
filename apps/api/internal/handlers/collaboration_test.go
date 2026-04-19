@@ -1232,7 +1232,7 @@ func TestPatchChannelUpdatesTopicPurposeAndArchiveState(t *testing.T) {
 func TestWorkspaceInvitesEndpointsCreateAndListInvites(t *testing.T) {
 	setupTestDB(t)
 
-	db.DB.Create(&domain.Workspace{ID: "ws-1", OrganizationID: "org-1", Name: "Acme Corp"})
+	db.DB.Create(&domain.Workspace{ID: "ws-1", OrganizationID: "org-1", Name: "Relay"})
 
 	router := gin.New()
 	router.GET("/api/v1/workspaces/:id/invites", GetWorkspaceInvites)

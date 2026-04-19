@@ -16,6 +16,9 @@ import { Badge } from "@/components/ui/badge"
 import { useRouter } from "next/navigation"
 import type { Channel, DirectMessage } from "@/types"
 
+import { CreateChannelDialog } from "@/components/channel/create-channel-dialog"
+import { InviteMemberDialog } from "@/components/workspace/invite-member-dialog"
+
 export function ChannelSidebar() {
   const { currentWorkspace } = useWorkspaceStore()
   const { channels, currentChannel, setCurrentChannel } = useChannelStore()
@@ -24,6 +27,8 @@ export function ChannelSidebar() {
   const { openSearch, openDockedChat } = useUIStore()
   const [openSections, setOpenSections] = useState({ starred: true, channels: true, dms: true })
   const [mounted, setMounted] = useState(false)
+  const [showCreateChannel, setShowCreateChannel] = useState(false)
+  const [showInviteMember, setShowInviteMember] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -58,7 +63,7 @@ export function ChannelSidebar() {
       {/* Workspace Header */}
       <div className="h-14 px-4 flex items-center justify-between hover:bg-white/10 cursor-pointer transition-colors border-b border-white/5">
         <h2 className="font-bold text-lg text-white truncate flex items-center gap-1">
-          {currentWorkspace?.name}
+          {mounted ? (currentWorkspace?.name || "Workspace") : "Workspace"}
           <ChevronDown className="w-4 h-4" />
         </h2>
         <div className="bg-white rounded-full p-1.5 shrink-0">
@@ -76,15 +81,15 @@ export function ChannelSidebar() {
               onClick={openSearch}
             >
               <Search className="w-4 h-4 mr-2" />
-              Search Acme Corp
+              Search Relay
               <span className="ml-auto text-[10px] opacity-50">⌘K</span>
             </Button>
           </div>
 
           {/* Starred Section */}
           <Collapsible open={openSections.starred} onOpenChange={(open) => setOpenSections(s => ({ ...s, starred: open }))}>
-            <div className="group flex items-center px-2 py-1 hover:bg-white/10 rounded cursor-pointer mb-1">
-              <CollapsibleTrigger asChild>
+            <div className="group flex items-center px-2 py-1 hover:bg-white/10 rounded cursor-pointer mb-1" onClick={() => router.push('/workspace/starred')}>
+              <CollapsibleTrigger asChild onClick={(e) => e.stopPropagation()}>
                 <ChevronDown className={cn("w-4 h-4 mr-1 transition-transform", !openSections.starred && "-rotate-90")} />
               </CollapsibleTrigger>
               <span className="text-sm font-semibold uppercase tracking-wider text-[11px] flex-1">Starred</span>
@@ -108,7 +113,14 @@ export function ChannelSidebar() {
                 <ChevronDown className={cn("w-4 h-4 mr-1 transition-transform", !openSections.channels && "-rotate-90")} />
               </CollapsibleTrigger>
               <span className="text-sm font-semibold uppercase tracking-wider text-[11px] flex-1">Channels</span>
-              <Plus className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-6 w-6 text-[#cfc3cf] hover:text-white hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all"
+                onClick={() => setShowCreateChannel(true)}
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
             </div>
             <CollapsibleContent className="flex flex-col gap-[2px]">
               {regularChannels.map(channel => (
@@ -119,7 +131,10 @@ export function ChannelSidebar() {
                   onClick={() => handleChannelClick(channel)}
                 />
               ))}
-              <div className="flex items-center px-2 py-1.5 hover:bg-white/10 rounded cursor-pointer text-sm gap-2">
+              <div 
+                className="flex items-center px-2 py-1.5 hover:bg-white/10 rounded cursor-pointer text-sm gap-2"
+                onClick={() => setShowCreateChannel(true)}
+              >
                 <div className="bg-white/10 rounded p-0.5">
                   <Plus className="w-3.5 h-3.5" />
                 </div>
@@ -180,7 +195,7 @@ export function ChannelSidebar() {
                 )
               })}
               <div 
-                onClick={() => router.push('/workspace/dms')}
+                onClick={() => setShowInviteMember(true)}
                 className="flex items-center px-2 py-1.5 hover:bg-white/10 rounded cursor-pointer text-sm gap-2 opacity-70"
               >
                 <div className="bg-white/10 rounded p-0.5">
@@ -193,6 +208,9 @@ export function ChannelSidebar() {
         </div>
       </ScrollArea>
       <HuddleBar />
+
+      <CreateChannelDialog open={showCreateChannel} onOpenChange={setShowCreateChannel} />
+      <InviteMemberDialog open={showInviteMember} onOpenChange={setShowInviteMember} />
     </nav>
   )
 }

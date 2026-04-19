@@ -49,7 +49,7 @@ const mapMessage = (m: any): Message => {
     channelId: m.channel_id,
     dmId: m.dm_id,
     threadId: m.thread_id,
-    createdAt: m.created_at,
+    createdAt: m.created_at || new Date().toISOString(),
     reactions,
     attachments,
     replyCount: m.reply_count,

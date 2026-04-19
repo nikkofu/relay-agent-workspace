@@ -9,7 +9,7 @@ import (
 
 func SeedData() {
 	// 1. Organizations
-	org := domain.Organization{ID: "ws-1", Name: "Acme Corp"}
+	org := domain.Organization{ID: "ws-1", Name: "Relay"}
 	DB.FirstOrCreate(&org, domain.Organization{ID: org.ID})
 
 	org2 := domain.Organization{ID: "ws-2", Name: "Side Project"}
@@ -60,7 +60,7 @@ func SeedData() {
 
 	// 3. Workspaces (from mock-data.ts)
 	workspaces := []domain.Workspace{
-		{ID: "ws-1", OrganizationID: org.ID, Name: "Acme Corp"},
+		{ID: "ws-1", OrganizationID: org.ID, Name: "Relay"},
 		{ID: "ws-2", OrganizationID: org2.ID, Name: "Side Project"},
 	}
 

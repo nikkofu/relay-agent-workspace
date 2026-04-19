@@ -7,9 +7,10 @@ interface WorkspaceState {
   currentWorkspace: Workspace | null
   setCurrentWorkspace: (workspace: Workspace) => void
   fetchWorkspaces: () => Promise<void>
+  inviteMember: (email: string) => Promise<void>
 }
 
-export const useWorkspaceStore = create<WorkspaceState>((set) => ({
+export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   workspaces: [],
   currentWorkspace: null,
   setCurrentWorkspace: (workspace) => set({ currentWorkspace: workspace }),
@@ -25,4 +26,19 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       console.error("Failed to fetch workspaces:", error)
     }
   },
+  inviteMember: async (email) => {
+    const workspaceId = get().currentWorkspace?.id
+    if (!workspaceId) return
+
+    try {
+      await fetch(`${API_BASE_URL}/workspaces/${workspaceId}/invites`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email })
+      })
+    } catch (error) {
+      console.error("Failed to invite member:", error)
+      throw error
+    }
+  }
 }))

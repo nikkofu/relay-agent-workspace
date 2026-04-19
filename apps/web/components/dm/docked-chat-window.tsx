@@ -84,12 +84,8 @@ export function DockedChatWindow({ userId, index }: DockedChatWindowProps) {
       {!isMinimized && (
         <>
           {/* Messages Area */}
-          <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-            <ScrollArea className="flex-1">
-              <div className="p-2 pt-4">
-                <MessageList messages={chatMessages} />
-              </div>
-            </ScrollArea>
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+            <MessageList messages={chatMessages} className="flex-1" />
           </div>
 
           <TypingIndicator scope={`dm:${conversation?.id}`} />

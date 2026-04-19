@@ -52,6 +52,31 @@ export const useChannelStore = create<ChannelState>((set, get) => ({
     }
   },
   addChannel: (channel) => set((state) => ({ channels: [...state.channels, channel] })),
+  createChannel: async (name: string, description: string, isPrivate: boolean) => {
+    const workspaceId = get().channels[0]?.workspaceId || "ws_1"
+    try {
+      const response = await fetch(`${API_BASE_URL}/channels`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          name, 
+          description, 
+          type: isPrivate ? "private" : "public",
+          workspace_id: workspaceId
+        })
+      })
+      const data = await response.json()
+      const newChannel = data.channel
+      set((state) => ({ 
+        channels: [...state.channels, newChannel]
+      }))
+      get().setCurrentChannel(newChannel)
+      return newChannel
+    } catch (error) {
+      console.error("Failed to create channel:", error)
+      throw error
+    }
+  },
   setCurrentChannelById: (id) => {
     const channel = get().channels.find(c => c.id === id)
     if (channel) {

@@ -2,7 +2,31 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
-## [0.5.16] - 2026-04-18
+## [0.5.18] - 2026-04-18
+
+This release focuses on UX polish, branding consistency, and critical UI bug fixes including hydration errors and list rendering stability.
+
+### Added
+
+- **Sidebar Interactivity**: Activated "Add channels" and "Add teammates" buttons with dedicated creation/invitation dialogs.
+- **Unified Branding**: Completed the full rebranding from "Acme Corp" to "Relay" across frontend, backend seed data, and documentation.
+- **Starred & Pinned Page**: Created a dedicated view at `/workspace/starred` to aggregate all important collaboration assets.
+
+### Fixed
+
+- **Hydration Errors**: Resolved `ResizablePanel` and `DialogTitle` hydration mismatches by implementing stable mounting guards.
+- **List Rendering**: Eliminated duplicate key errors in Activity and Later pages through enhanced ID mapping and deduplication logic.
+- **Scroll Stability**: Fixed missing scrollbars in DM docked windows by optimizing nested flex containers and removing redundant scroll areas.
+- **Date Safety**: Resolved "Invalid time value" crashes by adding defensive date formatting and reliable store-level fallbacks.
+- **Syntax & Compilation**: Fixed a parsing error and duplicate `useState` import in the channel creation dialog.
+
+### Verification Used For This Release
+
+- `pnpm build`
+- `cd apps/web && pnpm lint`
+
+## [0.5.1] - 2026-04-18
+
 
 This release implements Phase 17: AI Summaries integration, providing instant insights for both message threads and channels.
 
