@@ -2,6 +2,37 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.22] - 2026-04-19
+
+This release adds file asset APIs and upgrades artifact responses so Relay can support real attachments and richer canvas identity context.
+
+### Added
+
+- `POST /api/v1/files/upload`
+- `GET /api/v1/files`
+- `GET /api/v1/files/:id`
+- `GET /api/v1/files/:id/content`
+
+### Artifact Contract
+
+- artifact responses now include:
+  - `created_by_user`
+  - `updated_by_user`
+- websocket `artifact.updated` payloads use the same hydrated artifact structure
+
+### Documentation
+
+- added [docs/phases/phase-10-file-assets.md](./docs/phases/phase-10-file-assets.md)
+- added [docs/releases/v0.5.22.md](./docs/releases/v0.5.22.md)
+- updated `docs/AGENT-COLLAB.md` with the Gemini handoff for files and artifact identity hydration
+- updated `README.md` and `docs/phase8-api-expansion.md` to reflect the shipped file baseline
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm build`
+
 ## [0.5.21] - 2026-04-19
 
 This release implements Phase 18: Artifact Lifecycle integration, bringing real dynamic canvases and AI generation to the workspace.

@@ -15,6 +15,12 @@ import (
 	"github.com/nikkofu/relay-agent-workspace/api/internal/realtime"
 )
 
+type artifactResponse struct {
+	domain.Artifact
+	CreatedByUser *domain.User `json:"created_by_user,omitempty"`
+	UpdatedByUser *domain.User `json:"updated_by_user,omitempty"`
+}
+
 func GetArtifacts(c *gin.Context) {
 	var artifacts []domain.Artifact
 
@@ -27,7 +33,12 @@ func GetArtifacts(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"artifacts": artifacts})
+	items := make([]artifactResponse, 0, len(artifacts))
+	for _, artifact := range artifacts {
+		items = append(items, hydrateArtifactResponse(artifact))
+	}
+
+	c.JSON(http.StatusOK, gin.H{"artifacts": items})
 }
 
 func GetArtifact(c *gin.Context) {
@@ -37,7 +48,7 @@ func GetArtifact(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"artifact": artifact})
+	c.JSON(http.StatusOK, gin.H{"artifact": hydrateArtifactResponse(artifact)})
 }
 
 func CreateArtifact(c *gin.Context) {
@@ -79,7 +90,7 @@ func CreateArtifact(c *gin.Context) {
 
 	_ = broadcastArtifactRealtimeEvent("artifact.updated", artifact)
 
-	c.JSON(http.StatusCreated, gin.H{"artifact": artifact})
+	c.JSON(http.StatusCreated, gin.H{"artifact": hydrateArtifactResponse(artifact)})
 }
 
 func UpdateArtifact(c *gin.Context) {
@@ -128,7 +139,7 @@ func UpdateArtifact(c *gin.Context) {
 
 	_ = broadcastArtifactRealtimeEvent("artifact.updated", artifact)
 
-	c.JSON(http.StatusOK, gin.H{"artifact": artifact})
+	c.JSON(http.StatusOK, gin.H{"artifact": hydrateArtifactResponse(artifact)})
 }
 
 func GenerateCanvasArtifact(c *gin.Context) {
@@ -197,7 +208,7 @@ func GenerateCanvasArtifact(c *gin.Context) {
 
 	_ = broadcastArtifactRealtimeEvent("artifact.updated", artifact)
 
-	c.JSON(http.StatusCreated, gin.H{"artifact": artifact})
+	c.JSON(http.StatusCreated, gin.H{"artifact": hydrateArtifactResponse(artifact)})
 }
 
 func broadcastArtifactRealtimeEvent(eventType string, artifact domain.Artifact) error {
@@ -217,8 +228,29 @@ func broadcastArtifactRealtimeEvent(eventType string, artifact domain.Artifact) 
 		ChannelID:   artifact.ChannelID,
 		EntityID:    artifact.ID,
 		TS:          time.Now().UTC().Format(time.RFC3339Nano),
-		Payload:     artifact,
+		Payload:     hydrateArtifactResponse(artifact),
 	})
+}
+
+func hydrateArtifactResponse(artifact domain.Artifact) artifactResponse {
+	response := artifactResponse{Artifact: artifact}
+
+	if artifact.CreatedBy != "" {
+		var createdBy domain.User
+		if err := db.DB.First(&createdBy, "id = ?", artifact.CreatedBy).Error; err == nil {
+			enriched := enrichUser(createdBy)
+			response.CreatedByUser = &enriched
+		}
+	}
+	if artifact.UpdatedBy != "" {
+		var updatedBy domain.User
+		if err := db.DB.First(&updatedBy, "id = ?", artifact.UpdatedBy).Error; err == nil {
+			enriched := enrichUser(updatedBy)
+			response.UpdatedByUser = &enriched
+		}
+	}
+
+	return response
 }
 
 func handleArtifactGenerationError(c *gin.Context, err error) {

@@ -59,6 +59,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | UI Bug Bash & UX Refinements | Gemini | 2026-04-18 | Fixed critical hydration errors, duplicate keys, scrolling bugs, and completed branding unification. |
 | 🟢 Done | Phase 18 Artifact Lifecycle APIs | Codex | 2026-04-19 | Added artifact CRUD, AI canvas generation, realtime artifact updates, stable activity IDs, and channel creation support. |
 | 🟢 Done | Phase 18 Artifact Lifecycle Integration | Gemini | 2026-04-19 | Connected CanvasPanel to real artifact APIs, implemented AI canvas generation flow, and enabled real-time sync. |
+| 🟢 Done | Phase 19 File Assets APIs | Codex | 2026-04-19 | Added file upload/list/detail/content APIs and hydrated artifact editor user objects. |
 
 ---
 
@@ -66,8 +67,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Waiting for next phase handoff (e.g. intelligent search or file systems) | 100% |
-| **Codex** | `idle` | Waiting for next phase handoff | 100% |
+| **Gemini** | `idle` | Ready to integrate file attachments and richer artifact identity surfaces | 100% |
+| **Codex** | `idle` | Waiting for next phase handoff after files | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
@@ -79,6 +80,13 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 - **Gemini**: "AI Assistant can now trigger real canvas generation. Integrated websocket `artifact.updated` for live sync. Version `v0.5.21` published."
 - **Gemini → Codex**: "Artifact lifecycle is fully integrated. Suggestion: Including a full `user` object in artifact responses would be helpful for displaying the 'last edited by' info in the UI."
 - **Gemini → Nikko Fu**: "You can now collaborate on real documents and code in the Canvas. AI-generated content is saved automatically and stays in sync across the team."
+
+### 2026-04-19 - File Assets API Handoff
+- **Codex**: "Published `v0.5.22` with file asset APIs and hydrated artifact editor user objects."
+- **Codex → Gemini**: "Artifact responses now include `created_by_user` and `updated_by_user`, including websocket `artifact.updated` payloads."
+- **Codex → Gemini**: "Use multipart `POST /api/v1/files/upload` with form field `file` and optional `channel_id`."
+- **Codex → Gemini**: "Use `GET /api/v1/files?channel_id=...` for file lists, `GET /api/v1/files/:id` for metadata, and returned `url` for direct file fetch/download."
+- **Codex → Nikko Fu**: "Relay now has the backend foundation for real file attachments, not just artifact text blobs."
 
 ### 2026-04-19 - Artifact Lifecycle API Handoff
 ...

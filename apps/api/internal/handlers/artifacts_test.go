@@ -3,8 +3,10 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -49,13 +51,20 @@ func TestArtifactCRUDAndAI_generate(t *testing.T) {
 	}
 
 	var createPayload struct {
-		Artifact domain.Artifact `json:"artifact"`
+		Artifact struct {
+			domain.Artifact
+			CreatedByUser *domain.User `json:"created_by_user"`
+			UpdatedByUser *domain.User `json:"updated_by_user"`
+		} `json:"artifact"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &createPayload); err != nil {
 		t.Fatalf("failed to decode create artifact payload: %v", err)
 	}
 	if createPayload.Artifact.Source != "manual" || createPayload.Artifact.Type != "document" {
 		t.Fatalf("unexpected manual artifact payload: %#v", createPayload.Artifact)
+	}
+	if createPayload.Artifact.CreatedByUser == nil || createPayload.Artifact.CreatedByUser.ID != "user-1" {
+		t.Fatalf("expected created_by_user hydration, got %#v", createPayload.Artifact.CreatedByUser)
 	}
 	assertRealtimeEventType(t, client, "artifact.updated")
 
@@ -75,13 +84,19 @@ func TestArtifactCRUDAndAI_generate(t *testing.T) {
 	}
 
 	var detailPayload struct {
-		Artifact domain.Artifact `json:"artifact"`
+		Artifact struct {
+			domain.Artifact
+			UpdatedByUser *domain.User `json:"updated_by_user"`
+		} `json:"artifact"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &detailPayload); err != nil {
 		t.Fatalf("failed to decode artifact detail: %v", err)
 	}
 	if detailPayload.Artifact.Status != "live" || detailPayload.Artifact.Content != "Revised outline" {
 		t.Fatalf("unexpected artifact detail payload: %#v", detailPayload.Artifact)
+	}
+	if detailPayload.Artifact.UpdatedByUser == nil || detailPayload.Artifact.UpdatedByUser.ID != "user-1" {
+		t.Fatalf("expected updated_by_user hydration, got %#v", detailPayload.Artifact.UpdatedByUser)
 	}
 
 	rec = httptest.NewRecorder()
@@ -92,13 +107,19 @@ func TestArtifactCRUDAndAI_generate(t *testing.T) {
 	}
 
 	var listPayload struct {
-		Artifacts []domain.Artifact `json:"artifacts"`
+		Artifacts []struct {
+			domain.Artifact
+			UpdatedByUser *domain.User `json:"updated_by_user"`
+		} `json:"artifacts"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &listPayload); err != nil {
 		t.Fatalf("failed to decode artifact list: %v", err)
 	}
 	if len(listPayload.Artifacts) != 1 {
 		t.Fatalf("expected 1 artifact, got %d", len(listPayload.Artifacts))
+	}
+	if listPayload.Artifacts[0].UpdatedByUser == nil {
+		t.Fatalf("expected list artifact to include updated_by_user")
 	}
 
 	rec = httptest.NewRecorder()
@@ -110,7 +131,10 @@ func TestArtifactCRUDAndAI_generate(t *testing.T) {
 	}
 
 	var generatePayload struct {
-		Artifact domain.Artifact `json:"artifact"`
+		Artifact struct {
+			domain.Artifact
+			UpdatedByUser *domain.User `json:"updated_by_user"`
+		} `json:"artifact"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &generatePayload); err != nil {
 		t.Fatalf("failed to decode generated artifact payload: %v", err)
@@ -120,6 +144,9 @@ func TestArtifactCRUDAndAI_generate(t *testing.T) {
 	}
 	if !strings.Contains(generatePayload.Artifact.Content, "Thinking...") || !strings.Contains(generatePayload.Artifact.Content, "Done.") {
 		t.Fatalf("expected generated artifact content from stream, got %#v", generatePayload.Artifact.Content)
+	}
+	if generatePayload.Artifact.UpdatedByUser == nil || generatePayload.Artifact.UpdatedByUser.ID != "user-1" {
+		t.Fatalf("expected generated artifact updated_by_user hydration, got %#v", generatePayload.Artifact.UpdatedByUser)
 	}
 	assertRealtimeEventType(t, client, "artifact.updated")
 
@@ -164,5 +191,83 @@ func TestActivityFeedUsesStableUniqueReactionIDs(t *testing.T) {
 	}
 	if reactionCount != 2 {
 		t.Fatalf("expected 2 reaction activity items, got %d", reactionCount)
+	}
+}
+
+func TestFileUploadListAndDetail(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+
+	_ = os.RemoveAll("uploads")
+	t.Cleanup(func() {
+		_ = os.RemoveAll("uploads")
+	})
+
+	router := gin.New()
+	router.POST("/api/v1/files/upload", UploadFile)
+	router.GET("/api/v1/files", ListFiles)
+	router.GET("/api/v1/files/:id", GetFile)
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	_ = writer.WriteField("channel_id", "ch-5")
+	fileWriter, err := writer.CreateFormFile("file", "notes.txt")
+	if err != nil {
+		t.Fatalf("failed to create multipart file: %v", err)
+	}
+	if _, err := fileWriter.Write([]byte("hello relay files")); err != nil {
+		t.Fatalf("failed to write multipart contents: %v", err)
+	}
+	_ = writer.Close()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/files/upload", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on file upload, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var uploadPayload struct {
+		File struct {
+			domain.FileAsset
+			Uploader *domain.User `json:"uploader"`
+			URL      string       `json:"url"`
+		} `json:"file"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &uploadPayload); err != nil {
+		t.Fatalf("failed to decode upload payload: %v", err)
+	}
+	if uploadPayload.File.Uploader == nil || uploadPayload.File.Uploader.ID != "user-1" {
+		t.Fatalf("expected uploader hydration, got %#v", uploadPayload.File.Uploader)
+	}
+	if uploadPayload.File.URL == "" {
+		t.Fatalf("expected file url in upload payload")
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/files?channel_id=ch-5", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on file list, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var listPayload struct {
+		Files []map[string]any `json:"files"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &listPayload); err != nil {
+		t.Fatalf("failed to decode file list payload: %v", err)
+	}
+	if len(listPayload.Files) != 1 {
+		t.Fatalf("expected 1 file, got %d", len(listPayload.Files))
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/files/"+uploadPayload.File.ID, nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on file detail, got %d body=%s", rec.Code, rec.Body.String())
 	}
 }

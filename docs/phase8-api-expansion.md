@@ -164,10 +164,18 @@ Likely follow-ups:
 
 ### 4.4 Files
 
-If message attachments and artifact references are to become real:
+Baseline support now exists for:
 
 - `POST /api/v1/files/upload`
+- `GET /api/v1/files`
 - `GET /api/v1/files/:id`
+- `GET /api/v1/files/:id/content`
+
+Likely follow-ups:
+
+- file-to-message attachment references
+- file previews and image thumbnails
+- file deletion and retention controls
 
 ### 4.5 Slack Parity Layer
 

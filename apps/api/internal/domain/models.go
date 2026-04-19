@@ -201,3 +201,14 @@ type Artifact struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
+
+type FileAsset struct {
+	ID          string    `gorm:"primaryKey" json:"id"`
+	ChannelID   string    `gorm:"index" json:"channel_id,omitempty"`
+	UploaderID  string    `gorm:"index" json:"uploader_id"`
+	Name        string    `json:"name"`
+	StoragePath string    `json:"storage_path"`
+	ContentType string    `json:"content_type"`
+	SizeBytes   int64     `json:"size_bytes"`
+	CreatedAt   time.Time `json:"created_at"`
+}

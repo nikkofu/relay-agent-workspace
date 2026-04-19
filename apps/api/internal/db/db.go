@@ -46,6 +46,7 @@ func InitDB() error {
 		&domain.AIConversationMessage{},
 		&domain.AISummary{},
 		&domain.Artifact{},
+		&domain.FileAsset{},
 		&domain.DMMessage{},
 	); err != nil {
 		return err

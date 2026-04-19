@@ -22,6 +22,7 @@ func main() {
 	db.SeedData()
 
 	r := gin.Default()
+	r.Static("/uploads", "./uploads")
 
 	// CORS Middleware
 	r.Use(func(c *gin.Context) {
@@ -109,6 +110,10 @@ func main() {
 		v1.POST("/artifacts", handlers.CreateArtifact)
 		v1.GET("/artifacts/:id", handlers.GetArtifact)
 		v1.PATCH("/artifacts/:id", handlers.UpdateArtifact)
+		v1.GET("/files", handlers.ListFiles)
+		v1.POST("/files/upload", handlers.UploadFile)
+		v1.GET("/files/:id", handlers.GetFile)
+		v1.GET("/files/:id/content", handlers.GetFileContent)
 		v1.GET("/messages", handlers.GetMessages)
 		v1.GET("/messages/:id/thread", handlers.GetMessageThread)
 		v1.GET("/messages/:id/summary", handlers.GetThreadSummary)
