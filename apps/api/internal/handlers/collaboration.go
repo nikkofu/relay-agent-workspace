@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"sort"
 	"strconv"
@@ -65,8 +66,58 @@ func buildUserInsight(user domain.User) string {
 }
 
 func enrichUser(user domain.User) domain.User {
+	user = derivePresence(user)
 	user.AIInsight = buildUserInsight(user)
 	return user
+}
+
+func derivePresence(user domain.User) domain.User {
+	now := time.Now().UTC()
+
+	if user.PresenceExpiresAt != nil && now.After(*user.PresenceExpiresAt) {
+		if user.LastSeenAt != nil && now.Sub(*user.LastSeenAt) > 10*time.Minute {
+			user.Status = "offline"
+		} else if user.Status != "offline" {
+			user.Status = "away"
+		}
+	}
+
+	if strings.TrimSpace(user.StatusText) == "" {
+		switch user.Status {
+		case "online":
+			user.StatusText = "Active now"
+		case "busy":
+			user.StatusText = "Busy"
+		case "away":
+			if user.LastSeenAt != nil {
+				user.StatusText = "Last active " + humanizeLastSeen(*user.LastSeenAt, now)
+			} else {
+				user.StatusText = "Away"
+			}
+		default:
+			if user.LastSeenAt != nil {
+				user.StatusText = "Last active " + humanizeLastSeen(*user.LastSeenAt, now)
+			} else {
+				user.StatusText = "Offline"
+			}
+		}
+	}
+
+	return user
+}
+
+func humanizeLastSeen(lastSeen, now time.Time) string {
+	diff := now.Sub(lastSeen)
+	switch {
+	case diff < time.Minute:
+		return "just now"
+	case diff < time.Hour:
+		return strconv.Itoa(int(diff.Minutes())) + "m ago"
+	case diff < 24*time.Hour:
+		return strconv.Itoa(int(diff.Hours())) + "h ago"
+	default:
+		return strconv.Itoa(int(diff.Hours()/24)) + "d ago"
+	}
 }
 
 func broadcastRealtimeEvent(eventType string, message domain.Message, payload any) error {
@@ -1036,7 +1087,20 @@ func GetLater(c *gin.Context) {
 
 func GetPresence(c *gin.Context) {
 	var users []domain.User
-	if err := db.DB.Order("name asc").Find(&users).Error; err != nil {
+	query := db.DB.Order("name asc")
+	if channelID := c.Query("channel_id"); channelID != "" {
+		var memberIDs []string
+		if err := db.DB.Model(&domain.ChannelMember{}).Where("channel_id = ?", channelID).Pluck("user_id", &memberIDs).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load channel presence members"})
+			return
+		}
+		if len(memberIDs) == 0 {
+			c.JSON(http.StatusOK, gin.H{"users": []domain.User{}})
+			return
+		}
+		query = query.Where("id IN ?", memberIDs)
+	}
+	if err := query.Find(&users).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load presence"})
 		return
 	}
@@ -1066,13 +1130,23 @@ func UpdatePresence(c *gin.Context) {
 
 	var input struct {
 		Status string `json:"status" binding:"required,oneof=online away busy offline"`
+		StatusText string `json:"status_text"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
+	now := time.Now().UTC()
 	currentUser.Status = input.Status
+	currentUser.StatusText = input.StatusText
+	currentUser.LastSeenAt = &now
+	if input.Status == "offline" {
+		currentUser.PresenceExpiresAt = nil
+	} else {
+		expiresAt := now.Add(2 * time.Minute)
+		currentUser.PresenceExpiresAt = &expiresAt
+	}
 	if err := db.DB.Save(&currentUser).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update presence"})
 		return
@@ -1087,6 +1161,55 @@ func UpdatePresence(c *gin.Context) {
 			EntityID:    currentUser.ID,
 			TS:          time.Now().UTC().Format(time.RFC3339Nano),
 			Payload: gin.H{"user": user},
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"user": user})
+}
+
+func HeartbeatPresence(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var input struct {
+		Status string `json:"status"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil && !errors.Is(err, io.EOF) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	now := time.Now().UTC()
+	if input.Status != "" {
+		currentUser.Status = input.Status
+	}
+	if currentUser.Status == "" {
+		currentUser.Status = "online"
+	}
+	currentUser.LastSeenAt = &now
+	expiresAt := now.Add(2 * time.Minute)
+	currentUser.PresenceExpiresAt = &expiresAt
+	if strings.TrimSpace(currentUser.StatusText) == "" || strings.HasPrefix(currentUser.StatusText, "Last active") {
+		currentUser.StatusText = ""
+	}
+
+	if err := db.DB.Save(&currentUser).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to refresh presence"})
+		return
+	}
+
+	user := enrichUser(currentUser)
+	if RealtimeHub != nil {
+		_ = RealtimeHub.Broadcast(realtime.Event{
+			ID:          "evt_" + time.Now().Format("20060102150405.000000"),
+			Type:        "presence.updated",
+			WorkspaceID: currentUser.OrganizationID,
+			EntityID:    currentUser.ID,
+			TS:          time.Now().UTC().Format(time.RFC3339Nano),
+			Payload:     gin.H{"user": user},
 		})
 	}
 

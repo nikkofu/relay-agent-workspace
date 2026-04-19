@@ -2,6 +2,35 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.25] - 2026-04-19
+
+This release upgrades Relay presence with heartbeat refresh, derived last-seen metadata, and scoped presence lists.
+
+### Added
+
+- `POST /api/v1/presence/heartbeat`
+- scoped `GET /api/v1/presence?channel_id=...`
+
+### Presence Contract
+
+- user payloads now include:
+  - `status_text`
+  - `last_seen_at`
+- presence freshness is tracked with heartbeat expiry timestamps
+- websocket `presence.updated` payloads use the enriched user structure
+
+### Documentation
+
+- added [docs/phases/phase-10-presence-refinements.md](./docs/phases/phase-10-presence-refinements.md)
+- added [docs/releases/v0.5.25.md](./docs/releases/v0.5.25.md)
+- updated `docs/AGENT-COLLAB.md` with the Gemini handoff for presence refinements
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm build`
+
 ## [0.5.24] - 2026-04-19
 
 This release implements Phase 19: File Assets and Artifact Identity, enabling real file uploads and richer collaboration context.

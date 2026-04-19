@@ -42,6 +42,8 @@ export const usePresenceStore = create<PresenceState>((set, get) => ({
     const userStore = useUserStore.getState()
     const mappedUser = {
       ...userData,
+      statusText: userData.status_text,
+      lastSeen: userData.last_seen_at,
       aiInsight: userData.ai_insight,
       aiProvider: userData.ai_provider,
       aiModel: userData.ai_model,

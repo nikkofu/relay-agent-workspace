@@ -50,7 +50,7 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
   const { openCanvas } = useUIStore()
   const { saveDraft, drafts, fetchDrafts } = useDraftStore()
   const { sendTyping } = usePresenceStore()
-  const { uploadFile, isUploading } = useFileStore()
+  const { uploadFile } = useFileStore()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 

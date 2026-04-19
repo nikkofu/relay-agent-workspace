@@ -11,6 +11,8 @@ interface UserState {
 
 const mapUser = (u: any): User => ({
   ...u,
+  statusText: u.status_text,
+  lastSeen: u.last_seen_at,
   aiInsight: u.ai_insight,
   aiProvider: u.ai_provider,
   aiModel: u.ai_model,

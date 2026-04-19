@@ -822,10 +822,13 @@ func TestPresenceEndpointsListAndUpdateStatus(t *testing.T) {
 
 	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com", Status: "online"})
 	db.DB.Create(&domain.User{ID: "user-2", Name: "Jane Smith", Email: "jane@example.com", Status: "away"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public"})
+	db.DB.Create(&domain.ChannelMember{ChannelID: "ch-1", UserID: "user-1", Role: "owner"})
 
 	router := gin.New()
 	router.GET("/api/v1/presence", GetPresence)
 	router.POST("/api/v1/presence", UpdatePresence)
+	router.POST("/api/v1/presence/heartbeat", HeartbeatPresence)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/presence", nil)
@@ -843,9 +846,25 @@ func TestPresenceEndpointsListAndUpdateStatus(t *testing.T) {
 	if len(listPayload.Users) != 2 {
 		t.Fatalf("expected 2 users in presence list, got %d", len(listPayload.Users))
 	}
+	if listPayload.Users[0].StatusText == "" {
+		t.Fatalf("expected derived status_text, got %#v", listPayload.Users[0])
+	}
 
 	rec = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/presence", bytes.NewBufferString(`{"status":"busy"}`))
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/presence?channel_id=ch-1", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on scoped presence list, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &listPayload); err != nil {
+		t.Fatalf("failed to decode scoped presence list: %v", err)
+	}
+	if len(listPayload.Users) != 1 || listPayload.Users[0].ID != "user-1" {
+		t.Fatalf("expected only channel member in scoped presence list, got %#v", listPayload.Users)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/presence", bytes.NewBufferString(`{"status":"busy","status_text":"Heads down shipping"}`))
 	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
@@ -858,6 +877,20 @@ func TestPresenceEndpointsListAndUpdateStatus(t *testing.T) {
 	}
 	if refreshed.Status != "busy" {
 		t.Fatalf("expected busy status, got %q", refreshed.Status)
+	}
+	if refreshed.StatusText != "Heads down shipping" {
+		t.Fatalf("expected status text to persist, got %#v", refreshed)
+	}
+	if refreshed.LastSeenAt == nil || refreshed.PresenceExpiresAt == nil {
+		t.Fatalf("expected presence timestamps to persist, got %#v", refreshed)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/presence/heartbeat", bytes.NewBufferString(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on presence heartbeat, got %d body=%s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -878,6 +911,7 @@ func TestPresenceAndTypingBroadcastRealtimeEvents(t *testing.T) {
 
 	router := gin.New()
 	router.POST("/api/v1/presence", UpdatePresence)
+	router.POST("/api/v1/presence/heartbeat", HeartbeatPresence)
 	router.POST("/api/v1/typing", UpdateTyping)
 
 	rec := httptest.NewRecorder()
@@ -886,6 +920,15 @@ func TestPresenceAndTypingBroadcastRealtimeEvents(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200 on presence update, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	assertRealtimeEventType(t, client, "presence.updated")
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/presence/heartbeat", bytes.NewBufferString(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on presence heartbeat, got %d body=%s", rec.Code, rec.Body.String())
 	}
 	assertRealtimeEventType(t, client, "presence.updated")
 

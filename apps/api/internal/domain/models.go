@@ -21,6 +21,9 @@ type User struct {
 	Email          string `gorm:"unique" json:"email"`
 	Avatar         string `json:"avatar"`
 	Status         string `json:"status"`
+	StatusText     string `json:"status_text"`
+	LastSeenAt     *time.Time `json:"last_seen_at,omitempty"`
+	PresenceExpiresAt *time.Time `json:"-"`
 	AIProvider     string `json:"ai_provider"`
 	AIModel        string `json:"ai_model"`
 	AIMode         string `json:"ai_mode"`

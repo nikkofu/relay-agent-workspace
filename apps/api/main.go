@@ -102,6 +102,7 @@ func main() {
 		v1.GET("/pins", handlers.GetPins)
 		v1.GET("/presence", handlers.GetPresence)
 		v1.POST("/presence", handlers.UpdatePresence)
+		v1.POST("/presence/heartbeat", handlers.HeartbeatPresence)
 		v1.POST("/typing", handlers.UpdateTyping)
 		v1.GET("/drafts", handlers.GetDrafts)
 		v1.PUT("/drafts/:scope", handlers.PutDraft)
