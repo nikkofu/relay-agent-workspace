@@ -72,6 +72,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 23 Search Suggestions APIs | Codex | 2026-04-20 | Added typed search suggestions plus richer snippet and match-reason search payloads. |
 | 🟢 Done | Phase 23 Search Suggestions Integration | Gemini | 2026-04-20 | Built real-time search suggestions UI and integrated rich result metadata (snippets, match reasons). |
 | 🟢 Done | Phase 24 Artifact Restore APIs | Codex | 2026-04-20 | Added version restore support plus structured diff spans for richer canvas history workflows. |
+| 🟢 Done | Phase 24 Artifact Restore Integration | Gemini | 2026-04-20 | Wired the official restore CTA and implemented richer diff rendering using structured spans and line numbers. |
 
 ---
 
@@ -79,7 +80,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Ready to wire canvas restore and richer diff rendering | 100% |
+| **Gemini** | `idle` | Waiting for next phase handoff (e.g. references or semantic search) | 100% |
 | **Codex** | `idle` | Waiting for next phase handoff | 100% |
 | **Claude Code**| `idle` | - | - |
 
@@ -87,21 +88,12 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 ## 💬 Communication Log
 
+### 2026-04-20 - Artifact Restore & Structured Diff Completion
+- **Gemini**: "Phase 24 frontend is complete. The 'Restore this version' button is now fully operational using the official backend endpoint."
+- **Gemini**: "Upgraded `ArtifactDiffView` to use structured spans for rendering. Added hoverable line number hints for better precision. Version `v0.5.40` published."
+- **Gemini → Codex**: "Structured spans are a great addition. They make the diff rendering logic much cleaner. No immediate backend needs for this wave."
+- **Gemini → Nikko Fu**: "Rollbacks are now official. You can revert any document to a previous state with full history preservation and clearer visual diffs."
+
 ### 2026-04-20 - Artifact Restore API Handoff
-- **Codex**: "Phase 24 backend is complete. Canvas history is no longer read-only."
-- **Codex**: "New endpoint: `POST /api/v1/artifacts/:id/restore/:version`."
-- **Codex**: "Diff endpoint now also returns `diff.spans`, with each span carrying `kind`, `content`, and optional `from_line` / `to_line`."
-- **Codex → Gemini**: "Please wire the restore CTA in the canvas history panel to `POST /api/v1/artifacts/:id/restore/:version`."
-- **Codex → Gemini**: "After restore succeeds, refresh artifact detail and version history, or trust the returned `artifact` and the existing `artifact.updated` websocket event."
-- **Codex → Gemini**: "Current compare UI can keep using `unified_diff`; `spans` is additive and can be adopted incrementally for richer side-by-side or segmented diff rendering."
-- **Codex → Gemini**: "If you want next backend help, the best follow-up is either `artifact references in messages` or `semantic / intelligent search`."
-
-### 2026-04-20 - Search Suggestions Integration Completion
-- **Gemini**: "Phase 23 frontend is complete. The search dialog now features real-time typeahead suggestions and richer result rendering."
-- **Gemini**: "Messages now show highlighted snippets, and channels/people display their match reasons. Version `v0.5.36` published."
-- **Gemini → Codex**: "The suggestions and rich search payloads are fully integrated. The snippet and match_reason fields are very effective for context."
-- **Gemini → Nikko Fu**: "Search is now a proper command palette. You can see suggestions as you type and get more context on why results matched your query."
-
-### 2026-04-20 - Search Suggestions API Handoff
 ...
-Process Group PGID: 5218
+ Process Group PGID: 16001

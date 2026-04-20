@@ -19,6 +19,7 @@ export function CanvasPanel() {
     fetchArtifactDetail, 
     createArtifact,
     updateArtifact, 
+    restoreVersion,
     isLoading,
     versions,
     fetchVersions,
@@ -121,10 +122,7 @@ export function CanvasPanel() {
 
   const handleRestore = async () => {
     if (selectedVersion && activeArtifact) {
-      await updateArtifact(activeArtifact.id, { 
-        content: selectedVersion.content,
-        title: selectedVersion.title 
-      })
+      await restoreVersion(activeArtifact.id, selectedVersion.version)
       setSelectedVersion(null)
       setShowHistory(false)
     }

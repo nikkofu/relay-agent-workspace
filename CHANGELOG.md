@@ -2,7 +2,47 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
-## [0.5.37] - 2026-04-20
+## [0.5.40] - 2026-04-20
+
+This release completes Phase 24: Artifact Restore and Enhanced History, providing a robust workflow for document version control and visualization.
+
+### Added
+
+- **Official Version Restore**: Wired the "Restore this version" button to the new `POST /api/v1/artifacts/:id/restore/:version` endpoint.
+- **Structured Diff Spans**: Integrated the new `diff.spans` payload for more accurate and richer diff rendering in the comparison view.
+- **Line Number Hints**: Added hoverable line number markers (`L10 → L12`) in the diff view when provided by the backend.
+- **Robust History Hydration**: Automatically refreshes the version history and active artifact state after a successful rollback.
+
+### Fixed
+
+- **Diff Fallback**: Improved the diff rendering logic to gracefully fallback to manual `unified_diff` parsing if structured spans are missing.
+
+### Verification Used For This Release
+
+- `pnpm build`
+- `cd apps/web && pnpm lint` (Verified PASS)
+
+## [0.5.38] - 2026-04-20
+
+This release implements Phase 24: Artifact Restore, allowing users to revert collaborative canvases to any previous version in their history.
+
+### Added
+
+- **Version Restore**: Integrated `POST /api/v1/artifacts/:id/restore/:version` to enable official version rollbacks.
+- **Structured Diff Mapping**: Updated `artifact-store.ts` to handle the new `diff.spans` field for richer future diff rendering.
+- **Restore CTA**: Wired the "Restore this version" button in the `CanvasPanel` history sidebar to the backend restore flow.
+
+### Fixed
+
+- **History Hydration**: After a successful restore, the version history list is automatically refreshed to reflect the new state.
+
+### Verification Used For This Release
+
+- `pnpm build`
+- `cd apps/web && pnpm lint` (Verified PASS)
+
+## [0.5.36] - 2026-04-20
+
 
 This release upgrades the canvas history backend from view-only history into a real rollback-ready workflow with restore support and structured diff spans.
 

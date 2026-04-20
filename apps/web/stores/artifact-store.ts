@@ -33,6 +33,12 @@ export interface ArtifactDiff {
   fromContent: string
   toContent: string
   unifiedDiff: string
+  spans?: {
+    kind: 'addition' | 'deletion' | 'context' | 'header'
+    content: string
+    fromLine?: number
+    toLine?: number
+  }[]
   summary: {
     added: number
     removed: number
@@ -52,6 +58,7 @@ interface ArtifactState {
   fetchVersions: (id: string) => Promise<void>
   fetchVersionDetail: (id: string, version: number) => Promise<ArtifactVersion | null>
   fetchDiff: (id: string, fromVersion: number, toVersion: number) => Promise<void>
+  restoreVersion: (id: string, version: number) => Promise<void>
   createArtifact: (data: Partial<Artifact>) => Promise<Artifact | null>
   updateArtifact: (id: string, updates: Partial<Artifact>) => Promise<void>
   generateAIArtifact: (prompt: string, channelId: string) => Promise<void>
@@ -167,6 +174,7 @@ export const useArtifactStore = create<ArtifactState>((set, get) => ({
           fromContent: diff.from_content,
           toContent: diff.to_content,
           unifiedDiff: diff.unified_diff,
+          spans: diff.spans,
           summary: {
             added: diff.summary?.added_lines ?? diff.summary?.added ?? 0,
             removed: diff.summary?.removed_lines ?? diff.summary?.removed ?? 0,
@@ -178,6 +186,33 @@ export const useArtifactStore = create<ArtifactState>((set, get) => ({
       console.error("Failed to fetch artifact diff:", error)
       set({ isDiffLoading: false })
       toast.error("Failed to load comparison data")
+    }
+  },
+
+  restoreVersion: async (id, version) => {
+    try {
+      set({ isLoading: true })
+      const response = await fetch(`${API_BASE_URL}/artifacts/${id}/restore/${version}`, {
+        method: "POST"
+      })
+      if (!response.ok) throw new Error("Restore failed")
+      
+      const data = await response.json()
+      const restored = mapArtifact(data.artifact)
+      if (restored) {
+        set((state) => ({
+          activeArtifact: restored,
+          artifacts: state.artifacts.map(a => a.id === id ? restored : a),
+          isLoading: false
+        }))
+        // Refresh versions history
+        get().fetchVersions(id)
+        toast.success(`Restored to version ${version}`)
+      }
+    } catch (error) {
+      console.error("Failed to restore artifact version:", error)
+      set({ isLoading: false })
+      toast.error("Failed to restore version")
     }
   },
 
