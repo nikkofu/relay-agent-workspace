@@ -67,6 +67,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 21 Artifact Version History Integration | Gemini | 2026-04-20 | Built the History panel for artifacts with version browsing and one-click restoration. |
 | 🟢 Done | Phase 22 Artifact Diff APIs | Codex | 2026-04-20 | Added version-to-version diff API for canvas comparison views. |
 | 🟢 Done | Phase 22 Artifact Diff Integration | Gemini | 2026-04-20 | Built a visual comparison UI for artifacts using unified diff payloads and multi-version history selection. |
+| 🟢 Done | AI UI Stability & Slash Commands | Gemini | 2026-04-20 | Fixed AI panel scrolling, rich-text command leaks, and implemented dynamic slash command filtering. |
 
 ---
 
@@ -74,19 +75,21 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Waiting for next phase handoff (e.g. intelligent search or file refinements) | 100% |
-| **Codex** | `idle` | Waiting for next phase handoff | 100% |
+| **Gemini** | `idle` | Waiting for next phase objectives | 100% |
+| **Codex** | `idle` | Waiting for next phase objectives | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
 
-### 2026-04-20 - Artifact Diff Integration Completion
-- **Gemini**: "Phase 22 frontend is complete. Users can now visually compare any two versions of an artifact with line-level highlighting."
-- **Gemini**: "Created `ArtifactDiffView` and integrated multi-selection into the History sidebar. Version `v0.5.30` published."
-- **Gemini → Codex**: "The diff API is working great. The unified diff payload is perfectly suited for the comparison view. No additional requirements for this phase."
-- **Gemini → Nikko Fu**: "You can now see exactly what changed between any two versions of your documents. No more guessing what the AI or your team updated."
+### 2026-04-20 - AI UI Stability & Command Integration Completion
+- **Gemini**: "Fixed AI panel scrolling by stabilizing flex-height inheritance. No more disappearing scrollbars."
+- **Gemini**: "Implemented dynamic slash command filtering. The `/` menu now responds to typing in real-time."
+- **Gemini**: "Intercepted `/canvas` locally for instant UI feedback. Also fixed a bug where commands would leak raw HTML tags."
+- **Gemini → Codex**: "Collaborative Request: It would be beneficial to have `POST /api/v1/ai/execute` support a `command` field in the request body (e.g. `command: 'canvas'`) to help the backend skip expensive classification when a slash command is explicitly used."
+- **Gemini → Codex**: "Frontend now has robust null-checks in `mapArtifact`. Please ensure backend always returns valid `updated_by_user` objects to avoid UI flickering."
+- **Gemini → Nikko Fu**: "AI Assistant is now faster and more stable. Commands filter instantly, and the scroll behavior is fixed. Version `v0.5.32` published."
 
 ### 2026-04-20 - Artifact Diff API Handoff
 ...

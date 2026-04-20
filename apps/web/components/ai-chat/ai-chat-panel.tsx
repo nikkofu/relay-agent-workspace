@@ -32,7 +32,7 @@ export function AIChatPanel() {
     currentConversationId
   } = useAIChat()
   const { conversations, fetchConversations, setCurrentConversation } = useAIStore()
-  const { isAIPanelOpen, closeAIPanel } = useUIStore()
+  const { isAIPanelOpen, closeAIPanel, openCanvas } = useUIStore()
   const [showHistory, setShowHistory] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -50,14 +50,22 @@ export function AIChatPanel() {
         scrollContainer.scrollTop = scrollContainer.scrollHeight
       }
     }
-  }, [messages])
+  }, [messages, showHistory])
+
+  const handleSend = (content: string) => {
+    // Intercept /canvas to open assistant canvas immediately
+    if (content.replace(/<[^>]*>/g, '').trim() === "/canvas") {
+      openCanvas('ai-assistant')
+    }
+    append(content)
+  }
 
   if (!isAIPanelOpen) return null
 
   return (
     <div className="w-full h-full flex flex-col bg-white dark:bg-[#1a1d21] border-l shadow-2xl relative overflow-hidden animate-in slide-in-from-right duration-300">
       {/* Header */}
-      <header className="h-14 px-4 flex items-center justify-between border-b shrink-0 bg-[#3f0e40] dark:bg-[#1a1d21] text-white">
+      <header className="h-14 px-4 flex items-center justify-between border-b shrink-0 bg-[#3f0e40] dark:bg-[#1a1d21] text-white z-10">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg bg-purple-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
             <Sparkles className="w-4 h-4 text-white" />
@@ -110,9 +118,9 @@ export function AIChatPanel() {
       </header>
 
       {/* Main Area */}
-      <div className="flex-1 flex flex-col min-h-0 relative">
+      <div className="flex-1 min-h-0 relative bg-slate-50/30 dark:bg-transparent overflow-hidden">
         {showHistory ? (
-          <ScrollArea className="flex-1">
+          <ScrollArea className="h-full w-full">
             <div className="p-4 flex flex-col gap-2">
               <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Previous Chats</h4>
               {conversations.length === 0 ? (
@@ -157,7 +165,7 @@ export function AIChatPanel() {
           </ScrollArea>
         ) : (
           /* Messages Area */
-          <ScrollArea ref={scrollRef} className="flex-1 bg-slate-50/30 dark:bg-transparent">
+          <ScrollArea ref={scrollRef} className="h-full w-full">
             <div className="flex flex-col min-h-full pb-4">
               {messages.length === 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center p-8 text-center gap-6 mt-12">
@@ -175,23 +183,25 @@ export function AIChatPanel() {
                       Ask me to summarize channels, help with code, or draft messages. I&apos;m here to make you faster.
                     </p>
                   </div>
-                  <div className="grid grid-cols-1 gap-2 w-full mt-4">
-                    <SuggestionButton text="Summarize this channel" onClick={() => append("Summarize this channel")} />
-                    <SuggestionButton text="Help me draft a professional reply" onClick={() => append("Help me draft a professional reply")} />
-                    <SuggestionButton text="Explain current engineering trends" onClick={() => append("Explain current engineering trends")} />
+                  <div className="grid grid-cols-1 gap-2 w-full mt-4 px-2">
+                    <SuggestionButton text="Summarize this channel" onClick={() => handleSend("Summarize this channel")} />
+                    <SuggestionButton text="Help me draft a professional reply" onClick={() => handleSend("Help me draft a professional reply")} />
+                    <SuggestionButton text="Explain current engineering trends" onClick={() => handleSend("Explain current engineering trends")} />
                   </div>
                 </div>
               ) : (
-                messages.map((msg: AIMessage, idx: number) => (
-                  <AIMessageItem 
-                    key={msg.id} 
-                    message={msg} 
-                    onCopy={copyToClipboard}
-                    onRegenerate={regenerate}
-                    onFeedback={(isGood) => submitFeedback(msg.id, isGood)}
-                    isLast={idx === messages.length - 1 && msg.role === 'assistant'}
-                  />
-                ))
+                <div className="flex flex-col gap-0">
+                  {messages.map((msg: AIMessage, idx: number) => (
+                    <AIMessageItem 
+                      key={msg.id} 
+                      message={msg} 
+                      onCopy={copyToClipboard}
+                      onRegenerate={regenerate}
+                      onFeedback={(isGood) => submitFeedback(msg.id, isGood)}
+                      isLast={idx === messages.length - 1 && msg.role === 'assistant'}
+                    />
+                  ))}
+                </div>
               )}
             </div>
           </ScrollArea>
@@ -200,10 +210,10 @@ export function AIChatPanel() {
 
       {/* Input Area */}
       {!showHistory && (
-        <div className="p-4 border-t bg-white dark:bg-[#1a1d21] shrink-0 shadow-[0_-4px_12px_rgba(0,0,0,0.02)]">
+        <div className="p-4 border-t bg-white dark:bg-[#1a1d21] shrink-0 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] z-10">
           <MessageComposer 
             placeholder="Message AI Assistant..." 
-            onSend={append} 
+            onSend={handleSend} 
           />
         </div>
       )}
@@ -219,7 +229,7 @@ function SuggestionButton({ text, onClick }: { text: string, onClick: () => void
       onClick={onClick}
     >
       <Sparkles className="w-3 h-3 mr-2 text-purple-500 opacity-50 group-hover:opacity-100" />
-      <span className="truncate">{text}</span>
+      <span className="truncate text-foreground">{text}</span>
     </Button>
   )
 }

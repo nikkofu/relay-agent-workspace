@@ -60,15 +60,18 @@ interface ArtifactState {
   clearDiff: () => void
 }
 
-const mapArtifact = (a: any): Artifact => ({
-  ...a,
-  channelId: a.channel_id,
-  userId: a.user_id,
-  createdAt: a.created_at,
-  updatedAt: a.updated_at,
-  createdByUser: a.created_by_user,
-  updatedByUser: a.updated_by_user
-})
+const mapArtifact = (a: any): Artifact | null => {
+  if (!a) return null
+  return {
+    ...a,
+    channelId: a.channel_id,
+    userId: a.user_id,
+    createdAt: a.created_at,
+    updatedAt: a.updated_at,
+    createdByUser: a.created_by_user,
+    updatedByUser: a.updated_by_user
+  }
+}
 
 const mapVersion = (v: any): ArtifactVersion => ({
   ...v,
@@ -91,7 +94,8 @@ export const useArtifactStore = create<ArtifactState>((set, get) => ({
       set({ isLoading: true })
       const response = await fetch(`${API_BASE_URL}/artifacts?channel_id=${channelId}`)
       const data = await response.json()
-      set({ artifacts: (data.artifacts || []).map(mapArtifact), isLoading: false })
+      const mapped = (data.artifacts || []).map(mapArtifact).filter(Boolean) as Artifact[]
+      set({ artifacts: mapped, isLoading: false })
     } catch (error) {
       console.error("Failed to fetch artifacts:", error)
       set({ isLoading: false })
@@ -103,7 +107,7 @@ export const useArtifactStore = create<ArtifactState>((set, get) => ({
       const response = await fetch(`${API_BASE_URL}/artifacts/${id}`)
       const data = await response.json()
       const artifact = mapArtifact(data.artifact)
-      set({ activeArtifact: artifact })
+      if (artifact) set({ activeArtifact: artifact })
     } catch (error) {
       console.error("Failed to fetch artifact detail:", error)
     }
@@ -167,7 +171,9 @@ export const useArtifactStore = create<ArtifactState>((set, get) => ({
       })
       const result = await response.json()
       const newArtifact = mapArtifact(result.artifact)
-      set((state) => ({ artifacts: [newArtifact, ...state.artifacts] }))
+      if (newArtifact) {
+        set((state) => ({ artifacts: [newArtifact, ...state.artifacts] }))
+      }
       return newArtifact
     } catch (error) {
       console.error("Failed to create artifact:", error)
@@ -184,10 +190,12 @@ export const useArtifactStore = create<ArtifactState>((set, get) => ({
       })
       const data = await response.json()
       const updated = mapArtifact(data.artifact)
-      set((state) => ({
-        artifacts: state.artifacts.map(a => a.id === id ? updated : a),
-        activeArtifact: state.activeArtifact?.id === id ? updated : state.activeArtifact
-      }))
+      if (updated) {
+        set((state) => ({
+          artifacts: state.artifacts.map(a => a.id === id ? updated : a),
+          activeArtifact: state.activeArtifact?.id === id ? updated : state.activeArtifact
+        }))
+      }
       toast.success("Artifact updated")
     } catch (error) {
       console.error("Failed to update artifact:", error)
@@ -205,11 +213,15 @@ export const useArtifactStore = create<ArtifactState>((set, get) => ({
       })
       const data = await response.json()
       const artifact = mapArtifact(data.artifact)
-      set((state) => ({ 
-        artifacts: [artifact, ...state.artifacts],
-        activeArtifact: artifact,
-        isLoading: false
-      }))
+      if (artifact) {
+        set((state) => ({ 
+          artifacts: [artifact, ...state.artifacts],
+          activeArtifact: artifact,
+          isLoading: false
+        }))
+      } else {
+        set({ isLoading: false })
+      }
       toast.success("AI Canvas generated")
     } catch (error) {
       console.error("Failed to generate AI artifact:", error)
@@ -222,10 +234,12 @@ export const useArtifactStore = create<ArtifactState>((set, get) => ({
 
   updateArtifactLocally: (artifact) => {
     const mapped = mapArtifact(artifact)
-    set((state) => ({
-      artifacts: state.artifacts.map(a => a.id === mapped.id ? mapped : a),
-      activeArtifact: state.activeArtifact?.id === mapped.id ? mapped : state.activeArtifact
-    }))
+    if (mapped) {
+      set((state) => ({
+        artifacts: state.artifacts.map(a => a.id === mapped.id ? mapped : a),
+        activeArtifact: state.activeArtifact?.id === mapped.id ? mapped : state.activeArtifact
+      }))
+    }
   },
 
   clearDiff: () => set({ currentDiff: null })

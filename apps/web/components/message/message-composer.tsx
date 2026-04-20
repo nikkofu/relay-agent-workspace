@@ -45,6 +45,7 @@ type TypingScope = {
 
 export function MessageComposer({ placeholder, onSend, scope }: MessageComposerProps) {
   const [showSlashCommands, setShowSlashCommands] = useState(false)
+  const [slashQuery, setSlashQuery] = useState("")
   const [showMentions, setShowMentions] = useState(false)
   const [showFormatting, setShowFormatting] = useState(false)
   const { openCanvas } = useUIStore()
@@ -124,14 +125,22 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
       const text = editor.getText()
       const lastChar = text.slice(-1)
       
-      if (lastChar === "/") {
+      // Handle slash commands and query extraction
+      const slashIndex = text.lastIndexOf('/')
+      if (slashIndex !== -1 && !text.slice(slashIndex + 1).includes(' ')) {
+        const query = text.slice(slashIndex + 1)
+        setSlashQuery(query)
         setShowSlashCommands(true)
         setShowMentions(false)
-      } else if (lastChar === "@") {
+      } else {
+        setShowSlashCommands(false)
+        setSlashQuery("")
+      }
+
+      if (lastChar === "@") {
         setShowMentions(true)
         setShowSlashCommands(false)
       } else {
-        if (!text.includes("/")) setShowSlashCommands(false)
         if (!text.includes("@")) setShowMentions(false)
       }
 
@@ -174,7 +183,19 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
   // or just use the editor instance inside handleSend directly which is fine since it's defined in the same scope.
   function handleSend() {
     if (editor && !editor.isEmpty) {
-      onSend?.(editor.getHTML())
+      const htmlContent = editor.getHTML()
+      const textContent = editor.getText().trim()
+
+      // Intercept slash commands in plain text form
+      if (textContent === "/canvas") {
+        openCanvas("new-doc")
+        editor.commands.clearContent()
+        if (scope) saveDraft(scope, "")
+        setShowSlashCommands(false)
+        return
+      }
+
+      onSend?.(htmlContent)
       editor.commands.clearContent()
       if (scope) saveDraft(scope, "") // Clear draft on send
       setShowSlashCommands(false)
@@ -250,7 +271,7 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
     <div className="p-4 pt-0 relative flex flex-col">
       <div className="relative w-full">
         {showSlashCommands && (
-          <AISlashCommand onSelect={handleSlashCommandSelect} />
+          <AISlashCommand onSelect={handleSlashCommandSelect} query={slashQuery} />
         )}
         {showMentions && (
           <MentionPopover onSelect={handleMentionSelect} />

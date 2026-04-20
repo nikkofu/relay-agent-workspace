@@ -1,9 +1,15 @@
 "use client"
 
-import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui/command"
+import { Command, CommandGroup, CommandItem, CommandList, CommandInput } from "@/components/ui/command"
 import { Sparkles, FileText, Languages, Code, MessageSquarePlus, Zap } from "lucide-react"
 
-export function AISlashCommand({ onSelect }: { onSelect: (cmd: string) => void }) {
+export function AISlashCommand({ 
+  onSelect,
+  query = ""
+}: { 
+  onSelect: (cmd: string) => void,
+  query?: string
+}) {
   const commands = [
     { icon: Sparkles, label: "Ask AI", value: "/ai", desc: "Start a conversation" },
     { icon: FileText, label: "Summarize", value: "/summarize", desc: "Summarize current channel" },
@@ -16,14 +22,21 @@ export function AISlashCommand({ onSelect }: { onSelect: (cmd: string) => void }
 
   return (
     <div className="absolute bottom-full left-0 mb-2 w-[280px] z-50 animate-in slide-in-from-bottom-2 duration-200">
-      <Command className="border shadow-xl rounded-xl overflow-hidden bg-white dark:bg-[#1a1d21]">
+      <Command 
+        className="border shadow-xl rounded-xl overflow-hidden bg-white dark:bg-[#1a1d21]"
+        loop
+      >
+        <div className="hidden">
+          <CommandInput value={query} />
+        </div>
         <CommandList className="max-h-[300px]">
           <CommandGroup heading="AI Superpowers">
             {commands.map(cmd => (
               <CommandItem 
                 key={cmd.value} 
+                value={cmd.value + " " + cmd.label}
                 onSelect={() => onSelect(cmd.value)} 
-                className="flex items-center gap-3 p-2.5 cursor-pointer hover:bg-muted transition-colors"
+                className="flex items-center gap-3 p-2.5 cursor-pointer hover:bg-muted transition-colors data-[selected=true]:bg-muted"
               >
                 <div className="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center shrink-0">
                   <cmd.icon className="w-4 h-4 text-purple-600 dark:text-purple-400" />

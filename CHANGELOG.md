@@ -2,6 +2,26 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.32] - 2026-04-20
+
+This release improves the AI Assistant's responsiveness and stability, specifically around slash commands and panel layout.
+
+### Added
+
+- **Slash Command Filtering**: Integrated dynamic filtering in the `AISlashCommand` menu. Commands now filter in real-time as you type after the slash.
+- **Smart /canvas Interception**: The UI now intercepts `/canvas` commands locally to provide instant visual feedback (opening the canvas) while the AI processes the prompt.
+
+### Fixed
+
+- **AI Panel Scrolling**: Resolved a recurring issue where the AI Assistant dialogue wouldn't show a scrollbar by stabilizing the flex-height inheritance.
+- **HTML Command Leaks**: Fixed a bug where slash commands entered in the rich editor would leak as raw HTML tags in the message stream.
+- **Artifact Store Safety**: Added robust null-checks in `mapArtifact` to prevent client-side crashes on malformed API responses.
+
+### Verification Used For This Release
+
+- `pnpm build`
+- `cd apps/web && pnpm lint` (Verified PASS)
+
 ## [0.5.30] - 2026-04-20
 
 This release implements Phase 22: Artifact Diff UI, allowing users to compare different versions of collaborative canvases side-by-side.
