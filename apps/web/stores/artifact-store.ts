@@ -27,21 +27,37 @@ export interface ArtifactVersion {
   updatedByUser?: User
 }
 
+export interface ArtifactDiff {
+  fromVersion: number
+  toVersion: number
+  fromContent: string
+  toContent: string
+  unifiedDiff: string
+  summary: {
+    added: number
+    removed: number
+  }
+}
+
 interface ArtifactState {
   artifacts: Artifact[]
   activeArtifact: Artifact | null
   versions: ArtifactVersion[]
+  currentDiff: ArtifactDiff | null
   isLoading: boolean
   isHistoryLoading: boolean
+  isDiffLoading: boolean
   fetchArtifacts: (channelId: string) => Promise<void>
   fetchArtifactDetail: (id: string) => Promise<void>
   fetchVersions: (id: string) => Promise<void>
   fetchVersionDetail: (id: string, version: number) => Promise<ArtifactVersion | null>
+  fetchDiff: (id: string, fromVersion: number, toVersion: number) => Promise<void>
   createArtifact: (data: Partial<Artifact>) => Promise<Artifact | null>
   updateArtifact: (id: string, updates: Partial<Artifact>) => Promise<void>
   generateAIArtifact: (prompt: string, channelId: string) => Promise<void>
   setActiveArtifact: (artifact: Artifact | null) => void
   updateArtifactLocally: (artifact: Artifact) => void
+  clearDiff: () => void
 }
 
 const mapArtifact = (a: any): Artifact => ({
@@ -65,8 +81,10 @@ export const useArtifactStore = create<ArtifactState>((set, get) => ({
   artifacts: [],
   activeArtifact: null,
   versions: [],
+  currentDiff: null,
   isLoading: false,
   isHistoryLoading: false,
+  isDiffLoading: false,
 
   fetchArtifacts: async (channelId) => {
     try {
@@ -111,6 +129,29 @@ export const useArtifactStore = create<ArtifactState>((set, get) => ({
     } catch (error) {
       console.error("Failed to fetch artifact version detail:", error)
       return null
+    }
+  },
+
+  fetchDiff: async (id, from, to) => {
+    try {
+      set({ isDiffLoading: true, currentDiff: null })
+      const response = await fetch(`${API_BASE_URL}/artifacts/${id}/diff/${from}/${to}`)
+      const data = await response.json()
+      set({ 
+        currentDiff: {
+          fromVersion: data.from_version,
+          toVersion: data.to_version,
+          fromContent: data.from_content,
+          toContent: data.to_content,
+          unifiedDiff: data.unified_diff,
+          summary: data.summary
+        },
+        isDiffLoading: false 
+      })
+    } catch (error) {
+      console.error("Failed to fetch artifact diff:", error)
+      set({ isDiffLoading: false })
+      toast.error("Failed to load comparison data")
     }
   },
 
@@ -185,5 +226,7 @@ export const useArtifactStore = create<ArtifactState>((set, get) => ({
       artifacts: state.artifacts.map(a => a.id === mapped.id ? mapped : a),
       activeArtifact: state.activeArtifact?.id === mapped.id ? mapped : state.activeArtifact
     }))
-  }
+  },
+
+  clearDiff: () => set({ currentDiff: null })
 }))

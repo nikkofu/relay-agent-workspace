@@ -3,12 +3,13 @@
 import { useState, useEffect } from "react"
 import { useUIStore } from "@/stores/ui-store"
 import { useArtifactStore, ArtifactVersion } from "@/stores/artifact-store"
-import { X, Maximize2, RotateCcw, Share2, Save, Wand2, History, MessageSquare, Copy, Code, Type, ExternalLink, MoreVertical, ChevronLeft, Loader2 } from "lucide-react"
+import { X, Maximize2, RotateCcw, Share2, Save, Wand2, History, MessageSquare, Copy, Code, Type, ExternalLink, MoreVertical, ChevronLeft, Loader2, GitCompare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 import { UserAvatar } from "@/components/common/user-avatar"
 import { formatDistanceToNow } from "date-fns"
+import { ArtifactDiffView } from "./artifact-diff-view"
 
 export function CanvasPanel() {
   const { isCanvasOpen, closeCanvas, activeCanvasId } = useUIStore()
@@ -20,27 +21,36 @@ export function CanvasPanel() {
     versions,
     fetchVersions,
     isHistoryLoading,
-    fetchVersionDetail
+    fetchVersionDetail,
+    currentDiff,
+    fetchDiff,
+    isDiffLoading,
+    clearDiff
   } = useArtifactStore()
   
   const [content, setContent] = useState("")
   const [isEditing, setIsEditing] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [selectedVersion, setSelectedVersion] = useState<ArtifactVersion | null>(null)
+  const [compareMode, setCompareMode] = useState(false)
+  const [compareVersions, setCompareVersions] = useState<number[]>([])
 
   useEffect(() => {
     if (activeCanvasId) {
       fetchArtifactDetail(activeCanvasId)
       setSelectedVersion(null)
       setShowHistory(false)
+      setCompareMode(false)
+      setCompareVersions([])
+      clearDiff()
     }
-  }, [activeCanvasId, fetchArtifactDetail])
+  }, [activeCanvasId, fetchArtifactDetail, clearDiff])
 
   useEffect(() => {
-    if (activeArtifact && !selectedVersion) {
+    if (activeArtifact && !selectedVersion && !currentDiff) {
       setContent(activeArtifact.content)
     }
-  }, [activeArtifact, selectedVersion])
+  }, [activeArtifact, selectedVersion, currentDiff])
 
   const handleSave = async () => {
     if (activeArtifact) {
@@ -57,15 +67,39 @@ export function CanvasPanel() {
     }
     if (!nextShow) {
       setSelectedVersion(null)
+      setCompareMode(false)
+      setCompareVersions([])
+      clearDiff()
     }
   }
 
   const handleVersionClick = async (versionNum: number) => {
-    if (activeArtifact) {
+    if (!activeArtifact) return
+
+    if (compareMode) {
+      // Logic for comparing two versions
+      let newCompare = [...compareVersions]
+      if (newCompare.includes(versionNum)) {
+        newCompare = newCompare.filter(v => v !== versionNum)
+      } else {
+        if (newCompare.length >= 2) newCompare.shift()
+        newCompare.push(versionNum)
+        newCompare.sort((a, b) => a - b)
+      }
+      setCompareVersions(newCompare)
+      
+      if (newCompare.length === 2) {
+        fetchDiff(activeArtifact.id, newCompare[0], newCompare[1])
+      } else {
+        clearDiff()
+      }
+    } else {
+      // Normal preview mode
       const detail = await fetchVersionDetail(activeArtifact.id, versionNum)
       if (detail) {
         setSelectedVersion(detail)
         setContent(detail.content)
+        clearDiff()
       }
     }
   }
@@ -84,6 +118,7 @@ export function CanvasPanel() {
   if (!isCanvasOpen || !activeArtifact) return null
 
   const displayArtifact = selectedVersion || activeArtifact
+  const isComparing = currentDiff !== null
 
   return (
     <div className="w-full h-full flex flex-col bg-white dark:bg-[#1a1d21] border-l shadow-2xl relative overflow-hidden animate-in slide-in-from-right duration-300">
@@ -94,12 +129,12 @@ export function CanvasPanel() {
             {activeArtifact.type === 'code' ? <Code className="w-4 h-4 text-blue-600" /> : <Type className="w-4 h-4 text-blue-600" />}
           </div>
           <div className="flex flex-col min-w-0">
-            <h3 className="font-bold text-sm truncate">{displayArtifact.title}</h3>
+            <h3 className="font-bold text-sm truncate">{isComparing ? 'Comparison View' : displayArtifact.title}</h3>
             <div className="flex items-center gap-1.5">
               <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider whitespace-nowrap">
-                v{displayArtifact.version} • {activeArtifact.type}
+                {isComparing ? `v${currentDiff.fromVersion} → v${currentDiff.toVersion}` : `v${displayArtifact.version} • ${activeArtifact.type}`}
               </span>
-              {displayArtifact.updatedByUser && (
+              {!isComparing && displayArtifact.updatedByUser && (
                 <>
                   <span className="text-[10px] text-muted-foreground">•</span>
                   <div className="flex items-center gap-1 min-w-0">
@@ -114,7 +149,11 @@ export function CanvasPanel() {
           </div>
         </div>
         <div className="flex items-center gap-1">
-          {selectedVersion ? (
+          {isComparing ? (
+            <Button size="sm" variant="ghost" className="h-8 text-xs font-bold text-purple-600" onClick={() => { clearDiff(); setCompareVersions([]); }}>
+              Exit Compare
+            </Button>
+          ) : selectedVersion ? (
             <Button size="sm" variant="default" className="h-8 bg-purple-600 hover:bg-purple-700 text-white font-bold" onClick={handleRestore}>
               <RotateCcw className="w-3.5 h-3.5 mr-2" />
               Restore this version
@@ -125,7 +164,7 @@ export function CanvasPanel() {
               Save
             </Button>
           ) : (
-            <Button size="sm" variant="ghost" className="h-8" onClick={() => setIsEditing(true)}>
+            <Button size="sm" variant="ghost" className="h-8 font-bold text-[#1164a3]" onClick={() => setIsEditing(true)}>
               Edit
             </Button>
           )}
@@ -157,11 +196,28 @@ export function CanvasPanel() {
             </Button>
           </div>
         )}
-        {showHistory && selectedVersion && (
-          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => setSelectedVersion(null)}>
-            <ChevronLeft className="w-3 h-3 mr-1" />
-            Back to current
-          </Button>
+        {showHistory && (
+          <div className="flex items-center gap-2 pl-1">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className={cn("h-7 px-2 text-xs font-bold gap-1.5 transition-all", compareMode ? "text-purple-700 bg-purple-100" : "text-muted-foreground")}
+              onClick={() => {
+                setCompareMode(!compareMode)
+                setCompareVersions([])
+                clearDiff()
+              }}
+            >
+              <GitCompare className="w-3.5 h-3.5" />
+              {compareMode ? "Select two versions" : "Compare Versions"}
+            </Button>
+            {selectedVersion && !compareMode && (
+              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => setSelectedVersion(null)}>
+                <ChevronLeft className="w-3 h-3 mr-1" />
+                Back to current
+              </Button>
+            )}
+          </div>
         )}
         <div className="ml-auto flex items-center gap-1">
           <Button variant="ghost" size="icon" className="h-7 w-7"><Maximize2 className="w-3.5 h-3.5" /></Button>
@@ -174,7 +230,7 @@ export function CanvasPanel() {
         {/* Version History Sidebar */}
         {showHistory && (
           <div className="w-64 border-r bg-muted/5 flex flex-col shrink-0">
-            <header className="px-4 h-10 flex items-center border-b shrink-0">
+            <header className="px-4 h-10 flex items-center justify-between border-b shrink-0">
               <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Version History</span>
             </header>
             <ScrollArea className="flex-1">
@@ -189,12 +245,17 @@ export function CanvasPanel() {
                       key={v.version}
                       onClick={() => handleVersionClick(v.version)}
                       className={cn(
-                        "w-full text-left p-3 rounded-lg transition-all group flex flex-col gap-1",
-                        (selectedVersion?.version === v.version || (!selectedVersion && v.version === activeArtifact.version))
-                          ? "bg-purple-50 dark:bg-purple-900/20 border-purple-100 dark:border-purple-800"
-                          : "hover:bg-muted/50 border-transparent"
+                        "w-full text-left p-3 rounded-lg transition-all group flex flex-col gap-1 border relative",
+                        compareVersions.includes(v.version)
+                          ? "bg-purple-100 border-purple-300 dark:bg-purple-900/40 dark:border-purple-700"
+                          : (selectedVersion?.version === v.version || (!selectedVersion && v.version === activeArtifact.version && !compareMode))
+                            ? "bg-purple-50 dark:bg-purple-900/20 border-purple-100 dark:border-purple-800"
+                            : "hover:bg-muted/50 border-transparent"
                       )}
                     >
+                      {compareVersions.includes(v.version) && (
+                        <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-2 h-4 bg-purple-500 rounded-r-full" />
+                      )}
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold">Version {v.version}</span>
                         <span className="text-[9px] text-muted-foreground">
@@ -215,51 +276,59 @@ export function CanvasPanel() {
           </div>
         )}
 
-        {/* Editor/Content Area */}
+        {/* Editor/Content Area / Diff View */}
         <div className="flex-1 min-h-0 relative flex flex-col">
-          {isLoading ? (
+          {(isLoading || isDiffLoading) ? (
             <div className="absolute inset-0 flex items-center justify-center bg-white/50 dark:bg-black/20 z-10">
               <div className="flex flex-col items-center gap-3">
-                <Wand2 className="w-8 h-8 text-purple-500 animate-bounce" />
-                <span className="text-xs font-bold text-purple-600 animate-pulse uppercase tracking-widest">Processing...</span>
+                <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+                <span className="text-xs font-bold text-purple-600 animate-pulse uppercase tracking-widest">
+                  {isDiffLoading ? "Calculating Differences..." : "Processing..."}
+                </span>
               </div>
             </div>
           ) : null}
 
-          <ScrollArea className="flex-1">
-            <div className="p-8 max-w-3xl mx-auto">
-              {isEditing && !selectedVersion ? (
-                <textarea
-                  className="w-full min-h-[500px] bg-transparent border-none outline-none resize-none font-mono text-sm leading-relaxed"
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  spellCheck={false}
-                />
-              ) : (
-                <div 
-                  className={cn(
-                    "prose dark:prose-invert max-w-none",
-                    activeArtifact.type === 'code' && "font-mono text-sm bg-slate-50 dark:bg-slate-900/50 p-6 rounded-xl border border-slate-100 dark:border-slate-800 whitespace-pre"
-                  )}
-                  dangerouslySetInnerHTML={{ __html: content }}
-                />
-              )}
-            </div>
-          </ScrollArea>
+          {isComparing ? (
+            <ArtifactDiffView diff={currentDiff} />
+          ) : (
+            <ScrollArea className="flex-1">
+              <div className="p-8 max-w-3xl mx-auto">
+                {isEditing && !selectedVersion ? (
+                  <textarea
+                    className="w-full min-h-[500px] bg-transparent border-none outline-none resize-none font-mono text-sm leading-relaxed"
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    spellCheck={false}
+                  />
+                ) : (
+                  <div 
+                    className={cn(
+                      "prose dark:prose-invert max-w-none",
+                      activeArtifact.type === 'code' && "font-mono text-sm bg-slate-50 dark:bg-slate-900/50 p-6 rounded-xl border border-slate-100 dark:border-slate-800 whitespace-pre"
+                    )}
+                    dangerouslySetInnerHTML={{ __html: content }}
+                  />
+                )}
+              </div>
+            </ScrollArea>
+          )}
         </div>
       </div>
 
       {/* Footer / Context */}
-      <footer className="h-12 px-4 border-t flex items-center justify-between shrink-0 bg-muted/5">
-        <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-          <MessageSquare className="w-3 h-3" />
-          Refers to #general discussion
-        </div>
-        <Button variant="ghost" size="sm" className="h-8 text-[10px] font-bold uppercase tracking-widest">
-          Open in Tab
-          <ExternalLink className="w-3 h-3 ml-1.5" />
-        </Button>
-      </footer>
+      {!isComparing && (
+        <footer className="h-12 px-4 border-t flex items-center justify-between shrink-0 bg-muted/5">
+          <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+            <MessageSquare className="w-3 h-3" />
+            Refers to #general discussion
+          </div>
+          <Button variant="ghost" size="sm" className="h-8 text-[10px] font-bold uppercase tracking-widest">
+            Open in Tab
+            <ExternalLink className="w-3 h-3 ml-1.5" />
+          </Button>
+        </footer>
+      )}
     </div>
   )
 }

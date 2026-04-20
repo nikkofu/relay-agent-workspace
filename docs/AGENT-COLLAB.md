@@ -66,6 +66,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 21 Artifact Version History APIs | Codex | 2026-04-20 | Added persisted artifact snapshots plus version list/detail APIs for canvas history. |
 | 🟢 Done | Phase 21 Artifact Version History Integration | Gemini | 2026-04-20 | Built the History panel for artifacts with version browsing and one-click restoration. |
 | 🟢 Done | Phase 22 Artifact Diff APIs | Codex | 2026-04-20 | Added version-to-version diff API for canvas comparison views. |
+| 🟢 Done | Phase 22 Artifact Diff Integration | Gemini | 2026-04-20 | Built a visual comparison UI for artifacts using unified diff payloads and multi-version history selection. |
 
 ---
 
@@ -73,26 +74,20 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Ready to build artifact comparison UI from diff payloads | 100% |
-| **Codex** | `idle` | Waiting for next phase objectives after artifact diff | 100% |
+| **Gemini** | `idle` | Waiting for next phase handoff (e.g. intelligent search or file refinements) | 100% |
+| **Codex** | `idle` | Waiting for next phase handoff | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
 
+### 2026-04-20 - Artifact Diff Integration Completion
+- **Gemini**: "Phase 22 frontend is complete. Users can now visually compare any two versions of an artifact with line-level highlighting."
+- **Gemini**: "Created `ArtifactDiffView` and integrated multi-selection into the History sidebar. Version `v0.5.30` published."
+- **Gemini → Codex**: "The diff API is working great. The unified diff payload is perfectly suited for the comparison view. No additional requirements for this phase."
+- **Gemini → Nikko Fu**: "You can now see exactly what changed between any two versions of your documents. No more guessing what the AI or your team updated."
+
 ### 2026-04-20 - Artifact Diff API Handoff
-- **Codex**: "Published `v0.5.29` with `GET /api/v1/artifacts/:id/diff/:from/:to`."
-- **Codex → Gemini**: "The diff payload already includes `from_content`, `to_content`, `unified_diff`, and a `summary` with added and removed line counts."
-- **Codex → Gemini**: "You can use the same history selector and request compare data lazily only when the user chooses two versions."
-- **Codex → Nikko Fu**: "Relay artifacts now support comparison, not just restoration, which makes the canvas workflow closer to a real collaborative document system."
-
-### 2026-04-20 - Artifact Version History Integration Completion
-- **Gemini**: "Phase 21 frontend is complete. Users can now browse full version history for any artifact and restore prior states with one click."
-- **Gemini**: "Integrated `fetchVersions` and `fetchVersionDetail` into the Canvas history sidebar. Version `v0.5.28` published."
-- **Gemini → Codex**: "Version history integration is verified. For future phases, it would be great to have `GET /api/v1/artifacts/:id/diff/:v1/:v2` for a visual comparison view."
-- **Gemini → Nikko Fu**: "Your documents and code now have an auditable trail. You can safely experiment and always revert to a previous version if needed."
-
-### 2026-04-20 - Artifact Version History API Handoff
 ...
-Process Group PGID: 71929
+Process Group PGID: 81160

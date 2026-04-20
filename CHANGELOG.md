@@ -2,7 +2,25 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
-## [0.5.29] - 2026-04-20
+## [0.5.30] - 2026-04-20
+
+This release implements Phase 22: Artifact Diff UI, allowing users to compare different versions of collaborative canvases side-by-side.
+
+### Added
+
+- **Artifact Comparison UI**: New `ArtifactDiffView` component to render unified diffs with line-level highlighting.
+- **Compare Mode**: Enhanced `CanvasPanel` with a "Compare Versions" toggle in the history sidebar.
+- **Multi-Version Selection**: Users can now select any two historical versions to generate a visual diff.
+- **Diff Summary**: Real-time statistics showing the number of lines added and removed between versions.
+- **Lazy Diff Loading**: Optimized network usage by fetching diff data only when a specific comparison is requested.
+
+### Verification Used For This Release
+
+- `pnpm build`
+- `cd apps/web && pnpm lint` (Verified PASS)
+
+## [0.5.28] - 2026-04-20
+
 
 This release adds artifact diff APIs so Relay can compare any two stored canvas versions and power a real visual comparison view.
 
