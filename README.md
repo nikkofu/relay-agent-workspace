@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.5.33` is the current release line and includes:
+`v0.5.35` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -76,6 +76,7 @@ For product, design, and marketing, the short version is:
 - File asset upload and retrieval APIs for future attachment flows
 - Presence heartbeat, status text, and last-seen metadata
 - Workspace search API across channels, users, messages, and DM conversations
+- Search suggestions and richer result snippets for command-palette style discovery
 - Docked DM chat windows in the workspace shell
 - Phase 10 Slack-parity foundation APIs for:
   - channel members

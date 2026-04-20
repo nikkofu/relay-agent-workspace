@@ -1167,6 +1167,55 @@ func TestSearchReturnsChannelUserMessageAndDMHits(t *testing.T) {
 	if len(payload.Results.Channels) == 0 || len(payload.Results.Users) == 0 || len(payload.Results.Messages) == 0 || len(payload.Results.DMs) == 0 {
 		t.Fatalf("expected all result groups to have hits, got %#v", payload.Results)
 	}
+	if payload.Results.Messages[0]["snippet"] == "" {
+		t.Fatalf("expected message search results to include snippet, got %#v", payload.Results.Messages[0])
+	}
+	if payload.Results.Channels[0]["match_reason"] == "" {
+		t.Fatalf("expected channel search results to include match_reason, got %#v", payload.Results.Channels[0])
+	}
+}
+
+func TestSearchSuggestionsReturnsRankedMatches(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.User{ID: "user-2", Name: "AI Assistant", Email: "ai@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-5", WorkspaceID: "ws-1", Name: "ai-lab", Description: "AI experiments", Type: "public"})
+	db.DB.Create(&domain.Message{
+		ID:        "msg-1",
+		ChannelID: "ch-5",
+		UserID:    "user-2",
+		Content:   "The AI lab launch plan is ready",
+		CreatedAt: time.Now().UTC(),
+		Metadata:  "{}",
+	})
+
+	router := gin.New()
+	router.GET("/api/v1/search/suggestions", SearchSuggestions)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/search/suggestions?q=ai", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on search suggestions, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Query       string           `json:"query"`
+		Suggestions []map[string]any `json:"suggestions"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode search suggestions payload: %v", err)
+	}
+	if payload.Query != "ai" {
+		t.Fatalf("expected query echo, got %q", payload.Query)
+	}
+	if len(payload.Suggestions) < 2 {
+		t.Fatalf("expected at least 2 suggestions, got %#v", payload.Suggestions)
+	}
+	if payload.Suggestions[0]["type"] == nil || payload.Suggestions[0]["label"] == nil {
+		t.Fatalf("expected typed suggestion entries, got %#v", payload.Suggestions[0])
+	}
 }
 
 func TestChannelMembersEndpointsListAddAndRemoveMembers(t *testing.T) {

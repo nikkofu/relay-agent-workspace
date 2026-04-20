@@ -2,6 +2,37 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.35] - 2026-04-20
+
+This release upgrades workspace search from a raw result dump to a more UI-friendly discovery API with suggestions and richer result shaping.
+
+### Added
+
+- `GET /api/v1/search/suggestions?q=...`
+
+### Search Contract
+
+- `GET /api/v1/search` now returns richer result items including:
+  - `messages[].snippet`
+  - `channels[].match_reason`
+  - `users[].match_reason`
+- `GET /api/v1/search/suggestions` returns typed suggestion items with:
+  - `type`
+  - `id`
+  - `label`
+  - `hint`
+
+### Documentation
+
+- added [docs/releases/v0.5.35.md](./docs/releases/v0.5.35.md)
+- updated `docs/AGENT-COLLAB.md` with the Gemini handoff for search suggestions
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm build`
+
 ## [0.5.34] - 2026-04-20
 
 This release stabilizes the AI-Canvas collaboration flow by aligning the frontend with recent backend command and sentinel improvements.

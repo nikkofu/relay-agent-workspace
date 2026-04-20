@@ -1129,7 +1129,7 @@ func UpdatePresence(c *gin.Context) {
 	}
 
 	var input struct {
-		Status string `json:"status" binding:"required,oneof=online away busy offline"`
+		Status     string `json:"status" binding:"required,oneof=online away busy offline"`
 		StatusText string `json:"status_text"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -1160,7 +1160,7 @@ func UpdatePresence(c *gin.Context) {
 			WorkspaceID: currentUser.OrganizationID,
 			EntityID:    currentUser.ID,
 			TS:          time.Now().UTC().Format(time.RFC3339Nano),
-			Payload: gin.H{"user": user},
+			Payload:     gin.H{"user": user},
 		})
 	}
 
@@ -1419,30 +1419,75 @@ func SearchWorkspace(c *gin.Context) {
 	needle := "%" + strings.ToLower(query) + "%"
 
 	type searchResults struct {
-		Channels []domain.Channel `json:"channels"`
-		Users    []domain.User    `json:"users"`
-		Messages []domain.Message `json:"messages"`
-		DMs      []gin.H          `json:"dms"`
+		Channels []gin.H `json:"channels"`
+		Users    []gin.H `json:"users"`
+		Messages []gin.H `json:"messages"`
+		DMs      []gin.H `json:"dms"`
 	}
 
 	results := searchResults{
-		Channels: []domain.Channel{},
-		Users:    []domain.User{},
-		Messages: []domain.Message{},
+		Channels: []gin.H{},
+		Users:    []gin.H{},
+		Messages: []gin.H{},
 		DMs:      []gin.H{},
 	}
 
-	db.DB.Where("LOWER(name) LIKE ? OR LOWER(description) LIKE ?", needle, needle).Order("name asc").Limit(10).Find(&results.Channels)
-	db.DB.Where("LOWER(name) LIKE ? OR LOWER(email) LIKE ?", needle, needle).Order("name asc").Limit(10).Find(&results.Users)
-	for idx := range results.Users {
-		results.Users[idx] = enrichUser(results.Users[idx])
-	}
-	db.DB.Where("LOWER(content) LIKE ?", needle).Order("created_at desc").Limit(10).Find(&results.Messages)
-	for idx := range results.Messages {
-		refreshed, err := refreshMessageMetadata(results.Messages[idx].ID)
-		if err == nil && refreshed != nil {
-			results.Messages[idx] = *refreshed
+	var channels []domain.Channel
+	db.DB.Where("LOWER(name) LIKE ? OR LOWER(description) LIKE ?", needle, needle).Order("name asc").Limit(10).Find(&channels)
+	for _, channel := range channels {
+		matchReason := "name"
+		if !strings.Contains(strings.ToLower(channel.Name), strings.ToLower(query)) {
+			matchReason = "description"
 		}
+		results.Channels = append(results.Channels, gin.H{
+			"id":           channel.ID,
+			"workspace_id": channel.WorkspaceID,
+			"name":         channel.Name,
+			"type":         channel.Type,
+			"description":  channel.Description,
+			"match_reason": matchReason,
+		})
+	}
+
+	var users []domain.User
+	db.DB.Where("LOWER(name) LIKE ? OR LOWER(email) LIKE ?", needle, needle).Order("name asc").Limit(10).Find(&users)
+	for _, user := range users {
+		enriched := enrichUser(user)
+		matchReason := "name"
+		if !strings.Contains(strings.ToLower(user.Name), strings.ToLower(query)) {
+			matchReason = "email"
+		}
+		results.Users = append(results.Users, gin.H{
+			"id":           enriched.ID,
+			"name":         enriched.Name,
+			"email":        enriched.Email,
+			"avatar":       enriched.Avatar,
+			"status":       enriched.Status,
+			"status_text":  enriched.StatusText,
+			"last_seen_at": enriched.LastSeenAt,
+			"ai_insight":   enriched.AIInsight,
+			"match_reason": matchReason,
+		})
+	}
+
+	var messages []domain.Message
+	db.DB.Where("LOWER(content) LIKE ?", needle).Order("created_at desc").Limit(10).Find(&messages)
+	for idx := range messages {
+		refreshed, err := refreshMessageMetadata(messages[idx].ID)
+		if err == nil && refreshed != nil {
+			messages[idx] = *refreshed
+		}
+		message := messages[idx]
+		results.Messages = append(results.Messages, gin.H{
+			"id":         message.ID,
+			"channel_id": message.ChannelID,
+			"user_id":    message.UserID,
+			"content":    message.Content,
+			"thread_id":  message.ThreadID,
+			"created_at": message.CreatedAt,
+			"metadata":   message.Metadata,
+			"snippet":    buildSearchSnippet(message.Content, query),
+		})
 	}
 
 	var memberships []domain.DMMember
@@ -1478,6 +1523,105 @@ func SearchWorkspace(c *gin.Context) {
 		"query":   query,
 		"results": results,
 	})
+}
+
+func SearchSuggestions(c *gin.Context) {
+	query := strings.TrimSpace(c.Query("q"))
+	if query == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "q is required"})
+		return
+	}
+
+	needle := "%" + strings.ToLower(query) + "%"
+	suggestions := make([]gin.H, 0, 12)
+	seen := map[string]struct{}{}
+
+	var channels []domain.Channel
+	db.DB.Where("LOWER(name) LIKE ?", needle).Order("name asc").Limit(4).Find(&channels)
+	for _, channel := range channels {
+		key := "channel:" + channel.ID
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		suggestions = append(suggestions, gin.H{
+			"type":  "channel",
+			"id":    channel.ID,
+			"label": "#" + channel.Name,
+			"hint":  defaultString(channel.Description, "Channel"),
+		})
+	}
+
+	var users []domain.User
+	db.DB.Where("LOWER(name) LIKE ? OR LOWER(email) LIKE ?", needle, needle).Order("name asc").Limit(4).Find(&users)
+	for _, user := range users {
+		key := "user:" + user.ID
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		suggestions = append(suggestions, gin.H{
+			"type":  "user",
+			"id":    user.ID,
+			"label": user.Name,
+			"hint":  user.Email,
+		})
+	}
+
+	var messages []domain.Message
+	db.DB.Where("LOWER(content) LIKE ?", needle).Order("created_at desc").Limit(4).Find(&messages)
+	for _, message := range messages {
+		key := "message:" + message.ID
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		suggestions = append(suggestions, gin.H{
+			"type":  "message",
+			"id":    message.ID,
+			"label": buildSearchSnippet(message.Content, query),
+			"hint":  "Message result",
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"query":       query,
+		"suggestions": suggestions,
+	})
+}
+
+func buildSearchSnippet(content, query string) string {
+	plain := strings.TrimSpace(content)
+	if plain == "" {
+		return ""
+	}
+	lowerContent := strings.ToLower(plain)
+	lowerQuery := strings.ToLower(strings.TrimSpace(query))
+	idx := strings.Index(lowerContent, lowerQuery)
+	if idx == -1 {
+		if len(plain) <= 120 {
+			return plain
+		}
+		return plain[:117] + "..."
+	}
+
+	start := idx - 24
+	if start < 0 {
+		start = 0
+	}
+	end := idx + len(lowerQuery) + 48
+	if end > len(plain) {
+		end = len(plain)
+	}
+
+	snippet := plain[start:end]
+	if start > 0 {
+		snippet = "..." + snippet
+	}
+	if end < len(plain) {
+		snippet += "..."
+	}
+	return snippet
 }
 
 func GetMessages(c *gin.Context) {

@@ -107,6 +107,7 @@ func main() {
 		v1.GET("/drafts", handlers.GetDrafts)
 		v1.PUT("/drafts/:scope", handlers.PutDraft)
 		v1.GET("/search", handlers.SearchWorkspace)
+		v1.GET("/search/suggestions", handlers.SearchSuggestions)
 		v1.GET("/artifacts", handlers.GetArtifacts)
 		v1.POST("/artifacts", handlers.CreateArtifact)
 		v1.GET("/artifacts/:id", handlers.GetArtifact)
