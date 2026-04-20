@@ -2,7 +2,28 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
-## [0.5.25] - 2026-04-19
+## [0.5.26] - 2026-04-19
+
+This release implements Phase 20: Presence Refinements, making user status more dynamic and context-aware.
+
+### Added
+
+- **Presence Heartbeat**: Implemented a 30-second client-side heartbeat to maintain active session presence.
+- **Enriched Last Seen**: Added "Last seen" timestamps using `formatDistanceToNow` for offline users.
+- **Scoped Presence**: Added automatic presence fetching for channel members when switching channels.
+- **Status Metadata**: Integrated `status_text` support in avatars and profiles.
+
+### Fixed
+
+- UI Consistency: Unified presence mapping across `presence-store.ts` and `user-store.ts`.
+
+### Verification Used For This Release
+
+- `pnpm build`
+- `cd apps/web && pnpm lint` (Verified PASS)
+
+## [0.5.24] - 2026-04-19
+
 
 This release upgrades Relay presence with heartbeat refresh, derived last-seen metadata, and scoped presence lists.
 

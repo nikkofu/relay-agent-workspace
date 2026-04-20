@@ -23,9 +23,9 @@ export default function WorkspaceLayout({
 }) {
   const { isThreadOpen, isAIPanelOpen, isCanvasOpen, closeThread, closeAIPanel, closeCanvas } = useUIStore()
   const { fetchWorkspaces, currentWorkspace } = useWorkspaceStore()
-  const { fetchChannels } = useChannelStore()
+  const { fetchChannels, currentChannel } = useChannelStore()
   const { fetchMe, fetchUsers } = useUserStore()
-  const { fetchPresence } = usePresenceStore()
+  const { fetchPresence, sendHeartbeat, fetchScopedPresence } = usePresenceStore()
   const [mounted, setMounted] = useState(false)
   const showRightPanel = isThreadOpen || isAIPanelOpen || isCanvasOpen
   
@@ -43,7 +43,14 @@ export default function WorkspaceLayout({
       fetchWorkspaces()
       fetchPresence()
     }
-  }, [fetchMe, fetchUsers, fetchWorkspaces, fetchPresence])
+
+    // Presence Heartbeat
+    const interval = setInterval(() => {
+      sendHeartbeat()
+    }, 30000) // Every 30 seconds
+
+    return () => clearInterval(interval)
+  }, [fetchMe, fetchUsers, fetchWorkspaces, fetchPresence, sendHeartbeat])
 
   useEffect(() => {
     if (currentWorkspace && currentWorkspace.id !== lastChannelsWorkspaceId.current) {
@@ -51,6 +58,12 @@ export default function WorkspaceLayout({
       fetchChannels(currentWorkspace.id)
     }
   }, [currentWorkspace, fetchChannels])
+
+  useEffect(() => {
+    if (currentChannel) {
+      fetchScopedPresence(currentChannel.id)
+    }
+  }, [currentChannel, fetchScopedPresence])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

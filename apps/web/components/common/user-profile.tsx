@@ -6,6 +6,7 @@ import { Sparkles, MessageCircle, Mail, Clock, Calendar } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { useRouter } from "next/navigation"
+import { formatDistanceToNow } from "date-fns"
 
 interface UserProfileProps {
   user: User
@@ -44,7 +45,14 @@ export function UserProfile({ user }: UserProfileProps) {
             <h3 className="text-xl font-black tracking-tight text-foreground">{user.name}</h3>
             <div className={`h-2.5 w-2.5 rounded-full ${statusColors[user.status] || statusColors.offline}`} />
           </div>
-          <p className="text-sm text-muted-foreground font-medium">{user.statusText || (user.status === 'online' ? "Active" : "Away")}</p>
+          <div className="flex flex-col">
+            <p className="text-sm text-muted-foreground font-medium">{user.statusText || (user.status === 'online' ? "Active" : "Away")}</p>
+            {user.status === 'offline' && user.lastSeen && (
+              <p className="text-[10px] text-muted-foreground italic mt-0.5">
+                Last seen {formatDistanceToNow(new Date(user.lastSeen), { addSuffix: true })}
+              </p>
+            )}
+          </div>
         </div>
 
         {/* AI Insight Section */}

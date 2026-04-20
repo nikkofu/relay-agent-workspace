@@ -247,7 +247,11 @@ export function ChannelInfo({ trigger }: { trigger: React.ReactNode }) {
                           {user.id === currentUser?.id && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded uppercase font-bold text-muted-foreground">You</span>}
                           {role === 'admin' && <span className="text-[10px] bg-blue-500/10 text-blue-500 px-1.5 py-0.5 rounded uppercase font-bold">Admin</span>}
                         </div>
-                        <p className="text-xs text-muted-foreground truncate max-w-[200px]">{user.statusText || "Online"}</p>
+                        <p className="text-xs text-muted-foreground truncate max-w-[200px]">
+                          {user.status === 'offline' && user.lastSeen 
+                            ? `Last seen ${formatDistanceToNow(new Date(user.lastSeen), { addSuffix: true })}`
+                            : (user.statusText || (user.status === 'online' ? "Active" : "Away"))}
+                        </p>
                       </div>
                     </div>
                     {currentUser?.id !== user.id && (

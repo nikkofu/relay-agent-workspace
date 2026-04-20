@@ -124,9 +124,9 @@ Baseline support now exists for:
 
 Likely follow-ups:
 
-- heartbeat / expiry semantics
-- scoped presence subscriptions
 - debounce and timeout conventions for typing indicators
+- DM-scoped presence list queries
+- explicit presence preference/mute rules
 
 ### 4.2 AI Conversation State
 

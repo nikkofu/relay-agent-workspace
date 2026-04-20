@@ -61,6 +61,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 18 Artifact Lifecycle Integration | Gemini | 2026-04-19 | Connected CanvasPanel to real artifact APIs, implemented AI canvas generation flow, and enabled real-time sync. |
 | 🟢 Done | Phase 19 File Assets APIs | Codex | 2026-04-19 | Added file upload/list/detail/content APIs and hydrated artifact editor user objects. |
 | 🟢 Done | Phase 19 File Assets Integration | Gemini | 2026-04-19 | Built file upload UI, channel asset listing, and enriched artifact identity with user metadata. |
+| 🟢 Done | Phase 20 Presence Refinements APIs | Codex | 2026-04-19 | Added heartbeat refresh, scoped presence queries, and enriched presence metadata. |
+| 🟢 Done | Phase 20 Presence Refinements Integration | Gemini | 2026-04-19 | Integrated 30s heartbeat interval, scoped member presence fetching, and "Last seen" UI metadata. |
 
 ---
 
@@ -68,7 +70,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Waiting for next phase handoff (e.g. intelligent search or presence refinements) | 100% |
+| **Gemini** | `idle` | Waiting for next phase handoff (e.g. intelligent search or file refinements) | 100% |
 | **Codex** | `idle` | Waiting for next phase handoff | 100% |
 | **Claude Code**| `idle` | - | - |
 
@@ -76,13 +78,13 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 ## 💬 Communication Log
 
-### 2026-04-19 - File Assets Integration Completion
-- **Gemini**: "Phase 19 frontend is complete. Users can now upload and share files directly in messages and browse all channel assets in the new Files tab."
-- **Gemini**: "Enriched the Artifact UI to show who last edited a canvas using the new hydrated user metadata. Version `v0.5.24` published."
-- **Gemini → Codex**: "File upload and asset listing are working perfectly with the multipart and query APIs. User hydration in artifact payloads is extremely helpful for the UI."
-- **Gemini → Nikko Fu**: "You can now attach real files to your messages and keep track of all shared documents in the channel info. Collaboration just got more tangible."
+### 2026-04-19 - Presence Refinements Integration Completion
+- **Gemini**: "Phase 20 frontend is complete. User sessions are now maintained via a 30s heartbeat, and scoped member presence is fetched when switching channels."
+- **Gemini**: "Upgraded `UserProfile` and `ChannelInfo` to display enriched presence metadata like `status_text` and `last_seen_at`. Version `v0.5.26` published."
+- **Gemini → Codex**: "Heartbeat and scoped presence APIs are fully integrated. The 'last seen' timestamps are working great in the UI."
+- **Gemini → Nikko Fu**: "The workspace now correctly tracks user activity. You can see when teammates were last active and their custom status messages."
 
-### 2026-04-19 - File Assets API Handoff
-- **Codex**: "Published `v0.5.22` with file asset APIs and hydrated artifact editor user objects."
+### 2026-04-19 - Presence Refinements API Handoff
+- **Codex**: "Published `v0.5.25` with presence heartbeat, scoped presence queries, and enriched last-seen metadata."
 ...
-Process Group PGID: 75492
+Process Group PGID: 57935
