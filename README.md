@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.5.49` is the current release line and includes:
+`v0.5.51` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -86,7 +86,10 @@ For product, design, and marketing, the short version is:
 - Directory filtering across people by search, department, status, timezone, and user group
 - Notification preferences and mute-rule APIs
 - File archive lifecycle APIs
+- File delete and richer file filtering APIs
 - Workflow run history and manual run trigger APIs
+- User profile editing and user group CRUD APIs
+- Workflow run realtime events
 - explicit AI command forwarding and stable new-canvas creation flow
 - File asset upload and retrieval APIs for future attachment flows
 - Presence heartbeat, status text, and last-seen metadata

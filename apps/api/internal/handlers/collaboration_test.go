@@ -187,6 +187,41 @@ func TestPatchUserStatusUpdatesPresenceFields(t *testing.T) {
 	}
 }
 
+func TestPatchUserProfileUpdatesWorkspaceIdentityFields(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.User{
+		ID:             "user-1",
+		OrganizationID: "org-1",
+		Name:           "Nikko Fu",
+		Email:          "nikko@example.com",
+		Title:          "Founder",
+		Department:     "Product",
+		Timezone:       "Asia/Shanghai",
+		WorkingHours:   "Mon - Fri",
+	})
+
+	router := gin.New()
+	router.PATCH("/api/v1/users/:id", PatchUserProfile)
+
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/users/user-1", bytes.NewBufferString(`{"title":"CEO","department":"Executive","timezone":"America/New_York","working_hours":"Mon - Thu, 09:00 - 18:00"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var refreshed domain.User
+	if err := db.DB.First(&refreshed, "id = ?", "user-1").Error; err != nil {
+		t.Fatalf("failed to reload user: %v", err)
+	}
+	if refreshed.Title != "CEO" || refreshed.Department != "Executive" || refreshed.Timezone != "America/New_York" || refreshed.WorkingHours != "Mon - Thu, 09:00 - 18:00" {
+		t.Fatalf("expected profile fields to persist, got %#v", refreshed)
+	}
+}
+
 func TestGetHomeReturnsWorkspaceSummary(t *testing.T) {
 	setupTestDB(t)
 
@@ -310,6 +345,72 @@ func TestGetUserGroupsAndDetail(t *testing.T) {
 	}
 }
 
+func TestUserGroupCrudLifecycle(t *testing.T) {
+	setupTestDB(t)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.User{ID: "user-1", OrganizationID: "org-1", Name: "Nikko Fu", Email: "nikko@example.com", Status: "online"})
+	db.DB.Create(&domain.User{ID: "user-2", OrganizationID: "org-1", Name: "Jane Smith", Email: "jane@example.com", Status: "away"})
+	db.DB.Create(&domain.Workspace{ID: "ws-1", OrganizationID: "org-1", Name: "Relay"})
+	db.DB.Create(&domain.UserGroup{ID: "group-1", WorkspaceID: "ws-1", Name: "Design Leads", Handle: "design-leads", Description: "Cross-functional design leadership", CreatedBy: "user-1", CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.UserGroupMember{UserGroupID: "group-1", UserID: "user-1", Role: "owner", CreatedAt: now})
+
+	router := gin.New()
+	router.POST("/api/v1/user-groups", CreateUserGroup)
+	router.PATCH("/api/v1/user-groups/:id", UpdateUserGroup)
+	router.DELETE("/api/v1/user-groups/:id", DeleteUserGroup)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/user-groups", bytes.NewBufferString(`{"workspace_id":"ws-1","name":"Ops Guild","handle":"ops-guild","description":"Operations working group","member_ids":["user-1","user-2"]}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on create, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var createPayload struct {
+		Group struct {
+			ID      string `json:"id"`
+			Members []any  `json:"members"`
+		} `json:"group"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &createPayload); err != nil {
+		t.Fatalf("failed to decode create payload: %v", err)
+	}
+	if createPayload.Group.ID == "" || len(createPayload.Group.Members) != 2 {
+		t.Fatalf("unexpected create payload: %#v", createPayload.Group)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPatch, "/api/v1/user-groups/group-1", bytes.NewBufferString(`{"name":"Design Leadership","description":"Updated desc","member_ids":["user-1","user-2"]}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on update, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var updated domain.UserGroup
+	if err := db.DB.First(&updated, "id = ?", "group-1").Error; err != nil {
+		t.Fatalf("failed to reload group: %v", err)
+	}
+	if updated.Name != "Design Leadership" || updated.Description != "Updated desc" {
+		t.Fatalf("expected updated group fields, got %#v", updated)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodDelete, "/api/v1/user-groups/group-1", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on delete, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var count int64
+	db.DB.Model(&domain.UserGroup{}).Where("id = ?", "group-1").Count(&count)
+	if count != 0 {
+		t.Fatalf("expected group deletion, got count=%d", count)
+	}
+}
+
 func TestGetWorkflowsAndTools(t *testing.T) {
 	setupTestDB(t)
 
@@ -400,6 +501,33 @@ func TestWorkflowRunsCanBeCreatedAndListed(t *testing.T) {
 	if len(payload.Runs) != 1 || payload.Runs[0].Workflow.ID != "wf-1" || payload.Runs[0].StartedBy.ID != "user-1" {
 		t.Fatalf("unexpected workflow runs payload: %#v", payload.Runs)
 	}
+}
+
+func TestWorkflowRunCreateBroadcastsRealtimeEvent(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.User{ID: "user-1", OrganizationID: "org-1", Name: "Nikko Fu", Email: "nikko@example.com", Status: "online"})
+	db.DB.Create(&domain.Workspace{ID: "ws-1", OrganizationID: "org-1", Name: "Relay"})
+	db.DB.Create(&domain.WorkflowDefinition{ID: "wf-1", Name: "Incident Review", Category: "operations", Description: "Run post-incident review", Trigger: "manual", IsActive: true, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()})
+
+	hub := realtime.NewHub()
+	go hub.Run()
+	RealtimeHub = hub
+	client := realtime.NewTestClient(4)
+	hub.RegisterTestClient(client)
+	defer hub.UnregisterTestClient(client)
+
+	router := gin.New()
+	router.POST("/api/v1/workflows/:id/runs", CreateWorkflowRun)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/workflows/wf-1/runs", bytes.NewBufferString(`{"status":"running","summary":"Triggered from UI"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on workflow run create, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	assertRealtimeEventType(t, client, "workflow.run.updated")
 }
 
 func TestNotificationPreferencesCanBeUpdated(t *testing.T) {
@@ -2106,6 +2234,7 @@ func setupTestDB(t *testing.T) {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
+	RealtimeHub = nil
 	dsn := fmt.Sprintf("file:test_%d?mode=memory&cache=shared", time.Now().UnixNano())
 	testDB, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	if err != nil {

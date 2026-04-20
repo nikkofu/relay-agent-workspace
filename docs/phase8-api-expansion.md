@@ -67,9 +67,13 @@ Current backend surface already available:
 - `PATCH /api/v1/me/settings`
 - `GET /api/v1/users`
 - `GET /api/v1/users/:id`
+- `PATCH /api/v1/users/:id`
 - `PATCH /api/v1/users/:id/status`
 - `GET /api/v1/user-groups`
+- `POST /api/v1/user-groups`
 - `GET /api/v1/user-groups/:id`
+- `PATCH /api/v1/user-groups/:id`
+- `DELETE /api/v1/user-groups/:id`
 - `GET /api/v1/workflows`
 - `GET /api/v1/workflows/runs`
 - `POST /api/v1/workflows/:id/runs`
@@ -190,13 +194,14 @@ Baseline support now exists for:
 - `GET /api/v1/files/:id`
 - `GET /api/v1/files/:id/content`
 - `PATCH /api/v1/files/:id/archive`
+- `DELETE /api/v1/files/:id`
 
 Likely follow-ups:
 
-- file deletion and retention controls
+- file retention controls
 - file previews and image thumbnails
 - richer attachment previews in message surfaces
-- uploader- and type-based archive filters
+- richer archive filters such as date windows and channel grouping
 
 ### 4.5 Slack Parity Layer
 
@@ -254,11 +259,10 @@ Baseline support now exists for:
 
 Likely follow-ups:
 
-- full people directory filters by department, status, timezone, and group
-- user profile editing
 - custom status expiration windows
-- user group create/update/delete and mentions
+- user group mentions
 - dedicated home widgets for onboarding, workflows, and unread work
+- deeper directory facets such as title and working-hours filters
 
 ### 4.7 Workflow And Tool Registry
 
@@ -276,7 +280,6 @@ Likely follow-ups:
 - channel- or DM-scoped tool availability
 - agent/tool routing metadata shared with the AI layer
 - workflow cancellation / retry semantics
-- workflow run realtime events
 
 ### 4.8 Notification Preferences And Mute Rules
 

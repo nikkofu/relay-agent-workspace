@@ -88,6 +88,15 @@ func ListFiles(c *gin.Context) {
 	if channelID := c.Query("channel_id"); channelID != "" {
 		query = query.Where("channel_id = ?", channelID)
 	}
+	if uploaderID := c.Query("uploader_id"); uploaderID != "" {
+		query = query.Where("uploader_id = ?", uploaderID)
+	}
+	if contentType := strings.TrimSpace(c.Query("content_type")); contentType != "" {
+		query = query.Where("content_type = ?", contentType)
+	}
+	if archived := strings.TrimSpace(c.Query("is_archived")); archived != "" {
+		query = query.Where("is_archived = ?", archived == "true")
+	}
 	if err := query.Find(&files).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load files"})
 		return
@@ -159,6 +168,12 @@ func GetArchivedFiles(c *gin.Context) {
 	if channelID := c.Query("channel_id"); channelID != "" {
 		query = query.Where("channel_id = ?", channelID)
 	}
+	if uploaderID := c.Query("uploader_id"); uploaderID != "" {
+		query = query.Where("uploader_id = ?", uploaderID)
+	}
+	if contentType := strings.TrimSpace(c.Query("content_type")); contentType != "" {
+		query = query.Where("content_type = ?", contentType)
+	}
 	if q := strings.TrimSpace(c.Query("q")); q != "" {
 		query = query.Where("LOWER(name) LIKE ?", "%"+strings.ToLower(q)+"%")
 	}
@@ -173,6 +188,19 @@ func GetArchivedFiles(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"files": items})
+}
+
+func DeleteFile(c *gin.Context) {
+	var asset domain.FileAsset
+	if err := db.DB.First(&asset, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
+		return
+	}
+	if err := db.DB.Delete(&asset).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete file"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"deleted": true, "file_id": asset.ID})
 }
 
 func hydrateFileAssetResponse(asset domain.FileAsset) fileAssetResponse {

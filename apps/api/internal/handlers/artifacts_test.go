@@ -530,3 +530,72 @@ func TestFileArchiveLifecycle(t *testing.T) {
 		t.Fatalf("unexpected archived files payload: %#v", payload.Files)
 	}
 }
+
+func TestListFilesSupportsArchiveAndUploaderFiltersAndDelete(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.User{ID: "user-2", Name: "Jane Smith", Email: "jane@example.com"})
+	db.DB.Create(&domain.FileAsset{
+		ID:          "file-1",
+		ChannelID:   "ch-5",
+		UploaderID:  "user-1",
+		Name:        "launch-plan.pdf",
+		StoragePath: "launch-plan.pdf",
+		ContentType: "application/pdf",
+		SizeBytes:   2048,
+		CreatedAt:   time.Now().UTC(),
+	})
+	db.DB.Create(&domain.FileAsset{
+		ID:          "file-2",
+		ChannelID:   "ch-5",
+		UploaderID:  "user-2",
+		Name:        "diagram.png",
+		StoragePath: "diagram.png",
+		ContentType: "image/png",
+		SizeBytes:   1024,
+		IsArchived:  true,
+		ArchivedAt: func() *time.Time {
+			v := time.Now().UTC()
+			return &v
+		}(),
+		CreatedAt: time.Now().UTC(),
+	})
+
+	router := gin.New()
+	router.GET("/api/v1/files", ListFiles)
+	router.DELETE("/api/v1/files/:id", DeleteFile)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/files?uploader_id=user-1&is_archived=false", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on filtered list, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var listPayload struct {
+		Files []struct {
+			ID string `json:"id"`
+		} `json:"files"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &listPayload); err != nil {
+		t.Fatalf("failed to decode filtered list payload: %v", err)
+	}
+	if len(listPayload.Files) != 1 || listPayload.Files[0].ID != "file-1" {
+		t.Fatalf("unexpected filtered files payload: %#v", listPayload.Files)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodDelete, "/api/v1/files/file-1", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on delete, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var count int64
+	db.DB.Model(&domain.FileAsset{}).Where("id = ?", "file-1").Count(&count)
+	if count != 0 {
+		t.Fatalf("expected file deletion, got count=%d", count)
+	}
+}

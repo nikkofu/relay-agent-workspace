@@ -2,6 +2,36 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.51] - 2026-04-21
+
+This release expands Relay's admin and operational shell with profile editing, user group CRUD, richer file management, and workflow run realtime.
+
+### Added
+
+- `PATCH /api/v1/users/:id`
+- `POST /api/v1/user-groups`
+- `PATCH /api/v1/user-groups/:id`
+- `DELETE /api/v1/user-groups/:id`
+- `DELETE /api/v1/files/:id`
+
+### Expanded
+
+- `GET /api/v1/files` now supports:
+  - `uploader_id`
+  - `content_type`
+  - `is_archived`
+- `GET /api/v1/files/archive` now supports:
+  - `uploader_id`
+  - `content_type`
+- `POST /api/v1/workflows/:id/runs` now emits realtime `workflow.run.updated`
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+- `pnpm build` still hangs after `Creating an optimized production build ...` in this environment and needs a fresh frontend investigation
+
 ## [0.5.50] - 2026-04-21
 
 This release implements Phase 28: Operational Shell Integration, providing core administrative and organizational surfaces.

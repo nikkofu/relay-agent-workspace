@@ -141,6 +141,45 @@ func GetUserProfile(c *gin.Context) {
 	})
 }
 
+func PatchUserProfile(c *gin.Context) {
+	var user domain.User
+	if err := db.DB.First(&user, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var input struct {
+		Title        *string `json:"title"`
+		Department   *string `json:"department"`
+		Timezone     *string `json:"timezone"`
+		WorkingHours *string `json:"working_hours"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if input.Title != nil {
+		user.Title = strings.TrimSpace(*input.Title)
+	}
+	if input.Department != nil {
+		user.Department = strings.TrimSpace(*input.Department)
+	}
+	if input.Timezone != nil {
+		user.Timezone = strings.TrimSpace(*input.Timezone)
+	}
+	if input.WorkingHours != nil {
+		user.WorkingHours = strings.TrimSpace(*input.WorkingHours)
+	}
+
+	if err := db.DB.Save(&user).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update user profile"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"user": enrichUser(user)})
+}
+
 func PatchUserStatus(c *gin.Context) {
 	var user domain.User
 	if err := db.DB.First(&user, "id = ?", c.Param("id")).Error; err != nil {
@@ -263,6 +302,52 @@ func GetUserGroups(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"groups": items})
 }
 
+func CreateUserGroup(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var input struct {
+		WorkspaceID string   `json:"workspace_id"`
+		Name        string   `json:"name"`
+		Handle      string   `json:"handle"`
+		Description string   `json:"description"`
+		MemberIDs   []string `json:"member_ids"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if strings.TrimSpace(input.WorkspaceID) == "" || strings.TrimSpace(input.Name) == "" || strings.TrimSpace(input.Handle) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "workspace_id, name, and handle are required"})
+		return
+	}
+
+	now := time.Now().UTC()
+	group := domain.UserGroup{
+		ID:          "group-" + now.Format("20060102150405.000000"),
+		WorkspaceID: input.WorkspaceID,
+		Name:        input.Name,
+		Handle:      input.Handle,
+		Description: input.Description,
+		CreatedBy:   currentUser.ID,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	if err := db.DB.Create(&group).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user group"})
+		return
+	}
+	memberIDs := normalizeMemberIDs(input.MemberIDs, currentUser.ID)
+	if err := replaceUserGroupMembers(group.ID, memberIDs, currentUser.ID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save user group members"})
+		return
+	}
+	respondWithUserGroupDetail(c, http.StatusCreated, group)
+}
+
 func GetUserGroup(c *gin.Context) {
 	var group domain.UserGroup
 	if err := db.DB.First(&group, "id = ?", c.Param("id")).Error; err != nil {
@@ -302,6 +387,59 @@ func GetUserGroup(c *gin.Context) {
 			Members:     members,
 		},
 	})
+}
+
+func UpdateUserGroup(c *gin.Context) {
+	var group domain.UserGroup
+	if err := db.DB.First(&group, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user group not found"})
+		return
+	}
+
+	var input struct {
+		Name        *string  `json:"name"`
+		Handle      *string  `json:"handle"`
+		Description *string  `json:"description"`
+		MemberIDs   []string `json:"member_ids"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if input.Name != nil {
+		group.Name = strings.TrimSpace(*input.Name)
+	}
+	if input.Handle != nil {
+		group.Handle = strings.TrimSpace(*input.Handle)
+	}
+	if input.Description != nil {
+		group.Description = strings.TrimSpace(*input.Description)
+	}
+	group.UpdatedAt = time.Now().UTC()
+	if err := db.DB.Save(&group).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update user group"})
+		return
+	}
+	if input.MemberIDs != nil {
+		if err := replaceUserGroupMembers(group.ID, normalizeMemberIDs(input.MemberIDs, group.CreatedBy), group.CreatedBy); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to replace user group members"})
+			return
+		}
+	}
+	respondWithUserGroupDetail(c, http.StatusOK, group)
+}
+
+func DeleteUserGroup(c *gin.Context) {
+	groupID := c.Param("id")
+	if err := db.DB.Where("user_group_id = ?", groupID).Delete(&domain.UserGroupMember{}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete user group members"})
+		return
+	}
+	if err := db.DB.Delete(&domain.UserGroup{}, "id = ?", groupID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete user group"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"deleted": true, "group_id": groupID})
 }
 
 func GetWorkflows(c *gin.Context) {
@@ -359,8 +497,19 @@ func CreateWorkflowRun(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create workflow run"})
 		return
 	}
+	response := hydrateWorkflowRun(run, workflow, enrichUser(currentUser))
+	if RealtimeHub != nil {
+		_ = RealtimeHub.Broadcast(realtime.Event{
+			ID:          "evt_" + now.Format("20060102150405.000000"),
+			Type:        "workflow.run.updated",
+			WorkspaceID: primaryWorkspaceID(),
+			EntityID:    run.ID,
+			TS:          now.Format(time.RFC3339Nano),
+			Payload:     gin.H{"run": response},
+		})
+	}
 
-	c.JSON(http.StatusCreated, gin.H{"run": hydrateWorkflowRun(run, workflow, enrichUser(currentUser))})
+	c.JSON(http.StatusCreated, gin.H{"run": response})
 }
 
 func GetWorkflowRuns(c *gin.Context) {
@@ -660,6 +809,78 @@ func hydrateWorkflowRun(run domain.WorkflowRun, workflow domain.WorkflowDefiniti
 		Workflow:    workflow,
 		StartedBy:   starter,
 	}
+}
+
+func normalizeMemberIDs(memberIDs []string, ownerID string) []string {
+	seen := map[string]struct{}{}
+	items := make([]string, 0, len(memberIDs)+1)
+	if ownerID != "" {
+		seen[ownerID] = struct{}{}
+		items = append(items, ownerID)
+	}
+	for _, memberID := range memberIDs {
+		memberID = strings.TrimSpace(memberID)
+		if memberID == "" {
+			continue
+		}
+		if _, ok := seen[memberID]; ok {
+			continue
+		}
+		seen[memberID] = struct{}{}
+		items = append(items, memberID)
+	}
+	return items
+}
+
+func replaceUserGroupMembers(groupID string, memberIDs []string, ownerID string) error {
+	if err := db.DB.Where("user_group_id = ?", groupID).Delete(&domain.UserGroupMember{}).Error; err != nil {
+		return err
+	}
+	now := time.Now().UTC()
+	for _, memberID := range memberIDs {
+		role := "member"
+		if memberID == ownerID {
+			role = "owner"
+		}
+		entry := domain.UserGroupMember{
+			UserGroupID: groupID,
+			UserID:      memberID,
+			Role:        role,
+			CreatedAt:   now,
+		}
+		if err := db.DB.Create(&entry).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func respondWithUserGroupDetail(c *gin.Context, statusCode int, group domain.UserGroup) {
+	var memberships []domain.UserGroupMember
+	_ = db.DB.Where("user_group_id = ?", group.ID).Order("role asc, created_at asc").Find(&memberships).Error
+	members := make([]userGroupMemberResponse, 0, len(memberships))
+	for _, membership := range memberships {
+		var user domain.User
+		if err := db.DB.First(&user, "id = ?", membership.UserID).Error; err != nil {
+			continue
+		}
+		members = append(members, userGroupMemberResponse{
+			Role:      membership.Role,
+			CreatedAt: membership.CreatedAt,
+			User:      enrichUser(user),
+		})
+	}
+	c.JSON(statusCode, gin.H{"group": userGroupDetailResponse{
+		ID:          group.ID,
+		WorkspaceID: group.WorkspaceID,
+		Name:        group.Name,
+		Handle:      group.Handle,
+		Description: group.Description,
+		MemberCount: len(members),
+		CreatedBy:   group.CreatedBy,
+		UpdatedAt:   group.UpdatedAt,
+		Members:     members,
+	}})
 }
 
 func sumUnreadChannels() int {

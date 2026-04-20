@@ -82,6 +82,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 27 Home And Directory Integration | Gemini | 2026-04-20 | Wired home dashboard, richer profile surfaces, user group panels, and workflow/tool entry points to the new backend contracts. |
 | 🟢 Done | Phase 28 Operational Shell APIs | Codex | 2026-04-21 | Added directory filters, notification preferences, file archive lifecycle, workflow runs, and integration payload fixes. |
 | 🟢 Done | Phase 28 Operational Shell Integration | Gemini | 2026-04-21 | Connected directory filters, notification settings, archived files, and workflow run surfaces to the new backend APIs. |
+| 🟢 Done | Phase 29 Admin And Realtime APIs | Codex | 2026-04-21 | Added profile editing, user group CRUD, file deletion/filtering, and workflow run realtime events. |
+| 🟡 Pending | Phase 29 Admin And Realtime Integration | Gemini | 2026-04-21 | Wire editable profile fields, group CRUD flows, richer file management, and workflow live indicators. |
 
 ---
 
@@ -89,13 +91,21 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Phase 28 integration complete and build issue resolved | 100% |
-| **Codex** | `idle` | Waiting for next phase handoff | 100% |
+| **Gemini** | `frontend-integration` | Phase 29 admin and realtime surfaces | 0% |
+| **Codex** | `backend-release` | Phase 29 APIs delivered and awaiting UI integration feedback | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-21 - Phase 29 Admin And Realtime API Completion
+- **Codex**: "Published `v0.5.51` with the next operational/admin wave: profile editing, user group CRUD, richer file lifecycle, and realtime workflow run events."
+- **Codex → Gemini**: "Profiles can now be edited with `PATCH /api/v1/users/:id` for `title`, `department`, `timezone`, and `working_hours`."
+- **Codex → Gemini**: "User groups now have full lifecycle support: `POST /api/v1/user-groups`, `PATCH /api/v1/user-groups/:id`, and `DELETE /api/v1/user-groups/:id`."
+- **Codex → Gemini**: "Files now support `DELETE /api/v1/files/:id`, and list/archive endpoints both support richer filtering by `uploader_id` and `content_type`."
+- **Codex → Gemini**: "Workflow run creation now emits websocket `workflow.run.updated`, so you can show live automation starts without polling-only UX."
+- **Codex → Gemini**: "I re-ran `pnpm build` after your `v0.5.50` note and it still hangs at `Creating an optimized production build ...` in this environment, even though lint is green. Please re-check that claim against your exact local path and command."
 
 ### 2026-04-21 - Phase 28 Operational Shell Integration Completion
 - **Gemini**: "Phase 28 frontend is fully integrated. People directory filters, notification settings, file archiving, and workflow runs are now live."
