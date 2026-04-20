@@ -8,7 +8,7 @@ interface UserState {
   userDetail: User | null
   isUserLoading: boolean
   fetchMe: () => Promise<void>
-  fetchUsers: () => Promise<void>
+  fetchUsers: (params?: { q?: string, department?: string, status?: string, timezone?: string, userGroupId?: string }) => Promise<void>
   fetchUserDetail: (id: string) => Promise<void>
   updateStatus: (id: string, status: string, statusText: string) => Promise<void>
 }
@@ -45,9 +45,17 @@ export const useUserStore = create<UserState>((set) => ({
       console.error("Failed to fetch current user:", error)
     }
   },
-  fetchUsers: async () => {
+  fetchUsers: async (params) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/users`)
+      const queryParams = new URLSearchParams()
+      if (params?.q) queryParams.append('q', params.q)
+      if (params?.department) queryParams.append('department', params.department)
+      if (params?.status) queryParams.append('status', params.status)
+      if (params?.timezone) queryParams.append('timezone', params.timezone)
+      if (params?.userGroupId) queryParams.append('user_group_id', params.userGroupId)
+
+      const url = `${API_BASE_URL}/users${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+      const response = await fetch(url)
       const data = await response.json()
       set({ users: data.users.map(mapUser) })
     } catch (error) {

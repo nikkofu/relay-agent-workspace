@@ -1,6 +1,6 @@
 "use client"
 
-import { Home, MessageSquare, Bell, Bookmark, MoreHorizontal, Plus, Sparkles } from "lucide-react"
+import { Home, MessageSquare, Bell, Bookmark, Plus, Sparkles, Users, Folder, Zap, Settings } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -17,8 +17,11 @@ const NAV_ITEMS = [
   { icon: Home, label: "Home", href: "/workspace" },
   { icon: MessageSquare, label: "DMs", href: "/workspace/dms" },
   { icon: Bell, label: "Activity", href: "/workspace/activity" },
+  { icon: Users, label: "People", href: "/workspace/people" },
+  { icon: Folder, label: "Files", href: "/workspace/files" },
+  { icon: Zap, label: "Workflows", href: "/workspace/workflows" },
   { icon: Bookmark, label: "Later", href: "/workspace/later" },
-  { icon: MoreHorizontal, label: "More", href: "#" },
+  { icon: Settings, label: "Settings", href: "/workspace/settings" },
 ]
 
 export function PrimaryNav() {

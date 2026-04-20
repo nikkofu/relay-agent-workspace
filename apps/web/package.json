@@ -1,6 +1,6 @@
 {
   "name": "relay-agent-workspace",
-  "version": "0.5.49",
+  "version": "0.5.50",
   "private": true,
   "description": "AI-native collaboration workspace for humans and agents, combining messaging, artifacts, and orchestration.",
   "homepage": "https://github.com/nikkofu/relay-agent-workspace",
@@ -17,6 +17,8 @@
   "dependencies": {
     "@ai-sdk/react": "^3.0.163",
     "@radix-ui/react-progress": "^1.1.8",
+    "@radix-ui/react-select": "^2.2.6",
+    "@radix-ui/react-tabs": "^1.1.13",
     "@tiptap/extension-code-block-lowlight": "^3.22.3",
     "@tiptap/extension-link": "^3.22.3",
     "@tiptap/extension-mention": "^3.22.3",

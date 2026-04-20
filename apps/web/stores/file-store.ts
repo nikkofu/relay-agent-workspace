@@ -11,18 +11,25 @@ export interface FileAsset {
   channelId?: string
   userId: string
   createdAt: string
+  isArchived?: boolean
 }
 
 interface FileState {
   files: FileAsset[]
+  archivedFiles: FileAsset[]
   isUploading: boolean
+  isLoadingArchive: boolean
   fetchFiles: (channelId: string) => Promise<void>
+  fetchArchivedFiles: (params?: { channelId?: string, q?: string }) => Promise<void>
   uploadFile: (file: File, channelId?: string) => Promise<FileAsset | null>
+  archiveFile: (id: string, isArchived: boolean) => Promise<void>
 }
 
 export const useFileStore = create<FileState>((set) => ({
   files: [],
+  archivedFiles: [],
   isUploading: false,
+  isLoadingArchive: false,
 
   fetchFiles: async (channelId) => {
     try {
@@ -31,6 +38,23 @@ export const useFileStore = create<FileState>((set) => ({
       set({ files: data.files || [] })
     } catch (error) {
       console.error("Failed to fetch files:", error)
+    }
+  },
+
+  fetchArchivedFiles: async (params) => {
+    try {
+      set({ isLoadingArchive: true })
+      const queryParams = new URLSearchParams()
+      if (params?.channelId) queryParams.append('channel_id', params.channelId)
+      if (params?.q) queryParams.append('q', params.q)
+
+      const url = `${API_BASE_URL}/files/archive${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+      const response = await fetch(url)
+      const data = await response.json()
+      set({ archivedFiles: data.files || [], isLoadingArchive: false })
+    } catch (error) {
+      console.error("Failed to fetch archived files:", error)
+      set({ isLoadingArchive: false })
     }
   },
 
@@ -63,4 +87,28 @@ export const useFileStore = create<FileState>((set) => ({
       return null
     }
   },
+
+  archiveFile: async (id, isArchived) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/files/${id}/archive`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_archived: isArchived })
+      })
+      if (!response.ok) throw new Error("Archive failed")
+
+      const data = await response.json()
+      const updated = data.file
+      set((state) => ({
+        files: state.files.filter(f => f.id !== id),
+        archivedFiles: isArchived 
+          ? [updated, ...state.archivedFiles] 
+          : state.archivedFiles.filter(f => f.id !== id)
+      }))
+      toast.success(isArchived ? "File archived" : "File restored")
+    } catch (error) {
+      console.error("Failed to archive file:", error)
+      toast.error("Failed to archive file")
+    }
+  }
 }))

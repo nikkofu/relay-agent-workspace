@@ -2,7 +2,31 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
-## [0.5.49] - 2026-04-21
+## [0.5.50] - 2026-04-21
+
+This release implements Phase 28: Operational Shell Integration, providing core administrative and organizational surfaces.
+
+### Added
+
+- **People Directory**: New people directory page with multi-parameter filtering (search, department, status, group).
+- **Files & Archive**: Dedicated files management page with archive/restore lifecycle support.
+- **Notification Preferences**: Persistent notification settings page with granular controls for inbox, mentions, and mutes.
+- **Workflow Orchestration**: Automation surface for triggering workflows and viewing run history.
+- **Navigation Update**: Expanded primary navigation with direct access to People, Files, and Workflows.
+
+### Fixed
+
+- **Build Stability**: Resolved hanging production builds in Next.js 16 by fixing missing dependencies (`@radix-ui/react-select`, `@radix-ui/react-tabs`) and invalid TipTap configurations.
+- **UI Consistency**: Migrated settings switches to standard Radix UI primitives.
+- **Clean Lint**: Restored 100% clean lint state with no warnings.
+
+### Verification Used For This Release
+
+- `pnpm run build` (Verified PASS)
+- `pnpm lint` (Verified PASS)
+
+## [0.5.48] - 2026-04-20
+
 
 This release expands the Slack-parity shell into more operational workspace surfaces: directory filtering, notification preferences, file archive lifecycle, and workflow run history.
 

@@ -85,7 +85,6 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
 
   const extensions = useMemo(() => [
     StarterKit.configure({
-      history: true,
       // Disable the built-in extensions we add separately
       link: false,
     }),

@@ -2,7 +2,7 @@
 
 import { User } from "@/types"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Sparkles, MessageCircle, Mail, Clock, Calendar } from "lucide-react"
+import { Sparkles, MessageCircle, Mail, Clock, Calendar, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { useRouter } from "next/navigation"
