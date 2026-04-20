@@ -40,7 +40,7 @@ const deduplicateItems = (items: ActivityItem[]): ActivityItem[] => {
   });
 }
 
-export const useActivityStore = create<ActivityState>((set, get) => ({
+export const useActivityStore = create<ActivityState>((set) => ({
   activities: [],
   inboxItems: [],
   mentionItems: [],

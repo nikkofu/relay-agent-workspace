@@ -20,7 +20,7 @@ interface FileState {
   uploadFile: (file: File, channelId?: string) => Promise<FileAsset | null>
 }
 
-export const useFileStore = create<FileState>((set, get) => ({
+export const useFileStore = create<FileState>((set) => ({
   files: [],
   isUploading: false,
 

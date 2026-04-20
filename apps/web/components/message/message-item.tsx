@@ -13,6 +13,7 @@ import { useState, useEffect } from "react"
 import { toast } from "sonner"
 import { Pin, Download, ExternalLink, FileCode, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import Image from "next/image"
 
 interface MessageItemProps {
   message: Message
@@ -141,8 +142,14 @@ export function MessageItem({ message, sender, isCompact, showActions = true }: 
             onClick={() => openThread(message.id)}
           >
             <div className="flex -space-x-1">
-              <div className="w-5 h-5 rounded border-2 border-background bg-muted overflow-hidden">
-                <img src={sender.avatar} alt={sender.name} className="w-full h-full object-cover" />
+              <div className="w-5 h-5 rounded border-2 border-background bg-muted overflow-hidden relative">
+                {sender.avatar ? (
+                  <Image src={sender.avatar} alt={sender.name} fill className="object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-muted flex items-center justify-center text-[8px] font-bold">
+                    {sender.name.substring(0, 1).toUpperCase()}
+                  </div>
+                )}
               </div>
             </div>
             <span className="text-xs font-bold text-blue-500 group-hover/thread:underline">

@@ -223,7 +223,7 @@ export function useAIChat() {
               } else if (currentEvent === "error") {
                 toast.error(data.message || "Streaming error")
               }
-            } catch (e) {
+            } catch {
               // Ignore invalid JSON or fragments
             }
           }

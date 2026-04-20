@@ -17,7 +17,7 @@ const mapConversation = (c: any): DirectMessage => ({
   unreadCount: c.unread_count
 })
 
-export const useDMStore = create<DMState>((set, get) => ({
+export const useDMStore = create<DMState>((set) => ({
   conversations: [],
   currentConversation: null,
   setCurrentConversation: (conversation) => set({ currentConversation: conversation }),

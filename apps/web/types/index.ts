@@ -8,10 +8,46 @@ export interface User {
   status: UserStatus
   statusText?: string
   lastSeen?: string
+  title?: string
+  department?: string
+  timezone?: string
+  workingHours?: string
   aiInsight?: string
   aiProvider?: string
   aiModel?: string
   aiMode?: "fast" | "planning"
+  profile?: {
+    localTime: string
+    workingHours: string
+    focusAreas: string[]
+    topChannels: any[]
+    recentArtifacts: any[]
+  }
+}
+
+export interface UserGroup {
+  id: string
+  name: string
+  handle: string
+  description?: string
+  memberCount: number
+  members?: { user: User, role: string }[]
+}
+
+export interface Workflow {
+  id: string
+  name: string
+  description?: string
+  createdBy: string
+  updatedAt: string
+}
+
+export interface Tool {
+  id: string
+  name: string
+  description?: string
+  category: string
+  url?: string
 }
 
 export interface Workspace {

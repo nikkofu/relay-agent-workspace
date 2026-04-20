@@ -140,7 +140,7 @@ export const usePresenceStore = create<PresenceState>((set, get) => ({
           user_id: useUserStore.getState().currentUser?.id
         })
       })
-    } catch (error) {
+    } catch {
       // Silent error for typing
     }
   },
@@ -150,7 +150,7 @@ export const usePresenceStore = create<PresenceState>((set, get) => ({
       await fetch(`${API_BASE_URL}/presence/heartbeat`, {
         method: "POST"
       })
-    } catch (error) {
+    } catch {
       // Silent error for heartbeat
     }
   }

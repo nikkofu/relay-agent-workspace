@@ -2,7 +2,26 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
-## [0.5.46] - 2026-04-20
+## [0.5.47] - 2026-04-20
+
+This release focuses on stability, engineering standards, and codebase cleanup after the Next.js 16 upgrade.
+
+### Fixed
+
+- **Store Syntax Errors**: Resolved critical parsing errors in `UserStore` and `WorkspaceStore` caused by placeholder leaks.
+- **Lint Sanitization**: Achieved zero errors and zero warnings across the entire web application.
+- **Redundancy Cleanup**: Removed duplicate `HomeDashboard` implementation in `WorkspacePage` and consolidated into a reusable component.
+- **Type Safety**: Fixed a missing field in `SearchStore` initialization that caused build failures.
+- **Image Optimization**: Migrated remaining native `<img>` tags to `next/image` for better performance and LCP.
+- **Dead Code Removal**: Pruned over 10 unused variables, imports, and parameters across stores and hooks.
+
+### Verification Used For This Release
+
+- `pnpm run build` (Verified PASS)
+- `pnpm lint` (Verified PASS)
+
+## [0.5.45] - 2026-04-20
+
 
 This release expands the Slack-parity foundation beyond channels and messages into home, people, groups, status, tools, and workflow surfaces.
 

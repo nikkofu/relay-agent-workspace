@@ -5,14 +5,17 @@ import { API_BASE_URL } from "@/lib/constants"
 interface WorkspaceState {
   workspaces: Workspace[]
   currentWorkspace: Workspace | null
+  homeData: any | null
   setCurrentWorkspace: (workspace: Workspace) => void
   fetchWorkspaces: () => Promise<void>
+  fetchHome: () => Promise<void>
   inviteMember: (email: string) => Promise<void>
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   workspaces: [],
   currentWorkspace: null,
+  homeData: null,
   setCurrentWorkspace: (workspace) => set({ currentWorkspace: workspace }),
   fetchWorkspaces: async () => {
     try {
@@ -24,6 +27,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       })
     } catch (error) {
       console.error("Failed to fetch workspaces:", error)
+    }
+  },
+  fetchHome: async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/home`)
+      const data = await response.json()
+      set({ homeData: data })
+    } catch (error) {
+      console.error("Failed to fetch home data:", error)
     }
   },
   inviteMember: async (email) => {

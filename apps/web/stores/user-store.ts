@@ -5,23 +5,37 @@ import { API_BASE_URL } from "@/lib/constants"
 interface UserState {
   currentUser: User | null
   users: User[]
+  userDetail: User | null
+  isUserLoading: boolean
   fetchMe: () => Promise<void>
   fetchUsers: () => Promise<void>
+  fetchUserDetail: (id: string) => Promise<void>
+  updateStatus: (id: string, status: string, statusText: string) => Promise<void>
 }
 
 const mapUser = (u: any): User => ({
   ...u,
   statusText: u.status_text,
   lastSeen: u.last_seen_at,
+  workingHours: u.working_hours,
   aiInsight: u.ai_insight,
   aiProvider: u.ai_provider,
   aiModel: u.ai_model,
-  aiMode: u.ai_mode
+  aiMode: u.ai_mode,
+  profile: u.profile ? {
+    localTime: u.profile.local_time,
+    workingHours: u.profile.working_hours,
+    focusAreas: u.profile.focus_areas,
+    topChannels: u.profile.top_channels,
+    recentArtifacts: u.profile.recent_artifacts
+  } : undefined
 })
 
 export const useUserStore = create<UserState>((set) => ({
   currentUser: null,
   users: [],
+  userDetail: null,
+  isUserLoading: false,
   fetchMe: async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/me`)
@@ -38,6 +52,35 @@ export const useUserStore = create<UserState>((set) => ({
       set({ users: data.users.map(mapUser) })
     } catch (error) {
       console.error("Failed to fetch users:", error)
+    }
+  },
+  fetchUserDetail: async (id) => {
+    try {
+      set({ isUserLoading: true })
+      const response = await fetch(`${API_BASE_URL}/users/${id}`)
+      const data = await response.json()
+      set({ userDetail: mapUser(data.user), isUserLoading: false })
+    } catch (error) {
+      console.error("Failed to fetch user detail:", error)
+      set({ isUserLoading: false })
+    }
+  },
+  updateStatus: async (id, status, statusText) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status, status_text: statusText })
+      })
+      const data = await response.json()
+      const updated = mapUser(data.user)
+      set((state) => ({
+        users: state.users.map(u => u.id === id ? updated : u),
+        currentUser: state.currentUser?.id === id ? updated : state.currentUser,
+        userDetail: state.userDetail?.id === id ? updated : state.userDetail
+      }))
+    } catch (error) {
+      console.error("Failed to update status:", error)
     }
   }
 }))

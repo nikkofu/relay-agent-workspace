@@ -4,6 +4,7 @@ import { useChannelStore } from "@/stores/channel-store"
 import { useMessageStore } from "@/stores/message-store"
 import { MessageList } from "@/components/message/message-list"
 import { MessageArea } from "@/components/layout/message-area"
+import { HomeDashboard } from "@/components/layout/home-dashboard"
 import { useSearchParams } from "next/navigation"
 import { Suspense, useEffect } from "react"
 import { useArtifactStore } from "@/stores/artifact-store"
@@ -32,11 +33,7 @@ function WorkspaceContent() {
   }, [currentChannel, fetchArtifacts])
 
   if (!currentChannel) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-white dark:bg-[#1a1d21] text-muted-foreground">
-        Select a channel to start messaging
-      </div>
-    )
+    return <HomeDashboard />
   }
 
   const channelMessages = messages.filter(m => m.channelId === currentChannel.id && !m.threadId)

@@ -92,8 +92,11 @@ export const useChannelStore = create<ChannelState>((set, get) => ({
     // Optimistic update
     const newStarred = !channel.isStarred
     set((state) => ({
-      channels: state.channels.map(c => c.id === id ? { ...c, isStarred: newStarred } : c),
-      currentChannel: state.currentChannel?.id === id ? { ...state.currentChannel, isStarred: newStarred } : state.currentChannel
+      channels: state.channels.map(c => {
+        if (c.id === id) return { ...c, isStarred: newStarred }
+        return c
+      }),
+      currentChannel: get().currentChannel?.id === id ? { ...get().currentChannel!, isStarred: newStarred } : get().currentChannel
     }))
 
     try {
@@ -104,8 +107,11 @@ export const useChannelStore = create<ChannelState>((set, get) => ({
     } catch (error) {
       // Revert on error
       set((state) => ({
-        channels: state.channels.map(c => c.id === id ? { ...c, isStarred: !newStarred } : c),
-        currentChannel: state.currentChannel?.id === id ? { ...state.currentChannel, isStarred: !newStarred } : state.currentChannel
+        channels: state.channels.map(c => {
+          if (c.id === id) return { ...c, isStarred: !newStarred }
+          return c
+        }),
+        currentChannel: get().currentChannel?.id === id ? { ...get().currentChannel!, isStarred: !newStarred } : get().currentChannel
       }))
       console.error("Failed to toggle star:", error)
       toast.error("Failed to update star status")
@@ -113,10 +119,8 @@ export const useChannelStore = create<ChannelState>((set, get) => ({
   },
   fetchStarredChannels: async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/starred`)
-      const data = await response.json()
-      // Update local isStarred state based on server response if needed
-      // but for now we just rely on fetchChannels bringing all data
+      await fetch(`${API_BASE_URL}/starred`)
+      // Current implementation just relies on fetchChannels bringing all data
     } catch (error) {
       console.error("Failed to fetch starred channels:", error)
     }
@@ -128,7 +132,8 @@ export const useChannelStore = create<ChannelState>((set, get) => ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates)
       })
-      const data = await response.json()
+      if (!response.ok) throw new Error("Update failed")
+      
       set((state) => ({
         channels: state.channels.map(c => c.id === id ? { ...c, ...updates } : c),
         currentChannel: state.currentChannel?.id === id ? { ...state.currentChannel, ...updates } : state.currentChannel
@@ -155,6 +160,7 @@ export const useChannelStore = create<ChannelState>((set, get) => ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_id: userId })
       })
+      if (!response.ok) throw new Error("Add failed")
       await get().fetchMembers(channelId)
       toast.success("Member added")
     } catch (error) {
@@ -164,9 +170,10 @@ export const useChannelStore = create<ChannelState>((set, get) => ({
   },
   removeMember: async (channelId, userId) => {
     try {
-      await fetch(`${API_BASE_URL}/channels/${channelId}/members/${userId}`, {
+      const response = await fetch(`${API_BASE_URL}/channels/${channelId}/members/${userId}`, {
         method: "DELETE"
       })
+      if (!response.ok) throw new Error("Remove failed")
       set((state) => ({
         members: state.members.filter(m => m.user.id !== userId)
       }))

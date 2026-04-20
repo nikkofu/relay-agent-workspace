@@ -7,6 +7,10 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { useRouter } from "next/navigation"
 import { formatDistanceToNow } from "date-fns"
+import { useUserStore } from "@/stores/user-store"
+import { useState } from "react"
+import { Input } from "@/components/ui/input"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 interface UserProfileProps {
   user: User
@@ -14,6 +18,9 @@ interface UserProfileProps {
 
 export function UserProfile({ user }: UserProfileProps) {
   const router = useRouter()
+  const { currentUser, updateStatus } = useUserStore()
+  const [isEditingStatus, setIsEditingStatus] = useState(false)
+  const [newStatusText, setNewStatusText] = useState(user.statusText || "")
   
   const statusColors: Record<string, string> = {
     online: "bg-green-500",
@@ -24,6 +31,13 @@ export function UserProfile({ user }: UserProfileProps) {
 
   const handleMessageClick = () => {
     router.push(`/workspace/dms?u=${user.id}`)
+  }
+
+  const handleStatusUpdate = async () => {
+    if (currentUser) {
+      await updateStatus(currentUser.id, currentUser.status, newStatusText)
+      setIsEditingStatus(false)
+    }
   }
 
   return (
@@ -40,13 +54,39 @@ export function UserProfile({ user }: UserProfileProps) {
 
       <div className="px-4 pt-12 pb-4 flex flex-col gap-4">
         {/* Name and Status */}
-        <div>
+        <div className="flex flex-col gap-0.5">
           <div className="flex items-center gap-2">
             <h3 className="text-xl font-black tracking-tight text-foreground">{user.name}</h3>
             <div className={`h-2.5 w-2.5 rounded-full ${statusColors[user.status] || statusColors.offline}`} />
           </div>
           <div className="flex flex-col">
-            <p className="text-sm text-muted-foreground font-medium">{user.statusText || (user.status === 'online' ? "Active" : "Away")}</p>
+            {currentUser?.id === user.id ? (
+              <Popover open={isEditingStatus} onOpenChange={setIsEditingStatus}>
+                <PopoverTrigger asChild>
+                  <button className="text-sm text-muted-foreground font-medium hover:text-purple-600 transition-colors text-left truncate">
+                    {user.statusText || "Set a status"}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[280px] p-3" align="start">
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Update your status</h4>
+                    <Input 
+                      placeholder="What's happening?" 
+                      value={newStatusText}
+                      onChange={(e) => setNewStatusText(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleStatusUpdate()}
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => setIsEditingStatus(false)}>Cancel</Button>
+                      <Button size="sm" className="bg-[#3f0e40] text-white hover:bg-[#3f0e40]/90" onClick={handleStatusUpdate}>Save</Button>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            ) : (
+              <p className="text-sm text-muted-foreground font-medium">{user.statusText || (user.status === 'online' ? "Active" : "Away")}</p>
+            )}
+            
             {user.status === 'offline' && user.lastSeen && (
               <p className="text-[10px] text-muted-foreground italic mt-0.5">
                 Last seen {formatDistanceToNow(new Date(user.lastSeen), { addSuffix: true })}
@@ -83,8 +123,9 @@ export function UserProfile({ user }: UserProfileProps) {
 
         {/* Details Grid */}
         <div className="grid grid-cols-1 gap-3">
-          <DetailItem icon={Clock} label="Local time" value="10:45 AM" />
-          <DetailItem icon={Calendar} label="Working days" value="Mon - Fri" />
+          <DetailItem icon={Clock} label="Local time" value={user.profile?.localTime || "10:45 AM"} />
+          <DetailItem icon={Calendar} label="Role / Title" value={user.title || "Software Engineer"} />
+          <DetailItem icon={Users} label="Department" value={user.department || "Engineering"} />
         </div>
       </div>
     </div>

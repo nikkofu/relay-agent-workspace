@@ -1,7 +1,7 @@
 import { create } from "zustand"
 import { AIMessage } from "@/types"
 import { API_BASE_URL } from "@/lib/constants"
-import { toast } from "sonner"
+
 
 export interface AIConversation {
   id: string

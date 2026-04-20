@@ -29,7 +29,7 @@ interface SearchState {
   clearResults: () => void
 }
 
-export const useSearchStore = create<SearchState>((set, get) => ({
+export const useSearchStore = create<SearchState>((set) => ({
   results: { channels: [], users: [], messages: [], dms: [], artifacts: [], files: [] },
   intelligentResults: [],
   suggestions: [],
