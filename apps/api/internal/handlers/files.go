@@ -122,6 +122,59 @@ func GetFileContent(c *gin.Context) {
 	c.File(path)
 }
 
+func ToggleFileArchive(c *gin.Context) {
+	var asset domain.FileAsset
+	if err := db.DB.First(&asset, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
+		return
+	}
+
+	var input struct {
+		IsArchived bool `json:"is_archived"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	asset.IsArchived = input.IsArchived
+	if input.IsArchived {
+		now := time.Now().UTC()
+		asset.ArchivedAt = &now
+	} else {
+		asset.ArchivedAt = nil
+	}
+
+	if err := db.DB.Save(&asset).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update file archive state"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"file": hydrateFileAssetResponse(asset)})
+}
+
+func GetArchivedFiles(c *gin.Context) {
+	var files []domain.FileAsset
+	query := db.DB.Where("is_archived = ?", true).Order("archived_at desc, created_at desc")
+	if channelID := c.Query("channel_id"); channelID != "" {
+		query = query.Where("channel_id = ?", channelID)
+	}
+	if q := strings.TrimSpace(c.Query("q")); q != "" {
+		query = query.Where("LOWER(name) LIKE ?", "%"+strings.ToLower(q)+"%")
+	}
+	if err := query.Find(&files).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load archived files"})
+		return
+	}
+
+	items := make([]fileAssetResponse, 0, len(files))
+	for _, file := range files {
+		items = append(items, hydrateFileAssetResponse(file))
+	}
+
+	c.JSON(http.StatusOK, gin.H{"files": items})
+}
+
 func hydrateFileAssetResponse(asset domain.FileAsset) fileAssetResponse {
 	response := fileAssetResponse{
 		FileAsset: asset,

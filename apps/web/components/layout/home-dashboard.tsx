@@ -34,7 +34,7 @@ export function HomeDashboard() {
                 <CardTitle className="text-xs font-bold uppercase tracking-widest text-purple-600">Pending Actions</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-black">{homeData?.stats?.pending_actions || 0}</div>
+                <div className="text-2xl font-black">{homeData?.activity?.unread_count || 0}</div>
               </CardContent>
             </Card>
             <Card className="bg-blue-500/5 border-blue-500/20 shadow-none">
@@ -42,7 +42,7 @@ export function HomeDashboard() {
                 <CardTitle className="text-xs font-bold uppercase tracking-widest text-blue-600">Active Threads</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-black">{homeData?.stats?.active_threads || 0}</div>
+                <div className="text-2xl font-black">{homeData?.activity?.draft_count || 0}</div>
               </CardContent>
             </Card>
             <Card className="bg-green-500/5 border-green-500/20 shadow-none">
@@ -50,7 +50,7 @@ export function HomeDashboard() {
                 <CardTitle className="text-xs font-bold uppercase tracking-widest text-green-600">Recent Artifacts</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-black">{homeData?.recent_artifacts?.length || 0}</div>
+                <div className="text-2xl font-black">{homeData?.profile?.recent_artifacts?.length || 0}</div>
               </CardContent>
             </Card>
           </div>

@@ -27,7 +27,7 @@ export const useDirectoryStore = create<DirectoryState>((set) => ({
       set({ isLoading: true })
       const response = await fetch(`${API_BASE_URL}/user-groups`)
       const data = await response.json()
-      set({ userGroups: data.user_groups || [], isLoading: false })
+      set({ userGroups: data.groups || [], isLoading: false })
     } catch (error) {
       console.error("Failed to fetch user groups:", error)
       set({ isLoading: false })
@@ -39,7 +39,7 @@ export const useDirectoryStore = create<DirectoryState>((set) => ({
       set({ isLoading: true })
       const response = await fetch(`${API_BASE_URL}/user-groups/${id}`)
       const data = await response.json()
-      set({ activeGroup: data.user_group, isLoading: false })
+      set({ activeGroup: data.group || null, isLoading: false })
     } catch (error) {
       console.error("Failed to fetch user group detail:", error)
       set({ isLoading: false })

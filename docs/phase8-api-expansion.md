@@ -71,6 +71,8 @@ Current backend surface already available:
 - `GET /api/v1/user-groups`
 - `GET /api/v1/user-groups/:id`
 - `GET /api/v1/workflows`
+- `GET /api/v1/workflows/runs`
+- `POST /api/v1/workflows/:id/runs`
 - `GET /api/v1/tools`
 - `GET /api/v1/orgs`
 - `GET /api/v1/orgs/:id/teams`
@@ -91,6 +93,8 @@ Current backend surface already available:
 - `GET /api/v1/inbox`
 - `GET /api/v1/mentions`
 - `POST /api/v1/notifications/read`
+- `GET /api/v1/notifications/preferences`
+- `PATCH /api/v1/notifications/preferences`
 - `GET /api/v1/later`
 - `GET /api/v1/presence`
 - `POST /api/v1/presence`
@@ -182,14 +186,17 @@ Baseline support now exists for:
 
 - `POST /api/v1/files/upload`
 - `GET /api/v1/files`
+- `GET /api/v1/files/archive`
 - `GET /api/v1/files/:id`
 - `GET /api/v1/files/:id/content`
+- `PATCH /api/v1/files/:id/archive`
 
 Likely follow-ups:
 
 - file deletion and retention controls
 - file previews and image thumbnails
 - richer attachment previews in message surfaces
+- uploader- and type-based archive filters
 
 ### 4.5 Slack Parity Layer
 
@@ -258,15 +265,31 @@ Likely follow-ups:
 Baseline support now exists for:
 
 - `GET /api/v1/workflows`
+- `GET /api/v1/workflows/runs`
+- `POST /api/v1/workflows/:id/runs`
 - `GET /api/v1/tools`
 
 Likely follow-ups:
 
-- workflow run history
 - workflow templates
 - tool execution audit history
 - channel- or DM-scoped tool availability
 - agent/tool routing metadata shared with the AI layer
+- workflow cancellation / retry semantics
+- workflow run realtime events
+
+### 4.8 Notification Preferences And Mute Rules
+
+Baseline support now exists for:
+
+- `GET /api/v1/notifications/preferences`
+- `PATCH /api/v1/notifications/preferences`
+
+Likely follow-ups:
+
+- mute rules for DMs and user groups
+- schedule-based do-not-disturb windows
+- per-surface badge suppression preferences
 
 ## 5. Realtime Target State
 

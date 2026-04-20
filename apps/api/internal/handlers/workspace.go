@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 	"sort"
 	"strings"
@@ -88,6 +89,25 @@ type userGroupDetailResponse struct {
 	CreatedBy   string                    `json:"created_by"`
 	UpdatedAt   time.Time                 `json:"updated_at"`
 	Members     []userGroupMemberResponse `json:"members"`
+}
+
+type notificationPreferenceResponse struct {
+	InboxEnabled    bool                          `json:"inbox_enabled"`
+	MentionsEnabled bool                          `json:"mentions_enabled"`
+	DMEnabled       bool                          `json:"dm_enabled"`
+	MuteAll         bool                          `json:"mute_all"`
+	MuteRules       []domain.NotificationMuteRule `json:"mute_rules"`
+}
+
+type workflowRunResponse struct {
+	ID          string                    `json:"id"`
+	Status      string                    `json:"status"`
+	Summary     string                    `json:"summary"`
+	Input       map[string]any            `json:"input,omitempty"`
+	StartedAt   time.Time                 `json:"started_at"`
+	CompletedAt *time.Time                `json:"completed_at,omitempty"`
+	Workflow    domain.WorkflowDefinition `json:"workflow"`
+	StartedBy   domain.User               `json:"started_by"`
 }
 
 func GetUserProfile(c *gin.Context) {
@@ -292,6 +312,178 @@ func GetTools(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"tools": listEnabledTools()})
 }
 
+func CreateWorkflowRun(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var workflow domain.WorkflowDefinition
+	if err := db.DB.First(&workflow, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "workflow not found"})
+		return
+	}
+
+	var input struct {
+		Status      string         `json:"status"`
+		Summary     string         `json:"summary"`
+		Input       map[string]any `json:"input"`
+		CompletedAt *time.Time     `json:"completed_at"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	rawInput := "{}"
+	if len(input.Input) > 0 {
+		if bytes, err := json.Marshal(input.Input); err == nil {
+			rawInput = string(bytes)
+		}
+	}
+	now := time.Now().UTC()
+	run := domain.WorkflowRun{
+		ID:          "run-" + now.Format("20060102150405.000000"),
+		WorkflowID:  workflow.ID,
+		StartedBy:   currentUser.ID,
+		Status:      defaultString(strings.TrimSpace(input.Status), "queued"),
+		Input:       rawInput,
+		Summary:     input.Summary,
+		StartedAt:   now,
+		CompletedAt: input.CompletedAt,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	if err := db.DB.Create(&run).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create workflow run"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"run": hydrateWorkflowRun(run, workflow, enrichUser(currentUser))})
+}
+
+func GetWorkflowRuns(c *gin.Context) {
+	query := db.DB.Order("started_at desc")
+	if workflowID := strings.TrimSpace(c.Query("workflow_id")); workflowID != "" {
+		query = query.Where("workflow_id = ?", workflowID)
+	}
+	if status := strings.TrimSpace(c.Query("status")); status != "" {
+		query = query.Where("status = ?", status)
+	}
+
+	var runs []domain.WorkflowRun
+	if err := query.Find(&runs).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load workflow runs"})
+		return
+	}
+
+	items := make([]workflowRunResponse, 0, len(runs))
+	for _, run := range runs {
+		var workflow domain.WorkflowDefinition
+		if err := db.DB.First(&workflow, "id = ?", run.WorkflowID).Error; err != nil {
+			continue
+		}
+		var starter domain.User
+		if err := db.DB.First(&starter, "id = ?", run.StartedBy).Error; err != nil {
+			continue
+		}
+		items = append(items, hydrateWorkflowRun(run, workflow, enrichUser(starter)))
+	}
+
+	c.JSON(http.StatusOK, gin.H{"runs": items})
+}
+
+func GetNotificationPreferences(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	prefs, rules := loadNotificationPreferences(currentUser.ID)
+	c.JSON(http.StatusOK, gin.H{"preferences": notificationPreferenceResponse{
+		InboxEnabled:    prefs.InboxEnabled,
+		MentionsEnabled: prefs.MentionsEnabled,
+		DMEnabled:       prefs.DMEnabled,
+		MuteAll:         prefs.MuteAll,
+		MuteRules:       rules,
+	}})
+}
+
+func PatchNotificationPreferences(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var input struct {
+		InboxEnabled    *bool `json:"inbox_enabled"`
+		MentionsEnabled *bool `json:"mentions_enabled"`
+		DMEnabled       *bool `json:"dm_enabled"`
+		MuteAll         *bool `json:"mute_all"`
+		MuteRules       []struct {
+			ScopeType string `json:"scope_type"`
+			ScopeID   string `json:"scope_id"`
+			IsMuted   bool   `json:"is_muted"`
+		} `json:"mute_rules"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	prefs, _ := loadNotificationPreferences(currentUser.ID)
+	if input.InboxEnabled != nil {
+		prefs.InboxEnabled = *input.InboxEnabled
+	}
+	if input.MentionsEnabled != nil {
+		prefs.MentionsEnabled = *input.MentionsEnabled
+	}
+	if input.DMEnabled != nil {
+		prefs.DMEnabled = *input.DMEnabled
+	}
+	if input.MuteAll != nil {
+		prefs.MuteAll = *input.MuteAll
+	}
+	if prefs.UserID == "" {
+		prefs.UserID = currentUser.ID
+	}
+	if err := db.DB.Save(&prefs).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save notification preferences"})
+		return
+	}
+
+	if input.MuteRules != nil {
+		if err := db.DB.Where("user_id = ?", currentUser.ID).Delete(&domain.NotificationMuteRule{}).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to replace mute rules"})
+			return
+		}
+		for _, rule := range input.MuteRules {
+			entry := domain.NotificationMuteRule{
+				UserID:    currentUser.ID,
+				ScopeType: rule.ScopeType,
+				ScopeID:   rule.ScopeID,
+				IsMuted:   rule.IsMuted,
+			}
+			if err := db.DB.Create(&entry).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save mute rules"})
+				return
+			}
+		}
+	}
+
+	updatedPrefs, rules := loadNotificationPreferences(currentUser.ID)
+	c.JSON(http.StatusOK, gin.H{"preferences": notificationPreferenceResponse{
+		InboxEnabled:    updatedPrefs.InboxEnabled,
+		MentionsEnabled: updatedPrefs.MentionsEnabled,
+		DMEnabled:       updatedPrefs.DMEnabled,
+		MuteAll:         updatedPrefs.MuteAll,
+		MuteRules:       rules,
+	}})
+}
+
 func buildUserProfileSummary(user domain.User) userProfileSummary {
 	location := time.Now().UTC()
 	if strings.TrimSpace(user.Timezone) != "" {
@@ -436,6 +628,38 @@ func listEnabledTools() []domain.ToolDefinition {
 	var tools []domain.ToolDefinition
 	_ = db.DB.Where("is_enabled = ?", true).Order("category asc, name asc").Find(&tools).Error
 	return tools
+}
+
+func loadNotificationPreferences(userID string) (domain.NotificationPreference, []domain.NotificationMuteRule) {
+	prefs := domain.NotificationPreference{
+		UserID:          userID,
+		InboxEnabled:    true,
+		MentionsEnabled: true,
+		DMEnabled:       true,
+		MuteAll:         false,
+	}
+	_ = db.DB.Where("user_id = ?", userID).First(&prefs).Error
+
+	var rules []domain.NotificationMuteRule
+	_ = db.DB.Where("user_id = ?", userID).Order("scope_type asc, scope_id asc").Find(&rules).Error
+	return prefs, rules
+}
+
+func hydrateWorkflowRun(run domain.WorkflowRun, workflow domain.WorkflowDefinition, starter domain.User) workflowRunResponse {
+	input := map[string]any{}
+	if strings.TrimSpace(run.Input) != "" {
+		_ = json.Unmarshal([]byte(run.Input), &input)
+	}
+	return workflowRunResponse{
+		ID:          run.ID,
+		Status:      run.Status,
+		Summary:     run.Summary,
+		Input:       input,
+		StartedAt:   run.StartedAt,
+		CompletedAt: run.CompletedAt,
+		Workflow:    workflow,
+		StartedBy:   starter,
+	}
 }
 
 func sumUnreadChannels() int {

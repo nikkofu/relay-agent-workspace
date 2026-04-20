@@ -33,7 +33,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     try {
       const response = await fetch(`${API_BASE_URL}/home`)
       const data = await response.json()
-      set({ homeData: data })
+      set({ homeData: data.home || null })
     } catch (error) {
       console.error("Failed to fetch home data:", error)
     }

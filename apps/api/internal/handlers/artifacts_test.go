@@ -480,3 +480,53 @@ func TestFileUploadListAndDetail(t *testing.T) {
 		t.Fatalf("expected 200 on file detail, got %d body=%s", rec.Code, rec.Body.String())
 	}
 }
+
+func TestFileArchiveLifecycle(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.FileAsset{
+		ID:          "file-1",
+		ChannelID:   "ch-5",
+		UploaderID:  "user-1",
+		Name:        "launch-plan.pdf",
+		StoragePath: "launch-plan.pdf",
+		ContentType: "application/pdf",
+		SizeBytes:   2048,
+		CreatedAt:   time.Now().UTC(),
+	})
+
+	router := gin.New()
+	router.PATCH("/api/v1/files/:id/archive", ToggleFileArchive)
+	router.GET("/api/v1/files/archive", GetArchivedFiles)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/files/file-1/archive", bytes.NewBufferString(`{"is_archived":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on file archive patch, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/files/archive?q=launch", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on archived files list, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Files []struct {
+			ID         string     `json:"id"`
+			IsArchived bool       `json:"is_archived"`
+			ArchivedAt *time.Time `json:"archived_at"`
+		} `json:"files"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode archived files payload: %v", err)
+	}
+	if len(payload.Files) != 1 || payload.Files[0].ID != "file-1" || !payload.Files[0].IsArchived || payload.Files[0].ArchivedAt == nil {
+		t.Fatalf("unexpected archived files payload: %#v", payload.Files)
+	}
+}

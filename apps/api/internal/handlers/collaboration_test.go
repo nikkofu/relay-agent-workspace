@@ -57,6 +57,38 @@ func TestGetUsersReturnsUsers(t *testing.T) {
 	}
 }
 
+func TestGetUsersSupportsDirectoryFilters(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.User{ID: "user-1", OrganizationID: "org-1", Name: "Nikko Fu", Email: "nikko@example.com", Department: "Product", Timezone: "Asia/Shanghai", Status: "online"})
+	db.DB.Create(&domain.User{ID: "user-2", OrganizationID: "org-1", Name: "Jane Smith", Email: "jane@example.com", Department: "Design", Timezone: "Europe/London", Status: "away"})
+	db.DB.Create(&domain.User{ID: "user-3", OrganizationID: "org-1", Name: "John Doe", Email: "john@example.com", Department: "Product", Timezone: "America/Los_Angeles", Status: "offline"})
+	db.DB.Create(&domain.UserGroup{ID: "group-1", WorkspaceID: "ws-1", Name: "Product Leads", Handle: "product-leads"})
+	db.DB.Create(&domain.UserGroupMember{UserGroupID: "group-1", UserID: "user-1", Role: "owner"})
+	db.DB.Create(&domain.UserGroupMember{UserGroupID: "group-1", UserID: "user-3", Role: "member"})
+
+	router := gin.New()
+	router.GET("/api/v1/users", GetUsers)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/users?department=Product&status=online&user_group_id=group-1&q=nikko", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Users []domain.User `json:"users"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(payload.Users) != 1 || payload.Users[0].ID != "user-1" {
+		t.Fatalf("expected only filtered user-1, got %#v", payload.Users)
+	}
+}
+
 func TestGetUserProfileReturnsHydratedProfile(t *testing.T) {
 	setupTestDB(t)
 
@@ -321,6 +353,97 @@ func TestGetWorkflowsAndTools(t *testing.T) {
 	}
 	if len(toolsPayload.Tools) != 1 || toolsPayload.Tools[0].ID != "tool-1" {
 		t.Fatalf("unexpected tools payload: %#v", toolsPayload.Tools)
+	}
+}
+
+func TestWorkflowRunsCanBeCreatedAndListed(t *testing.T) {
+	setupTestDB(t)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.User{ID: "user-1", OrganizationID: "org-1", Name: "Nikko Fu", Email: "nikko@example.com", Status: "online"})
+	db.DB.Create(&domain.WorkflowDefinition{ID: "wf-1", Name: "Incident Review", Category: "operations", Description: "Run post-incident review", Trigger: "manual", IsActive: true, CreatedAt: now, UpdatedAt: now})
+
+	router := gin.New()
+	router.POST("/api/v1/workflows/:id/runs", CreateWorkflowRun)
+	router.GET("/api/v1/workflows/runs", GetWorkflowRuns)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/workflows/wf-1/runs", bytes.NewBufferString(`{"status":"running","summary":"Kicked off review","input":{"channel_id":"ch-incident"}}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on workflow run create, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/workflows/runs?workflow_id=wf-1", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on workflow runs list, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Runs []struct {
+			ID       string `json:"id"`
+			Status   string `json:"status"`
+			Workflow struct {
+				ID string `json:"id"`
+			} `json:"workflow"`
+			StartedBy struct {
+				ID string `json:"id"`
+			} `json:"started_by"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode workflow runs payload: %v", err)
+	}
+	if len(payload.Runs) != 1 || payload.Runs[0].Workflow.ID != "wf-1" || payload.Runs[0].StartedBy.ID != "user-1" {
+		t.Fatalf("unexpected workflow runs payload: %#v", payload.Runs)
+	}
+}
+
+func TestNotificationPreferencesCanBeUpdated(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.User{ID: "user-1", OrganizationID: "org-1", Name: "Nikko Fu", Email: "nikko@example.com", Status: "online"})
+
+	router := gin.New()
+	router.GET("/api/v1/notifications/preferences", GetNotificationPreferences)
+	router.PATCH("/api/v1/notifications/preferences", PatchNotificationPreferences)
+
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/notifications/preferences", bytes.NewBufferString(`{"inbox_enabled":true,"mentions_enabled":true,"dm_enabled":false,"mute_all":false,"mute_rules":[{"scope_type":"channel","scope_id":"ch-1","is_muted":true}]}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on notification preferences patch, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/notifications/preferences", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on notification preferences get, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Preferences struct {
+			DMEnabled bool `json:"dm_enabled"`
+			MuteRules []struct {
+				ScopeType string `json:"scope_type"`
+				ScopeID   string `json:"scope_id"`
+				IsMuted   bool   `json:"is_muted"`
+			} `json:"mute_rules"`
+		} `json:"preferences"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode notification preferences payload: %v", err)
+	}
+	if payload.Preferences.DMEnabled {
+		t.Fatalf("expected dm_enabled=false, got %#v", payload.Preferences)
+	}
+	if len(payload.Preferences.MuteRules) != 1 || payload.Preferences.MuteRules[0].ScopeID != "ch-1" || !payload.Preferences.MuteRules[0].IsMuted {
+		t.Fatalf("unexpected mute rules payload: %#v", payload.Preferences.MuteRules)
 	}
 }
 
@@ -1992,7 +2115,7 @@ func setupTestDB(t *testing.T) {
 	if err := db.DB.AutoMigrate(&domain.Organization{}, &domain.Team{}, &domain.User{}, &domain.Agent{}, &domain.Workspace{}, &domain.WorkspaceInvite{}, &domain.UserGroup{}, &domain.UserGroupMember{}, &domain.WorkflowDefinition{}, &domain.ToolDefinition{}, &domain.Channel{}, &domain.ChannelMember{}, &domain.Message{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
-	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.AIFeedback{}, &domain.AIConversation{}, &domain.AIConversationMessage{}, &domain.AISummary{}, &domain.Artifact{}, &domain.ArtifactVersion{}, &domain.FileAsset{}, &domain.MessageArtifactReference{}, &domain.MessageFileAttachment{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}); err != nil {
+	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.NotificationPreference{}, &domain.NotificationMuteRule{}, &domain.AIFeedback{}, &domain.AIConversation{}, &domain.AIConversationMessage{}, &domain.AISummary{}, &domain.Artifact{}, &domain.ArtifactVersion{}, &domain.FileAsset{}, &domain.MessageArtifactReference{}, &domain.MessageFileAttachment{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}, &domain.WorkflowRun{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 }

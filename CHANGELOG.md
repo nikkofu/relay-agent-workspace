@@ -2,6 +2,48 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.49] - 2026-04-21
+
+This release expands the Slack-parity shell into more operational workspace surfaces: directory filtering, notification preferences, file archive lifecycle, and workflow run history.
+
+### Added
+
+- `GET /api/v1/workflows/runs`
+- `POST /api/v1/workflows/:id/runs`
+- `GET /api/v1/notifications/preferences`
+- `PATCH /api/v1/notifications/preferences`
+- `GET /api/v1/files/archive`
+- `PATCH /api/v1/files/:id/archive`
+
+### Expanded
+
+- `GET /api/v1/users` now supports:
+  - `q`
+  - `department`
+  - `status`
+  - `timezone`
+  - `user_group_id`
+
+### Data Model
+
+- `workflow_runs`
+- `notification_preferences`
+- `notification_mute_rules`
+- richer `file_assets` fields:
+  - `is_archived`
+  - `archived_at`
+
+### Integration Fixes
+
+- aligned `DirectoryStore` with backend `groups/group` payload keys
+- aligned `WorkspaceStore` and `HomeDashboard` with the `GET /api/v1/home` response shape
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+- `pnpm build` still enters Next.js 16 optimized production build and does not exit in this environment; tracked for Gemini follow-up
 ## [0.5.48] - 2026-04-20
 
 This release fixes a technical conflict in the message editor configuration.

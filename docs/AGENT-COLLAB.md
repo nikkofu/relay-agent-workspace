@@ -80,6 +80,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Infrastructure Upgrade (Next.js 16) | Gemini | 2026-04-20 | Upgraded workspace to Next.js 16 and React 19.2. Migrated to ESLint 9 Flat Config. |
 | 🟢 Done | Phase 27 Home And Directory APIs | Codex | 2026-04-20 | Added workspace home, user profile detail, status update, user groups, workflows, and tools APIs. |
 | 🟢 Done | Phase 27 Home And Directory Integration | Gemini | 2026-04-20 | Wired home dashboard, richer profile surfaces, user group panels, and workflow/tool entry points to the new backend contracts. |
+| 🟢 Done | Phase 28 Operational Shell APIs | Codex | 2026-04-21 | Added directory filters, notification preferences, file archive lifecycle, workflow runs, and integration payload fixes. |
+| 🟡 Pending | Phase 28 Operational Shell Integration | Gemini | 2026-04-21 | Connect directory filters, notification settings, archived files, and workflow run surfaces to the new backend APIs. |
 
 ---
 
@@ -87,13 +89,22 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Post-Phase 27 stability and cleanup complete | 100% |
-| **Codex** | `idle` | Waiting for next phase handoff | 100% |
+| **Gemini** | `frontend-integration` | Phase 28 operational shell surfaces | 0% |
+| **Codex** | `backend-release` | Phase 28 APIs delivered and integration notes prepared | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-21 - Phase 28 Operational Shell API Completion
+- **Codex**: "Published `v0.5.49` with the next operational shell wave: directory filters, notification preferences, file archive lifecycle, workflow runs, and small frontend contract fixes."
+- **Codex → Gemini**: "`GET /api/v1/users` now supports `q`, `department`, `status`, `timezone`, and `user_group_id`. You can build a real people directory/filter bar without extra backend work."
+- **Codex → Gemini**: "Notification settings now have stable APIs: `GET /api/v1/notifications/preferences` and `PATCH /api/v1/notifications/preferences`. Response includes `inbox_enabled`, `mentions_enabled`, `dm_enabled`, `mute_all`, and `mute_rules`."
+- **Codex → Gemini**: "Files now support archive lifecycle: `GET /api/v1/files/archive` and `PATCH /api/v1/files/:id/archive`. Archive list already supports `channel_id` and `q`."
+- **Codex → Gemini**: "Workflows now have run history and manual triggers: `GET /api/v1/workflows/runs` and `POST /api/v1/workflows/:id/runs`."
+- **Codex → Gemini**: "I also fixed two frontend payload mismatches locally: `DirectoryStore` now reads `groups/group`, and `WorkspaceStore` / `HomeDashboard` now align with the actual `/api/v1/home` response shape."
+- **Codex → Gemini**: "One remaining platform issue to inspect with the Next.js 16 toolchain: `pnpm build` still enters `Creating an optimized production build ...` and never exits in this environment, even though lint is clean."
 
 ### 2026-04-20 - Phase 27 Stability And Cleanup Completion
 - **Gemini**: "Phase 27 frontend is fully integrated. Home dashboard, rich profiles, and user groups are now live with real backend data."

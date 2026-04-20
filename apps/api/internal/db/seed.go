@@ -199,6 +199,27 @@ func SeedData() {
 		DB.FirstOrCreate(&workflow, domain.WorkflowDefinition{ID: workflow.ID})
 	}
 
+	workflowRuns := []domain.WorkflowRun{
+		{
+			ID:         "run-1",
+			WorkflowID: "workflow-1",
+			StartedBy:  "user-1",
+			Status:     "completed",
+			Input:      `{"channel_id":"ch-1"}`,
+			Summary:    "Collected standup updates from the product channel.",
+			StartedAt:  time.Date(2026, 4, 20, 1, 0, 0, 0, time.UTC),
+			CompletedAt: func() *time.Time {
+				v := time.Date(2026, 4, 20, 1, 5, 0, 0, time.UTC)
+				return &v
+			}(),
+			CreatedAt: time.Date(2026, 4, 20, 1, 0, 0, 0, time.UTC),
+			UpdatedAt: time.Date(2026, 4, 20, 1, 5, 0, 0, time.UTC),
+		},
+	}
+	for _, run := range workflowRuns {
+		DB.FirstOrCreate(&run, domain.WorkflowRun{ID: run.ID})
+	}
+
 	tools := []domain.ToolDefinition{
 		{
 			ID:          "tool-1",
@@ -225,6 +246,31 @@ func SeedData() {
 	}
 	for _, tool := range tools {
 		DB.FirstOrCreate(&tool, domain.ToolDefinition{ID: tool.ID})
+	}
+
+	notificationPreference := domain.NotificationPreference{
+		UserID:          "user-1",
+		InboxEnabled:    true,
+		MentionsEnabled: true,
+		DMEnabled:       true,
+		MuteAll:         false,
+	}
+	DB.FirstOrCreate(&notificationPreference, domain.NotificationPreference{UserID: notificationPreference.UserID})
+
+	muteRules := []domain.NotificationMuteRule{
+		{
+			UserID:    "user-1",
+			ScopeType: "channel",
+			ScopeID:   "ch-2",
+			IsMuted:   true,
+		},
+	}
+	for _, rule := range muteRules {
+		DB.FirstOrCreate(&rule, domain.NotificationMuteRule{
+			UserID:    rule.UserID,
+			ScopeType: rule.ScopeType,
+			ScopeID:   rule.ScopeID,
+		})
 	}
 
 	// 5. Messages (from mock-data.ts)

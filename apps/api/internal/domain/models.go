@@ -87,6 +87,19 @@ type WorkflowDefinition struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+type WorkflowRun struct {
+	ID          string     `gorm:"primaryKey" json:"id"`
+	WorkflowID  string     `gorm:"index" json:"workflow_id"`
+	StartedBy   string     `gorm:"index" json:"started_by"`
+	Status      string     `json:"status"`
+	Input       string     `json:"input"`
+	Summary     string     `json:"summary"`
+	StartedAt   time.Time  `json:"started_at"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+}
+
 type ToolDefinition struct {
 	ID          string    `gorm:"primaryKey" json:"id"`
 	Name        string    `json:"name"`
@@ -201,6 +214,27 @@ type NotificationRead struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type NotificationPreference struct {
+	ID              uint      `gorm:"primaryKey" json:"id"`
+	UserID          string    `gorm:"uniqueIndex" json:"user_id"`
+	InboxEnabled    bool      `json:"inbox_enabled"`
+	MentionsEnabled bool      `json:"mentions_enabled"`
+	DMEnabled       bool      `json:"dm_enabled"`
+	MuteAll         bool      `json:"mute_all"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+}
+
+type NotificationMuteRule struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	UserID    string    `gorm:"index:idx_notification_mute_scope" json:"user_id"`
+	ScopeType string    `gorm:"index:idx_notification_mute_scope" json:"scope_type"`
+	ScopeID   string    `gorm:"index:idx_notification_mute_scope" json:"scope_id"`
+	IsMuted   bool      `json:"is_muted"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type AIConversation struct {
 	ID        string    `gorm:"primaryKey" json:"id"`
 	UserID    string    `gorm:"index" json:"user_id"`
@@ -268,14 +302,16 @@ type ArtifactVersion struct {
 }
 
 type FileAsset struct {
-	ID          string    `gorm:"primaryKey" json:"id"`
-	ChannelID   string    `gorm:"index" json:"channel_id,omitempty"`
-	UploaderID  string    `gorm:"index" json:"uploader_id"`
-	Name        string    `json:"name"`
-	StoragePath string    `json:"storage_path"`
-	ContentType string    `json:"content_type"`
-	SizeBytes   int64     `json:"size_bytes"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID          string     `gorm:"primaryKey" json:"id"`
+	ChannelID   string     `gorm:"index" json:"channel_id,omitempty"`
+	UploaderID  string     `gorm:"index" json:"uploader_id"`
+	Name        string     `json:"name"`
+	StoragePath string     `json:"storage_path"`
+	ContentType string     `json:"content_type"`
+	SizeBytes   int64      `json:"size_bytes"`
+	IsArchived  bool       `json:"is_archived"`
+	ArchivedAt  *time.Time `json:"archived_at,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
 }
 
 type MessageArtifactReference struct {

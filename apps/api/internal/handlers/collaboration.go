@@ -522,6 +522,31 @@ func GetUsers(c *gin.Context) {
 	if userID != "" {
 		query = query.Where("id = ?", userID)
 	}
+	if department := strings.TrimSpace(c.Query("department")); department != "" {
+		query = query.Where("department = ?", department)
+	}
+	if status := strings.TrimSpace(c.Query("status")); status != "" {
+		query = query.Where("status = ?", status)
+	}
+	if timezone := strings.TrimSpace(c.Query("timezone")); timezone != "" {
+		query = query.Where("timezone = ?", timezone)
+	}
+	if q := strings.TrimSpace(strings.ToLower(c.Query("q"))); q != "" {
+		like := "%" + q + "%"
+		query = query.Where("LOWER(name) LIKE ? OR LOWER(email) LIKE ? OR LOWER(title) LIKE ? OR LOWER(department) LIKE ?", like, like, like, like)
+	}
+	if userGroupID := strings.TrimSpace(c.Query("user_group_id")); userGroupID != "" {
+		var memberIDs []string
+		if err := db.DB.Model(&domain.UserGroupMember{}).Where("user_group_id = ?", userGroupID).Pluck("user_id", &memberIDs).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load user group members"})
+			return
+		}
+		if len(memberIDs) == 0 {
+			c.JSON(http.StatusOK, gin.H{"users": []domain.User{}})
+			return
+		}
+		query = query.Where("id IN ?", memberIDs)
+	}
 	query.Find(&users)
 	for idx := range users {
 		users[idx] = enrichUser(users[idx])
