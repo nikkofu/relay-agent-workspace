@@ -2,7 +2,27 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
-## [0.5.33] - 2026-04-20
+## [0.5.34] - 2026-04-20
+
+This release stabilizes the AI-Canvas collaboration flow by aligning the frontend with recent backend command and sentinel improvements.
+
+### Added
+
+- **Command Forwarding**: Explicit slash commands (like `/canvas`) are now forwarded to the AI execute endpoint, skipping unnecessary classification logic.
+- **Robust Diff Mapping**: Enhanced `artifact-store.ts` to handle the standardized `{ diff: ... }` response envelope for artifact comparisons.
+
+### Fixed
+
+- **Canvas Creation**: Corrected the save flow for new documents (`new-doc`) to ensure they are created as real artifacts upon first save.
+- **Data Integrity**: Improved `mapArtifact` with better null-safety and field mapping for `created_by_user` and `updated_by_user`.
+
+### Verification Used For This Release
+
+- `pnpm build`
+- `cd apps/web && pnpm lint` (Verified PASS)
+
+## [0.5.32] - 2026-04-20
+
 
 This release closes the loop between the latest Gemini UI work and the backend by removing the `new-doc` artifact 404 path and adding explicit AI command forwarding.
 
