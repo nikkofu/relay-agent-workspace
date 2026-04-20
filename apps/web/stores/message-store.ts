@@ -16,8 +16,8 @@ interface MessageState {
   fetchThreadSummary: (messageId: string) => Promise<void>
   generateThreadSummary: (messageId: string) => Promise<void>
   addMessage: (message: Message) => void
-  sendMessage: (channelId: string, content: string, userId: string, threadId?: string) => Promise<void>
-  sendDMMessage: (dmId: string, content: string, userId: string) => Promise<void>
+  sendMessage: (channelId: string, content: string, userId: string, threadId?: string, artifactIds?: string[], fileIds?: string[]) => Promise<void>
+  sendDMMessage: (dmId: string, content: string, userId: string, artifactIds?: string[], fileIds?: string[]) => Promise<void>
   getMessagesByChannel: (channelId: string) => Message[]
   getMessagesByDM: (dmId: string) => Message[]
   // ... rest of actions
@@ -139,12 +139,19 @@ export const useMessageStore = create<MessageState>((set, get) => ({
     if (state.messages.find(m => m.id === message.id)) return state;
     return { messages: [...state.messages, message] };
   }),
-  sendMessage: async (channelId, content, userId, threadId) => {
+  sendMessage: async (channelId, content, userId, threadId, artifactIds, fileIds) => {
     try {
       const response = await fetch(`${API_BASE_URL}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ channel_id: channelId, content, user_id: userId, thread_id: threadId })
+        body: JSON.stringify({ 
+          channel_id: channelId, 
+          content, 
+          user_id: userId, 
+          thread_id: threadId,
+          artifact_ids: artifactIds,
+          file_ids: fileIds
+        })
       })
       const data = await response.json()
       const msg = mapMessage(data.message)
@@ -167,12 +174,17 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       console.error("Failed to send message:", error)
     }
   },
-  sendDMMessage: async (dmId, content, userId) => {
+  sendDMMessage: async (dmId, content, userId, artifactIds, fileIds) => {
     try {
       const response = await fetch(`${API_BASE_URL}/dms/${dmId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content, user_id: userId })
+        body: JSON.stringify({ 
+          content, 
+          user_id: userId,
+          artifact_ids: artifactIds,
+          file_ids: fileIds
+        })
       })
       const data = await response.json()
       const msg = mapMessage(data.message)

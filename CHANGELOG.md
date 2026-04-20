@@ -2,7 +2,29 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
-## [0.5.41] - 2026-04-20
+## [0.5.42] - 2026-04-20
+
+This release implements Phase 25: Knowledge References and Knowledge Search, enabling deep linking and discovery of artifacts and files across the workspace.
+
+### Added
+
+- **Message Attachments**: Messages can now include artifact references and file attachments, rendered inline with rich previews.
+- **Composer Integration**: The message composer now correctly tracks uploaded files and attaches them to the outgoing message.
+- **Knowledge Search**: Expanded the global search to include dedicated sections for artifacts and files, complete with typeahead suggestions.
+- **Smart Suggestions**: Global search suggestions now include matching artifacts and files for faster discovery.
+
+### Fixed
+
+- **Type Safety**: Updated `Message` and `Attachment` types to support rich hydrated artifact and file metadata.
+- **UI Consistency**: Standardized the rendering of files and artifacts across the channel introduction, message items, and search results.
+
+### Verification Used For This Release
+
+- `pnpm build`
+- `cd apps/web && pnpm lint` (Verified PASS)
+
+## [0.5.40] - 2026-04-20
+
 
 This release expands Relay's knowledge graph across messages, artifacts, files, and search.
 

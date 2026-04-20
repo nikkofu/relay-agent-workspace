@@ -3,7 +3,7 @@ import { API_BASE_URL } from "@/lib/constants"
 
 export interface SearchSuggestion {
   id: string
-  type: 'channel' | 'user' | 'message'
+  type: 'channel' | 'user' | 'message' | 'artifact' | 'file'
   label: string
   sublabel?: string
 }
@@ -14,6 +14,8 @@ interface SearchState {
     users: any[]
     messages: any[]
     dms: any[]
+    artifacts: any[]
+    files: any[]
   }
   suggestions: SearchSuggestion[]
   isSearching: boolean
@@ -25,7 +27,7 @@ interface SearchState {
 }
 
 export const useSearchStore = create<SearchState>((set, get) => ({
-  results: { channels: [], users: [], messages: [], dms: [] },
+  results: { channels: [], users: [], messages: [], dms: [], artifacts: [], files: [] },
   suggestions: [],
   isSearching: false,
   isLoadingSuggestions: false,
@@ -64,7 +66,7 @@ export const useSearchStore = create<SearchState>((set, get) => ({
   },
 
   clearResults: () => set({ 
-    results: { channels: [], users: [], messages: [], dms: [] }, 
+    results: { channels: [], users: [], messages: [], dms: [], artifacts: [], files: [] }, 
     suggestions: [],
     query: "" 
   })

@@ -6,10 +6,11 @@ import { useSearchStore } from "@/stores/search-store"
 import { useChannelStore } from "@/stores/channel-store"
 import { useRouter } from "next/navigation"
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { Sparkles, Hash, User, MessageSquare, Search as SearchIcon, ArrowRight, Zap } from "lucide-react"
+import { Sparkles, Hash, User, MessageSquare, Search as SearchIcon, ArrowRight, Zap, FileCode, FileText, Download } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 export function SearchDialog() {
-  const { isSearchOpen, toggleSearch, closeSearch, openDockedChat } = useUIStore()
+  const { isSearchOpen, toggleSearch, closeSearch, openDockedChat, openCanvas } = useUIStore()
   const { results, isSearching, suggestions, fetchSuggestions, search, clearResults } = useSearchStore()
   const { setCurrentChannelById } = useChannelStore()
   const [query, setQuery] = useState("")
@@ -47,6 +48,11 @@ export function SearchDialog() {
 
   const navigateToUser = (userId: string) => {
     openDockedChat(userId)
+    closeSearch()
+  }
+
+  const navigateToArtifact = (id: string) => {
+    openCanvas(id)
     closeSearch()
   }
 
@@ -88,6 +94,7 @@ export function SearchDialog() {
                 onSelect={() => {
                   if (s.type === 'channel') navigateToChannel(s.id)
                   else if (s.type === 'user') navigateToUser(s.id)
+                  else if (s.type === 'artifact') navigateToArtifact(s.id)
                 }}
                 className="flex items-center gap-2 py-3 cursor-pointer group"
               >
@@ -139,6 +146,52 @@ export function SearchDialog() {
                 {u.match_reason && (
                   <span className="text-[10px] text-muted-foreground ml-6 italic">{u.match_reason}</span>
                 )}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+
+        {results.artifacts?.length > 0 && (
+          <CommandGroup heading="Artifacts">
+            {results.artifacts.map(a => (
+              <CommandItem 
+                key={a.id} 
+                onSelect={() => navigateToArtifact(a.id)}
+                className="flex flex-col items-start gap-1 py-3 cursor-pointer"
+              >
+                <div className="flex items-center gap-2 w-full">
+                  <FileCode className="h-4 w-4 opacity-50" />
+                  <span className="text-sm font-bold">{a.title}</span>
+                </div>
+                {a.match_reason && (
+                  <span className="text-[10px] text-muted-foreground ml-6 italic">{a.match_reason}</span>
+                )}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+
+        {results.files?.length > 0 && (
+          <CommandGroup heading="Files">
+            {results.files.map(f => (
+              <CommandItem 
+                key={f.id} 
+                className="flex items-start justify-between gap-1 py-3 cursor-pointer group"
+              >
+                <div className="flex flex-col items-start gap-1">
+                  <div className="flex items-center gap-2 w-full">
+                    <FileText className="h-4 w-4 opacity-50" />
+                    <span className="text-sm font-bold">{f.name}</span>
+                  </div>
+                  {f.match_reason && (
+                    <span className="text-[10px] text-muted-foreground ml-6 italic">{f.match_reason}</span>
+                  )}
+                </div>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground opacity-0 group-aria-selected:opacity-100 transition-opacity" asChild>
+                  <a href={f.url} target="_blank" rel="noopener noreferrer" download={f.name}>
+                    <Download className="w-4 h-4" />
+                  </a>
+                </Button>
               </CommandItem>
             ))}
           </CommandGroup>

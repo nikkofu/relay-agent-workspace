@@ -11,7 +11,8 @@ import { useUserStore } from "@/stores/user-store"
 import { useMessageStore } from "@/stores/message-store"
 import { useState, useEffect } from "react"
 import { toast } from "sonner"
-import { Pin } from "lucide-react"
+import { Pin, Download, ExternalLink, FileCode, FileText } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 interface MessageItemProps {
   message: Message
@@ -21,7 +22,7 @@ interface MessageItemProps {
 }
 
 export function MessageItem({ message, sender, isCompact, showActions = true }: MessageItemProps) {
-  const { openThread } = useUIStore()
+  const { openThread, openCanvas } = useUIStore()
   const { currentUser } = useUserStore()
   const { addReaction, deleteMessage, pinMessage, saveForLater, markAsUnread } = useMessageStore()
   const [mounted, setMounted] = useState(false)
@@ -78,6 +79,45 @@ export function MessageItem({ message, sender, isCompact, showActions = true }: 
           )}
           dangerouslySetInnerHTML={{ __html: message.content }}
         />
+
+        {/* Attachments */}
+        {message.attachments && message.attachments.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-2">
+            {message.attachments.map((attachment) => (
+              <div 
+                key={attachment.id}
+                className="flex items-center gap-3 p-2 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-all max-w-[300px] group/attachment"
+              >
+                <div className="w-8 h-8 rounded bg-blue-500/10 flex items-center justify-center shrink-0 text-blue-600">
+                  {attachment.type === 'artifact' ? (
+                    <FileCode className="w-4 h-4 text-purple-600" />
+                  ) : (
+                    <FileText className="w-4 h-4" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-bold truncate leading-tight">{attachment.name}</p>
+                  <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-tighter">
+                    {attachment.type} {attachment.size ? `• ${(attachment.size / 1024).toFixed(1)} KB` : ''}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 opacity-0 group-hover/attachment:opacity-100 transition-opacity">
+                  {attachment.type === 'artifact' ? (
+                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openCanvas(attachment.id)}>
+                      <ExternalLink className="w-3 h-3" />
+                    </Button>
+                  ) : (
+                    <Button variant="ghost" size="icon" className="h-6 w-6" asChild>
+                      <a href={attachment.url} target="_blank" rel="noopener noreferrer" download={attachment.name}>
+                        <Download className="w-3 h-3" />
+                      </a>
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Reactions */}
         {message.reactions && message.reactions.length > 0 && (

@@ -98,9 +98,9 @@ export function ThreadPanel() {
         <MessageComposer 
           placeholder="Reply..."
           scope={`thread:${activeThreadId}`}
-          onSend={async (content) => {
+          onSend={async (content, artifactIds, fileIds) => {
             if (activeThreadId && currentChannel && currentUser) {
-              await sendMessage(currentChannel.id, content, currentUser.id, activeThreadId)
+              await sendMessage(currentChannel.id, content, currentUser.id, activeThreadId, artifactIds, fileIds)
             }
           }}
         />

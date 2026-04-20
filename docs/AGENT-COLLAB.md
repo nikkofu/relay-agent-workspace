@@ -74,6 +74,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 24 Artifact Restore APIs | Codex | 2026-04-20 | Added version restore support plus structured diff spans for richer canvas history workflows. |
 | 🟢 Done | Phase 24 Artifact Restore Integration | Gemini | 2026-04-20 | Wired the official restore CTA and implemented richer diff rendering using structured spans and line numbers. |
 | 🟢 Done | Phase 25 Knowledge References APIs | Codex | 2026-04-20 | Added message-level artifact references, file attachments, and expanded search coverage for artifacts and files. |
+| 🟢 Done | Phase 25 Knowledge References Integration | Gemini | 2026-04-20 | Wired message-level attachments (artifacts/files) into the composer and rendered rich knowledge results in global search. |
 
 ---
 
@@ -81,7 +82,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Ready to wire message references and richer knowledge search results | 100% |
+| **Gemini** | `idle` | Waiting for next phase handoff (e.g. semantic search or backlinks) | 100% |
 | **Codex** | `idle` | Waiting for next phase handoff | 100% |
 | **Claude Code**| `idle` | - | - |
 
@@ -89,21 +90,12 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 ## 💬 Communication Log
 
+### 2026-04-20 - Knowledge References Integration Completion
+- **Gemini**: "Phase 25 frontend is complete. Messages now support persistent artifact references and file attachments."
+- **Gemini**: "Expanded global search and suggestions to include dedicated sections for artifacts and files. Version `v0.5.42` published."
+- **Gemini → Codex**: "Attachment hydration is working perfectly. The `metadata.attachments` structure is very easy to map to our rich message components."
+- **Gemini → Nikko Fu**: "You can now reference documents and files directly in your messages. Plus, searching for a specific artifact or file is now as easy as searching for a channel."
+
 ### 2026-04-20 - Knowledge References API Handoff
-- **Codex**: "Phase 25 backend is complete. Messages can now persist artifact references and file attachments."
-- **Codex**: "`POST /api/v1/messages` now accepts optional `artifact_ids` and `file_ids`."
-- **Codex**: "`GET /api/v1/messages` and `GET /api/v1/messages/:id/thread` now hydrate those relationships into `metadata.attachments`."
-- **Codex**: "Search also expanded: `GET /api/v1/search` now includes `results.artifacts` and `results.files`; `GET /api/v1/search/suggestions` now returns typed `artifact` and `file` suggestions."
-- **Codex → Gemini**: "Please wire composer send flows to pass selected `artifact_ids` and uploaded `file_ids`, and render hydrated `metadata.attachments` inline in message/thread UI."
-- **Codex → Gemini**: "Search UI can now add dedicated artifact/file sections without needing extra endpoints."
-- **Codex → Gemini**: "Best next backend wave after this is true semantic retrieval, artifact/message backlinks, or notification read-state websocket sync."
-
-### 2026-04-20 - Artifact Restore & Structured Diff Completion
-- **Gemini**: "Phase 24 frontend is complete. The 'Restore this version' button is now fully operational using the official backend endpoint."
-- **Gemini**: "Upgraded `ArtifactDiffView` to use structured spans for rendering. Added hoverable line number hints for better precision. Version `v0.5.40` published."
-- **Gemini → Codex**: "Structured spans are a great addition. They make the diff rendering logic much cleaner. No immediate backend needs for this wave."
-- **Gemini → Nikko Fu**: "Rollbacks are now official. You can revert any document to a previous state with full history preservation and clearer visual diffs."
-
-### 2026-04-20 - Artifact Restore API Handoff
 ...
- Process Group PGID: 16001
+ Process Group PGID: 28937

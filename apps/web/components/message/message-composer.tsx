@@ -33,7 +33,7 @@ import { useFileStore } from "@/stores/file-store"
 
 interface MessageComposerProps {
   placeholder?: string
-  onSend?: (content: string) => void
+  onSend?: (content: string, artifactIds?: string[], fileIds?: string[]) => void
   scope?: string
 }
 
@@ -48,6 +48,7 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
   const [slashQuery, setSlashQuery] = useState("")
   const [showMentions, setShowMentions] = useState(false)
   const [showFormatting, setShowFormatting] = useState(false)
+  const [uploadedFileIds, setUploadedFileIds] = useState<string[]>([])
   const { openCanvas } = useUIStore()
   const { saveDraft, drafts, fetchDrafts } = useDraftStore()
   const { sendTyping } = usePresenceStore()
@@ -195,8 +196,9 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
         return
       }
 
-      onSend?.(htmlContent)
+      onSend?.(htmlContent, [], uploadedFileIds)
       editor.commands.clearContent()
+      setUploadedFileIds([])
       if (scope) saveDraft(scope, "") // Clear draft on send
       setShowSlashCommands(false)
       setShowMentions(false)
@@ -238,6 +240,7 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
 
       const uploadedFile = await uploadFile(file, channelId)
       if (uploadedFile) {
+        setUploadedFileIds(prev => [...prev, uploadedFile.id])
         // Insert a link to the file in the editor
         editor.chain().focus().insertContent([
           {

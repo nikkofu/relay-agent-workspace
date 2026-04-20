@@ -71,11 +71,13 @@ export interface Message {
 
 export interface MessageAttachment {
   id: string
-  type: "image" | "file" | "link"
+  type: "image" | "file" | "link" | "artifact"
   url: string
   name: string
   size?: number
   mimeType?: string
+  artifact?: any // Hydrated artifact if type is artifact
+  file?: any // Hydrated file if type is file
 }
 
 export interface Thread {
