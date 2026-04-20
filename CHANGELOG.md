@@ -2,6 +2,38 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.29] - 2026-04-20
+
+This release adds artifact diff APIs so Relay can compare any two stored canvas versions and power a real visual comparison view.
+
+### Added
+
+- `GET /api/v1/artifacts/:id/diff/:from/:to`
+
+### Diff Contract
+
+- diff responses include:
+  - `artifact_id`
+  - `from_version`
+  - `to_version`
+  - `from_content`
+  - `to_content`
+  - `unified_diff`
+  - `summary.added_lines`
+  - `summary.removed_lines`
+
+### Documentation
+
+- added [docs/phases/phase-10-artifact-diff.md](./docs/phases/phase-10-artifact-diff.md)
+- added [docs/releases/v0.5.29.md](./docs/releases/v0.5.29.md)
+- updated `docs/AGENT-COLLAB.md` with the Gemini handoff for artifact comparison views
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm build`
+
 ## [0.5.28] - 2026-04-20
 
 This release implements Phase 21: Artifact Version History, enabling users to browse and restore previous versions of collaborative canvases.

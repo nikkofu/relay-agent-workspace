@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -24,6 +25,21 @@ type artifactResponse struct {
 type artifactVersionResponse struct {
 	domain.ArtifactVersion
 	UpdatedByUser *domain.User `json:"updated_by_user,omitempty"`
+}
+
+type artifactDiffResponse struct {
+	ArtifactID  string      `json:"artifact_id"`
+	FromVersion int         `json:"from_version"`
+	ToVersion   int         `json:"to_version"`
+	FromContent string      `json:"from_content"`
+	ToContent   string      `json:"to_content"`
+	UnifiedDiff string      `json:"unified_diff"`
+	Summary     diffSummary `json:"summary"`
+}
+
+type diffSummary struct {
+	AddedLines   int `json:"added_lines"`
+	RemovedLines int `json:"removed_lines"`
 }
 
 func GetArtifacts(c *gin.Context) {
@@ -85,6 +101,41 @@ func GetArtifactVersion(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"version": hydrateArtifactVersionResponse(version)})
+}
+
+func GetArtifactDiff(c *gin.Context) {
+	fromVersion, err := strconv.Atoi(c.Param("from"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid from version"})
+		return
+	}
+	toVersion, err := strconv.Atoi(c.Param("to"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid to version"})
+		return
+	}
+
+	var from domain.ArtifactVersion
+	if err := db.DB.Where("artifact_id = ? AND version = ?", c.Param("id"), fromVersion).First(&from).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "from artifact version not found"})
+		return
+	}
+	var to domain.ArtifactVersion
+	if err := db.DB.Where("artifact_id = ? AND version = ?", c.Param("id"), toVersion).First(&to).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "to artifact version not found"})
+		return
+	}
+
+	unifiedDiff, summary := buildUnifiedDiff(fromVersion, from.Content, toVersion, to.Content)
+	c.JSON(http.StatusOK, gin.H{"diff": artifactDiffResponse{
+		ArtifactID:  c.Param("id"),
+		FromVersion: fromVersion,
+		ToVersion:   toVersion,
+		FromContent: from.Content,
+		ToContent:   to.Content,
+		UnifiedDiff: unifiedDiff,
+		Summary:     summary,
+	}})
 }
 
 func CreateArtifact(c *gin.Context) {
@@ -334,6 +385,62 @@ func createArtifactVersionSnapshot(artifact domain.Artifact) error {
 	}
 
 	return db.DB.Create(&version).Error
+}
+
+func buildUnifiedDiff(fromVersion int, fromContent string, toVersion int, toContent string) (string, diffSummary) {
+	fromLines := strings.Split(fromContent, "\n")
+	toLines := strings.Split(toContent, "\n")
+
+	type diffOp struct {
+		kind string
+		line string
+	}
+
+	m, n := len(fromLines), len(toLines)
+	dp := make([][]int, m+1)
+	for i := range dp {
+		dp[i] = make([]int, n+1)
+	}
+	for i := m - 1; i >= 0; i-- {
+		for j := n - 1; j >= 0; j-- {
+			if fromLines[i] == toLines[j] {
+				dp[i][j] = dp[i+1][j+1] + 1
+			} else if dp[i+1][j] >= dp[i][j+1] {
+				dp[i][j] = dp[i+1][j]
+			} else {
+				dp[i][j] = dp[i][j+1]
+			}
+		}
+	}
+
+	ops := make([]diffOp, 0, m+n)
+	summary := diffSummary{}
+	for i, j := 0, 0; i < m || j < n; {
+		switch {
+		case i < m && j < n && fromLines[i] == toLines[j]:
+			ops = append(ops, diffOp{kind: " ", line: fromLines[i]})
+			i++
+			j++
+		case j < n && (i == m || dp[i][j+1] > dp[i+1][j]):
+			ops = append(ops, diffOp{kind: "+", line: toLines[j]})
+			summary.AddedLines++
+			j++
+		case i < m:
+			ops = append(ops, diffOp{kind: "-", line: fromLines[i]})
+			summary.RemovedLines++
+			i++
+		}
+	}
+
+	lines := []string{
+		"--- v" + strconv.Itoa(fromVersion),
+		"+++ v" + strconv.Itoa(toVersion),
+		"@@",
+	}
+	for _, op := range ops {
+		lines = append(lines, op.kind+op.line)
+	}
+	return strings.Join(lines, "\n"), summary
 }
 
 func handleArtifactGenerationError(c *gin.Context, err error) {

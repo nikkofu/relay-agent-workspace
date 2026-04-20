@@ -41,6 +41,7 @@ func TestArtifactCRUDAndAI_generate(t *testing.T) {
 	router.GET("/api/v1/artifacts/:id", GetArtifact)
 	router.GET("/api/v1/artifacts/:id/versions", GetArtifactVersions)
 	router.GET("/api/v1/artifacts/:id/versions/:version", GetArtifactVersion)
+	router.GET("/api/v1/artifacts/:id/diff/:from/:to", GetArtifactDiff)
 	router.PATCH("/api/v1/artifacts/:id", UpdateArtifact)
 	router.POST("/api/v1/ai/canvas/generate", GenerateCanvasArtifact)
 
@@ -180,6 +181,46 @@ func TestArtifactCRUDAndAI_generate(t *testing.T) {
 	}
 	if versionDetailPayload.Version.UpdatedByUser == nil || versionDetailPayload.Version.UpdatedByUser.ID != "user-1" {
 		t.Fatalf("expected version detail payload to include updated_by_user")
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/artifacts/"+createPayload.Artifact.ID+"/diff/1/2", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on artifact diff, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var diffPayload struct {
+		Diff struct {
+			ArtifactID  string `json:"artifact_id"`
+			FromVersion int    `json:"from_version"`
+			ToVersion   int    `json:"to_version"`
+			FromContent string `json:"from_content"`
+			ToContent   string `json:"to_content"`
+			UnifiedDiff string `json:"unified_diff"`
+			Summary     struct {
+				AddedLines   int `json:"added_lines"`
+				RemovedLines int `json:"removed_lines"`
+			} `json:"summary"`
+		} `json:"diff"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &diffPayload); err != nil {
+		t.Fatalf("failed to decode artifact diff payload: %v", err)
+	}
+	if diffPayload.Diff.ArtifactID != createPayload.Artifact.ID {
+		t.Fatalf("unexpected diff artifact id: %q", diffPayload.Diff.ArtifactID)
+	}
+	if diffPayload.Diff.FromVersion != 1 || diffPayload.Diff.ToVersion != 2 {
+		t.Fatalf("unexpected diff versions: %#v", diffPayload.Diff)
+	}
+	if diffPayload.Diff.FromContent != "Initial outline" || diffPayload.Diff.ToContent != "Revised outline" {
+		t.Fatalf("unexpected diff content payload: %#v", diffPayload.Diff)
+	}
+	if !strings.Contains(diffPayload.Diff.UnifiedDiff, "-Initial outline") || !strings.Contains(diffPayload.Diff.UnifiedDiff, "+Revised outline") {
+		t.Fatalf("expected unified diff to describe content change, got %q", diffPayload.Diff.UnifiedDiff)
+	}
+	if diffPayload.Diff.Summary.AddedLines != 1 || diffPayload.Diff.Summary.RemovedLines != 1 {
+		t.Fatalf("unexpected diff summary: %#v", diffPayload.Diff.Summary)
 	}
 
 	rec = httptest.NewRecorder()

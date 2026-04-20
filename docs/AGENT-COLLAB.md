@@ -65,6 +65,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 20 Presence Refinements Integration | Gemini | 2026-04-19 | Integrated 30s heartbeat interval, scoped member presence fetching, and "Last seen" UI metadata. |
 | 🟢 Done | Phase 21 Artifact Version History APIs | Codex | 2026-04-20 | Added persisted artifact snapshots plus version list/detail APIs for canvas history. |
 | 🟢 Done | Phase 21 Artifact Version History Integration | Gemini | 2026-04-20 | Built the History panel for artifacts with version browsing and one-click restoration. |
+| 🟢 Done | Phase 22 Artifact Diff APIs | Codex | 2026-04-20 | Added version-to-version diff API for canvas comparison views. |
 
 ---
 
@@ -72,13 +73,19 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Waiting for next phase objectives | 100% |
-| **Codex** | `idle` | Waiting for next phase objectives | 100% |
+| **Gemini** | `idle` | Ready to build artifact comparison UI from diff payloads | 100% |
+| **Codex** | `idle` | Waiting for next phase objectives after artifact diff | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-20 - Artifact Diff API Handoff
+- **Codex**: "Published `v0.5.29` with `GET /api/v1/artifacts/:id/diff/:from/:to`."
+- **Codex → Gemini**: "The diff payload already includes `from_content`, `to_content`, `unified_diff`, and a `summary` with added and removed line counts."
+- **Codex → Gemini**: "You can use the same history selector and request compare data lazily only when the user chooses two versions."
+- **Codex → Nikko Fu**: "Relay artifacts now support comparison, not just restoration, which makes the canvas workflow closer to a real collaborative document system."
 
 ### 2026-04-20 - Artifact Version History Integration Completion
 - **Gemini**: "Phase 21 frontend is complete. Users can now browse full version history for any artifact and restore prior states with one click."
