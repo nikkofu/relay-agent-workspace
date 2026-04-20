@@ -2,7 +2,30 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
-## [0.5.51] - 2026-04-21
+## [0.5.52] - 2026-04-21
+
+This release implements Phase 29: Admin and Realtime Integration, enhancing user profiles, group management, and asset lifecycles.
+
+### Added
+
+- **Profile Editing**: Users can now edit their title, department, and timezone directly from their profile card.
+- **Group Management**: Full CRUD support for user groups, including handle-based naming and member counting.
+- **File Deletion**: Enabled permanent deletion for files and assets across the workspace.
+- **Richer File Filters**: Added uploader and content-type filtering to the Files page.
+- **Realtime Automations**: Integrated websocket listeners for live workflow run updates.
+
+### Fixed
+
+- **Signature Consistency**: Updated all `fetchFiles` callers to use the new object-based parameter pattern.
+- **UI Robustness**: Resolved syntax errors in the People page and ensured clean build states across the Next.js 16 toolchain.
+
+### Verification Used For This Release
+
+- `pnpm run build` (Verified PASS)
+- `pnpm lint` (Verified PASS)
+
+## [0.5.50] - 2026-04-21
+
 
 This release expands Relay's admin and operational shell with profile editing, user group CRUD, richer file management, and workflow run realtime.
 

@@ -19,10 +19,11 @@ interface FileState {
   archivedFiles: FileAsset[]
   isUploading: boolean
   isLoadingArchive: boolean
-  fetchFiles: (channelId: string) => Promise<void>
-  fetchArchivedFiles: (params?: { channelId?: string, q?: string }) => Promise<void>
+  fetchFiles: (params?: { channelId?: string, q?: string, uploaderId?: string, contentType?: string }) => Promise<void>
+  fetchArchivedFiles: (params?: { channelId?: string, q?: string, uploaderId?: string, contentType?: string }) => Promise<void>
   uploadFile: (file: File, channelId?: string) => Promise<FileAsset | null>
   archiveFile: (id: string, isArchived: boolean) => Promise<void>
+  deleteFile: (id: string) => Promise<void>
 }
 
 export const useFileStore = create<FileState>((set) => ({
@@ -31,9 +32,16 @@ export const useFileStore = create<FileState>((set) => ({
   isUploading: false,
   isLoadingArchive: false,
 
-  fetchFiles: async (channelId) => {
+  fetchFiles: async (params) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/files?channel_id=${channelId}`)
+      const queryParams = new URLSearchParams()
+      if (params?.channelId) queryParams.append('channel_id', params.channelId)
+      if (params?.q) queryParams.append('q', params.q)
+      if (params?.uploaderId) queryParams.append('uploader_id', params.uploaderId)
+      if (params?.contentType) queryParams.append('content_type', params.contentType)
+
+      const url = `${API_BASE_URL}/files${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+      const response = await fetch(url)
       const data = await response.json()
       set({ files: data.files || [] })
     } catch (error) {
@@ -47,6 +55,8 @@ export const useFileStore = create<FileState>((set) => ({
       const queryParams = new URLSearchParams()
       if (params?.channelId) queryParams.append('channel_id', params.channelId)
       if (params?.q) queryParams.append('q', params.q)
+      if (params?.uploaderId) queryParams.append('uploader_id', params.uploaderId)
+      if (params?.contentType) queryParams.append('content_type', params.contentType)
 
       const url = `${API_BASE_URL}/files/archive${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
       const response = await fetch(url)
@@ -109,6 +119,24 @@ export const useFileStore = create<FileState>((set) => ({
     } catch (error) {
       console.error("Failed to archive file:", error)
       toast.error("Failed to archive file")
+    }
+  },
+
+  deleteFile: async (id) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/files/${id}`, {
+        method: "DELETE"
+      })
+      if (!response.ok) throw new Error("Delete failed")
+
+      set((state) => ({
+        files: state.files.filter(f => f.id !== id),
+        archivedFiles: state.archivedFiles.filter(f => f.id !== id)
+      }))
+      toast.success("File deleted permanently")
+    } catch (error) {
+      console.error("Failed to delete file:", error)
+      toast.error("Failed to delete file")
     }
   }
 }))

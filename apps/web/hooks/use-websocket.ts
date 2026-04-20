@@ -5,6 +5,7 @@ import { useCollabStore } from '@/stores/collab-store'
 import { usePresenceStore } from '@/stores/presence-store'
 import { useArtifactStore } from '@/stores/artifact-store'
 import { useActivityStore } from '@/stores/activity-store'
+import { useDirectoryStore } from '@/stores/directory-store'
 
 export function useWebsocket() {
   const socketRef = useRef<WebSocket | null>(null)
@@ -13,6 +14,7 @@ export function useWebsocket() {
   const { updatePresence, setTyping } = usePresenceStore()
   const { updateArtifactLocally } = useArtifactStore()
   const { markAsReadLocally } = useActivityStore()
+  const { fetchWorkflowRuns } = useDirectoryStore()
 
   useEffect(() => {
     // Convert http://... to ws://...
@@ -68,6 +70,8 @@ export function useWebsocket() {
           updateArtifactLocally(data.payload)
         } else if (data.type === 'notifications.read') {
           markAsReadLocally(data.payload.item_ids || [])
+        } else if (data.type === 'workflow.run.updated') {
+          fetchWorkflowRuns()
         }
       } catch (err) {
         console.error("Failed to parse WS message:", err)

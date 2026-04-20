@@ -11,6 +11,15 @@ import { useUserStore } from "@/stores/user-store"
 import { useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogTrigger,
+  DialogFooter
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
 
 interface UserProfileProps {
   user: User
@@ -18,9 +27,16 @@ interface UserProfileProps {
 
 export function UserProfile({ user }: UserProfileProps) {
   const router = useRouter()
-  const { currentUser, updateStatus } = useUserStore()
+  const { currentUser, updateStatus, updateProfile } = useUserStore()
   const [isEditingStatus, setIsEditingStatus] = useState(false)
+  const [isEditingProfile, setIsEditingProfile] = useState(false)
   const [newStatusText, setNewStatusText] = useState(user.statusText || "")
+  
+  const [editForm, setEditForm] = useState({
+    title: user.title || "",
+    department: user.department || "",
+    timezone: user.timezone || "UTC+8"
+  })
   
   const statusColors: Record<string, string> = {
     online: "bg-green-500",
@@ -37,6 +53,13 @@ export function UserProfile({ user }: UserProfileProps) {
     if (currentUser) {
       await updateStatus(currentUser.id, currentUser.status, newStatusText)
       setIsEditingStatus(false)
+    }
+  }
+
+  const handleProfileUpdate = async () => {
+    if (currentUser) {
+      await updateProfile(currentUser.id, editForm)
+      setIsEditingProfile(false)
     }
   }
 
@@ -108,12 +131,55 @@ export function UserProfile({ user }: UserProfileProps) {
 
         {/* Action Buttons */}
         <div className="flex gap-2">
-          <Button 
-            className="flex-1 h-9 font-bold bg-[#007a5a] hover:bg-[#007a5a]/90 text-white"
-            onClick={handleMessageClick}
-          >
-            <MessageCircle className="w-4 h-4 mr-2" /> Message
-          </Button>
+          {currentUser?.id === user.id ? (
+            <Dialog open={isEditingProfile} onOpenChange={setIsEditingProfile}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="flex-1 h-9 font-bold">Edit Profile</Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle className="text-xl font-black">Edit your profile</DialogTitle>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="title">Job Title</Label>
+                    <Input 
+                      id="title" 
+                      value={editForm.title} 
+                      onChange={(e) => setEditForm(prev => ({ ...prev, title: e.target.value }))}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="dept">Department</Label>
+                    <Input 
+                      id="dept" 
+                      value={editForm.department}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, department: e.target.value }))}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="tz">Timezone</Label>
+                    <Input 
+                      id="tz" 
+                      value={editForm.timezone}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, timezone: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="ghost" onClick={() => setIsEditingProfile(false)}>Cancel</Button>
+                  <Button className="bg-[#3f0e40] text-white" onClick={handleProfileUpdate}>Save Changes</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          ) : (
+            <Button 
+              className="flex-1 h-9 font-bold bg-[#007a5a] hover:bg-[#007a5a]/90 text-white"
+              onClick={handleMessageClick}
+            >
+              <MessageCircle className="w-4 h-4 mr-2" /> Message
+            </Button>
+          )}
           <Button variant="outline" size="icon" className="h-9 w-9">
             <Mail className="w-4 h-4 text-foreground" />
           </Button>

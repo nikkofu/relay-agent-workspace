@@ -11,6 +11,7 @@ interface UserState {
   fetchUsers: (params?: { q?: string, department?: string, status?: string, timezone?: string, userGroupId?: string }) => Promise<void>
   fetchUserDetail: (id: string) => Promise<void>
   updateStatus: (id: string, status: string, statusText: string) => Promise<void>
+  updateProfile: (id: string, updates: { title?: string, department?: string, timezone?: string, workingHours?: string }) => Promise<void>
 }
 
 const mapUser = (u: any): User => ({
@@ -89,6 +90,30 @@ export const useUserStore = create<UserState>((set) => ({
       }))
     } catch (error) {
       console.error("Failed to update status:", error)
+    }
+  },
+  updateProfile: async (id, updates) => {
+    try {
+      const payload: any = {}
+      if (updates.title !== undefined) payload.title = updates.title
+      if (updates.department !== undefined) payload.department = updates.department
+      if (updates.timezone !== undefined) payload.timezone = updates.timezone
+      if (updates.workingHours !== undefined) payload.working_hours = updates.workingHours
+
+      const response = await fetch(`${API_BASE_URL}/users/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      })
+      const data = await response.json()
+      const updated = mapUser(data.user)
+      set((state) => ({
+        users: state.users.map(u => u.id === id ? updated : u),
+        currentUser: state.currentUser?.id === id ? updated : state.currentUser,
+        userDetail: state.userDetail?.id === id ? updated : state.userDetail
+      }))
+    } catch (error) {
+      console.error("Failed to update profile:", error)
     }
   }
 }))

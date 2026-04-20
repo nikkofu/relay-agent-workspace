@@ -14,26 +14,47 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { format } from "date-fns"
 import { useChannelStore } from "@/stores/channel-store"
+import { useUserStore } from "@/stores/user-store"
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select"
 
 export default function FilesPage() {
   const { 
     files, archivedFiles, 
-    fetchFiles, fetchArchivedFiles, archiveFile 
+    fetchFiles, fetchArchivedFiles, archiveFile, deleteFile
   } = useFileStore()
   const { currentChannel } = useChannelStore()
+  const { users, fetchUsers } = useUserStore()
   
   const [q, setQ] = useState("")
+  const [uploaderId, setUploaderId] = useState("all")
+  const [contentType, setContentType] = useState("all")
   const [showArchived, setShowArchived] = useState(false)
 
   useEffect(() => {
+    fetchUsers()
+  }, [fetchUsers])
+
+  useEffect(() => {
+    const params: any = { q }
+    if (uploaderId !== "all") params.uploaderId = uploaderId
+    if (contentType !== "all") params.contentType = contentType
+
     if (showArchived) {
-      fetchArchivedFiles({ q })
+      fetchArchivedFiles(params)
     } else if (currentChannel) {
-      fetchFiles(currentChannel.id)
+      params.channelId = currentChannel.id
+      fetchFiles(params)
     }
-  }, [showArchived, q, currentChannel, fetchFiles, fetchArchivedFiles])
+  }, [showArchived, q, uploaderId, contentType, currentChannel, fetchFiles, fetchArchivedFiles])
 
   const activeFiles = showArchived ? archivedFiles : files
+  const contentTypes = Array.from(new Set(activeFiles.map(f => f.type).filter(Boolean)))
 
   return (
     <div className="flex-1 flex flex-col bg-white dark:bg-[#1a1d21] h-full overflow-hidden">
@@ -56,8 +77,8 @@ export default function FilesPage() {
       </header>
 
       {/* Filter Bar */}
-      <div className="p-4 border-b bg-muted/10 flex gap-3">
-        <div className="relative flex-1">
+      <div className="p-4 border-b bg-muted/10 flex flex-wrap gap-3">
+        <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input 
             placeholder={showArchived ? "Search archive..." : "Search active files..."} 
@@ -66,7 +87,36 @@ export default function FilesPage() {
             onChange={(e) => setQ(e.target.value)}
           />
         </div>
-        <Button variant="ghost" size="icon" onClick={() => setQ("")}>
+
+        <Select value={uploaderId} onValueChange={setUploaderId}>
+          <SelectTrigger className="w-[160px] bg-white dark:bg-[#1a1d21]">
+            <SelectValue placeholder="Uploader" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Uploaders</SelectItem>
+            {users.map(u => (
+              <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={contentType} onValueChange={setContentType}>
+          <SelectTrigger className="w-[140px] bg-white dark:bg-[#1a1d21]">
+            <SelectValue placeholder="File Type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Types</SelectItem>
+            {contentTypes.map(type => (
+              <SelectItem key={type} value={type}>{type.toUpperCase()}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Button variant="ghost" size="icon" onClick={() => {
+          setQ("")
+          setUploaderId("all")
+          setContentType("all")
+        }}>
           <Filter className="w-4 h-4" />
         </Button>
       </div>
@@ -117,7 +167,7 @@ export default function FilesPage() {
                           </div>
                         )}
                       </DropdownMenuItem>
-                      <DropdownMenuItem className="text-red-600">
+                      <DropdownMenuItem className="text-red-600" onClick={() => deleteFile(file.id)}>
                         <Trash2 className="w-3.5 h-3.5 mr-2" />
                         <span>Delete Permanently</span>
                       </DropdownMenuItem>

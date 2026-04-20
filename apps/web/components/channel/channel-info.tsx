@@ -56,7 +56,7 @@ export function ChannelInfo({ trigger }: { trigger: React.ReactNode }) {
     <Sheet onOpenChange={(open) => {
       if (open && currentChannel) {
         fetchPins(currentChannel.id)
-        fetchFiles(currentChannel.id)
+        fetchFiles({ channelId: currentChannel.id })
       }
     }}>
       <SheetTrigger asChild>

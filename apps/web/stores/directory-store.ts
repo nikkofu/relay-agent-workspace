@@ -18,9 +18,12 @@ interface DirectoryState {
   fetchWorkflowRuns: () => Promise<void>
   triggerWorkflow: (id: string) => Promise<void>
   fetchTools: () => Promise<void>
+  createGroup: (name: string, handle: string, description?: string) => Promise<void>
+  updateGroup: (id: string, updates: Partial<UserGroup>) => Promise<void>
+  deleteGroup: (id: string) => Promise<void>
 }
 
-export const useDirectoryStore = create<DirectoryState>((set) => ({
+export const useDirectoryStore = create<DirectoryState>((set, get) => ({
   userGroups: [],
   activeGroup: null,
   workflows: [],
@@ -95,6 +98,55 @@ export const useDirectoryStore = create<DirectoryState>((set) => ({
       set({ tools: data.tools || [] })
     } catch (error) {
       console.error("Failed to fetch tools:", error)
+    }
+  },
+
+  createGroup: async (name, handle, description) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/user-groups`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, handle, description })
+      })
+      if (!response.ok) throw new Error("Create failed")
+      await get().fetchUserGroups()
+      toast.success("Group created successfully")
+    } catch (error) {
+      console.error("Failed to create group:", error)
+      toast.error("Failed to create group")
+    }
+  },
+
+  updateGroup: async (id, updates) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/user-groups/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates)
+      })
+      if (!response.ok) throw new Error("Update failed")
+      await get().fetchUserGroups()
+      toast.success("Group updated successfully")
+    } catch (error) {
+      console.error("Failed to update group:", error)
+      toast.error("Failed to update group")
+    }
+  },
+
+  deleteGroup: async (id) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/user-groups/${id}`, {
+        method: "DELETE"
+      })
+      if (!response.ok) throw new Error("Delete failed")
+      set((state) => ({
+        userGroups: state.userGroups.filter(g => g.id !== id),
+        activeGroup: state.activeGroup?.id === id ? null : state.activeGroup
+      }))
+      toast.success("Group deleted successfully")
+    } catch (error) {
+      console.error("Failed to delete group:", error)
+      toast.error("Failed to delete group")
     }
   }
 }))
