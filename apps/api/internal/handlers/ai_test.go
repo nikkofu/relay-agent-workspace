@@ -35,6 +35,15 @@ func (stubGateway) Stream(_ context.Context, _ llm.Request) (*llm.StreamSession,
 	}, nil
 }
 
+type captureGateway struct {
+	lastRequest llm.Request
+}
+
+func (g *captureGateway) Stream(_ context.Context, req llm.Request) (*llm.StreamSession, error) {
+	g.lastRequest = req
+	return stubGateway{}.Stream(context.Background(), req)
+}
+
 func TestExecuteAIStreamsSSE(t *testing.T) {
 	setupTestDB(t)
 	gin.SetMode(gin.TestMode)
@@ -89,6 +98,29 @@ func TestExecuteAIStreamsSSE(t *testing.T) {
 	}
 	if messages[1].Reasoning == "" {
 		t.Fatalf("expected assistant reasoning to be persisted: %#v", messages[1])
+	}
+}
+
+func TestExecuteAIForwardsCommandField(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+	gateway := &captureGateway{}
+	AIGateway = gateway
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+
+	router := gin.New()
+	router.POST("/api/v1/ai/execute", ExecuteAI)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/ai/execute", strings.NewReader(`{"prompt":"/canvas build release plan","channel_id":"ai-chat","command":"canvas"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if gateway.lastRequest.Command != "canvas" {
+		t.Fatalf("expected command to be forwarded to gateway, got %#v", gateway.lastRequest)
 	}
 }
 
@@ -149,7 +181,7 @@ func TestGetAIConversationsAndDetail(t *testing.T) {
 	}
 
 	var detailPayload struct {
-		Conversation domain.AIConversation        `json:"conversation"`
+		Conversation domain.AIConversation          `json:"conversation"`
 		Messages     []domain.AIConversationMessage `json:"messages"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &detailPayload); err != nil {

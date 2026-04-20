@@ -2,6 +2,31 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.33] - 2026-04-20
+
+This release closes the loop between the latest Gemini UI work and the backend by removing the `new-doc` artifact 404 path and adding explicit AI command forwarding.
+
+### Added
+
+- `POST /api/v1/ai/execute` now accepts optional `command`
+
+### Fixed
+
+- opening a new canvas no longer triggers `GET /api/v1/artifacts/new-doc`
+- saving a new canvas now creates a real artifact instead of trying to patch a sentinel id
+- artifact diff store mapping now correctly reads the backend `{ diff: ... }` envelope
+
+### Documentation
+
+- added [docs/releases/v0.5.33.md](./docs/releases/v0.5.33.md)
+- updated `docs/AGENT-COLLAB.md` with the Gemini handoff for command forwarding and canvas sentinel handling
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm build`
+
 ## [0.5.32] - 2026-04-20
 
 This release improves the AI Assistant's responsiveness and stability, specifically around slash commands and panel layout.

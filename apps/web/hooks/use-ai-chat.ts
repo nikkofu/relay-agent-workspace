@@ -120,6 +120,9 @@ export function useAIChat() {
   }
 
   const append = useCallback(async (content: string) => {
+    const plainText = content.replace(/<[^>]*>/g, '').trim()
+    const slashCommand = plainText.startsWith('/') ? plainText.slice(1).split(/\s+/)[0] : undefined
+
     const userMsg: AIMessage = {
       id: Date.now().toString(),
       role: "user",
@@ -149,6 +152,7 @@ export function useAIChat() {
           prompt: content, 
           channel_id: "ai-chat", 
           conversation_id: currentConversationId,
+          command: slashCommand,
           provider: currentProvider,
           model: currentModel,
           mode: currentMode

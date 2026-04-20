@@ -103,6 +103,24 @@ export const useArtifactStore = create<ArtifactState>((set, get) => ({
   },
 
   fetchArtifactDetail: async (id) => {
+    if (id === "new-doc") {
+      const now = new Date().toISOString()
+      set({
+        activeArtifact: {
+          id: "new-doc",
+          title: "Untitled Canvas",
+          content: "",
+          type: "document",
+          channelId: "",
+          userId: "user-1",
+          version: 0,
+          createdAt: now,
+          updatedAt: now,
+        },
+        versions: [],
+      })
+      return
+    }
     try {
       const response = await fetch(`${API_BASE_URL}/artifacts/${id}`)
       const data = await response.json()
@@ -141,14 +159,18 @@ export const useArtifactStore = create<ArtifactState>((set, get) => ({
       set({ isDiffLoading: true, currentDiff: null })
       const response = await fetch(`${API_BASE_URL}/artifacts/${id}/diff/${from}/${to}`)
       const data = await response.json()
+      const diff = data.diff || data
       set({ 
         currentDiff: {
-          fromVersion: data.from_version,
-          toVersion: data.to_version,
-          fromContent: data.from_content,
-          toContent: data.to_content,
-          unifiedDiff: data.unified_diff,
-          summary: data.summary
+          fromVersion: diff.from_version,
+          toVersion: diff.to_version,
+          fromContent: diff.from_content,
+          toContent: diff.to_content,
+          unifiedDiff: diff.unified_diff,
+          summary: {
+            added: diff.summary?.added_lines ?? diff.summary?.added ?? 0,
+            removed: diff.summary?.removed_lines ?? diff.summary?.removed ?? 0,
+          }
         },
         isDiffLoading: false 
       })
@@ -172,7 +194,7 @@ export const useArtifactStore = create<ArtifactState>((set, get) => ({
       const result = await response.json()
       const newArtifact = mapArtifact(result.artifact)
       if (newArtifact) {
-        set((state) => ({ artifacts: [newArtifact, ...state.artifacts] }))
+        set((state) => ({ artifacts: [newArtifact, ...state.artifacts], activeArtifact: newArtifact }))
       }
       return newArtifact
     } catch (error) {

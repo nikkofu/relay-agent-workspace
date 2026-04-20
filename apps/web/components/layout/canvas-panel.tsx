@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useUIStore } from "@/stores/ui-store"
 import { useArtifactStore, ArtifactVersion } from "@/stores/artifact-store"
+import { useChannelStore } from "@/stores/channel-store"
 import { X, Maximize2, RotateCcw, Share2, Save, Wand2, History, MessageSquare, Copy, Code, Type, ExternalLink, MoreVertical, ChevronLeft, Loader2, GitCompare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -16,6 +17,7 @@ export function CanvasPanel() {
   const { 
     activeArtifact, 
     fetchArtifactDetail, 
+    createArtifact,
     updateArtifact, 
     isLoading,
     versions,
@@ -27,6 +29,7 @@ export function CanvasPanel() {
     isDiffLoading,
     clearDiff
   } = useArtifactStore()
+  const { currentChannel } = useChannelStore()
   
   const [content, setContent] = useState("")
   const [isEditing, setIsEditing] = useState(false)
@@ -54,6 +57,18 @@ export function CanvasPanel() {
 
   const handleSave = async () => {
     if (activeArtifact) {
+      if (activeArtifact.id === "new-doc") {
+        const created = await createArtifact({
+          title: activeArtifact.title || "Untitled Canvas",
+          content,
+          type: activeArtifact.type || "document",
+          channelId: currentChannel?.id || "ch-1",
+        })
+        if (created) {
+          setIsEditing(false)
+        }
+        return
+      }
       await updateArtifact(activeArtifact.id, { content })
       setIsEditing(false)
     }
