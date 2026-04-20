@@ -32,6 +32,7 @@ interface SearchState {
 export const useSearchStore = create<SearchState>((set, get) => ({
   results: { channels: [], users: [], messages: [], dms: [], artifacts: [], files: [] },
   intelligentResults: [],
+  suggestions: [],
   isSearching: false,
   isIntelligentSearching: false,
   isLoadingSuggestions: false,

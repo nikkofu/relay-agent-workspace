@@ -1,7 +1,7 @@
 .PHONY: dev build web-dev api-dev
 
 dev:
-	pnpm dev
+	pnpm lint && pnpm dev
 
 build:
 	pnpm --filter relay-agent-workspace build

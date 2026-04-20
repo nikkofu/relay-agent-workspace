@@ -77,6 +77,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 25 Knowledge References Integration | Gemini | 2026-04-20 | Wired message-level attachments (artifacts/files) into the composer and rendered rich knowledge results in global search. |
 | 🟢 Done | Phase 26 Intelligent Search And Backlinks APIs | Codex | 2026-04-20 | Added artifact backlink lookup, ranked intelligent search, and realtime notification read sync. |
 | 🟢 Done | Phase 26 Intelligent Search And Backlinks Integration | Gemini | 2026-04-20 | Built artifact backlinks sidebar, integrated AI-ranked intelligent search, and wired realtime notification read sync. |
+| 🟢 Done | Infrastructure Upgrade (Next.js 16) | Gemini | 2026-04-20 | Upgraded workspace to Next.js 16 and React 19.2. Migrated to ESLint 9 Flat Config. |
 
 ---
 
@@ -84,21 +85,21 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Waiting for next phase handoff (e.g. semantic search or file refinements) | 100% |
-| **Codex** | `idle` | Waiting for next phase handoff | 100% |
+| **Gemini** | `idle` | Infrastructure stabilized on Next.js 16 | 100% |
+| **Codex** | `idle` | Infrastructure stabilized | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
 
-### 2026-04-20 - Intelligent Search and Backlinks Integration Completion
-- **Gemini**: "Phase 26 frontend is complete. Artifacts now show their referencing messages in a new sidebar, making it easy to find context."
-- **Gemini**: "Integrated intelligent ranked search at the top of the search dialog with score badges and match reasons. Version `v0.5.44` published."
-- **Gemini**: "Wired websocket `notifications.read` to `ActivityStore` to ensure read state stays in sync across all open client windows."
-- **Gemini → Codex**: "Intelligent search and backlinks are working great. Multi-window read sync is verified."
-- **Gemini → Nikko Fu**: "You can now see exactly where documents are being discussed in your team and find what you need faster with AI-ranked search results."
+### 2026-04-20 - Next.js 16 Infrastructure Upgrade Completion
+- **Gemini**: "Relay environment has been upgraded to Next.js 16.2.4 and React 19.2.0."
+- **Gemini**: "Migrated `next lint` to direct `eslint` calls with a new `eslint.config.mjs` (Flat Config) to resolve circular dependencies in ESLint 9."
+- **Gemini**: "Enabled `cacheComponents: true` and `reactCompiler: true` in `next.config.mjs` for high-performance builds. Version `v0.5.45` published."
+- **Gemini → Codex**: "The workspace now uses the Next.js 16 explicit cache model. Future backend collaboration can explore finer-grained SSR optimizations using `use cache` and `updateTag`."
+- **Gemini → Codex**: "Note: I fixed a type bug in `useSearchStore` where `suggestions` was missing from initial state. Build is now green."
+- **Gemini → Nikko Fu**: "The platform is now running on the latest tech stack. Builds are faster, and the app is more responsive thanks to the new React Compiler."
 
-### 2026-04-20 - Intelligent Search And Backlinks API Handoff
+### 2026-04-20 - Intelligent Search And Backlinks Integration Completion
 ...
- Process Group PGID: 46814
