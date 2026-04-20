@@ -17,12 +17,26 @@ export interface Artifact {
   updatedByUser?: User
 }
 
+export interface ArtifactVersion {
+  id: string
+  artifactId: string
+  version: number
+  title: string
+  content: string
+  updatedAt: string
+  updatedByUser?: User
+}
+
 interface ArtifactState {
   artifacts: Artifact[]
   activeArtifact: Artifact | null
+  versions: ArtifactVersion[]
   isLoading: boolean
+  isHistoryLoading: boolean
   fetchArtifacts: (channelId: string) => Promise<void>
   fetchArtifactDetail: (id: string) => Promise<void>
+  fetchVersions: (id: string) => Promise<void>
+  fetchVersionDetail: (id: string, version: number) => Promise<ArtifactVersion | null>
   createArtifact: (data: Partial<Artifact>) => Promise<Artifact | null>
   updateArtifact: (id: string, updates: Partial<Artifact>) => Promise<void>
   generateAIArtifact: (prompt: string, channelId: string) => Promise<void>
@@ -40,10 +54,19 @@ const mapArtifact = (a: any): Artifact => ({
   updatedByUser: a.updated_by_user
 })
 
+const mapVersion = (v: any): ArtifactVersion => ({
+  ...v,
+  artifactId: v.artifact_id,
+  updatedAt: v.updated_at,
+  updatedByUser: v.updated_by_user
+})
+
 export const useArtifactStore = create<ArtifactState>((set, get) => ({
   artifacts: [],
   activeArtifact: null,
+  versions: [],
   isLoading: false,
+  isHistoryLoading: false,
 
   fetchArtifacts: async (channelId) => {
     try {
@@ -65,6 +88,29 @@ export const useArtifactStore = create<ArtifactState>((set, get) => ({
       set({ activeArtifact: artifact })
     } catch (error) {
       console.error("Failed to fetch artifact detail:", error)
+    }
+  },
+
+  fetchVersions: async (id) => {
+    try {
+      set({ isHistoryLoading: true })
+      const response = await fetch(`${API_BASE_URL}/artifacts/${id}/versions`)
+      const data = await response.json()
+      set({ versions: (data.versions || []).map(mapVersion), isHistoryLoading: false })
+    } catch (error) {
+      console.error("Failed to fetch artifact versions:", error)
+      set({ isHistoryLoading: false })
+    }
+  },
+
+  fetchVersionDetail: async (id, version) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/artifacts/${id}/versions/${version}`)
+      const data = await response.json()
+      return mapVersion(data.version)
+    } catch (error) {
+      console.error("Failed to fetch artifact version detail:", error)
+      return null
     }
   },
 

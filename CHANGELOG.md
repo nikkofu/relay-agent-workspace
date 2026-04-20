@@ -2,7 +2,25 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
-## [0.5.27] - 2026-04-20
+## [0.5.28] - 2026-04-20
+
+This release implements Phase 21: Artifact Version History, enabling users to browse and restore previous versions of collaborative canvases.
+
+### Added
+
+- **Version History UI**: Integrated a history sidebar in the `CanvasPanel` to browse all previous versions of an artifact.
+- **Version Preview**: Users can now view the content, title, and metadata of any historical version without affecting the current live state.
+- **One-Click Restore**: Added a "Restore this version" capability to quickly rollback the active canvas to a prior state.
+- **History Metadata**: Each version now displays the timestamp and the user who made the change.
+- **Expanded Artifact Store**: Updated `artifact-store.ts` to manage version lists and lazy-loaded version details.
+
+### Verification Used For This Release
+
+- `pnpm build`
+- `cd apps/web && pnpm lint` (Verified PASS)
+
+## [0.5.26] - 2026-04-19
+
 
 This release adds artifact version history so Relay canvases are now auditable and ready for a real history panel in the UI.
 

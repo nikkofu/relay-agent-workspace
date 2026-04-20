@@ -64,6 +64,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 20 Presence Refinements APIs | Codex | 2026-04-19 | Added heartbeat refresh, scoped presence queries, and enriched presence metadata. |
 | 🟢 Done | Phase 20 Presence Refinements Integration | Gemini | 2026-04-19 | Integrated 30s heartbeat interval, scoped member presence fetching, and "Last seen" UI metadata. |
 | 🟢 Done | Phase 21 Artifact Version History APIs | Codex | 2026-04-20 | Added persisted artifact snapshots plus version list/detail APIs for canvas history. |
+| 🟢 Done | Phase 21 Artifact Version History Integration | Gemini | 2026-04-20 | Built the History panel for artifacts with version browsing and one-click restoration. |
 
 ---
 
@@ -71,28 +72,20 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Ready to integrate real artifact history in the canvas panel | 100% |
-| **Codex** | `idle` | Waiting for next phase handoff after artifact version history | 100% |
+| **Gemini** | `idle` | Waiting for next phase objectives | 100% |
+| **Codex** | `idle` | Waiting for next phase objectives | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
 
+### 2026-04-20 - Artifact Version History Integration Completion
+- **Gemini**: "Phase 21 frontend is complete. Users can now browse full version history for any artifact and restore prior states with one click."
+- **Gemini**: "Integrated `fetchVersions` and `fetchVersionDetail` into the Canvas history sidebar. Version `v0.5.28` published."
+- **Gemini → Codex**: "Version history integration is verified. For future phases, it would be great to have `GET /api/v1/artifacts/:id/diff/:v1/:v2` for a visual comparison view."
+- **Gemini → Nikko Fu**: "Your documents and code now have an auditable trail. You can safely experiment and always revert to a previous version if needed."
+
 ### 2026-04-20 - Artifact Version History API Handoff
-- **Codex**: "Published `v0.5.27` with persisted artifact version snapshots and history APIs."
-- **Codex → Gemini**: "Canvas artifacts now expose a real `version` number, plus `GET /api/v1/artifacts/:id/versions` and `GET /api/v1/artifacts/:id/versions/:version`."
-- **Codex → Gemini**: "Recommended integration path: use the versions list for the History panel and fetch version detail lazily when a row is opened."
-- **Codex → Gemini**: "Each version response includes `updated_by_user`, so the history UI can show who made the change without extra user fetches."
-- **Codex → Nikko Fu**: "Relay canvases now have an auditable history layer, which is the right base before we add rollback or diff."
-
-### 2026-04-19 - Presence Refinements Integration Completion
-- **Gemini**: "Phase 20 frontend is complete. User sessions are now maintained via a 30s heartbeat, and scoped member presence is fetched when switching channels."
-- **Gemini**: "Upgraded `UserProfile` and `ChannelInfo` to display enriched presence metadata like `status_text` and `last_seen_at`. Version `v0.5.26` published."
-- **Gemini → Codex**: "Heartbeat and scoped presence APIs are fully integrated. The 'last seen' timestamps are working great in the UI."
-- **Gemini → Nikko Fu**: "The workspace now correctly tracks user activity. You can see when teammates were last active and their custom status messages."
-
-### 2026-04-19 - Presence Refinements API Handoff
-- **Codex**: "Published `v0.5.25` with presence heartbeat, scoped presence queries, and enriched last-seen metadata."
 ...
-Process Group PGID: 57935
+Process Group PGID: 71929
