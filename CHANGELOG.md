@@ -2,7 +2,29 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
-## [0.5.43] - 2026-04-20
+## [0.5.44] - 2026-04-20
+
+This release implements Phase 26: Intelligent Search and Artifact Backlinks, deepening the connectivity and discoverability of knowledge within the workspace.
+
+### Added
+
+- **Artifact Backlinks**: New "Referencing Messages" sidebar in `CanvasPanel` to see where an artifact is mentioned in discussions.
+- **Intelligent Ranked Search**: Integrated AI-native ranked search results at the top of the search palette.
+- **Realtime Read State Sync**: Leveraged websocket `notifications.read` to synchronize notification read state across all open client windows.
+- **Search Score Badges**: Ranked search results now display their relevance score and match reason.
+
+### Fixed
+
+- **Navigation**: Intelligent search results correctly navigate to channels, users, or artifacts.
+- **Store Reconciliation**: Added `markAsReadLocally` to `ActivityStore` for consistent multi-device read states.
+
+### Verification Used For This Release
+
+- `pnpm build`
+- `cd apps/web && pnpm lint` (Verified PASS)
+
+## [0.5.42] - 2026-04-20
+
 
 This release adds the first ranked search layer and cross-surface backlink/read-sync primitives.
 

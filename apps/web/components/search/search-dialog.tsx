@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button"
 
 export function SearchDialog() {
   const { isSearchOpen, toggleSearch, closeSearch, openDockedChat, openCanvas } = useUIStore()
-  const { results, isSearching, suggestions, fetchSuggestions, search, clearResults } = useSearchStore()
+  const { results, isSearching, suggestions, fetchSuggestions, search, intelligentSearch, intelligentResults, isIntelligentSearching, clearResults } = useSearchStore()
   const { setCurrentChannelById } = useChannelStore()
   const [query, setQuery] = useState("")
   const router = useRouter()
@@ -38,6 +38,7 @@ export function SearchDialog() {
     setQuery(v)
     fetchSuggestions(v)
     search(v)
+    intelligentSearch(v)
   }
 
   const navigateToChannel = (id: string) => {
@@ -73,7 +74,7 @@ export function SearchDialog() {
       </div>
       <CommandList className="max-h-[450px]">
         <CommandEmpty className="py-12 text-center">
-          {isSearching ? (
+          {isSearching || isIntelligentSearching ? (
             <div className="flex flex-col items-center gap-2">
               <LoaderIcon className="h-6 w-6 animate-spin text-muted-foreground" />
               <p className="text-sm text-muted-foreground font-medium">Searching for &quot;{query}&quot;...</p>
@@ -85,6 +86,37 @@ export function SearchDialog() {
             </div>
           )}
         </CommandEmpty>
+
+        {intelligentResults.length > 0 && query.length > 0 && (
+          <CommandGroup heading="Top Results (AI-Ranked)">
+            {intelligentResults.map((r) => (
+              <CommandItem 
+                key={`${r.type}-${r.id}`} 
+                onSelect={() => {
+                  if (r.type === 'channel') navigateToChannel(r.id)
+                  else if (r.type === 'user') navigateToUser(r.id)
+                  else if (r.type === 'artifact') navigateToArtifact(r.id)
+                }}
+                className="flex items-center gap-3 py-3 cursor-pointer group border-l-2 border-purple-500/50 ml-1 pl-3 bg-purple-500/5"
+              >
+                <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
+                  {r.type === 'channel' ? <Hash className="w-4 h-4 text-purple-600" /> : 
+                   r.type === 'user' ? <User className="w-4 h-4 text-purple-600" /> :
+                   r.type === 'artifact' ? <FileCode className="w-4 h-4 text-purple-600" /> :
+                   <Sparkles className="w-4 h-4 text-purple-600" />}
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold">{r.label}</span>
+                    <span className="text-[8px] bg-purple-500/20 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded-full font-black uppercase tracking-tighter">Ranked {Math.round(r.score * 100)}%</span>
+                  </div>
+                  {r.reason && <span className="text-[10px] text-muted-foreground truncate italic">{r.reason}</span>}
+                </div>
+                <ArrowRight className="ml-auto w-4 h-4 opacity-0 group-aria-selected:opacity-100 transition-opacity text-purple-500" />
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
 
         {suggestions.length > 0 && query.length > 0 && (
           <CommandGroup heading="Suggestions">

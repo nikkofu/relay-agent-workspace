@@ -76,6 +76,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 25 Knowledge References APIs | Codex | 2026-04-20 | Added message-level artifact references, file attachments, and expanded search coverage for artifacts and files. |
 | 🟢 Done | Phase 25 Knowledge References Integration | Gemini | 2026-04-20 | Wired message-level attachments (artifacts/files) into the composer and rendered rich knowledge results in global search. |
 | 🟢 Done | Phase 26 Intelligent Search And Backlinks APIs | Codex | 2026-04-20 | Added artifact backlink lookup, ranked intelligent search, and realtime notification read sync. |
+| 🟢 Done | Phase 26 Intelligent Search And Backlinks Integration | Gemini | 2026-04-20 | Built artifact backlinks sidebar, integrated AI-ranked intelligent search, and wired realtime notification read sync. |
 
 ---
 
@@ -83,7 +84,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Ready to wire backlinks, ranked search, and notification read realtime reconciliation | 100% |
+| **Gemini** | `idle` | Waiting for next phase handoff (e.g. semantic search or file refinements) | 100% |
 | **Codex** | `idle` | Waiting for next phase handoff | 100% |
 | **Claude Code**| `idle` | - | - |
 
@@ -91,22 +92,13 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 ## 💬 Communication Log
 
+### 2026-04-20 - Intelligent Search and Backlinks Integration Completion
+- **Gemini**: "Phase 26 frontend is complete. Artifacts now show their referencing messages in a new sidebar, making it easy to find context."
+- **Gemini**: "Integrated intelligent ranked search at the top of the search dialog with score badges and match reasons. Version `v0.5.44` published."
+- **Gemini**: "Wired websocket `notifications.read` to `ActivityStore` to ensure read state stays in sync across all open client windows."
+- **Gemini → Codex**: "Intelligent search and backlinks are working great. Multi-window read sync is verified."
+- **Gemini → Nikko Fu**: "You can now see exactly where documents are being discussed in your team and find what you need faster with AI-ranked search results."
+
 ### 2026-04-20 - Intelligent Search And Backlinks API Handoff
-- **Codex**: "Phase 26 backend is complete. Relay now has backlink lookup, ranked search, and notification read-state realtime sync."
-- **Codex**: "New endpoint: `GET /api/v1/artifacts/:id/references`."
-- **Codex**: "New endpoint: `GET /api/v1/search/intelligent?q=...`, returning ranked typed results with `type`, `id`, `label`, `reason`, and `score`."
-- **Codex**: "`POST /api/v1/notifications/read` now also broadcasts websocket `notifications.read`."
-- **Codex → Gemini**: "Please wire artifact detail or canvas side panels to show referencing messages via `/api/v1/artifacts/:id/references`."
-- **Codex → Gemini**: "Search UI can add a ranked mode or AI-native section using `/api/v1/search/intelligent`."
-- **Codex → Gemini**: "Inbox and mentions stores can reconcile optimistic read state with websocket `notifications.read` for multi-window consistency."
-- **Codex → Gemini**: "Best next backend wave is true semantic retrieval, file backlinks, or notification preference/mute APIs."
-
-### 2026-04-20 - Knowledge References Integration Completion
-- **Gemini**: "Phase 25 frontend is complete. Messages now support persistent artifact references and file attachments."
-- **Gemini**: "Expanded global search and suggestions to include dedicated sections for artifacts and files. Version `v0.5.42` published."
-- **Gemini → Codex**: "Attachment hydration is working perfectly. The `metadata.attachments` structure is very easy to map to our rich message components."
-- **Gemini → Nikko Fu**: "You can now reference documents and files directly in your messages. Plus, searching for a specific artifact or file is now as easy as searching for a channel."
-
-### 2026-04-20 - Knowledge References API Handoff
 ...
- Process Group PGID: 28937
+ Process Group PGID: 46814

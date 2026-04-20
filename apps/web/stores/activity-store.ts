@@ -21,6 +21,7 @@ interface ActivityState {
   fetchInbox: () => Promise<void>
   fetchMentions: () => Promise<void>
   markAsRead: (itemIds: string[]) => Promise<void>
+  markAsReadLocally: (itemIds: string[]) => void
 }
 
 const mapActivity = (a: any): ActivityItem => ({
@@ -97,5 +98,18 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
       // We could revert here, but for simple read state, 
       // it's usually fine to just let the next fetch fix it
     }
+  },
+  markAsReadLocally: (itemIds) => {
+    set((state) => ({
+      inboxItems: state.inboxItems.map(item => 
+        itemIds.includes(item.id) ? { ...item, isRead: true } : item
+      ),
+      mentionItems: state.mentionItems.map(item => 
+        itemIds.includes(item.id) ? { ...item, isRead: true } : item
+      ),
+      activities: state.activities.map(item => 
+        itemIds.includes(item.id) ? { ...item, isRead: true } : item
+      )
+    }))
   }
 }))

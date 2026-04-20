@@ -17,19 +17,23 @@ interface SearchState {
     artifacts: any[]
     files: any[]
   }
+  intelligentResults: any[]
   suggestions: SearchSuggestion[]
   isSearching: boolean
+  isIntelligentSearching: boolean
   isLoadingSuggestions: boolean
   query: string
   search: (q: string) => Promise<void>
+  intelligentSearch: (q: string) => Promise<void>
   fetchSuggestions: (q: string) => Promise<void>
   clearResults: () => void
 }
 
 export const useSearchStore = create<SearchState>((set, get) => ({
   results: { channels: [], users: [], messages: [], dms: [], artifacts: [], files: [] },
-  suggestions: [],
+  intelligentResults: [],
   isSearching: false,
+  isIntelligentSearching: false,
   isLoadingSuggestions: false,
   query: "",
 
@@ -46,6 +50,22 @@ export const useSearchStore = create<SearchState>((set, get) => ({
     } catch (error) {
       console.error("Search failed:", error)
       set({ isSearching: false })
+    }
+  },
+
+  intelligentSearch: async (q: string) => {
+    if (!q.trim()) {
+      set({ intelligentResults: [], query: q, isIntelligentSearching: false })
+      return
+    }
+    set({ isIntelligentSearching: true, query: q })
+    try {
+      const response = await fetch(`${API_BASE_URL}/search/intelligent?q=${encodeURIComponent(q)}`)
+      const data = await response.json()
+      set({ intelligentResults: data.results || [], isIntelligentSearching: false })
+    } catch (error) {
+      console.error("Intelligent search failed:", error)
+      set({ isIntelligentSearching: false })
     }
   },
 
@@ -67,6 +87,7 @@ export const useSearchStore = create<SearchState>((set, get) => ({
 
   clearResults: () => set({ 
     results: { channels: [], users: [], messages: [], dms: [], artifacts: [], files: [] }, 
+    intelligentResults: [],
     suggestions: [],
     query: "" 
   })

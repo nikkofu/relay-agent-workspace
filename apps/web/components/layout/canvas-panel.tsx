@@ -28,13 +28,17 @@ export function CanvasPanel() {
     currentDiff,
     fetchDiff,
     isDiffLoading,
-    clearDiff
+    clearDiff,
+    references,
+    fetchReferences,
+    isReferencesLoading
   } = useArtifactStore()
-  const { currentChannel } = useChannelStore()
+  const { currentChannel, setCurrentChannelById } = useChannelStore()
   
   const [content, setContent] = useState("")
   const [isEditing, setIsEditing] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
+  const [showReferences, setShowReferences] = useState(false)
   const [selectedVersion, setSelectedVersion] = useState<ArtifactVersion | null>(null)
   const [compareMode, setCompareMode] = useState(false)
   const [compareVersions, setCompareVersions] = useState<number[]>([])
@@ -42,13 +46,15 @@ export function CanvasPanel() {
   useEffect(() => {
     if (activeCanvasId) {
       fetchArtifactDetail(activeCanvasId)
+      fetchReferences(activeCanvasId)
       setSelectedVersion(null)
       setShowHistory(false)
+      setShowReferences(false)
       setCompareMode(false)
       setCompareVersions([])
       clearDiff()
     }
-  }, [activeCanvasId, fetchArtifactDetail, clearDiff])
+  }, [activeCanvasId, fetchArtifactDetail, fetchReferences, clearDiff])
 
   useEffect(() => {
     if (activeArtifact && !selectedVersion && !currentDiff) {
@@ -78,8 +84,9 @@ export function CanvasPanel() {
   const handleToggleHistory = () => {
     const nextShow = !showHistory
     setShowHistory(nextShow)
-    if (nextShow && activeArtifact) {
-      fetchVersions(activeArtifact.id)
+    if (nextShow) {
+      setShowReferences(false)
+      if (activeArtifact) fetchVersions(activeArtifact.id)
     }
     if (!nextShow) {
       setSelectedVersion(null)
@@ -87,6 +94,20 @@ export function CanvasPanel() {
       setCompareVersions([])
       clearDiff()
     }
+  }
+
+  const handleToggleReferences = () => {
+    const nextShow = !showReferences
+    setShowReferences(nextShow)
+    if (nextShow) {
+      setShowHistory(false)
+      if (activeArtifact) fetchReferences(activeArtifact.id)
+    }
+  }
+
+  const handleReferenceClick = (channelId: string) => {
+    setCurrentChannelById(channelId)
+    // The message area will automatically update
   }
 
   const handleVersionClick = async (versionNum: number) => {
@@ -193,8 +214,23 @@ export function CanvasPanel() {
       {/* Toolbar */}
       <div className="h-10 px-4 flex items-center gap-2 border-b bg-muted/10">
         <div className="flex items-center gap-1 pr-2 border-r">
-          <Button variant="ghost" size="icon" className={cn("h-7 w-7", showHistory && "text-purple-600 bg-purple-50 dark:bg-purple-900/20")} onClick={handleToggleHistory}>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className={cn("h-7 w-7", showHistory && "text-purple-600 bg-purple-50 dark:bg-purple-900/20")} 
+            onClick={handleToggleHistory}
+            title="Version History"
+          >
             <History className="w-3.5 h-3.5" />
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className={cn("h-7 w-7", showReferences && "text-blue-600 bg-blue-50 dark:bg-blue-900/20")} 
+            onClick={handleToggleReferences}
+            title="Backlinks"
+          >
+            <MessageSquare className="w-3.5 h-3.5" />
           </Button>
         </div>
         {!showHistory && (
@@ -240,49 +276,83 @@ export function CanvasPanel() {
 
       {/* Main Content Area */}
       <div className="flex-1 min-h-0 relative flex">
-        {/* Version History Sidebar */}
-        {showHistory && (
+        {/* Sidebar (History or References) */}
+        {(showHistory || showReferences) && (
           <div className="w-64 border-r bg-muted/5 flex flex-col shrink-0">
             <header className="px-4 h-10 flex items-center justify-between border-b shrink-0">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Version History</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                {showHistory ? "Version History" : "Referencing Messages"}
+              </span>
             </header>
             <ScrollArea className="flex-1">
               <div className="p-2 space-y-1">
-                {isHistoryLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                  </div>
-                ) : (
-                  versions.map((v) => (
-                    <button
-                      key={v.version}
-                      onClick={() => handleVersionClick(v.version)}
-                      className={cn(
-                        "w-full text-left p-3 rounded-lg transition-all group flex flex-col gap-1 border relative",
-                        compareVersions.includes(v.version)
-                          ? "bg-purple-100 border-purple-300 dark:bg-purple-900/40 dark:border-purple-700"
-                          : (selectedVersion?.version === v.version || (!selectedVersion && v.version === activeArtifact.version && !compareMode))
-                            ? "bg-purple-50 dark:bg-purple-900/20 border-purple-100 dark:border-purple-800"
-                            : "hover:bg-muted/50 border-transparent"
-                      )}
-                    >
-                      {compareVersions.includes(v.version) && (
-                        <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-2 h-4 bg-purple-500 rounded-r-full" />
-                      )}
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold">Version {v.version}</span>
-                        <span className="text-[9px] text-muted-foreground">
-                          {formatDistanceToNow(new Date(v.updatedAt), { addSuffix: true })}
-                        </span>
-                      </div>
-                      {v.updatedByUser && (
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <UserAvatar src={v.updatedByUser.avatar} name={v.updatedByUser.name} className="h-3 w-3" />
-                          <span className="text-[9px] text-muted-foreground truncate">{v.updatedByUser.name}</span>
+                {showHistory ? (
+                  isHistoryLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : (
+                    versions.map((v) => (
+                      <button
+                        key={v.version}
+                        onClick={() => handleVersionClick(v.version)}
+                        className={cn(
+                          "w-full text-left p-3 rounded-lg transition-all group flex flex-col gap-1 border relative",
+                          compareVersions.includes(v.version)
+                            ? "bg-purple-100 border-purple-300 dark:bg-purple-900/40 dark:border-purple-700"
+                            : (selectedVersion?.version === v.version || (!selectedVersion && v.version === activeArtifact.version && !compareMode))
+                              ? "bg-purple-50 dark:bg-purple-900/20 border-purple-100 dark:border-purple-800"
+                              : "hover:bg-muted/50 border-transparent"
+                        )}
+                      >
+                        {compareVersions.includes(v.version) && (
+                          <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-2 h-4 bg-purple-500 rounded-r-full" />
+                        )}
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold">Version {v.version}</span>
+                          <span className="text-[9px] text-muted-foreground">
+                            {formatDistanceToNow(new Date(v.updatedAt), { addSuffix: true })}
+                          </span>
                         </div>
-                      )}
-                    </button>
-                  ))
+                        {v.updatedByUser && (
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <UserAvatar src={v.updatedByUser.avatar} name={v.updatedByUser.name} className="h-3 w-3" />
+                            <span className="text-[9px] text-muted-foreground truncate">{v.updatedByUser.name}</span>
+                          </div>
+                        )}
+                      </button>
+                    ))
+                  )
+                ) : (
+                  /* References List */
+                  isReferencesLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : references.length === 0 ? (
+                    <div className="px-3 py-8 text-center text-[10px] text-muted-foreground italic leading-relaxed">
+                      No messages referencing this artifact yet.
+                    </div>
+                  ) : (
+                    references.map((ref, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => handleReferenceClick(ref.channel?.id)}
+                        className="w-full text-left p-3 rounded-lg transition-all border border-transparent hover:bg-muted/50 flex flex-col gap-1.5"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <UserAvatar src={ref.user?.avatar} name={ref.user?.name} className="h-3.5 w-3.5" />
+                            <span className="text-xs font-bold truncate">{ref.user?.name}</span>
+                          </div>
+                          <span className="text-[8px] text-muted-foreground uppercase font-bold tracking-tighter">
+                            #{ref.channel?.name}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-foreground/70 line-clamp-2 italic leading-tight pl-5 border-l-2 border-muted" dangerouslySetInnerHTML={{ __html: ref.message?.content }} />
+                      </button>
+                    ))
+                  )
                 )}
               </div>
             </ScrollArea>

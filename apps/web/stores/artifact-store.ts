@@ -50,14 +50,17 @@ interface ArtifactState {
   activeArtifact: Artifact | null
   versions: ArtifactVersion[]
   currentDiff: ArtifactDiff | null
+  references: { message: any, user: any, channel: any }[]
   isLoading: boolean
   isHistoryLoading: boolean
   isDiffLoading: boolean
+  isReferencesLoading: boolean
   fetchArtifacts: (channelId: string) => Promise<void>
   fetchArtifactDetail: (id: string) => Promise<void>
   fetchVersions: (id: string) => Promise<void>
   fetchVersionDetail: (id: string, version: number) => Promise<ArtifactVersion | null>
   fetchDiff: (id: string, fromVersion: number, toVersion: number) => Promise<void>
+  fetchReferences: (id: string) => Promise<void>
   restoreVersion: (id: string, version: number) => Promise<void>
   createArtifact: (data: Partial<Artifact>) => Promise<Artifact | null>
   updateArtifact: (id: string, updates: Partial<Artifact>) => Promise<void>
@@ -92,9 +95,11 @@ export const useArtifactStore = create<ArtifactState>((set, get) => ({
   activeArtifact: null,
   versions: [],
   currentDiff: null,
+  references: [],
   isLoading: false,
   isHistoryLoading: false,
   isDiffLoading: false,
+  isReferencesLoading: false,
 
   fetchArtifacts: async (channelId) => {
     try {
@@ -186,6 +191,18 @@ export const useArtifactStore = create<ArtifactState>((set, get) => ({
       console.error("Failed to fetch artifact diff:", error)
       set({ isDiffLoading: false })
       toast.error("Failed to load comparison data")
+    }
+  },
+
+  fetchReferences: async (id) => {
+    try {
+      set({ isReferencesLoading: true })
+      const response = await fetch(`${API_BASE_URL}/artifacts/${id}/references`)
+      const data = await response.json()
+      set({ references: data.references || [], isReferencesLoading: false })
+    } catch (error) {
+      console.error("Failed to fetch artifact references:", error)
+      set({ isReferencesLoading: false })
     }
   },
 
