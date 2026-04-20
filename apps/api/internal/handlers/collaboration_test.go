@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -170,6 +171,80 @@ func TestCreateMessageReplyUpdatesParentReplyMetadata(t *testing.T) {
 	}
 	if refreshed.LastReplyAt == nil {
 		t.Fatal("expected last_reply_at to be set")
+	}
+}
+
+func TestCreateMessageHydratesArtifactAndFileAttachments(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public"})
+	db.DB.Create(&domain.Artifact{
+		ID:        "artifact-1",
+		ChannelID: "ch-1",
+		Title:     "Launch Plan",
+		Version:   2,
+		Type:      "document",
+		Status:    "live",
+		Content:   "Launch plan content",
+		Source:    "manual",
+		CreatedBy: "user-1",
+		UpdatedBy: "user-1",
+		CreatedAt: time.Now().Add(-time.Hour).UTC(),
+		UpdatedAt: time.Now().UTC(),
+	})
+	db.DB.Create(&domain.FileAsset{
+		ID:          "file-1",
+		ChannelID:   "ch-1",
+		UploaderID:  "user-1",
+		Name:        "brief.pdf",
+		StoragePath: "brief.pdf",
+		ContentType: "application/pdf",
+		SizeBytes:   2048,
+		CreatedAt:   time.Now().UTC(),
+	})
+
+	router := gin.New()
+	router.POST("/api/v1/messages", CreateMessage)
+	router.GET("/api/v1/messages", GetMessages)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/messages", bytes.NewBufferString(`{"channel_id":"ch-1","content":"See linked assets","user_id":"user-1","artifact_ids":["artifact-1"],"file_ids":["file-1"]}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var createPayload struct {
+		Message domain.Message `json:"message"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &createPayload); err != nil {
+		t.Fatalf("failed to decode create message payload: %v", err)
+	}
+	if !strings.Contains(createPayload.Message.Metadata, `"kind":"artifact"`) || !strings.Contains(createPayload.Message.Metadata, `"kind":"file"`) {
+		t.Fatalf("expected metadata to include hydrated artifact and file attachments, got %s", createPayload.Message.Metadata)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/messages?channel_id=ch-1", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on get messages, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var listPayload struct {
+		Messages []domain.Message `json:"messages"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &listPayload); err != nil {
+		t.Fatalf("failed to decode messages payload: %v", err)
+	}
+	if len(listPayload.Messages) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(listPayload.Messages))
+	}
+	if !strings.Contains(listPayload.Messages[0].Metadata, `"artifact_id":"artifact-1"`) || !strings.Contains(listPayload.Messages[0].Metadata, `"file_id":"file-1"`) {
+		t.Fatalf("expected refreshed message metadata to include reference ids, got %s", listPayload.Messages[0].Metadata)
 	}
 }
 
@@ -1138,6 +1213,30 @@ func TestSearchReturnsChannelUserMessageAndDMHits(t *testing.T) {
 		Content:          "AI follow-up in DM",
 		CreatedAt:        time.Now().UTC(),
 	})
+	db.DB.Create(&domain.Artifact{
+		ID:        "artifact-1",
+		ChannelID: "ch-5",
+		Title:     "AI research canvas",
+		Version:   1,
+		Type:      "document",
+		Status:    "live",
+		Content:   "AI research notes",
+		Source:    "manual",
+		CreatedBy: "user-1",
+		UpdatedBy: "user-1",
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	})
+	db.DB.Create(&domain.FileAsset{
+		ID:          "file-1",
+		ChannelID:   "ch-5",
+		UploaderID:  "user-1",
+		Name:        "ai-brief.pdf",
+		StoragePath: "ai-brief.pdf",
+		ContentType: "application/pdf",
+		SizeBytes:   4096,
+		CreatedAt:   time.Now().UTC(),
+	})
 
 	router := gin.New()
 	router.GET("/api/v1/search", SearchWorkspace)
@@ -1152,10 +1251,12 @@ func TestSearchReturnsChannelUserMessageAndDMHits(t *testing.T) {
 	var payload struct {
 		Query   string `json:"query"`
 		Results struct {
-			Channels []map[string]any `json:"channels"`
-			Users    []map[string]any `json:"users"`
-			Messages []map[string]any `json:"messages"`
-			DMs      []map[string]any `json:"dms"`
+			Channels  []map[string]any `json:"channels"`
+			Users     []map[string]any `json:"users"`
+			Messages  []map[string]any `json:"messages"`
+			DMs       []map[string]any `json:"dms"`
+			Artifacts []map[string]any `json:"artifacts"`
+			Files     []map[string]any `json:"files"`
 		} `json:"results"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
@@ -1164,7 +1265,7 @@ func TestSearchReturnsChannelUserMessageAndDMHits(t *testing.T) {
 	if payload.Query != "AI" {
 		t.Fatalf("expected query echo, got %q", payload.Query)
 	}
-	if len(payload.Results.Channels) == 0 || len(payload.Results.Users) == 0 || len(payload.Results.Messages) == 0 || len(payload.Results.DMs) == 0 {
+	if len(payload.Results.Channels) == 0 || len(payload.Results.Users) == 0 || len(payload.Results.Messages) == 0 || len(payload.Results.DMs) == 0 || len(payload.Results.Artifacts) == 0 || len(payload.Results.Files) == 0 {
 		t.Fatalf("expected all result groups to have hits, got %#v", payload.Results)
 	}
 	if payload.Results.Messages[0]["snippet"] == "" {
@@ -1172,6 +1273,9 @@ func TestSearchReturnsChannelUserMessageAndDMHits(t *testing.T) {
 	}
 	if payload.Results.Channels[0]["match_reason"] == "" {
 		t.Fatalf("expected channel search results to include match_reason, got %#v", payload.Results.Channels[0])
+	}
+	if payload.Results.Artifacts[0]["title"] == "" || payload.Results.Files[0]["name"] == "" {
+		t.Fatalf("expected artifacts and files search results to be populated, got %#v %#v", payload.Results.Artifacts, payload.Results.Files)
 	}
 }
 
@@ -1188,6 +1292,30 @@ func TestSearchSuggestionsReturnsRankedMatches(t *testing.T) {
 		Content:   "The AI lab launch plan is ready",
 		CreatedAt: time.Now().UTC(),
 		Metadata:  "{}",
+	})
+	db.DB.Create(&domain.Artifact{
+		ID:        "artifact-1",
+		ChannelID: "ch-5",
+		Title:     "AI research canvas",
+		Version:   1,
+		Type:      "document",
+		Status:    "live",
+		Content:   "AI research notes",
+		Source:    "manual",
+		CreatedBy: "user-1",
+		UpdatedBy: "user-1",
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	})
+	db.DB.Create(&domain.FileAsset{
+		ID:          "file-1",
+		ChannelID:   "ch-5",
+		UploaderID:  "user-1",
+		Name:        "ai-brief.pdf",
+		StoragePath: "ai-brief.pdf",
+		ContentType: "application/pdf",
+		SizeBytes:   4096,
+		CreatedAt:   time.Now().UTC(),
 	})
 
 	router := gin.New()
@@ -1215,6 +1343,19 @@ func TestSearchSuggestionsReturnsRankedMatches(t *testing.T) {
 	}
 	if payload.Suggestions[0]["type"] == nil || payload.Suggestions[0]["label"] == nil {
 		t.Fatalf("expected typed suggestion entries, got %#v", payload.Suggestions[0])
+	}
+	foundArtifact := false
+	foundFile := false
+	for _, suggestion := range payload.Suggestions {
+		switch suggestion["type"] {
+		case "artifact":
+			foundArtifact = true
+		case "file":
+			foundFile = true
+		}
+	}
+	if !foundArtifact || !foundFile {
+		t.Fatalf("expected artifact and file suggestions, got %#v", payload.Suggestions)
 	}
 }
 
@@ -1482,7 +1623,7 @@ func setupTestDB(t *testing.T) {
 	if err := db.DB.AutoMigrate(&domain.Organization{}, &domain.Team{}, &domain.User{}, &domain.Agent{}, &domain.Workspace{}, &domain.WorkspaceInvite{}, &domain.Channel{}, &domain.ChannelMember{}, &domain.Message{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
-	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.AIFeedback{}, &domain.AIConversation{}, &domain.AIConversationMessage{}, &domain.AISummary{}, &domain.Artifact{}, &domain.ArtifactVersion{}, &domain.FileAsset{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}); err != nil {
+	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.AIFeedback{}, &domain.AIConversation{}, &domain.AIConversationMessage{}, &domain.AISummary{}, &domain.Artifact{}, &domain.ArtifactVersion{}, &domain.FileAsset{}, &domain.MessageArtifactReference{}, &domain.MessageFileAttachment{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 }

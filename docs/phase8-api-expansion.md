@@ -94,6 +94,7 @@ Current backend surface already available:
 - `GET /api/v1/drafts`
 - `PUT /api/v1/drafts/:scope`
 - `GET /api/v1/search`
+- `GET /api/v1/search/suggestions`
 - `GET /api/v1/messages`
 - `GET /api/v1/messages/:id/thread`
 - `POST /api/v1/messages`
@@ -164,7 +165,7 @@ Likely follow-ups:
 - artifact restore UI integration and restore audit affordances
 - richer structured diff blocks or semantic diff grouping for review UIs
 - canvas collaboration cursors or presence
-- artifact-to-message references
+- artifact backlinks and reverse lookup from artifact detail to messages
 - artifact templates and generation presets
 
 ### 4.4 Files
@@ -178,9 +179,9 @@ Baseline support now exists for:
 
 Likely follow-ups:
 
-- file-to-message attachment references
-- file previews and image thumbnails
 - file deletion and retention controls
+- file previews and image thumbnails
+- richer attachment previews in message surfaces
 
 ### 4.5 Slack Parity Layer
 

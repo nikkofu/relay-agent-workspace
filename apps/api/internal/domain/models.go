@@ -231,3 +231,17 @@ type FileAsset struct {
 	SizeBytes   int64     `json:"size_bytes"`
 	CreatedAt   time.Time `json:"created_at"`
 }
+
+type MessageArtifactReference struct {
+	ID         uint      `gorm:"primaryKey" json:"id"`
+	MessageID  string    `gorm:"index;uniqueIndex:idx_message_artifact_ref" json:"message_id"`
+	ArtifactID string    `gorm:"uniqueIndex:idx_message_artifact_ref;index" json:"artifact_id"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+type MessageFileAttachment struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	MessageID string    `gorm:"index;uniqueIndex:idx_message_file_attachment" json:"message_id"`
+	FileID    string    `gorm:"uniqueIndex:idx_message_file_attachment;index" json:"file_id"`
+	CreatedAt time.Time `json:"created_at"`
+}

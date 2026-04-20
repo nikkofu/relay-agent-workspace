@@ -48,6 +48,8 @@ func InitDB() error {
 		&domain.Artifact{},
 		&domain.ArtifactVersion{},
 		&domain.FileAsset{},
+		&domain.MessageArtifactReference{},
+		&domain.MessageFileAttachment{},
 		&domain.DMMessage{},
 	); err != nil {
 		return err

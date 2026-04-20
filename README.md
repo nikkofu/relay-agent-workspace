@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.5.37` is the current release line and includes:
+`v0.5.41` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -73,6 +73,8 @@ For product, design, and marketing, the short version is:
 - Persistent artifact version history APIs
 - Artifact diff APIs for version-to-version comparison
 - Artifact restore APIs and structured diff spans for richer canvas history workflows
+- Message-level artifact references and file attachment hydration
+- Search coverage for artifacts and files, plus typed suggestions for both
 - explicit AI command forwarding and stable new-canvas creation flow
 - File asset upload and retrieval APIs for future attachment flows
 - Presence heartbeat, status text, and last-seen metadata

@@ -25,11 +25,25 @@ type reactionSummary struct {
 	UserIDs []string `json:"userIds"`
 }
 
+type messageAttachment struct {
+	ID         string `json:"id"`
+	Kind       string `json:"kind"`
+	Type       string `json:"type"`
+	URL        string `json:"url"`
+	Name       string `json:"name"`
+	Size       int64  `json:"size,omitempty"`
+	MimeType   string `json:"mimeType,omitempty"`
+	ArtifactID string `json:"artifact_id,omitempty"`
+	FileID     string `json:"file_id,omitempty"`
+	Version    int    `json:"version,omitempty"`
+	Status     string `json:"status,omitempty"`
+}
+
 var CollabSnapshotPath = agentcollab.DefaultPath()
 
 type messageMetadata struct {
-	Reactions   []reactionSummary `json:"reactions,omitempty"`
-	Attachments any               `json:"attachments,omitempty"`
+	Reactions   []reactionSummary   `json:"reactions,omitempty"`
+	Attachments []messageAttachment `json:"attachments,omitempty"`
 }
 
 func getCurrentUser() (domain.User, error) {
@@ -210,6 +224,12 @@ func refreshMessageMetadata(messageID string) (*domain.Message, error) {
 		}
 	}
 
+	attachments, err := buildMessageAttachments(message.ID)
+	if err != nil {
+		return nil, err
+	}
+	meta.Attachments = attachments
+
 	metadataJSON, err := json.Marshal(meta)
 	if err != nil {
 		return nil, err
@@ -221,6 +241,64 @@ func refreshMessageMetadata(messageID string) (*domain.Message, error) {
 	}
 
 	return &message, nil
+}
+
+func buildMessageAttachments(messageID string) ([]messageAttachment, error) {
+	attachments := make([]messageAttachment, 0)
+
+	var artifactRefs []domain.MessageArtifactReference
+	if err := db.DB.Where("message_id = ?", messageID).Order("artifact_id asc").Find(&artifactRefs).Error; err != nil {
+		return nil, err
+	}
+	for _, ref := range artifactRefs {
+		var artifact domain.Artifact
+		if err := db.DB.First(&artifact, "id = ?", ref.ArtifactID).Error; err != nil {
+			continue
+		}
+		attachments = append(attachments, messageAttachment{
+			ID:         "artifact:" + artifact.ID,
+			Kind:       "artifact",
+			Type:       "link",
+			URL:        "/workspace?artifactId=" + artifact.ID,
+			Name:       artifact.Title,
+			ArtifactID: artifact.ID,
+			Version:    artifact.Version,
+			Status:     artifact.Status,
+		})
+	}
+
+	var fileRefs []domain.MessageFileAttachment
+	if err := db.DB.Where("message_id = ?", messageID).Order("file_id asc").Find(&fileRefs).Error; err != nil {
+		return nil, err
+	}
+	for _, ref := range fileRefs {
+		var asset domain.FileAsset
+		if err := db.DB.First(&asset, "id = ?", ref.FileID).Error; err != nil {
+			continue
+		}
+
+		attachmentType := "file"
+		if strings.HasPrefix(strings.ToLower(asset.ContentType), "image/") {
+			attachmentType = "image"
+		}
+
+		attachments = append(attachments, messageAttachment{
+			ID:       "file:" + asset.ID,
+			Kind:     "file",
+			Type:     attachmentType,
+			URL:      "/api/v1/files/" + asset.ID + "/content",
+			Name:     asset.Name,
+			Size:     asset.SizeBytes,
+			MimeType: asset.ContentType,
+			FileID:   asset.ID,
+		})
+	}
+
+	if len(attachments) == 0 {
+		return nil, nil
+	}
+
+	return attachments, nil
 }
 
 func recomputeThreadParentWithDB(conn *gorm.DB, parentID string) error {
@@ -1419,17 +1497,21 @@ func SearchWorkspace(c *gin.Context) {
 	needle := "%" + strings.ToLower(query) + "%"
 
 	type searchResults struct {
-		Channels []gin.H `json:"channels"`
-		Users    []gin.H `json:"users"`
-		Messages []gin.H `json:"messages"`
-		DMs      []gin.H `json:"dms"`
+		Channels  []gin.H `json:"channels"`
+		Users     []gin.H `json:"users"`
+		Messages  []gin.H `json:"messages"`
+		DMs       []gin.H `json:"dms"`
+		Artifacts []gin.H `json:"artifacts"`
+		Files     []gin.H `json:"files"`
 	}
 
 	results := searchResults{
-		Channels: []gin.H{},
-		Users:    []gin.H{},
-		Messages: []gin.H{},
-		DMs:      []gin.H{},
+		Channels:  []gin.H{},
+		Users:     []gin.H{},
+		Messages:  []gin.H{},
+		DMs:       []gin.H{},
+		Artifacts: []gin.H{},
+		Files:     []gin.H{},
 	}
 
 	var channels []domain.Channel
@@ -1519,6 +1601,43 @@ func SearchWorkspace(c *gin.Context) {
 		})
 	}
 
+	var artifacts []domain.Artifact
+	db.DB.Where("LOWER(title) LIKE ? OR LOWER(content) LIKE ?", needle, needle).Order("updated_at desc").Limit(10).Find(&artifacts)
+	for _, artifact := range artifacts {
+		matchReason := "title"
+		if !strings.Contains(strings.ToLower(artifact.Title), strings.ToLower(query)) {
+			matchReason = "content"
+		}
+		results.Artifacts = append(results.Artifacts, gin.H{
+			"id":           artifact.ID,
+			"channel_id":   artifact.ChannelID,
+			"title":        artifact.Title,
+			"type":         artifact.Type,
+			"status":       artifact.Status,
+			"version":      artifact.Version,
+			"match_reason": matchReason,
+			"snippet":      buildSearchSnippet(artifact.Content, query),
+		})
+	}
+
+	var files []domain.FileAsset
+	db.DB.Where("LOWER(name) LIKE ? OR LOWER(content_type) LIKE ?", needle, needle).Order("created_at desc").Limit(10).Find(&files)
+	for _, file := range files {
+		matchReason := "name"
+		if !strings.Contains(strings.ToLower(file.Name), strings.ToLower(query)) {
+			matchReason = "content_type"
+		}
+		results.Files = append(results.Files, gin.H{
+			"id":           file.ID,
+			"channel_id":   file.ChannelID,
+			"name":         file.Name,
+			"content_type": file.ContentType,
+			"size_bytes":   file.SizeBytes,
+			"url":          "/api/v1/files/" + file.ID + "/content",
+			"match_reason": matchReason,
+		})
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"query":   query,
 		"results": results,
@@ -1581,6 +1700,38 @@ func SearchSuggestions(c *gin.Context) {
 			"id":    message.ID,
 			"label": buildSearchSnippet(message.Content, query),
 			"hint":  "Message result",
+		})
+	}
+
+	var artifacts []domain.Artifact
+	db.DB.Where("LOWER(title) LIKE ? OR LOWER(content) LIKE ?", needle, needle).Order("updated_at desc").Limit(4).Find(&artifacts)
+	for _, artifact := range artifacts {
+		key := "artifact:" + artifact.ID
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		suggestions = append(suggestions, gin.H{
+			"type":  "artifact",
+			"id":    artifact.ID,
+			"label": artifact.Title,
+			"hint":  "Canvas artifact",
+		})
+	}
+
+	var files []domain.FileAsset
+	db.DB.Where("LOWER(name) LIKE ? OR LOWER(content_type) LIKE ?", needle, needle).Order("created_at desc").Limit(4).Find(&files)
+	for _, file := range files {
+		key := "file:" + file.ID
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		suggestions = append(suggestions, gin.H{
+			"type":  "file",
+			"id":    file.ID,
+			"label": file.Name,
+			"hint":  defaultString(file.ContentType, "File"),
 		})
 	}
 
@@ -1672,10 +1823,12 @@ func GetMessageThread(c *gin.Context) {
 
 func CreateMessage(c *gin.Context) {
 	var input struct {
-		ChannelID string `json:"channel_id" binding:"required"`
-		Content   string `json:"content" binding:"required"`
-		UserID    string `json:"user_id" binding:"required"`
-		ThreadID  string `json:"thread_id"`
+		ChannelID   string   `json:"channel_id" binding:"required"`
+		Content     string   `json:"content" binding:"required"`
+		UserID      string   `json:"user_id" binding:"required"`
+		ThreadID    string   `json:"thread_id"`
+		ArtifactIDs []string `json:"artifact_ids"`
+		FileIDs     []string `json:"file_ids"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -1696,6 +1849,43 @@ func CreateMessage(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create message"})
 		return
 	}
+
+	for _, artifactID := range input.ArtifactIDs {
+		if strings.TrimSpace(artifactID) == "" {
+			continue
+		}
+		ref := domain.MessageArtifactReference{
+			MessageID:  msg.ID,
+			ArtifactID: artifactID,
+			CreatedAt:  time.Now().UTC(),
+		}
+		if err := db.DB.FirstOrCreate(&ref, domain.MessageArtifactReference{MessageID: msg.ID, ArtifactID: artifactID}).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to attach artifact reference"})
+			return
+		}
+	}
+
+	for _, fileID := range input.FileIDs {
+		if strings.TrimSpace(fileID) == "" {
+			continue
+		}
+		ref := domain.MessageFileAttachment{
+			MessageID: msg.ID,
+			FileID:    fileID,
+			CreatedAt: time.Now().UTC(),
+		}
+		if err := db.DB.FirstOrCreate(&ref, domain.MessageFileAttachment{MessageID: msg.ID, FileID: fileID}).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to attach file reference"})
+			return
+		}
+	}
+
+	refreshed, err := refreshMessageMetadata(msg.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to refresh message metadata"})
+		return
+	}
+	msg = *refreshed
 
 	if input.ThreadID != "" {
 		lastReplyAt := msg.CreatedAt

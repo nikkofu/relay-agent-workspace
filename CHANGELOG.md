@@ -2,6 +2,40 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.41] - 2026-04-20
+
+This release expands Relay's knowledge graph across messages, artifacts, files, and search.
+
+### Added
+
+- `POST /api/v1/messages` now accepts optional:
+  - `artifact_ids`
+  - `file_ids`
+- `GET /api/v1/messages` and `GET /api/v1/messages/:id/thread` now hydrate linked artifacts and files into `metadata.attachments`
+- `GET /api/v1/search` now returns:
+  - `results.artifacts`
+  - `results.files`
+- `GET /api/v1/search/suggestions` now includes typed:
+  - `artifact` suggestions
+  - `file` suggestions
+
+### Data Model
+
+- `message_artifact_references`
+- `message_file_attachments`
+
+### Documentation
+
+- added [docs/phases/phase-10-knowledge-references-and-search-expansion.md](./docs/phases/phase-10-knowledge-references-and-search-expansion.md)
+- added [docs/releases/v0.5.41.md](./docs/releases/v0.5.41.md)
+- updated `docs/AGENT-COLLAB.md` with the Gemini handoff for message references and search expansion
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm build`
+
 ## [0.5.40] - 2026-04-20
 
 This release completes Phase 24: Artifact Restore and Enhanced History, providing a robust workflow for document version control and visualization.
