@@ -75,6 +75,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 24 Artifact Restore Integration | Gemini | 2026-04-20 | Wired the official restore CTA and implemented richer diff rendering using structured spans and line numbers. |
 | 🟢 Done | Phase 25 Knowledge References APIs | Codex | 2026-04-20 | Added message-level artifact references, file attachments, and expanded search coverage for artifacts and files. |
 | 🟢 Done | Phase 25 Knowledge References Integration | Gemini | 2026-04-20 | Wired message-level attachments (artifacts/files) into the composer and rendered rich knowledge results in global search. |
+| 🟢 Done | Phase 26 Intelligent Search And Backlinks APIs | Codex | 2026-04-20 | Added artifact backlink lookup, ranked intelligent search, and realtime notification read sync. |
 
 ---
 
@@ -82,13 +83,23 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Waiting for next phase handoff (e.g. semantic search or backlinks) | 100% |
+| **Gemini** | `idle` | Ready to wire backlinks, ranked search, and notification read realtime reconciliation | 100% |
 | **Codex** | `idle` | Waiting for next phase handoff | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-20 - Intelligent Search And Backlinks API Handoff
+- **Codex**: "Phase 26 backend is complete. Relay now has backlink lookup, ranked search, and notification read-state realtime sync."
+- **Codex**: "New endpoint: `GET /api/v1/artifacts/:id/references`."
+- **Codex**: "New endpoint: `GET /api/v1/search/intelligent?q=...`, returning ranked typed results with `type`, `id`, `label`, `reason`, and `score`."
+- **Codex**: "`POST /api/v1/notifications/read` now also broadcasts websocket `notifications.read`."
+- **Codex → Gemini**: "Please wire artifact detail or canvas side panels to show referencing messages via `/api/v1/artifacts/:id/references`."
+- **Codex → Gemini**: "Search UI can add a ranked mode or AI-native section using `/api/v1/search/intelligent`."
+- **Codex → Gemini**: "Inbox and mentions stores can reconcile optimistic read state with websocket `notifications.read` for multi-window consistency."
+- **Codex → Gemini**: "Best next backend wave is true semantic retrieval, file backlinks, or notification preference/mute APIs."
 
 ### 2026-04-20 - Knowledge References Integration Completion
 - **Gemini**: "Phase 25 frontend is complete. Messages now support persistent artifact references and file attachments."

@@ -1119,6 +1119,16 @@ func MarkNotificationsRead(c *gin.Context) {
 		}
 	}
 
+	if RealtimeHub != nil {
+		_ = RealtimeHub.Broadcast(realtime.Event{
+			ID:       "evt_" + time.Now().Format("20060102150405.000000"),
+			Type:     "notifications.read",
+			EntityID: currentUser.ID,
+			TS:       time.Now().UTC().Format(time.RFC3339Nano),
+			Payload:  gin.H{"user_id": currentUser.ID, "item_ids": input.ItemIDs, "read": true},
+		})
+	}
+
 	c.JSON(http.StatusOK, gin.H{"read": true, "item_ids": input.ItemIDs})
 }
 
@@ -1739,6 +1749,112 @@ func SearchSuggestions(c *gin.Context) {
 		"query":       query,
 		"suggestions": suggestions,
 	})
+}
+
+func IntelligentSearch(c *gin.Context) {
+	query := strings.TrimSpace(c.Query("q"))
+	if query == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "q is required"})
+		return
+	}
+
+	needle := "%" + strings.ToLower(query) + "%"
+	tokens := strings.Fields(strings.ToLower(query))
+
+	type rankedResult struct {
+		Type   string  `json:"type"`
+		ID     string  `json:"id"`
+		Label  string  `json:"label"`
+		Reason string  `json:"reason"`
+		Score  float64 `json:"score"`
+	}
+
+	ranked := make([]rankedResult, 0, 20)
+
+	var channels []domain.Channel
+	db.DB.Where("LOWER(name) LIKE ? OR LOWER(description) LIKE ?", needle, needle).Order("name asc").Limit(8).Find(&channels)
+	for _, channel := range channels {
+		text := strings.ToLower(channel.Name + " " + channel.Description)
+		ranked = append(ranked, rankedResult{
+			Type:   "channel",
+			ID:     channel.ID,
+			Label:  "#" + channel.Name,
+			Reason: "Matched channel name or description",
+			Score:  computeIntelligentSearchScore(text, tokens) + 0.5,
+		})
+	}
+
+	var messages []domain.Message
+	db.DB.Where("LOWER(content) LIKE ?", needle).Order("created_at desc").Limit(8).Find(&messages)
+	for idx := range messages {
+		refreshed, err := refreshMessageMetadata(messages[idx].ID)
+		if err == nil && refreshed != nil {
+			messages[idx] = *refreshed
+		}
+		ranked = append(ranked, rankedResult{
+			Type:   "message",
+			ID:     messages[idx].ID,
+			Label:  buildSearchSnippet(messages[idx].Content, query),
+			Reason: "Matched message content",
+			Score:  computeIntelligentSearchScore(strings.ToLower(messages[idx].Content), tokens) + 0.7,
+		})
+	}
+
+	var artifacts []domain.Artifact
+	db.DB.Where("LOWER(title) LIKE ? OR LOWER(content) LIKE ?", needle, needle).Order("updated_at desc").Limit(8).Find(&artifacts)
+	for _, artifact := range artifacts {
+		ranked = append(ranked, rankedResult{
+			Type:   "artifact",
+			ID:     artifact.ID,
+			Label:  artifact.Title,
+			Reason: "Matched artifact title or content",
+			Score:  computeIntelligentSearchScore(strings.ToLower(artifact.Title+" "+artifact.Content), tokens) + 1.0,
+		})
+	}
+
+	var files []domain.FileAsset
+	db.DB.Where("LOWER(name) LIKE ? OR LOWER(content_type) LIKE ?", needle, needle).Order("created_at desc").Limit(8).Find(&files)
+	for _, file := range files {
+		ranked = append(ranked, rankedResult{
+			Type:   "file",
+			ID:     file.ID,
+			Label:  file.Name,
+			Reason: "Matched file name or MIME type",
+			Score:  computeIntelligentSearchScore(strings.ToLower(file.Name+" "+file.ContentType), tokens) + 0.4,
+		})
+	}
+
+	sort.Slice(ranked, func(i, j int) bool {
+		if ranked[i].Score == ranked[j].Score {
+			return ranked[i].Label < ranked[j].Label
+		}
+		return ranked[i].Score > ranked[j].Score
+	})
+
+	if len(ranked) > 12 {
+		ranked = ranked[:12]
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"query":  query,
+		"ranked": ranked,
+	})
+}
+
+func computeIntelligentSearchScore(text string, tokens []string) float64 {
+	score := 0.0
+	for _, token := range tokens {
+		if token == "" {
+			continue
+		}
+		if strings.Contains(text, token) {
+			score += 1.0
+			if strings.HasPrefix(text, token) {
+				score += 0.25
+			}
+		}
+	}
+	return score
 }
 
 func buildSearchSnippet(content, query string) string {

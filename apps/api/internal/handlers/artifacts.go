@@ -27,6 +27,12 @@ type artifactVersionResponse struct {
 	UpdatedByUser *domain.User `json:"updated_by_user,omitempty"`
 }
 
+type artifactReferenceResponse struct {
+	Message domain.Message `json:"message"`
+	Channel domain.Channel `json:"channel"`
+	User    domain.User    `json:"user"`
+}
+
 type artifactDiffResponse struct {
 	ArtifactID  string      `json:"artifact_id"`
 	FromVersion int         `json:"from_version"`
@@ -109,6 +115,46 @@ func GetArtifactVersion(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"version": hydrateArtifactVersionResponse(version)})
+}
+
+func GetArtifactReferences(c *gin.Context) {
+	var artifact domain.Artifact
+	if err := db.DB.First(&artifact, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "artifact not found"})
+		return
+	}
+
+	var refs []domain.MessageArtifactReference
+	if err := db.DB.Where("artifact_id = ?", artifact.ID).Order("created_at desc").Find(&refs).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load artifact references"})
+		return
+	}
+
+	items := make([]artifactReferenceResponse, 0, len(refs))
+	for _, ref := range refs {
+		message, err := refreshMessageMetadata(ref.MessageID)
+		if err != nil || message == nil {
+			continue
+		}
+
+		var channel domain.Channel
+		if err := db.DB.First(&channel, "id = ?", message.ChannelID).Error; err != nil {
+			continue
+		}
+
+		var user domain.User
+		if err := db.DB.First(&user, "id = ?", message.UserID).Error; err != nil {
+			continue
+		}
+
+		items = append(items, artifactReferenceResponse{
+			Message: *message,
+			Channel: channel,
+			User:    enrichUser(user),
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"references": items})
 }
 
 func GetArtifactDiff(c *gin.Context) {

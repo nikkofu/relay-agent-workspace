@@ -1359,6 +1359,108 @@ func TestSearchSuggestionsReturnsRankedMatches(t *testing.T) {
 	}
 }
 
+func TestIntelligentSearchReturnsRankedKnowledgeResults(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.User{ID: "user-2", Name: "AI Assistant", Email: "ai@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-5", WorkspaceID: "ws-1", Name: "launch-war-room", Description: "Launch coordination", Type: "public"})
+	db.DB.Create(&domain.Message{
+		ID:        "msg-1",
+		ChannelID: "ch-5",
+		UserID:    "user-2",
+		Content:   "Launch checklist and rollout notes",
+		CreatedAt: time.Now().UTC(),
+		Metadata:  "{}",
+	})
+	db.DB.Create(&domain.Artifact{
+		ID:        "artifact-1",
+		ChannelID: "ch-5",
+		Title:     "Launch checklist canvas",
+		Version:   1,
+		Type:      "document",
+		Status:    "live",
+		Content:   "Checklist for launch readiness",
+		Source:    "manual",
+		CreatedBy: "user-1",
+		UpdatedBy: "user-1",
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	})
+
+	router := gin.New()
+	router.GET("/api/v1/search/intelligent", IntelligentSearch)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/search/intelligent?q=launch%20checklist", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on intelligent search, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Query  string `json:"query"`
+		Ranked []struct {
+			Type   string  `json:"type"`
+			ID     string  `json:"id"`
+			Label  string  `json:"label"`
+			Reason string  `json:"reason"`
+			Score  float64 `json:"score"`
+		} `json:"ranked"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode intelligent search payload: %v", err)
+	}
+	if payload.Query != "launch checklist" {
+		t.Fatalf("expected query echo, got %q", payload.Query)
+	}
+	if len(payload.Ranked) < 2 {
+		t.Fatalf("expected ranked results, got %#v", payload.Ranked)
+	}
+	if payload.Ranked[0].Type == "" || payload.Ranked[0].Label == "" || payload.Ranked[0].Reason == "" || payload.Ranked[0].Score <= 0 {
+		t.Fatalf("expected ranked result fields to be populated, got %#v", payload.Ranked[0])
+	}
+}
+
+func TestMarkNotificationsReadBroadcastsRealtimeEvent(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+
+	hub := realtime.NewHub()
+	go hub.Run()
+	SetRealtimeHub(hub)
+	defer SetRealtimeHub(nil)
+
+	client := realtime.NewTestClient(4)
+	hub.RegisterTestClient(client)
+	defer hub.UnregisterTestClient(client)
+
+	router := gin.New()
+	router.POST("/api/v1/notifications/read", MarkNotificationsRead)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/notifications/read", bytes.NewBufferString(`{"item_ids":["activity-mention-msg-1","activity-thread-msg-2"]}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on mark notifications read, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	raw, err := client.Receive(time.Second)
+	if err != nil {
+		t.Fatalf("failed to receive realtime event: %v", err)
+	}
+
+	var event realtime.Event
+	if err := json.Unmarshal(raw, &event); err != nil {
+		t.Fatalf("failed to decode realtime event: %v", err)
+	}
+	if event.Type != "notifications.read" {
+		t.Fatalf("expected notifications.read event, got %s", event.Type)
+	}
+}
+
 func TestChannelMembersEndpointsListAddAndRemoveMembers(t *testing.T) {
 	setupTestDB(t)
 

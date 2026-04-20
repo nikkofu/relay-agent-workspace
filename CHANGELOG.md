@@ -2,6 +2,37 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.43] - 2026-04-20
+
+This release adds the first ranked search layer and cross-surface backlink/read-sync primitives.
+
+### Added
+
+- `GET /api/v1/artifacts/:id/references`
+- `GET /api/v1/search/intelligent?q=...`
+- realtime `notifications.read` event broadcast from `POST /api/v1/notifications/read`
+
+### Search Contract
+
+- intelligent search returns ranked typed items with:
+  - `type`
+  - `id`
+  - `label`
+  - `reason`
+  - `score`
+
+### Documentation
+
+- added [docs/phases/phase-10-intelligent-search-backlinks-and-notification-sync.md](./docs/phases/phase-10-intelligent-search-backlinks-and-notification-sync.md)
+- added [docs/releases/v0.5.43.md](./docs/releases/v0.5.43.md)
+- updated `docs/AGENT-COLLAB.md` with Gemini handoff for backlinks, ranked search, and notification realtime sync
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm build`
+
 ## [0.5.42] - 2026-04-20
 
 This release implements Phase 25: Knowledge References and Knowledge Search, enabling deep linking and discovery of artifacts and files across the workspace.

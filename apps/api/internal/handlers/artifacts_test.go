@@ -42,6 +42,7 @@ func TestArtifactCRUDAndAI_generate(t *testing.T) {
 	router.GET("/api/v1/artifacts/:id/versions", GetArtifactVersions)
 	router.GET("/api/v1/artifacts/:id/versions/:version", GetArtifactVersion)
 	router.GET("/api/v1/artifacts/:id/diff/:from/:to", GetArtifactDiff)
+	router.GET("/api/v1/artifacts/:id/references", GetArtifactReferences)
 	router.PATCH("/api/v1/artifacts/:id", UpdateArtifact)
 	router.POST("/api/v1/artifacts/:id/restore/:version", RestoreArtifactVersion)
 	router.POST("/api/v1/ai/canvas/generate", GenerateCanvasArtifact)
@@ -281,6 +282,53 @@ func TestArtifactCRUDAndAI_generate(t *testing.T) {
 	}
 	if versionsPayload.Versions[0].Version != 3 || versionsPayload.Versions[0].Content != "Initial outline" {
 		t.Fatalf("expected latest artifact version snapshot to reflect restored content, got %#v", versionsPayload.Versions[0])
+	}
+
+	db.DB.Create(&domain.Message{
+		ID:        "msg-ref-1",
+		ChannelID: "ch-5",
+		UserID:    "user-1",
+		Content:   "Sharing the launch notes canvas",
+		CreatedAt: time.Now().UTC(),
+		Metadata:  "{}",
+	})
+	db.DB.Create(&domain.MessageArtifactReference{
+		MessageID:  "msg-ref-1",
+		ArtifactID: createPayload.Artifact.ID,
+		CreatedAt:  time.Now().UTC(),
+	})
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/artifacts/"+createPayload.Artifact.ID+"/references", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on artifact references, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var referencesPayload struct {
+		References []struct {
+			Message struct {
+				ID      string `json:"id"`
+				Content string `json:"content"`
+			} `json:"message"`
+			Channel struct {
+				ID   string `json:"id"`
+				Name string `json:"name"`
+			} `json:"channel"`
+			User struct {
+				ID   string `json:"id"`
+				Name string `json:"name"`
+			} `json:"user"`
+		} `json:"references"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &referencesPayload); err != nil {
+		t.Fatalf("failed to decode artifact references payload: %v", err)
+	}
+	if len(referencesPayload.References) != 1 {
+		t.Fatalf("expected 1 artifact reference, got %d", len(referencesPayload.References))
+	}
+	if referencesPayload.References[0].Message.ID != "msg-ref-1" || referencesPayload.References[0].Channel.ID != "ch-5" || referencesPayload.References[0].User.ID != "user-1" {
+		t.Fatalf("unexpected artifact reference payload: %#v", referencesPayload.References[0])
 	}
 
 	rec = httptest.NewRecorder()

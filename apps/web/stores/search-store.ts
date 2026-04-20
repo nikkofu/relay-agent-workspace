@@ -35,7 +35,7 @@ export const useSearchStore = create<SearchState>((set, get) => ({
 
   search: async (q: string) => {
     if (!q.trim()) {
-      set({ results: { channels: [], users: [], messages: [], dms: [] }, query: q, isSearching: false })
+      set({ results: { channels: [], users: [], messages: [], dms: [], artifacts: [], files: [] }, query: q, isSearching: false })
       return
     }
     set({ isSearching: true, query: q })

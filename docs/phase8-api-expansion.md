@@ -145,6 +145,7 @@ Likely follow-ups:
 
 - command execution and tool orchestration history
 - artifact outputs linked to AI conversations
+- intelligent or semantic retrieval routed through persisted workspace knowledge
 
 ### 4.3 Canvas / Artifact Lifecycle
 
@@ -165,7 +166,7 @@ Likely follow-ups:
 - artifact restore UI integration and restore audit affordances
 - richer structured diff blocks or semantic diff grouping for review UIs
 - canvas collaboration cursors or presence
-- artifact backlinks and reverse lookup from artifact detail to messages
+- deeper artifact backlinks such as thread-level and DM-level references
 - artifact templates and generation presets
 
 ### 4.4 Files
@@ -218,7 +219,7 @@ Recommended additions:
   - likely follow-up:
     - notification preferences
     - mute rules
-    - read-state websocket sync
+    - richer read-state websocket reconciliation and per-surface badges
 - drafts:
   - shipped baseline:
     - `GET /api/v1/drafts`
