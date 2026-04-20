@@ -2,6 +2,18 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.48] - 2026-04-20
+
+This release fixes a technical conflict in the message editor configuration.
+
+### Fixed
+
+- **TipTap Duplicate Extension**: Resolved the "Duplicate extension names found: ['link']" warning by explicitly disabling the default link extension in `StarterKit` in favor of our custom-styled version.
+
+### Verification Used For This Release
+
+- `pnpm lint` (Verified PASS)
+
 ## [0.5.47] - 2026-04-20
 
 This release focuses on stability, engineering standards, and codebase cleanup after the Next.js 16 upgrade.

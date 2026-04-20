@@ -84,7 +84,11 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
   }, [broadcastTyping])
 
   const extensions = useMemo(() => [
-    StarterKit.configure({}),
+    StarterKit.configure({
+      history: true,
+      // Disable the built-in extensions we add separately
+      link: false,
+    }),
     Placeholder.configure({
       placeholder: placeholder || 'Type a message...',
     }),
