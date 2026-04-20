@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.5.43` is the current release line and includes:
+`v0.5.46` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -78,6 +78,11 @@ For product, design, and marketing, the short version is:
 - Artifact backlink discovery APIs
 - Intelligent ranked search for cross-object knowledge retrieval
 - Realtime `notifications.read` sync for multi-client inbox and mentions coordination
+- Home API for a Slack-style landing surface with activity, drafts, DMs, tools, workflows, and starred channels
+- Hydrated user profile detail API for richer personal profile and directory views
+- Persisted status update API for custom status and realtime presence refresh
+- User groups directory and detail APIs for shared people collections
+- Workflow and tool registry APIs for future workflow builder and tool surfaces
 - explicit AI command forwarding and stable new-canvas creation flow
 - File asset upload and retrieval APIs for future attachment flows
 - Presence heartbeat, status text, and last-seen metadata
@@ -94,7 +99,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for shipped API details, and [docs/phase8-api
 
 ## Tech Stack
 
-- Next.js 15
+- Next.js 16
 - React 19
 - TypeScript
 - Tailwind CSS v4

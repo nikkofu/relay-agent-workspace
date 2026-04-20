@@ -63,8 +63,15 @@ Current backend surface already available:
 
 - `GET /ping`
 - `GET /api/v1/me`
+- `GET /api/v1/home`
 - `PATCH /api/v1/me/settings`
 - `GET /api/v1/users`
+- `GET /api/v1/users/:id`
+- `PATCH /api/v1/users/:id/status`
+- `GET /api/v1/user-groups`
+- `GET /api/v1/user-groups/:id`
+- `GET /api/v1/workflows`
+- `GET /api/v1/tools`
 - `GET /api/v1/orgs`
 - `GET /api/v1/orgs/:id/teams`
 - `POST /api/v1/orgs/:id/agents`
@@ -226,6 +233,40 @@ Recommended additions:
     - `PUT /api/v1/drafts/:scope`
   - likely follow-up:
     - `DELETE /api/v1/drafts/:scope`
+
+### 4.6 Home, Directory, And Profile Layer
+
+Baseline support now exists for:
+
+- `GET /api/v1/home`
+- `GET /api/v1/users`
+- `GET /api/v1/users/:id`
+- `PATCH /api/v1/users/:id/status`
+- `GET /api/v1/user-groups`
+- `GET /api/v1/user-groups/:id`
+
+Likely follow-ups:
+
+- full people directory filters by department, status, timezone, and group
+- user profile editing
+- custom status expiration windows
+- user group create/update/delete and mentions
+- dedicated home widgets for onboarding, workflows, and unread work
+
+### 4.7 Workflow And Tool Registry
+
+Baseline support now exists for:
+
+- `GET /api/v1/workflows`
+- `GET /api/v1/tools`
+
+Likely follow-ups:
+
+- workflow run history
+- workflow templates
+- tool execution audit history
+- channel- or DM-scoped tool availability
+- agent/tool routing metadata shared with the AI layer
 
 ## 5. Realtime Target State
 

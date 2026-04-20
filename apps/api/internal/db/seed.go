@@ -23,6 +23,10 @@ func SeedData() {
 			Name:           "Nikko Fu",
 			Email:          "nikko@example.com",
 			Avatar:         "https://github.com/nikkofu.png",
+			Title:          "Founder",
+			Department:     "Product",
+			Timezone:       "Asia/Shanghai",
+			WorkingHours:   "Mon - Fri, 10:00 - 19:00",
 			Status:         "online",
 			AIProvider:     "gemini",
 			AIModel:        "gemini-3-flash-preview",
@@ -34,6 +38,10 @@ func SeedData() {
 			Name:           "AI Assistant",
 			Email:          "ai@acim.ai",
 			Avatar:         "https://api.dicebear.com/7.x/bottts/svg?seed=ai",
+			Title:          "Workspace AI",
+			Department:     "Automation",
+			Timezone:       "UTC",
+			WorkingHours:   "Always on",
 			Status:         "online",
 		},
 		{
@@ -42,6 +50,10 @@ func SeedData() {
 			Name:           "John Doe",
 			Email:          "john@example.com",
 			Avatar:         "https://i.pravatar.cc/150?u=john",
+			Title:          "Engineering Manager",
+			Department:     "Engineering",
+			Timezone:       "America/Los_Angeles",
+			WorkingHours:   "Mon - Fri, 09:00 - 18:00",
 			Status:         "away",
 		},
 		{
@@ -50,6 +62,10 @@ func SeedData() {
 			Name:           "Jane Smith",
 			Email:          "jane@example.com",
 			Avatar:         "https://i.pravatar.cc/150?u=jane",
+			Title:          "Design Lead",
+			Department:     "Design",
+			Timezone:       "Europe/London",
+			WorkingHours:   "Mon - Fri, 09:00 - 17:30",
 			Status:         "offline",
 		},
 	}
@@ -116,6 +132,99 @@ func SeedData() {
 	}
 	for _, invite := range workspaceInvites {
 		DB.FirstOrCreate(&invite, domain.WorkspaceInvite{ID: invite.ID})
+	}
+
+	userGroups := []domain.UserGroup{
+		{
+			ID:          "group-1",
+			WorkspaceID: "ws-1",
+			Name:        "Leadership",
+			Handle:      "leadership",
+			Description: "Cross-functional leadership group for company planning.",
+			CreatedBy:   "user-1",
+			CreatedAt:   time.Date(2026, 4, 18, 7, 0, 0, 0, time.UTC),
+			UpdatedAt:   time.Date(2026, 4, 20, 8, 0, 0, 0, time.UTC),
+		},
+		{
+			ID:          "group-2",
+			WorkspaceID: "ws-1",
+			Name:        "Design Guild",
+			Handle:      "design-guild",
+			Description: "Design systems and UX critique circle.",
+			CreatedBy:   "user-4",
+			CreatedAt:   time.Date(2026, 4, 18, 9, 0, 0, 0, time.UTC),
+			UpdatedAt:   time.Date(2026, 4, 20, 9, 0, 0, 0, time.UTC),
+		},
+	}
+	for _, group := range userGroups {
+		DB.FirstOrCreate(&group, domain.UserGroup{ID: group.ID})
+	}
+
+	groupMembers := []domain.UserGroupMember{
+		{UserGroupID: "group-1", UserID: "user-1", Role: "owner", CreatedAt: time.Date(2026, 4, 18, 7, 0, 0, 0, time.UTC)},
+		{UserGroupID: "group-1", UserID: "user-3", Role: "member", CreatedAt: time.Date(2026, 4, 18, 7, 0, 0, 0, time.UTC)},
+		{UserGroupID: "group-2", UserID: "user-4", Role: "owner", CreatedAt: time.Date(2026, 4, 18, 9, 0, 0, 0, time.UTC)},
+		{UserGroupID: "group-2", UserID: "user-1", Role: "member", CreatedAt: time.Date(2026, 4, 18, 9, 15, 0, 0, time.UTC)},
+	}
+	for _, member := range groupMembers {
+		DB.FirstOrCreate(&member, domain.UserGroupMember{
+			UserGroupID: member.UserGroupID,
+			UserID:      member.UserID,
+		})
+	}
+
+	workflows := []domain.WorkflowDefinition{
+		{
+			ID:          "workflow-1",
+			Name:        "Daily Standup",
+			Category:    "communication",
+			Description: "Collect daily progress updates and blockers from the team.",
+			Trigger:     "manual",
+			IsActive:    true,
+			CreatedAt:   time.Date(2026, 4, 19, 7, 30, 0, 0, time.UTC),
+			UpdatedAt:   time.Date(2026, 4, 20, 7, 30, 0, 0, time.UTC),
+		},
+		{
+			ID:          "workflow-2",
+			Name:        "Launch Review",
+			Category:    "delivery",
+			Description: "Review launch readiness across product, design, and engineering.",
+			Trigger:     "scheduled",
+			IsActive:    true,
+			CreatedAt:   time.Date(2026, 4, 19, 8, 0, 0, 0, time.UTC),
+			UpdatedAt:   time.Date(2026, 4, 20, 8, 30, 0, 0, time.UTC),
+		},
+	}
+	for _, workflow := range workflows {
+		DB.FirstOrCreate(&workflow, domain.WorkflowDefinition{ID: workflow.ID})
+	}
+
+	tools := []domain.ToolDefinition{
+		{
+			ID:          "tool-1",
+			Name:        "Web Search",
+			Key:         "web-search",
+			Category:    "research",
+			Description: "Search the web for current information and citations.",
+			Icon:        "search",
+			IsEnabled:   true,
+			CreatedAt:   time.Date(2026, 4, 19, 10, 0, 0, 0, time.UTC),
+			UpdatedAt:   time.Date(2026, 4, 20, 10, 0, 0, 0, time.UTC),
+		},
+		{
+			ID:          "tool-2",
+			Name:        "Canvas Generator",
+			Key:         "canvas-generate",
+			Category:    "creation",
+			Description: "Turn prompts into artifacts and editable canvas documents.",
+			Icon:        "file-text",
+			IsEnabled:   true,
+			CreatedAt:   time.Date(2026, 4, 19, 10, 15, 0, 0, time.UTC),
+			UpdatedAt:   time.Date(2026, 4, 20, 10, 15, 0, 0, time.UTC),
+		},
+	}
+	for _, tool := range tools {
+		DB.FirstOrCreate(&tool, domain.ToolDefinition{ID: tool.ID})
 	}
 
 	// 5. Messages (from mock-data.ts)

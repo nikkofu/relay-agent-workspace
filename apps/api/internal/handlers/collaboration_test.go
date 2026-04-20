@@ -57,6 +57,273 @@ func TestGetUsersReturnsUsers(t *testing.T) {
 	}
 }
 
+func TestGetUserProfileReturnsHydratedProfile(t *testing.T) {
+	setupTestDB(t)
+
+	lastSeen := time.Now().Add(-30 * time.Minute).UTC()
+	db.DB.Create(&domain.User{
+		ID:             "user-1",
+		OrganizationID: "org-1",
+		Name:           "Nikko Fu",
+		Email:          "nikko@example.com",
+		Avatar:         "https://example.com/avatar.png",
+		Status:         "away",
+		StatusText:     "Reviewing launch plans",
+		LastSeenAt:     &lastSeen,
+		AIProvider:     "gemini",
+		AIModel:        "gemini-3-flash-preview",
+		AIMode:         "planning",
+	})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public", IsStarred: true})
+	db.DB.Create(&domain.ChannelMember{ChannelID: "ch-1", UserID: "user-1", Role: "owner"})
+	db.DB.Create(&domain.Message{ID: "msg-1", ChannelID: "ch-1", UserID: "user-1", Content: "Profile activity", CreatedAt: time.Now().Add(-time.Hour).UTC()})
+	db.DB.Create(&domain.Artifact{ID: "artifact-1", ChannelID: "ch-1", Title: "Launch Brief", Version: 1, Type: "document", Status: "live", Content: "hello", Source: "manual", CreatedBy: "user-1", UpdatedBy: "user-1", CreatedAt: time.Now().Add(-time.Hour).UTC(), UpdatedAt: time.Now().UTC()})
+
+	router := gin.New()
+	router.GET("/api/v1/users/:id", GetUserProfile)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/users/user-1", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	var payload struct {
+		User struct {
+			ID         string `json:"id"`
+			Status     string `json:"status"`
+			StatusText string `json:"status_text"`
+			AIInsight  string `json:"ai_insight"`
+			LastSeenAt string `json:"last_seen_at"`
+			Profile    struct {
+				LocalTime       string   `json:"local_time"`
+				WorkingHours    string   `json:"working_hours"`
+				FocusAreas      []string `json:"focus_areas"`
+				TopChannels     []any    `json:"top_channels"`
+				RecentArtifacts []any    `json:"recent_artifacts"`
+			} `json:"profile"`
+		} `json:"user"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode user profile payload: %v", err)
+	}
+	if payload.User.ID != "user-1" || payload.User.AIInsight == "" {
+		t.Fatalf("unexpected hydrated user payload: %#v", payload.User)
+	}
+	if payload.User.Profile.LocalTime == "" || payload.User.Profile.WorkingHours == "" {
+		t.Fatalf("expected profile metadata, got %#v", payload.User.Profile)
+	}
+	if len(payload.User.Profile.TopChannels) != 1 || len(payload.User.Profile.RecentArtifacts) != 1 {
+		t.Fatalf("expected profile aggregates, got %#v", payload.User.Profile)
+	}
+}
+
+func TestPatchUserStatusUpdatesPresenceFields(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.User{
+		ID:             "user-1",
+		OrganizationID: "org-1",
+		Name:           "Nikko Fu",
+		Email:          "nikko@example.com",
+		Status:         "offline",
+	})
+
+	router := gin.New()
+	router.PATCH("/api/v1/users/:id/status", PatchUserStatus)
+
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/users/user-1/status", bytes.NewBufferString(`{"status":"busy","status_text":"Heads down on API design"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var refreshed domain.User
+	if err := db.DB.First(&refreshed, "id = ?", "user-1").Error; err != nil {
+		t.Fatalf("failed to reload user: %v", err)
+	}
+	if refreshed.Status != "busy" || refreshed.StatusText != "Heads down on API design" {
+		t.Fatalf("expected status update to persist, got %#v", refreshed)
+	}
+	if refreshed.LastSeenAt == nil {
+		t.Fatal("expected last_seen_at to be set")
+	}
+}
+
+func TestGetHomeReturnsWorkspaceSummary(t *testing.T) {
+	setupTestDB(t)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.User{ID: "user-1", OrganizationID: "org-1", Name: "Nikko Fu", Email: "nikko@example.com", Status: "online", AIProvider: "gemini", AIModel: "gemini-3-flash-preview", AIMode: "planning"})
+	db.DB.Create(&domain.User{ID: "user-2", OrganizationID: "org-1", Name: "AI Assistant", Email: "ai@example.com", Status: "online"})
+	db.DB.Create(&domain.Workspace{ID: "ws-1", OrganizationID: "org-1", Name: "Relay"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public", IsStarred: true})
+	db.DB.Create(&domain.Channel{ID: "ch-2", WorkspaceID: "ws-1", Name: "ai-lab", Type: "public"})
+	db.DB.Create(&domain.ChannelMember{ChannelID: "ch-1", UserID: "user-1", Role: "owner"})
+	db.DB.Create(&domain.ChannelMember{ChannelID: "ch-2", UserID: "user-1", Role: "member"})
+	db.DB.Create(&domain.Message{ID: "msg-1", ChannelID: "ch-1", UserID: "user-2", Content: "Hello @Nikko Fu", CreatedAt: now.Add(-2 * time.Hour)})
+	db.DB.Create(&domain.SavedMessage{MessageID: "msg-1", UserID: "user-1"})
+	db.DB.Create(&domain.Draft{UserID: "user-1", Scope: "channel:ch-1", Content: "Need to reply", CreatedAt: now.Add(-30 * time.Minute), UpdatedAt: now.Add(-15 * time.Minute)})
+	db.DB.Create(&domain.DMConversation{ID: "dm-1", CreatedAt: now.Add(-time.Hour)})
+	db.DB.Create(&domain.DMMember{DMConversationID: "dm-1", UserID: "user-1"})
+	db.DB.Create(&domain.DMMember{DMConversationID: "dm-1", UserID: "user-2"})
+	db.DB.Create(&domain.DMMessage{ID: "dm-msg-1", DMConversationID: "dm-1", UserID: "user-2", Content: "Quick sync?", CreatedAt: now.Add(-20 * time.Minute)})
+	db.DB.Create(&domain.WorkflowDefinition{ID: "wf-1", Name: "Daily Standup", Category: "communication", Description: "Collect quick progress updates", Trigger: "manual", IsActive: true, CreatedAt: now.Add(-time.Hour), UpdatedAt: now})
+	db.DB.Create(&domain.ToolDefinition{ID: "tool-1", Name: "Web Search", Key: "web-search", Category: "research", Description: "Search current information", Icon: "search", IsEnabled: true, CreatedAt: now.Add(-time.Hour), UpdatedAt: now})
+
+	router := gin.New()
+	router.GET("/api/v1/home", GetHome)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/home", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Home struct {
+			User struct {
+				ID string `json:"id"`
+			} `json:"user"`
+			Activity struct {
+				UnreadCount int `json:"unread_count"`
+				DraftCount  int `json:"draft_count"`
+				DMCount     int `json:"dm_count"`
+			} `json:"activity"`
+			StarredChannels []any `json:"starred_channels"`
+			RecentDMs       []any `json:"recent_dms"`
+			Drafts          []any `json:"drafts"`
+			Tools           []any `json:"tools"`
+			Workflows       []any `json:"workflows"`
+		} `json:"home"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode home payload: %v", err)
+	}
+	if payload.Home.User.ID != "user-1" {
+		t.Fatalf("expected user-1 in home payload, got %#v", payload.Home.User)
+	}
+	if payload.Home.Activity.DraftCount != 1 || payload.Home.Activity.DMCount != 1 {
+		t.Fatalf("unexpected home activity summary: %#v", payload.Home.Activity)
+	}
+	if len(payload.Home.StarredChannels) != 1 || len(payload.Home.RecentDMs) != 1 || len(payload.Home.Tools) != 1 || len(payload.Home.Workflows) != 1 {
+		t.Fatalf("expected populated home sections, got %#v", payload.Home)
+	}
+}
+
+func TestGetUserGroupsAndDetail(t *testing.T) {
+	setupTestDB(t)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.User{ID: "user-1", OrganizationID: "org-1", Name: "Nikko Fu", Email: "nikko@example.com", Status: "online"})
+	db.DB.Create(&domain.User{ID: "user-2", OrganizationID: "org-1", Name: "Jane Smith", Email: "jane@example.com", Status: "away"})
+	db.DB.Create(&domain.UserGroup{ID: "group-1", WorkspaceID: "ws-1", Name: "Design Leads", Handle: "design-leads", Description: "Cross-functional design leadership", CreatedBy: "user-1", CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.UserGroupMember{UserGroupID: "group-1", UserID: "user-1", Role: "owner", CreatedAt: now})
+	db.DB.Create(&domain.UserGroupMember{UserGroupID: "group-1", UserID: "user-2", Role: "member", CreatedAt: now})
+
+	router := gin.New()
+	router.GET("/api/v1/user-groups", GetUserGroups)
+	router.GET("/api/v1/user-groups/:id", GetUserGroup)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/user-groups", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on list, got %d", rec.Code)
+	}
+
+	var listPayload struct {
+		Groups []struct {
+			ID          string `json:"id"`
+			MemberCount int    `json:"member_count"`
+		} `json:"groups"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &listPayload); err != nil {
+		t.Fatalf("failed to decode groups list: %v", err)
+	}
+	if len(listPayload.Groups) != 1 || listPayload.Groups[0].MemberCount != 2 {
+		t.Fatalf("unexpected groups list payload: %#v", listPayload.Groups)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/user-groups/group-1", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on detail, got %d", rec.Code)
+	}
+
+	var detailPayload struct {
+		Group struct {
+			ID      string `json:"id"`
+			Members []struct {
+				Role string `json:"role"`
+				User struct {
+					ID string `json:"id"`
+				} `json:"user"`
+			} `json:"members"`
+		} `json:"group"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &detailPayload); err != nil {
+		t.Fatalf("failed to decode group detail payload: %v", err)
+	}
+	if detailPayload.Group.ID != "group-1" || len(detailPayload.Group.Members) != 2 {
+		t.Fatalf("unexpected group detail payload: %#v", detailPayload.Group)
+	}
+}
+
+func TestGetWorkflowsAndTools(t *testing.T) {
+	setupTestDB(t)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.WorkflowDefinition{ID: "wf-1", Name: "Incident Review", Category: "operations", Description: "Run post-incident review", Trigger: "manual", IsActive: true, CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.ToolDefinition{ID: "tool-1", Name: "Knowledge Search", Key: "knowledge-search", Category: "search", Description: "Search workspace knowledge", Icon: "search", IsEnabled: true, CreatedAt: now, UpdatedAt: now})
+
+	router := gin.New()
+	router.GET("/api/v1/workflows", GetWorkflows)
+	router.GET("/api/v1/tools", GetTools)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/workflows", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on workflows, got %d", rec.Code)
+	}
+
+	var workflowsPayload struct {
+		Workflows []domain.WorkflowDefinition `json:"workflows"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &workflowsPayload); err != nil {
+		t.Fatalf("failed to decode workflows: %v", err)
+	}
+	if len(workflowsPayload.Workflows) != 1 || workflowsPayload.Workflows[0].ID != "wf-1" {
+		t.Fatalf("unexpected workflows payload: %#v", workflowsPayload.Workflows)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/tools", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on tools, got %d", rec.Code)
+	}
+
+	var toolsPayload struct {
+		Tools []domain.ToolDefinition `json:"tools"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &toolsPayload); err != nil {
+		t.Fatalf("failed to decode tools: %v", err)
+	}
+	if len(toolsPayload.Tools) != 1 || toolsPayload.Tools[0].ID != "tool-1" {
+		t.Fatalf("unexpected tools payload: %#v", toolsPayload.Tools)
+	}
+}
+
 func TestGetMessageThreadReturnsParentAndReplies(t *testing.T) {
 	setupTestDB(t)
 
@@ -1722,7 +1989,7 @@ func setupTestDB(t *testing.T) {
 		t.Fatalf("failed to open sqlite test db: %v", err)
 	}
 	db.DB = testDB
-	if err := db.DB.AutoMigrate(&domain.Organization{}, &domain.Team{}, &domain.User{}, &domain.Agent{}, &domain.Workspace{}, &domain.WorkspaceInvite{}, &domain.Channel{}, &domain.ChannelMember{}, &domain.Message{}); err != nil {
+	if err := db.DB.AutoMigrate(&domain.Organization{}, &domain.Team{}, &domain.User{}, &domain.Agent{}, &domain.Workspace{}, &domain.WorkspaceInvite{}, &domain.UserGroup{}, &domain.UserGroupMember{}, &domain.WorkflowDefinition{}, &domain.ToolDefinition{}, &domain.Channel{}, &domain.ChannelMember{}, &domain.Message{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.AIFeedback{}, &domain.AIConversation{}, &domain.AIConversationMessage{}, &domain.AISummary{}, &domain.Artifact{}, &domain.ArtifactVersion{}, &domain.FileAsset{}, &domain.MessageArtifactReference{}, &domain.MessageFileAttachment{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}); err != nil {

@@ -20,6 +20,10 @@ type User struct {
 	Name              string     `json:"name"`
 	Email             string     `gorm:"unique" json:"email"`
 	Avatar            string     `json:"avatar"`
+	Title             string     `json:"title"`
+	Department        string     `json:"department"`
+	Timezone          string     `json:"timezone"`
+	WorkingHours      string     `json:"working_hours"`
 	Status            string     `json:"status"`
 	StatusText        string     `json:"status_text"`
 	LastSeenAt        *time.Time `json:"last_seen_at,omitempty"`
@@ -51,6 +55,48 @@ type WorkspaceInvite struct {
 	Role        string    `json:"role"`
 	Status      string    `json:"status"`
 	CreatedAt   time.Time `json:"created_at"`
+}
+
+type UserGroup struct {
+	ID          string    `gorm:"primaryKey" json:"id"`
+	WorkspaceID string    `gorm:"index" json:"workspace_id"`
+	Name        string    `json:"name"`
+	Handle      string    `gorm:"index" json:"handle"`
+	Description string    `json:"description"`
+	CreatedBy   string    `json:"created_by"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type UserGroupMember struct {
+	ID          uint      `gorm:"primaryKey" json:"id"`
+	UserGroupID string    `gorm:"index;uniqueIndex:idx_user_group_member" json:"user_group_id"`
+	UserID      string    `gorm:"uniqueIndex:idx_user_group_member;index" json:"user_id"`
+	Role        string    `json:"role"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+type WorkflowDefinition struct {
+	ID          string    `gorm:"primaryKey" json:"id"`
+	Name        string    `json:"name"`
+	Category    string    `json:"category"`
+	Description string    `json:"description"`
+	Trigger     string    `json:"trigger"`
+	IsActive    bool      `json:"is_active"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type ToolDefinition struct {
+	ID          string    `gorm:"primaryKey" json:"id"`
+	Name        string    `json:"name"`
+	Key         string    `gorm:"uniqueIndex" json:"key"`
+	Category    string    `json:"category"`
+	Description string    `json:"description"`
+	Icon        string    `json:"icon"`
+	IsEnabled   bool      `json:"is_enabled"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 type DMConversation struct {

@@ -2,6 +2,60 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.46] - 2026-04-20
+
+This release expands the Slack-parity foundation beyond channels and messages into home, people, groups, status, tools, and workflow surfaces.
+
+### Added
+
+- `GET /api/v1/home`
+- `GET /api/v1/users/:id`
+- `PATCH /api/v1/users/:id/status`
+- `GET /api/v1/user-groups`
+- `GET /api/v1/user-groups/:id`
+- `GET /api/v1/workflows`
+- `GET /api/v1/tools`
+
+### Data Model
+
+- `user_groups`
+- `user_group_members`
+- `workflow_definitions`
+- `tool_definitions`
+- richer `users` fields for:
+  - `title`
+  - `department`
+  - `timezone`
+  - `working_hours`
+
+### Behavior Notes
+
+- `GET /api/v1/home` returns a Slack-style landing payload with:
+  - `user`
+  - `profile`
+  - `activity`
+  - `starred_channels`
+  - `recent_dms`
+  - `drafts`
+  - `tools`
+  - `workflows`
+- `GET /api/v1/users/:id` now returns a hydrated personal profile with local time, working hours, focus areas, top channels, and recent artifacts
+- `PATCH /api/v1/users/:id/status` persists `status` and `status_text`, refreshes presence expiry, and emits websocket `presence.updated`
+- user groups now expose both list and detail contracts, including hydrated member users
+- workflows and tools are now explicit backend registries instead of UI-only assumptions
+
+### Documentation
+
+- added [docs/phases/phase-10-home-profiles-groups-workflows.md](./docs/phases/phase-10-home-profiles-groups-workflows.md)
+- added [docs/releases/v0.5.46.md](./docs/releases/v0.5.46.md)
+- updated `docs/AGENT-COLLAB.md` with the next Gemini handoff for home, people, user groups, and workflow surfaces
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./...`
+- `cd apps/api && go build ./...`
+- `pnpm build`
+
 ## [0.5.44] - 2026-04-20
 
 This release implements Phase 26: Intelligent Search and Artifact Backlinks, deepening the connectivity and discoverability of knowledge within the workspace.

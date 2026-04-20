@@ -78,6 +78,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 26 Intelligent Search And Backlinks APIs | Codex | 2026-04-20 | Added artifact backlink lookup, ranked intelligent search, and realtime notification read sync. |
 | 🟢 Done | Phase 26 Intelligent Search And Backlinks Integration | Gemini | 2026-04-20 | Built artifact backlinks sidebar, integrated AI-ranked intelligent search, and wired realtime notification read sync. |
 | 🟢 Done | Infrastructure Upgrade (Next.js 16) | Gemini | 2026-04-20 | Upgraded workspace to Next.js 16 and React 19.2. Migrated to ESLint 9 Flat Config. |
+| 🟢 Done | Phase 27 Home And Directory APIs | Codex | 2026-04-20 | Added workspace home, user profile detail, status update, user groups, workflows, and tools APIs. |
+| 🟡 Pending | Phase 27 Home And Directory Integration | Gemini | 2026-04-20 | Wire home dashboard, richer profile surfaces, user group panels, and workflow/tool entry points to the new backend contracts. |
 
 ---
 
@@ -85,13 +87,22 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Infrastructure stabilized on Next.js 16 | 100% |
-| **Codex** | `idle` | Infrastructure stabilized | 100% |
+| **Gemini** | `frontend-integration` | Phase 27 home, profile, groups, workflow, and tool surfaces | 0% |
+| **Codex** | `backend-release` | Phase 27 APIs delivered and awaiting frontend integration feedback | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-20 - Phase 27 Home And Directory API Completion
+- **Codex**: "Published `v0.5.46` with the next Slack-parity backend wave: `GET /api/v1/home`, `GET /api/v1/users/:id`, `PATCH /api/v1/users/:id/status`, `GET /api/v1/user-groups`, `GET /api/v1/user-groups/:id`, `GET /api/v1/workflows`, and `GET /api/v1/tools`."
+- **Codex → Gemini**: "You can now replace placeholder home/profile/group/tool data with real backend contracts. Start with `GET /api/v1/home` for the workspace landing view."
+- **Codex → Gemini**: "Profile surfaces should switch to `GET /api/v1/users/:id`; the payload now includes `title`, `department`, `timezone`, `working_hours`, `status_text`, `ai_insight`, and a `profile` object with `local_time`, `working_hours`, `focus_areas`, `top_channels`, and `recent_artifacts`."
+- **Codex → Gemini**: "Status editing should use `PATCH /api/v1/users/:id/status` with `{ status, status_text }`. The backend persists both fields and emits realtime `presence.updated`."
+- **Codex → Gemini**: "User group UI can start with `GET /api/v1/user-groups` and `GET /api/v1/user-groups/:id`. Group detail responses include hydrated `members[].user` objects, so you do not need extra user fetches for member cards."
+- **Codex → Gemini**: "Workflow and tool discovery should use `GET /api/v1/workflows` and `GET /api/v1/tools`. Treat them as registries for the upcoming workflow builder and tool launcher surfaces."
+- **Codex → Gemini**: "If you hit any payload mismatch on home cards, profile panels, or user-group views, send the concrete JSON delta back and I will tighten the API quickly."
 
 ### 2026-04-20 - Next.js 16 Infrastructure Upgrade Completion
 - **Gemini**: "Relay environment has been upgraded to Next.js 16.2.4 and React 19.2.0."

@@ -1,0 +1,457 @@
+package handlers
+
+import (
+	"net/http"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/gin-gonic/gin"
+
+	"github.com/nikkofu/relay-agent-workspace/api/internal/db"
+	"github.com/nikkofu/relay-agent-workspace/api/internal/domain"
+	"github.com/nikkofu/relay-agent-workspace/api/internal/realtime"
+)
+
+type channelSummaryResponse struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Type        string `json:"type"`
+	MemberCount int    `json:"member_count"`
+	IsStarred   bool   `json:"is_starred"`
+}
+
+type artifactSummaryResponse struct {
+	ID        string    `json:"id"`
+	Title     string    `json:"title"`
+	Type      string    `json:"type"`
+	Status    string    `json:"status"`
+	Version   int       `json:"version"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type userProfileSummary struct {
+	LocalTime       string                    `json:"local_time"`
+	WorkingHours    string                    `json:"working_hours"`
+	FocusAreas      []string                  `json:"focus_areas"`
+	TopChannels     []channelSummaryResponse  `json:"top_channels"`
+	RecentArtifacts []artifactSummaryResponse `json:"recent_artifacts"`
+}
+
+type homeActivitySummary struct {
+	UnreadCount   int `json:"unread_count"`
+	DraftCount    int `json:"draft_count"`
+	DMCount       int `json:"dm_count"`
+	StarredCount  int `json:"starred_count"`
+	GroupCount    int `json:"group_count"`
+	WorkflowCount int `json:"workflow_count"`
+}
+
+type homeDraftResponse struct {
+	Scope     string    `json:"scope"`
+	Content   string    `json:"content"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type homeDMResponse struct {
+	ID            string      `json:"id"`
+	User          domain.User `json:"user"`
+	UserIDs       []string    `json:"user_ids"`
+	LastMessage   string      `json:"last_message"`
+	LastMessageAt time.Time   `json:"last_message_at"`
+}
+
+type userGroupListResponse struct {
+	ID          string    `json:"id"`
+	WorkspaceID string    `json:"workspace_id"`
+	Name        string    `json:"name"`
+	Handle      string    `json:"handle"`
+	Description string    `json:"description"`
+	MemberCount int       `json:"member_count"`
+	CreatedBy   string    `json:"created_by"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type userGroupMemberResponse struct {
+	Role      string      `json:"role"`
+	CreatedAt time.Time   `json:"created_at"`
+	User      domain.User `json:"user"`
+}
+
+type userGroupDetailResponse struct {
+	ID          string                    `json:"id"`
+	WorkspaceID string                    `json:"workspace_id"`
+	Name        string                    `json:"name"`
+	Handle      string                    `json:"handle"`
+	Description string                    `json:"description"`
+	MemberCount int                       `json:"member_count"`
+	CreatedBy   string                    `json:"created_by"`
+	UpdatedAt   time.Time                 `json:"updated_at"`
+	Members     []userGroupMemberResponse `json:"members"`
+}
+
+func GetUserProfile(c *gin.Context) {
+	var user domain.User
+	if err := db.DB.First(&user, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	enriched := enrichUser(user)
+	c.JSON(http.StatusOK, gin.H{
+		"user": gin.H{
+			"id":            enriched.ID,
+			"org_id":        enriched.OrganizationID,
+			"name":          enriched.Name,
+			"email":         enriched.Email,
+			"avatar":        enriched.Avatar,
+			"title":         enriched.Title,
+			"department":    enriched.Department,
+			"timezone":      defaultString(enriched.Timezone, "UTC"),
+			"working_hours": defaultString(enriched.WorkingHours, "Mon - Fri"),
+			"status":        enriched.Status,
+			"status_text":   enriched.StatusText,
+			"last_seen_at":  enriched.LastSeenAt,
+			"ai_provider":   enriched.AIProvider,
+			"ai_model":      enriched.AIModel,
+			"ai_mode":       enriched.AIMode,
+			"ai_insight":    enriched.AIInsight,
+			"profile":       buildUserProfileSummary(enriched),
+		},
+	})
+}
+
+func PatchUserStatus(c *gin.Context) {
+	var user domain.User
+	if err := db.DB.First(&user, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var input struct {
+		Status     string `json:"status"`
+		StatusText string `json:"status_text"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if input.Status == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "status is required"})
+		return
+	}
+
+	now := time.Now().UTC()
+	expiresAt := now.Add(5 * time.Minute)
+	user.Status = input.Status
+	user.StatusText = input.StatusText
+	user.LastSeenAt = &now
+	user.PresenceExpiresAt = &expiresAt
+	if err := db.DB.Save(&user).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update user status"})
+		return
+	}
+
+	enriched := enrichUser(user)
+	if RealtimeHub != nil {
+		_ = RealtimeHub.Broadcast(realtime.Event{
+			ID:          "evt_" + time.Now().Format("20060102150405.000000"),
+			Type:        "presence.updated",
+			WorkspaceID: primaryWorkspaceID(),
+			EntityID:    enriched.ID,
+			TS:          time.Now().UTC().Format(time.RFC3339Nano),
+			Payload: gin.H{
+				"user_id":      enriched.ID,
+				"status":       enriched.Status,
+				"status_text":  enriched.StatusText,
+				"last_seen_at": enriched.LastSeenAt,
+			},
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"user": enriched})
+}
+
+func GetHome(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+	currentUser = enrichUser(currentUser)
+
+	starredChannels := listStarredChannels()
+	recentDMs := listRecentDMs(currentUser.ID, 5)
+	drafts := listRecentDrafts(currentUser.ID, 5)
+	tools := listEnabledTools()
+	workflows := listActiveWorkflows()
+
+	var groupCount int64
+	db.DB.Model(&domain.UserGroupMember{}).Where("user_id = ?", currentUser.ID).Count(&groupCount)
+
+	activity := homeActivitySummary{
+		UnreadCount:   sumUnreadChannels(),
+		DraftCount:    len(drafts),
+		DMCount:       len(recentDMs),
+		StarredCount:  len(starredChannels),
+		GroupCount:    int(groupCount),
+		WorkflowCount: len(workflows),
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"home": gin.H{
+			"user":             currentUser,
+			"profile":          buildUserProfileSummary(currentUser),
+			"activity":         activity,
+			"starred_channels": starredChannels,
+			"recent_dms":       recentDMs,
+			"drafts":           drafts,
+			"tools":            tools,
+			"workflows":        workflows,
+		},
+	})
+}
+
+func GetUserGroups(c *gin.Context) {
+	query := db.DB.Model(&domain.UserGroup{})
+	if workspaceID := c.Query("workspace_id"); workspaceID != "" {
+		query = query.Where("workspace_id = ?", workspaceID)
+	}
+
+	var groups []domain.UserGroup
+	if err := query.Order("updated_at desc, name asc").Find(&groups).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load user groups"})
+		return
+	}
+
+	items := make([]userGroupListResponse, 0, len(groups))
+	for _, group := range groups {
+		var memberCount int64
+		db.DB.Model(&domain.UserGroupMember{}).Where("user_group_id = ?", group.ID).Count(&memberCount)
+		items = append(items, userGroupListResponse{
+			ID:          group.ID,
+			WorkspaceID: group.WorkspaceID,
+			Name:        group.Name,
+			Handle:      group.Handle,
+			Description: group.Description,
+			MemberCount: int(memberCount),
+			CreatedBy:   group.CreatedBy,
+			UpdatedAt:   group.UpdatedAt,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"groups": items})
+}
+
+func GetUserGroup(c *gin.Context) {
+	var group domain.UserGroup
+	if err := db.DB.First(&group, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user group not found"})
+		return
+	}
+
+	var memberships []domain.UserGroupMember
+	if err := db.DB.Where("user_group_id = ?", group.ID).Order("role asc, created_at asc").Find(&memberships).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load user group members"})
+		return
+	}
+
+	members := make([]userGroupMemberResponse, 0, len(memberships))
+	for _, membership := range memberships {
+		var user domain.User
+		if err := db.DB.First(&user, "id = ?", membership.UserID).Error; err != nil {
+			continue
+		}
+		members = append(members, userGroupMemberResponse{
+			Role:      membership.Role,
+			CreatedAt: membership.CreatedAt,
+			User:      enrichUser(user),
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"group": userGroupDetailResponse{
+			ID:          group.ID,
+			WorkspaceID: group.WorkspaceID,
+			Name:        group.Name,
+			Handle:      group.Handle,
+			Description: group.Description,
+			MemberCount: len(members),
+			CreatedBy:   group.CreatedBy,
+			UpdatedAt:   group.UpdatedAt,
+			Members:     members,
+		},
+	})
+}
+
+func GetWorkflows(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"workflows": listActiveWorkflows()})
+}
+
+func GetTools(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"tools": listEnabledTools()})
+}
+
+func buildUserProfileSummary(user domain.User) userProfileSummary {
+	location := time.Now().UTC()
+	if strings.TrimSpace(user.Timezone) != "" {
+		if loc, err := time.LoadLocation(user.Timezone); err == nil {
+			location = time.Now().In(loc)
+		}
+	}
+
+	var memberships []domain.ChannelMember
+	_ = db.DB.Where("user_id = ?", user.ID).Find(&memberships).Error
+	channelIDs := make([]string, 0, len(memberships))
+	for _, membership := range memberships {
+		channelIDs = append(channelIDs, membership.ChannelID)
+	}
+
+	channels := make([]channelSummaryResponse, 0, len(channelIDs))
+	if len(channelIDs) > 0 {
+		var rows []domain.Channel
+		_ = db.DB.Where("id IN ?", channelIDs).Order("is_starred desc, member_count desc, name asc").Limit(3).Find(&rows).Error
+		for _, channel := range rows {
+			channels = append(channels, channelSummaryResponse{
+				ID:          channel.ID,
+				Name:        channel.Name,
+				Type:        channel.Type,
+				MemberCount: channel.MemberCount,
+				IsStarred:   channel.IsStarred,
+			})
+		}
+	}
+
+	var artifacts []domain.Artifact
+	_ = db.DB.Where("created_by = ? OR updated_by = ?", user.ID, user.ID).Order("updated_at desc").Limit(3).Find(&artifacts).Error
+	recentArtifacts := make([]artifactSummaryResponse, 0, len(artifacts))
+	for _, artifact := range artifacts {
+		recentArtifacts = append(recentArtifacts, artifactSummaryResponse{
+			ID:        artifact.ID,
+			Title:     artifact.Title,
+			Type:      artifact.Type,
+			Status:    artifact.Status,
+			Version:   artifact.Version,
+			UpdatedAt: artifact.UpdatedAt,
+		})
+	}
+
+	focusAreas := make([]string, 0, 4)
+	if user.Department != "" {
+		focusAreas = append(focusAreas, user.Department)
+	}
+	if user.Title != "" {
+		focusAreas = append(focusAreas, user.Title)
+	}
+	for _, channel := range channels {
+		focusAreas = append(focusAreas, "#"+channel.Name)
+		if len(focusAreas) >= 4 {
+			break
+		}
+	}
+	if len(focusAreas) == 0 {
+		focusAreas = append(focusAreas, "Collaboration")
+	}
+
+	return userProfileSummary{
+		LocalTime:       location.Format("3:04 PM"),
+		WorkingHours:    defaultString(user.WorkingHours, "Mon - Fri"),
+		FocusAreas:      focusAreas,
+		TopChannels:     channels,
+		RecentArtifacts: recentArtifacts,
+	}
+}
+
+func listStarredChannels() []channelSummaryResponse {
+	var channels []domain.Channel
+	_ = db.DB.Where("is_starred = ?", true).Order("name asc").Find(&channels).Error
+	items := make([]channelSummaryResponse, 0, len(channels))
+	for _, channel := range channels {
+		items = append(items, channelSummaryResponse{
+			ID:          channel.ID,
+			Name:        channel.Name,
+			Type:        channel.Type,
+			MemberCount: channel.MemberCount,
+			IsStarred:   channel.IsStarred,
+		})
+	}
+	return items
+}
+
+func listRecentDMs(userID string, limit int) []homeDMResponse {
+	var memberships []domain.DMMember
+	_ = db.DB.Where("user_id = ?", userID).Find(&memberships).Error
+	items := make([]homeDMResponse, 0, len(memberships))
+	for _, membership := range memberships {
+		var otherMember domain.DMMember
+		if err := db.DB.Where("dm_conversation_id = ? AND user_id <> ?", membership.DMConversationID, userID).First(&otherMember).Error; err != nil {
+			continue
+		}
+		var otherUser domain.User
+		if err := db.DB.First(&otherUser, "id = ?", otherMember.UserID).Error; err != nil {
+			continue
+		}
+		var lastMessage domain.DMMessage
+		_ = db.DB.Where("dm_conversation_id = ?", membership.DMConversationID).Order("created_at desc").First(&lastMessage).Error
+
+		items = append(items, homeDMResponse{
+			ID:            membership.DMConversationID,
+			User:          enrichUser(otherUser),
+			UserIDs:       []string{userID, otherUser.ID},
+			LastMessage:   lastMessage.Content,
+			LastMessageAt: lastMessage.CreatedAt,
+		})
+	}
+
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].LastMessageAt.After(items[j].LastMessageAt)
+	})
+	if len(items) > limit {
+		items = items[:limit]
+	}
+	return items
+}
+
+func listRecentDrafts(userID string, limit int) []homeDraftResponse {
+	var drafts []domain.Draft
+	_ = db.DB.Where("user_id = ?", userID).Order("updated_at desc").Limit(limit).Find(&drafts).Error
+	items := make([]homeDraftResponse, 0, len(drafts))
+	for _, draft := range drafts {
+		items = append(items, homeDraftResponse{
+			Scope:     draft.Scope,
+			Content:   draft.Content,
+			UpdatedAt: draft.UpdatedAt,
+		})
+	}
+	return items
+}
+
+func listActiveWorkflows() []domain.WorkflowDefinition {
+	var workflows []domain.WorkflowDefinition
+	_ = db.DB.Where("is_active = ?", true).Order("category asc, name asc").Find(&workflows).Error
+	return workflows
+}
+
+func listEnabledTools() []domain.ToolDefinition {
+	var tools []domain.ToolDefinition
+	_ = db.DB.Where("is_enabled = ?", true).Order("category asc, name asc").Find(&tools).Error
+	return tools
+}
+
+func sumUnreadChannels() int {
+	var channels []domain.Channel
+	_ = db.DB.Where("unread_count > 0").Find(&channels).Error
+	total := 0
+	for _, channel := range channels {
+		total += channel.UnreadCount
+	}
+	return total
+}
+
+func primaryWorkspaceID() string {
+	var workspace domain.Workspace
+	if err := db.DB.Order("id asc").First(&workspace).Error; err != nil {
+		return ""
+	}
+	return workspace.ID
+}

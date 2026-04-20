@@ -70,9 +70,16 @@ func main() {
 
 	v1 := r.Group("/api/v1")
 	{
+		v1.GET("/home", handlers.GetHome)
 		v1.GET("/me", handlers.GetMe)
 		v1.PATCH("/me/settings", handlers.PatchMeSettings)
 		v1.GET("/users", handlers.GetUsers)
+		v1.GET("/users/:id", handlers.GetUserProfile)
+		v1.PATCH("/users/:id/status", handlers.PatchUserStatus)
+		v1.GET("/user-groups", handlers.GetUserGroups)
+		v1.GET("/user-groups/:id", handlers.GetUserGroup)
+		v1.GET("/workflows", handlers.GetWorkflows)
+		v1.GET("/tools", handlers.GetTools)
 		v1.GET("/agent-collab/snapshot", handlers.GetAgentCollabSnapshot)
 		v1.GET("/orgs", handlers.GetOrganizations)
 		v1.GET("/orgs/:id/teams", handlers.GetTeams)
