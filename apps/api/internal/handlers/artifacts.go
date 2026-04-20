@@ -21,6 +21,11 @@ type artifactResponse struct {
 	UpdatedByUser *domain.User `json:"updated_by_user,omitempty"`
 }
 
+type artifactVersionResponse struct {
+	domain.ArtifactVersion
+	UpdatedByUser *domain.User `json:"updated_by_user,omitempty"`
+}
+
 func GetArtifacts(c *gin.Context) {
 	var artifacts []domain.Artifact
 
@@ -51,6 +56,37 @@ func GetArtifact(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"artifact": hydrateArtifactResponse(artifact)})
 }
 
+func GetArtifactVersions(c *gin.Context) {
+	var artifact domain.Artifact
+	if err := db.DB.First(&artifact, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "artifact not found"})
+		return
+	}
+
+	var versions []domain.ArtifactVersion
+	if err := db.DB.Where("artifact_id = ?", artifact.ID).Order("version desc").Find(&versions).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load artifact versions"})
+		return
+	}
+
+	items := make([]artifactVersionResponse, 0, len(versions))
+	for _, version := range versions {
+		items = append(items, hydrateArtifactVersionResponse(version))
+	}
+
+	c.JSON(http.StatusOK, gin.H{"versions": items})
+}
+
+func GetArtifactVersion(c *gin.Context) {
+	var version domain.ArtifactVersion
+	if err := db.DB.Where("artifact_id = ? AND version = ?", c.Param("id"), c.Param("version")).First(&version).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "artifact version not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"version": hydrateArtifactVersionResponse(version)})
+}
+
 func CreateArtifact(c *gin.Context) {
 	currentUser, err := getCurrentUser()
 	if err != nil {
@@ -74,6 +110,7 @@ func CreateArtifact(c *gin.Context) {
 		ID:        "artifact-" + time.Now().UTC().Format("20060102150405.000000"),
 		ChannelID: input.ChannelID,
 		Title:     input.Title,
+		Version:   1,
 		Type:      defaultString(input.Type, "document"),
 		Status:    defaultString(input.Status, "draft"),
 		Content:   input.Content,
@@ -85,6 +122,10 @@ func CreateArtifact(c *gin.Context) {
 	}
 	if err := db.DB.Create(&artifact).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create artifact"})
+		return
+	}
+	if err := createArtifactVersionSnapshot(artifact); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to snapshot artifact version"})
 		return
 	}
 
@@ -129,11 +170,16 @@ func UpdateArtifact(c *gin.Context) {
 	if input.Content != nil {
 		artifact.Content = *input.Content
 	}
+	artifact.Version++
 	artifact.UpdatedBy = currentUser.ID
 	artifact.UpdatedAt = time.Now().UTC()
 
 	if err := db.DB.Save(&artifact).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update artifact"})
+		return
+	}
+	if err := createArtifactVersionSnapshot(artifact); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to snapshot artifact version"})
 		return
 	}
 
@@ -190,6 +236,7 @@ func GenerateCanvasArtifact(c *gin.Context) {
 		ID:        "artifact-" + now.Format("20060102150405.000000"),
 		ChannelID: input.ChannelID,
 		Title:     defaultString(strings.TrimSpace(input.Title), "AI Canvas"),
+		Version:   1,
 		Type:      defaultString(input.Type, "document"),
 		Status:    "live",
 		Content:   strings.TrimSpace(content),
@@ -203,6 +250,10 @@ func GenerateCanvasArtifact(c *gin.Context) {
 	}
 	if err := db.DB.Create(&artifact).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save artifact"})
+		return
+	}
+	if err := createArtifactVersionSnapshot(artifact); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to snapshot artifact version"})
 		return
 	}
 
@@ -251,6 +302,38 @@ func hydrateArtifactResponse(artifact domain.Artifact) artifactResponse {
 	}
 
 	return response
+}
+
+func hydrateArtifactVersionResponse(version domain.ArtifactVersion) artifactVersionResponse {
+	response := artifactVersionResponse{ArtifactVersion: version}
+
+	if version.UpdatedBy != "" {
+		var updatedBy domain.User
+		if err := db.DB.First(&updatedBy, "id = ?", version.UpdatedBy).Error; err == nil {
+			enriched := enrichUser(updatedBy)
+			response.UpdatedByUser = &enriched
+		}
+	}
+
+	return response
+}
+
+func createArtifactVersionSnapshot(artifact domain.Artifact) error {
+	version := domain.ArtifactVersion{
+		ArtifactID: artifact.ID,
+		Version:    artifact.Version,
+		Title:      artifact.Title,
+		Type:       artifact.Type,
+		Status:     artifact.Status,
+		Content:    artifact.Content,
+		Source:     artifact.Source,
+		Provider:   artifact.Provider,
+		Model:      artifact.Model,
+		UpdatedBy:  artifact.UpdatedBy,
+		CreatedAt:  artifact.UpdatedAt,
+	}
+
+	return db.DB.Create(&version).Error
 }
 
 func handleArtifactGenerationError(c *gin.Context, err error) {

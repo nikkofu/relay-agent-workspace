@@ -39,6 +39,8 @@ func TestArtifactCRUDAndAI_generate(t *testing.T) {
 	router.GET("/api/v1/artifacts", GetArtifacts)
 	router.POST("/api/v1/artifacts", CreateArtifact)
 	router.GET("/api/v1/artifacts/:id", GetArtifact)
+	router.GET("/api/v1/artifacts/:id/versions", GetArtifactVersions)
+	router.GET("/api/v1/artifacts/:id/versions/:version", GetArtifactVersion)
 	router.PATCH("/api/v1/artifacts/:id", UpdateArtifact)
 	router.POST("/api/v1/ai/canvas/generate", GenerateCanvasArtifact)
 
@@ -62,6 +64,9 @@ func TestArtifactCRUDAndAI_generate(t *testing.T) {
 	}
 	if createPayload.Artifact.Source != "manual" || createPayload.Artifact.Type != "document" {
 		t.Fatalf("unexpected manual artifact payload: %#v", createPayload.Artifact)
+	}
+	if createPayload.Artifact.Version != 1 {
+		t.Fatalf("expected created artifact version 1, got %d", createPayload.Artifact.Version)
 	}
 	if createPayload.Artifact.CreatedByUser == nil || createPayload.Artifact.CreatedByUser.ID != "user-1" {
 		t.Fatalf("expected created_by_user hydration, got %#v", createPayload.Artifact.CreatedByUser)
@@ -95,6 +100,9 @@ func TestArtifactCRUDAndAI_generate(t *testing.T) {
 	if detailPayload.Artifact.Status != "live" || detailPayload.Artifact.Content != "Revised outline" {
 		t.Fatalf("unexpected artifact detail payload: %#v", detailPayload.Artifact)
 	}
+	if detailPayload.Artifact.Version != 2 {
+		t.Fatalf("expected updated artifact version 2, got %d", detailPayload.Artifact.Version)
+	}
 	if detailPayload.Artifact.UpdatedByUser == nil || detailPayload.Artifact.UpdatedByUser.ID != "user-1" {
 		t.Fatalf("expected updated_by_user hydration, got %#v", detailPayload.Artifact.UpdatedByUser)
 	}
@@ -120,6 +128,58 @@ func TestArtifactCRUDAndAI_generate(t *testing.T) {
 	}
 	if listPayload.Artifacts[0].UpdatedByUser == nil {
 		t.Fatalf("expected list artifact to include updated_by_user")
+	}
+	if listPayload.Artifacts[0].Version != 2 {
+		t.Fatalf("expected list artifact to include latest version 2, got %d", listPayload.Artifacts[0].Version)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/artifacts/"+createPayload.Artifact.ID+"/versions", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on artifact versions list, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var versionsPayload struct {
+		Versions []struct {
+			domain.ArtifactVersion
+			UpdatedByUser *domain.User `json:"updated_by_user"`
+		} `json:"versions"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &versionsPayload); err != nil {
+		t.Fatalf("failed to decode artifact versions payload: %v", err)
+	}
+	if len(versionsPayload.Versions) != 2 {
+		t.Fatalf("expected 2 artifact versions, got %d", len(versionsPayload.Versions))
+	}
+	if versionsPayload.Versions[0].Version != 2 || versionsPayload.Versions[1].Version != 1 {
+		t.Fatalf("expected descending versions [2,1], got %#v", versionsPayload.Versions)
+	}
+	if versionsPayload.Versions[0].UpdatedByUser == nil || versionsPayload.Versions[0].UpdatedByUser.ID != "user-1" {
+		t.Fatalf("expected version payload to hydrate updated_by_user")
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/artifacts/"+createPayload.Artifact.ID+"/versions/1", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on artifact version detail, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var versionDetailPayload struct {
+		Version struct {
+			domain.ArtifactVersion
+			UpdatedByUser *domain.User `json:"updated_by_user"`
+		} `json:"version"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &versionDetailPayload); err != nil {
+		t.Fatalf("failed to decode artifact version detail payload: %v", err)
+	}
+	if versionDetailPayload.Version.Version != 1 || versionDetailPayload.Version.Content != "Initial outline" {
+		t.Fatalf("unexpected artifact version detail payload: %#v", versionDetailPayload.Version)
+	}
+	if versionDetailPayload.Version.UpdatedByUser == nil || versionDetailPayload.Version.UpdatedByUser.ID != "user-1" {
+		t.Fatalf("expected version detail payload to include updated_by_user")
 	}
 
 	rec = httptest.NewRecorder()

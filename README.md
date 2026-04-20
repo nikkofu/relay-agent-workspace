@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.5.25` is the current release line and includes:
+`v0.5.27` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -70,6 +70,7 @@ For product, design, and marketing, the short version is:
 - Persistent AI conversation history for assistant chat
 - Persistent AI thread and channel summaries
 - Persistent artifact and AI canvas lifecycle APIs
+- Persistent artifact version history APIs
 - File asset upload and retrieval APIs for future attachment flows
 - Presence heartbeat, status text, and last-seen metadata
 - Workspace search API across channels, users, messages, and DM conversations

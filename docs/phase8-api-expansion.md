@@ -153,11 +153,14 @@ Baseline support now exists for:
 - `POST /api/v1/artifacts`
 - `GET /api/v1/artifacts/:id`
 - `PATCH /api/v1/artifacts/:id`
+- `GET /api/v1/artifacts/:id/versions`
+- `GET /api/v1/artifacts/:id/versions/:version`
 - `POST /api/v1/ai/canvas/generate`
 
 Likely follow-ups:
 
-- artifact version history
+- artifact restore / rollback
+- artifact diff views
 - canvas collaboration cursors or presence
 - artifact-to-message references
 - artifact templates and generation presets

@@ -46,6 +46,7 @@ func InitDB() error {
 		&domain.AIConversationMessage{},
 		&domain.AISummary{},
 		&domain.Artifact{},
+		&domain.ArtifactVersion{},
 		&domain.FileAsset{},
 		&domain.DMMessage{},
 	); err != nil {
@@ -55,6 +56,33 @@ func InitDB() error {
 	// Fixup: Rename Acme Corp to Relay
 	DB.Model(&domain.Organization{}).Where("name = ?", "Acme Corp").Update("name", "Relay")
 	DB.Model(&domain.Workspace{}).Where("name = ?", "Acme Corp").Update("name", "Relay")
+	DB.Model(&domain.Artifact{}).Where("version = 0").Update("version", 1)
+
+	var artifacts []domain.Artifact
+	if err := DB.Find(&artifacts).Error; err == nil {
+		for _, artifact := range artifacts {
+			var count int64
+			DB.Model(&domain.ArtifactVersion{}).
+				Where("artifact_id = ? AND version = ?", artifact.ID, artifact.Version).
+				Count(&count)
+			if count > 0 {
+				continue
+			}
+			DB.Create(&domain.ArtifactVersion{
+				ArtifactID: artifact.ID,
+				Version:    artifact.Version,
+				Title:      artifact.Title,
+				Type:       artifact.Type,
+				Status:     artifact.Status,
+				Content:    artifact.Content,
+				Source:     artifact.Source,
+				Provider:   artifact.Provider,
+				Model:      artifact.Model,
+				UpdatedBy:  artifact.UpdatedBy,
+				CreatedAt:  artifact.UpdatedAt,
+			})
+		}
+	}
 
 	return nil
 }

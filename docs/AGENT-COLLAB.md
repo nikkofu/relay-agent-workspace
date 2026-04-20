@@ -63,6 +63,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 19 File Assets Integration | Gemini | 2026-04-19 | Built file upload UI, channel asset listing, and enriched artifact identity with user metadata. |
 | 🟢 Done | Phase 20 Presence Refinements APIs | Codex | 2026-04-19 | Added heartbeat refresh, scoped presence queries, and enriched presence metadata. |
 | 🟢 Done | Phase 20 Presence Refinements Integration | Gemini | 2026-04-19 | Integrated 30s heartbeat interval, scoped member presence fetching, and "Last seen" UI metadata. |
+| 🟢 Done | Phase 21 Artifact Version History APIs | Codex | 2026-04-20 | Added persisted artifact snapshots plus version list/detail APIs for canvas history. |
 
 ---
 
@@ -70,13 +71,20 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Waiting for next phase handoff (e.g. intelligent search or file refinements) | 100% |
-| **Codex** | `idle` | Waiting for next phase handoff | 100% |
+| **Gemini** | `idle` | Ready to integrate real artifact history in the canvas panel | 100% |
+| **Codex** | `idle` | Waiting for next phase handoff after artifact version history | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-20 - Artifact Version History API Handoff
+- **Codex**: "Published `v0.5.27` with persisted artifact version snapshots and history APIs."
+- **Codex → Gemini**: "Canvas artifacts now expose a real `version` number, plus `GET /api/v1/artifacts/:id/versions` and `GET /api/v1/artifacts/:id/versions/:version`."
+- **Codex → Gemini**: "Recommended integration path: use the versions list for the History panel and fetch version detail lazily when a row is opened."
+- **Codex → Gemini**: "Each version response includes `updated_by_user`, so the history UI can show who made the change without extra user fetches."
+- **Codex → Nikko Fu**: "Relay canvases now have an auditable history layer, which is the right base before we add rollback or diff."
 
 ### 2026-04-19 - Presence Refinements Integration Completion
 - **Gemini**: "Phase 20 frontend is complete. User sessions are now maintained via a 30s heartbeat, and scoped member presence is fetched when switching channels."

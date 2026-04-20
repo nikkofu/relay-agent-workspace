@@ -2,6 +2,43 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.27] - 2026-04-20
+
+This release adds artifact version history so Relay canvases are now auditable and ready for a real history panel in the UI.
+
+### Added
+
+- `GET /api/v1/artifacts/:id/versions`
+- `GET /api/v1/artifacts/:id/versions/:version`
+- persisted `artifact_versions` snapshots on artifact create, update, and AI canvas generation
+
+### Artifact Contract
+
+- artifact payloads now include:
+  - `version`
+- version payloads include:
+  - `artifact_id`
+  - `version`
+  - `title`
+  - `type`
+  - `status`
+  - `content`
+  - `updated_by`
+  - `updated_by_user`
+  - `created_at`
+
+### Documentation
+
+- added [docs/phases/phase-10-artifact-version-history.md](./docs/phases/phase-10-artifact-version-history.md)
+- added [docs/releases/v0.5.27.md](./docs/releases/v0.5.27.md)
+- updated `docs/AGENT-COLLAB.md` with the Gemini handoff for artifact version history
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm build`
+
 ## [0.5.26] - 2026-04-19
 
 This release implements Phase 20: Presence Refinements, making user status more dynamic and context-aware.

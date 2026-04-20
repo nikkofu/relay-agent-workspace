@@ -15,19 +15,19 @@ type Team struct {
 }
 
 type User struct {
-	ID             string `gorm:"primaryKey" json:"id"`
-	OrganizationID string `json:"org_id"`
-	Name           string `json:"name"`
-	Email          string `gorm:"unique" json:"email"`
-	Avatar         string `json:"avatar"`
-	Status         string `json:"status"`
-	StatusText     string `json:"status_text"`
-	LastSeenAt     *time.Time `json:"last_seen_at,omitempty"`
+	ID                string     `gorm:"primaryKey" json:"id"`
+	OrganizationID    string     `json:"org_id"`
+	Name              string     `json:"name"`
+	Email             string     `gorm:"unique" json:"email"`
+	Avatar            string     `json:"avatar"`
+	Status            string     `json:"status"`
+	StatusText        string     `json:"status_text"`
+	LastSeenAt        *time.Time `json:"last_seen_at,omitempty"`
 	PresenceExpiresAt *time.Time `json:"-"`
-	AIProvider     string `json:"ai_provider"`
-	AIModel        string `json:"ai_model"`
-	AIMode         string `json:"ai_mode"`
-	AIInsight      string `gorm:"-" json:"ai_insight,omitempty"`
+	AIProvider        string     `json:"ai_provider"`
+	AIModel           string     `json:"ai_model"`
+	AIMode            string     `json:"ai_mode"`
+	AIInsight         string     `gorm:"-" json:"ai_insight,omitempty"`
 }
 
 type Agent struct {
@@ -193,6 +193,7 @@ type Artifact struct {
 	ID        string    `gorm:"primaryKey" json:"id"`
 	ChannelID string    `gorm:"index" json:"channel_id"`
 	Title     string    `json:"title"`
+	Version   int       `json:"version"`
 	Type      string    `json:"type"`
 	Status    string    `json:"status"`
 	Content   string    `json:"content"`
@@ -203,6 +204,21 @@ type Artifact struct {
 	UpdatedBy string    `json:"updated_by"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type ArtifactVersion struct {
+	ID         uint      `gorm:"primaryKey" json:"id"`
+	ArtifactID string    `gorm:"index;uniqueIndex:idx_artifact_version" json:"artifact_id"`
+	Version    int       `gorm:"uniqueIndex:idx_artifact_version" json:"version"`
+	Title      string    `json:"title"`
+	Type       string    `json:"type"`
+	Status     string    `json:"status"`
+	Content    string    `json:"content"`
+	Source     string    `json:"source"`
+	Provider   string    `json:"provider,omitempty"`
+	Model      string    `json:"model,omitempty"`
+	UpdatedBy  string    `json:"updated_by"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
 type FileAsset struct {

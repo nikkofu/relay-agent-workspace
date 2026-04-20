@@ -232,6 +232,7 @@ func SeedData() {
 			ID:        "artifact-1",
 			ChannelID: "ch-5",
 			Title:     "Relay Launch Roadmap",
+			Version:   1,
 			Type:      "document",
 			Status:    "live",
 			Content:   "This draft captures the launch sequencing for Relay Agent Workspace, including API validation, UI integration, and release readiness.",
@@ -246,6 +247,22 @@ func SeedData() {
 	}
 	for _, artifact := range artifacts {
 		DB.FirstOrCreate(&artifact, domain.Artifact{ID: artifact.ID})
+		DB.Model(&domain.Artifact{}).Where("id = ? AND version = 0", artifact.ID).Update("version", 1)
+		DB.FirstOrCreate(&domain.ArtifactVersion{}, domain.ArtifactVersion{
+			ArtifactID: artifact.ID,
+			Version:    1,
+		})
+		DB.Model(&domain.ArtifactVersion{}).Where("artifact_id = ? AND version = 1", artifact.ID).Updates(map[string]any{
+			"title":      artifact.Title,
+			"type":       artifact.Type,
+			"status":     artifact.Status,
+			"content":    artifact.Content,
+			"source":     artifact.Source,
+			"provider":   artifact.Provider,
+			"model":      artifact.Model,
+			"updated_by": artifact.UpdatedBy,
+			"created_at": artifact.UpdatedAt,
+		})
 	}
 
 	threadReply := domain.Message{
