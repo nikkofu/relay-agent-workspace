@@ -2,6 +2,38 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.37] - 2026-04-20
+
+This release upgrades the canvas history backend from view-only history into a real rollback-ready workflow with restore support and structured diff spans.
+
+### Added
+
+- `POST /api/v1/artifacts/:id/restore/:version`
+- structured `diff.spans` in `GET /api/v1/artifacts/:id/diff/:from/:to`
+
+### Artifact Contract
+
+- restore responses include:
+  - `artifact`
+  - `restored_from_version`
+- diff responses now include:
+  - `spans[].kind`
+  - `spans[].content`
+  - optional `spans[].from_line`
+  - optional `spans[].to_line`
+
+### Documentation
+
+- added [docs/phases/phase-10-artifact-restore-and-structured-diff.md](./docs/phases/phase-10-artifact-restore-and-structured-diff.md)
+- added [docs/releases/v0.5.37.md](./docs/releases/v0.5.37.md)
+- updated `docs/AGENT-COLLAB.md` with the Gemini handoff for canvas restore and richer compare rendering
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm build`
+
 ## [0.5.36] - 2026-04-20
 
 This release implements Phase 23: Search Suggestions and Rich Results, significantly improving the search experience with real-time typeahead and enhanced result metadata.

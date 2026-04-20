@@ -156,12 +156,13 @@ Baseline support now exists for:
 - `GET /api/v1/artifacts/:id/versions`
 - `GET /api/v1/artifacts/:id/versions/:version`
 - `GET /api/v1/artifacts/:id/diff/:from/:to`
+- `POST /api/v1/artifacts/:id/restore/:version`
 - `POST /api/v1/ai/canvas/generate`
 
 Likely follow-ups:
 
-- artifact restore / rollback
-- structured diff spans for richer review UIs
+- artifact restore UI integration and restore audit affordances
+- richer structured diff blocks or semantic diff grouping for review UIs
 - canvas collaboration cursors or presence
 - artifact-to-message references
 - artifact templates and generation presets

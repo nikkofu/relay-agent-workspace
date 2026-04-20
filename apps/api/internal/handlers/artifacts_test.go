@@ -43,6 +43,7 @@ func TestArtifactCRUDAndAI_generate(t *testing.T) {
 	router.GET("/api/v1/artifacts/:id/versions/:version", GetArtifactVersion)
 	router.GET("/api/v1/artifacts/:id/diff/:from/:to", GetArtifactDiff)
 	router.PATCH("/api/v1/artifacts/:id", UpdateArtifact)
+	router.POST("/api/v1/artifacts/:id/restore/:version", RestoreArtifactVersion)
 	router.POST("/api/v1/ai/canvas/generate", GenerateCanvasArtifact)
 
 	rec := httptest.NewRecorder()
@@ -202,6 +203,12 @@ func TestArtifactCRUDAndAI_generate(t *testing.T) {
 				AddedLines   int `json:"added_lines"`
 				RemovedLines int `json:"removed_lines"`
 			} `json:"summary"`
+			Spans []struct {
+				Kind     string `json:"kind"`
+				Content  string `json:"content"`
+				FromLine *int   `json:"from_line"`
+				ToLine   *int   `json:"to_line"`
+			} `json:"spans"`
 		} `json:"diff"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &diffPayload); err != nil {
@@ -221,6 +228,59 @@ func TestArtifactCRUDAndAI_generate(t *testing.T) {
 	}
 	if diffPayload.Diff.Summary.AddedLines != 1 || diffPayload.Diff.Summary.RemovedLines != 1 {
 		t.Fatalf("unexpected diff summary: %#v", diffPayload.Diff.Summary)
+	}
+	if len(diffPayload.Diff.Spans) < 2 {
+		t.Fatalf("expected structured diff spans, got %#v", diffPayload.Diff.Spans)
+	}
+	if diffPayload.Diff.Spans[0].Kind == "" || diffPayload.Diff.Spans[0].Content == "" {
+		t.Fatalf("expected diff spans to include kind and content, got %#v", diffPayload.Diff.Spans[0])
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/artifacts/"+createPayload.Artifact.ID+"/restore/1", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on artifact restore, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var restorePayload struct {
+		Artifact struct {
+			domain.Artifact
+			UpdatedByUser *domain.User `json:"updated_by_user"`
+		} `json:"artifact"`
+		RestoredFromVersion int `json:"restored_from_version"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &restorePayload); err != nil {
+		t.Fatalf("failed to decode restore payload: %v", err)
+	}
+	if restorePayload.RestoredFromVersion != 1 {
+		t.Fatalf("expected restored_from_version=1, got %d", restorePayload.RestoredFromVersion)
+	}
+	if restorePayload.Artifact.Version != 3 {
+		t.Fatalf("expected restored artifact version 3, got %d", restorePayload.Artifact.Version)
+	}
+	if restorePayload.Artifact.Content != "Initial outline" || restorePayload.Artifact.Status != "draft" {
+		t.Fatalf("expected restore to reset content and status, got %#v", restorePayload.Artifact)
+	}
+	if restorePayload.Artifact.UpdatedByUser == nil || restorePayload.Artifact.UpdatedByUser.ID != "user-1" {
+		t.Fatalf("expected restored artifact updated_by_user hydration, got %#v", restorePayload.Artifact.UpdatedByUser)
+	}
+	assertRealtimeEventType(t, client, "artifact.updated")
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/artifacts/"+createPayload.Artifact.ID+"/versions", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on artifact versions list after restore, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &versionsPayload); err != nil {
+		t.Fatalf("failed to decode artifact versions payload after restore: %v", err)
+	}
+	if len(versionsPayload.Versions) != 3 {
+		t.Fatalf("expected 3 artifact versions after restore, got %d", len(versionsPayload.Versions))
+	}
+	if versionsPayload.Versions[0].Version != 3 || versionsPayload.Versions[0].Content != "Initial outline" {
+		t.Fatalf("expected latest artifact version snapshot to reflect restored content, got %#v", versionsPayload.Versions[0])
 	}
 
 	rec = httptest.NewRecorder()
