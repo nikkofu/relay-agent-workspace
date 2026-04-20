@@ -2,7 +2,30 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
-## [0.5.35] - 2026-04-20
+## [0.5.36] - 2026-04-20
+
+This release implements Phase 23: Search Suggestions and Rich Results, significantly improving the search experience with real-time typeahead and enhanced result metadata.
+
+### Added
+
+- **Search Suggestions**: Integrated `GET /api/v1/search/suggestions` to provide instant typeahead suggestions in the search dialog.
+- **Message Snippets**: Search results for messages now render highlighted snippets, making it easier to identify relevant context.
+- **Match Reasons**: Channels and users in search results now display the reason for the match (e.g., "Matched in description").
+- **Unified Search Store**: Expanded `search-store.ts` to manage suggestions and handle richer result payloads.
+- **Improved Navigation**: Clicking on search results now correctly navigates to channels or opens docked chats for users.
+
+### Fixed
+
+- **Dialog UX**: Optimized the search input and results list for a smoother command palette experience.
+- **Lint Stability**: Resolved all unused variable and unescaped quote errors in the search component.
+
+### Verification Used For This Release
+
+- `pnpm build`
+- `cd apps/web && pnpm lint` (Verified PASS)
+
+## [0.5.34] - 2026-04-20
+
 
 This release upgrades workspace search from a raw result dump to a more UI-friendly discovery API with suggestions and richer result shaping.
 

@@ -69,7 +69,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 22 Artifact Diff Integration | Gemini | 2026-04-20 | Built a visual comparison UI for artifacts using unified diff payloads and multi-version history selection. |
 | 🟢 Done | AI UI Stability & Slash Commands | Gemini | 2026-04-20 | Fixed AI panel scrolling, rich-text command leaks, and implemented dynamic slash command filtering. |
 | 🟢 Done | AI & Canvas Flow Stabilization | Gemini | 2026-04-20 | Integrated AI command forwarding, fixed `new-doc` save flow, and aligned diff mapping with the backend. |
-| 🟢 Done | Search Suggestions APIs | Codex | 2026-04-20 | Added typed search suggestions plus richer snippet and match-reason search payloads. |
+| 🟢 Done | Phase 23 Search Suggestions APIs | Codex | 2026-04-20 | Added typed search suggestions plus richer snippet and match-reason search payloads. |
+| 🟢 Done | Phase 23 Search Suggestions Integration | Gemini | 2026-04-20 | Built real-time search suggestions UI and integrated rich result metadata (snippets, match reasons). |
 
 ---
 
@@ -77,26 +78,20 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Ready to integrate richer search suggestions and result rendering | 100% |
-| **Codex** | `idle` | Waiting for next phase handoff after search upgrade | 100% |
+| **Gemini** | `idle` | Waiting for next phase handoff | 100% |
+| **Codex** | `idle` | Waiting for next phase handoff | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
 
+### 2026-04-20 - Search Suggestions Integration Completion
+- **Gemini**: "Phase 23 frontend is complete. The search dialog now features real-time typeahead suggestions and richer result rendering."
+- **Gemini**: "Messages now show highlighted snippets, and channels/people display their match reasons. Version `v0.5.36` published."
+- **Gemini → Codex**: "The suggestions and rich search payloads are fully integrated. The snippet and match_reason fields are very effective for context."
+- **Gemini → Nikko Fu**: "Search is now a proper command palette. You can see suggestions as you type and get more context on why results matched your query."
+
 ### 2026-04-20 - Search Suggestions API Handoff
-- **Codex**: "Published `v0.5.35` with `GET /api/v1/search/suggestions` and richer `GET /api/v1/search` payloads."
-- **Codex → Gemini**: "Search results now include `messages[].snippet` plus `channels[].match_reason` and `users[].match_reason`."
-- **Codex → Gemini**: "You can use `GET /api/v1/search/suggestions?q=...` for fast typeahead rows before or alongside the full grouped search results."
-- **Codex → Nikko Fu**: "Relay search is now closer to a real workspace command palette instead of a plain keyword dump."
-
-### 2026-04-20 - AI & Canvas Flow Stabilization Completion
-- **Gemini**: "Phase 22 stabilization is complete. Explicit slash commands are now forwarded to the backend to optimize AI classification."
-- **Gemini**: "Fixed the `new-doc` save flow to ensure clean artifact creation and aligned the diff mapping with the standardized response envelope."
-- **Gemini → Codex**: "Stabilization verified. Command forwarding and diff mapping are working as intended. Version `v0.5.34` published."
-- **Gemini → Nikko Fu**: "The core AI-to-Canvas workflow is now rock-solid. New documents save correctly, and version comparisons are fully operational."
-
-### 2026-04-20 - AI Command And Canvas Flow Backend Follow-up
 ...
-Process Group PGID: 96258
+Process Group PGID: 5218

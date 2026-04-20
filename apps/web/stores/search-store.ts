@@ -1,6 +1,13 @@
 import { create } from "zustand"
 import { API_BASE_URL } from "@/lib/constants"
 
+export interface SearchSuggestion {
+  id: string
+  type: 'channel' | 'user' | 'message'
+  label: string
+  sublabel?: string
+}
+
 interface SearchState {
   results: {
     channels: any[]
@@ -8,16 +15,22 @@ interface SearchState {
     messages: any[]
     dms: any[]
   }
+  suggestions: SearchSuggestion[]
   isSearching: boolean
+  isLoadingSuggestions: boolean
   query: string
   search: (q: string) => Promise<void>
+  fetchSuggestions: (q: string) => Promise<void>
   clearResults: () => void
 }
 
-export const useSearchStore = create<SearchState>((set) => ({
+export const useSearchStore = create<SearchState>((set, get) => ({
   results: { channels: [], users: [], messages: [], dms: [] },
+  suggestions: [],
   isSearching: false,
+  isLoadingSuggestions: false,
   query: "",
+
   search: async (q: string) => {
     if (!q.trim()) {
       set({ results: { channels: [], users: [], messages: [], dms: [] }, query: q, isSearching: false })
@@ -33,5 +46,26 @@ export const useSearchStore = create<SearchState>((set) => ({
       set({ isSearching: false })
     }
   },
-  clearResults: () => set({ results: { channels: [], users: [], messages: [], dms: [] }, query: "" })
+
+  fetchSuggestions: async (q: string) => {
+    if (!q.trim() || q.length < 2) {
+      set({ suggestions: [] })
+      return
+    }
+    set({ isLoadingSuggestions: true })
+    try {
+      const response = await fetch(`${API_BASE_URL}/search/suggestions?q=${encodeURIComponent(q)}`)
+      const data = await response.json()
+      set({ suggestions: data.suggestions || [], isLoadingSuggestions: false })
+    } catch (error) {
+      console.error("Failed to fetch suggestions:", error)
+      set({ isLoadingSuggestions: false })
+    }
+  },
+
+  clearResults: () => set({ 
+    results: { channels: [], users: [], messages: [], dms: [] }, 
+    suggestions: [],
+    query: "" 
+  })
 }))
