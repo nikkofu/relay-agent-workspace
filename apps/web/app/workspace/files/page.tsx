@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react"
 import { useFileStore } from "@/stores/file-store"
-import { Search, Folder, FileIcon, Archive, Trash2, Download, Filter, MoreVertical, RefreshCcw, History, ShieldCheck } from "lucide-react"
+import { Search, Folder, FileIcon, Archive, Trash2, Download, Filter, MoreVertical, RefreshCcw, History, ShieldCheck, Loader2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Badge } from "@/components/ui/badge"
+import Image from "next/image"
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -36,7 +38,7 @@ export default function FilesPage() {
   const { 
     files, archivedFiles, 
     fetchFiles, fetchArchivedFiles, archiveFile, deleteFile,
-    fetchFileAuditHistory, updateFileRetention
+    fetchFileAuditHistory, updateFileRetention, fetchFilePreview
   } = useFileStore()
   const { currentChannel } = useChannelStore()
   const { users, fetchUsers } = useUserStore()
@@ -46,12 +48,15 @@ export default function FilesPage() {
   const [contentType, setContentType] = useState("all")
   const [showArchived, setShowArchived] = useState(false)
 
-  // Governance State
+  // Governance & Preview State
   const [isViewingAudit, setIsViewingAudit] = useState(false)
   const [auditLogs, setAuditLogs] = useState<any[]>([])
   const [selectedFile, setSelectedFile] = useState<any>(null)
   const [isUpdatingRetention, setIsUpdatingRetention] = useState(false)
   const [retentionDays, setRetentionDays] = useState("0")
+  const [isViewingPreview, setIsViewingPreview] = useState(false)
+  const [filePreview, setFilePreview] = useState<any>(null)
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false)
 
   useEffect(() => {
     fetchUsers()
@@ -78,6 +83,15 @@ export default function FilesPage() {
     const logs = await fetchFileAuditHistory(file.id)
     setAuditLogs(logs)
     setIsViewingAudit(true)
+  }
+
+  const handleViewPreview = async (file: any) => {
+    setSelectedFile(file)
+    setIsPreviewLoading(true)
+    setIsViewingPreview(true)
+    const preview = await fetchFilePreview(file.id)
+    setFilePreview(preview)
+    setIsPreviewLoading(false)
   }
 
   const handleUpdateRetention = async () => {
@@ -158,7 +172,8 @@ export default function FilesPage() {
             {activeFiles.map(file => (
               <div 
                 key={file.id}
-                className="group flex items-center justify-between p-4 hover:bg-muted/30 transition-colors"
+                className="group flex items-center justify-between p-4 hover:bg-muted/30 transition-colors cursor-pointer"
+                onClick={() => handleViewPreview(file)}
               >
                 <div className="flex items-center gap-4 min-w-0">
                   <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-600 shrink-0">
@@ -173,30 +188,35 @@ export default function FilesPage() {
                 </div>
 
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" asChild onClick={(e) => e.stopPropagation()}>
                     <a href={file.url} target="_blank" rel="noopener noreferrer">
                       <Download className="w-4 h-4" />
                     </a>
                   </Button>
                   <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
+                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                       <Button variant="ghost" size="icon" className="h-8 w-8">
                         <MoreVertical className="w-4 h-4" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => handleViewAudit(file)}>
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleViewPreview(file); }}>
+                        <FileIcon className="w-3.5 h-3.5 mr-2" />
+                        <span>Preview File</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleViewAudit(file); }}>
                         <History className="w-3.5 h-3.5 mr-2" />
                         <span>Audit History</span>
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => {
-                        setSelectedFile(file)
-                        setIsUpdatingRetention(true)
+                      <DropdownMenuItem onClick={(e) => { 
+                        e.stopPropagation();
+                        setSelectedFile(file);
+                        setIsUpdatingRetention(true);
                       }}>
                         <ShieldCheck className="w-3.5 h-3.5 mr-2" />
                         <span>Retention Policy</span>
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => archiveFile(file.id, !showArchived)}>
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); archiveFile(file.id, !showArchived); }}>
                         {showArchived ? (
                           <div className="flex items-center gap-2">
                             <RefreshCcw className="w-3.5 h-3.5" />
@@ -209,7 +229,7 @@ export default function FilesPage() {
                           </div>
                         )}
                       </DropdownMenuItem>
-                      <DropdownMenuItem className="text-red-600" onClick={() => deleteFile(file.id)}>
+                      <DropdownMenuItem className="text-red-600" onClick={(e) => { e.stopPropagation(); deleteFile(file.id); }}>
                         <Trash2 className="w-3.5 h-3.5 mr-2" />
                         <span>Delete Permanently</span>
                       </DropdownMenuItem>
@@ -297,6 +317,74 @@ export default function FilesPage() {
           <DialogFooter>
             <Button variant="ghost" onClick={() => setIsUpdatingRetention(false)}>Cancel</Button>
             <Button className="bg-[#3f0e40] text-white" onClick={handleUpdateRetention}>Update Policy</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* File Preview Dialog */}
+      <Dialog open={isViewingPreview} onOpenChange={setIsViewingPreview}>
+        <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden bg-white dark:bg-[#1a1d21]">
+          <div className="aspect-video bg-muted flex items-center justify-center relative group">
+            {isPreviewLoading ? (
+              <div className="flex flex-col items-center gap-2">
+                <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Generating Preview...</p>
+              </div>
+            ) : filePreview?.preview_url ? (
+              <Image src={filePreview.preview_url} alt={selectedFile?.name || 'File Preview'} fill className="object-contain" />
+            ) : (
+              <div className="flex flex-col items-center gap-4">
+                <div className="w-20 h-20 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-600">
+                  <FileIcon className="w-10 h-10" />
+                </div>
+                <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">No visual preview available</p>
+              </div>
+            )}
+          </div>
+          
+          <div className="p-6 space-y-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="text-xl font-black tracking-tight">{selectedFile?.name}</h2>
+                <div className="flex items-center gap-2 mt-1">
+                  <Badge variant="secondary" className="text-[9px] uppercase font-black px-1.5 h-4 tracking-tighter">
+                    {filePreview?.content_type || selectedFile?.type}
+                  </Badge>
+                  <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">
+                    {selectedFile && (selectedFile.size / 1024).toFixed(1)} KB
+                  </span>
+                </div>
+              </div>
+              <Button asChild size="sm" className="bg-[#3f0e40] text-white hover:bg-[#3f0e40]/90">
+                <a href={selectedFile?.url} target="_blank" rel="noopener noreferrer">
+                  <Download className="w-4 h-4 mr-2" /> Download
+                </a>
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-6 pt-6 border-t border-dashed">
+              <div className="space-y-1">
+                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Uploaded By</p>
+                <p className="text-sm font-bold truncate">{filePreview?.uploader?.name || "Unknown User"}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Uploaded On</p>
+                <p className="text-sm font-bold truncate">{selectedFile && format(new Date(selectedFile.createdAt), 'PPp')}</p>
+              </div>
+              {filePreview?.expires_at && (
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-red-600">Retention Expiry</p>
+                  <p className="text-sm font-bold truncate">{format(new Date(filePreview.expires_at), 'PPp')}</p>
+                </div>
+              )}
+              <div className="space-y-1">
+                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Preview Kind</p>
+                <p className="text-sm font-bold uppercase tracking-tighter">{filePreview?.preview_kind || "Standard"}</p>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="p-4 bg-muted/20 border-t">
+            <Button variant="ghost" size="sm" onClick={() => setIsViewingPreview(false)}>Close Preview</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

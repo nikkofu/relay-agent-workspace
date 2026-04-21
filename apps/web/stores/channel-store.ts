@@ -22,6 +22,9 @@ interface ChannelState {
   removeMember: (channelId: string, userId: string) => Promise<void>
   fetchChannelSummary: (id: string) => Promise<void>
   generateChannelSummary: (id: string) => Promise<void>
+  fetchChannelPreferences: (id: string) => Promise<any>
+  updateChannelPreferences: (id: string, updates: any) => Promise<void>
+  leaveChannel: (id: string) => Promise<void>
 }
 
 export const useChannelStore = create<ChannelState>((set, get) => ({
@@ -205,6 +208,49 @@ export const useChannelStore = create<ChannelState>((set, get) => ({
       console.error("Failed to generate channel summary:", error)
       set({ isSummaryLoading: false })
       toast.error("Failed to generate summary")
+    }
+  },
+
+  fetchChannelPreferences: async (id) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/channels/${id}/preferences`)
+      const data = await response.json()
+      return data.preferences
+    } catch (error) {
+      console.error("Failed to fetch channel preferences:", error)
+      return null
+    }
+  },
+
+  updateChannelPreferences: async (id, updates) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/channels/${id}/preferences`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates)
+      })
+      if (!response.ok) throw new Error("Update failed")
+      toast.success("Channel preferences updated")
+    } catch (error) {
+      console.error("Failed to update channel preferences:", error)
+      toast.error("Failed to update preferences")
+    }
+  },
+
+  leaveChannel: async (id) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/channels/${id}/leave`, {
+        method: "POST"
+      })
+      if (!response.ok) throw new Error("Leave failed")
+      set((state) => ({
+        channels: state.channels.filter(c => c.id !== id),
+        currentChannel: state.currentChannel?.id === id ? null : state.currentChannel
+      }))
+      toast.success("You have left the channel")
+    } catch (error) {
+      console.error("Failed to leave channel:", error)
+      toast.error("Failed to leave channel")
     }
   }
 }))

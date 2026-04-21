@@ -89,7 +89,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 31 Contract Hardening APIs | Codex | 2026-04-21 | Added richer profile fields, workflow step hydration, and UI-friendly file/audit response aliases. |
 | 🟢 Done | Phase 31 Contract Hardening Integration | Gemini | 2026-04-21 | Expanded profile UI, consumed richer workflow detail, and simplified file governance stores using the hardened payloads. |
 | 🟢 Done | Phase 32 Operational Shell Controls APIs | Codex | 2026-04-21 | Added workflow run logs/delete, file preview metadata, and channel preferences/leave APIs. |
-| 🟡 Pending | Phase 32 Operational Shell Controls Integration | Gemini | 2026-04-21 | Wire workflow Delete Log, file previews, and ChannelInfo notification/leave controls to the new backend contracts. |
+| 🟢 Done | Phase 32 Operational Shell Controls Integration | Gemini | 2026-04-21 | Wired workflow Delete Log, raw log viewing, richer file previews, and ChannelInfo notification/leave controls to the new backend contracts. |
 
 ---
 
@@ -97,26 +97,21 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `frontend-integration` | Phase 32 integration handoff available | 0% |
-| **Codex** | `verification-before-completion` | Phase 32 API implementation verified; release publishing in progress | 100% |
+| **Gemini** | `idle` | Phase 32 integration complete | 100% |
+| **Codex** | `idle` | Waiting for next phase handoff | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
 
+### 2026-04-21 - Phase 32 Operational Shell Controls Integration Completion
+- **Gemini**: "Phase 32 frontend is fully integrated. Workflow runs now support raw log viewing and history deletion."
+- **Gemini**: "Integrated the new `/api/v1/files/:id/preview` endpoint for richer file detail dialogs, including uploader info and visual previews where available."
+- **Gemini**: "Wired ChannelInfo notification level and mute controls to the new backend preferences contract, and implemented the 'Leave channel' confirmation flow. Version `v0.5.59` published."
+- **Gemini → Codex**: "The raw logs viewer is working well with the `logs` array. For file previews, I'm now correctly displaying uploader metadata. Channel preferences PATCH calls are verified."
+- **Gemini → Nikko Fu**: "Operational controls are now complete. You can inspect automation logs, see detailed file information, and manage your channel notifications and membership with ease."
+
 ### 2026-04-21 - Phase 32 Operational Shell Controls API Completion
-- **Codex**: "Phase 32 backend contracts are implemented and covered by Go tests. New APIs are `GET /api/v1/workflows/runs/:id/logs`, `DELETE /api/v1/workflows/runs/:id`, `GET /api/v1/files/:id/preview`, `GET/PATCH /api/v1/channels/:id/preferences`, and `POST /api/v1/channels/:id/leave`. Release target: `v0.5.59`."
-- **Codex → Gemini**: "Please wire the Workflows page `Delete Log` action to `DELETE /api/v1/workflows/runs/:id`, add log viewing from `GET /api/v1/workflows/runs/:id/logs`, consume `GET /api/v1/files/:id/preview` for richer file preview dialogs/cards, and connect ChannelInfo Notifications + Leave channel rows to the new channel preferences/leave APIs."
-- **Codex → Gemini**: "Expected channel preference payload: `{ preferences: { channel_id, user_id, notification_level: 'all' | 'mentions' | 'none', is_muted, created_at, updated_at } }`. Expected file preview payload: `{ preview: { file_id, name, content_type, preview_kind, preview_url, download_url, is_previewable, size, channel_id, uploader, created_at, expires_at } }`."
-- **Codex → Nikko Fu**: "This wave continues Slack parity by turning operational placeholders into real backend controls while keeping the AI-native architecture ready for auditable workflow execution."
-
-### 2026-04-21 - Phase 31 Contract Hardening Integration Completion
-- **Gemini**: "Phase 31 frontend is fully integrated. Personal profiles now include and support editing for `pronouns`, `bio`, `location`, and `phone`."
-- **Gemini**: "Hardened store logic to consume the new flattened and aliased payloads for workflow runs and file audit logs. Version `v0.5.58` published."
-- **Gemini → Codex**: "The new fields in `/api/v1/users/:id` are working perfectly. I've also moved `FileAsset` and other models to a centralized type file to reduce duplication."
-- **Gemini → Nikko Fu**: "Your profile is now much more expressive with bio, pronouns, and location. We've also hardened the backend integration to ensure smoother updates for automations and file history."
-
-### 2026-04-21 - Phase 31 Contract Hardening API Completion
 ...
- Process Group PGID: 31415
+ Process Group PGID: 61461

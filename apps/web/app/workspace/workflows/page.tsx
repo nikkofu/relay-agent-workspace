@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useDirectoryStore } from "@/stores/directory-store"
-import { Zap, Play, Clock, CheckCircle2, AlertCircle, Loader2, Settings, History, MoreVertical, StopCircle, RotateCw, Trash2, ChevronRight } from "lucide-react"
+import { Zap, Play, Clock, CheckCircle2, AlertCircle, Loader2, Settings, History, MoreVertical, StopCircle, RotateCw, Trash2, ChevronRight, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -33,12 +33,16 @@ export default function WorkflowsPage() {
   const { 
     workflows, workflowRuns, isWorkflowLoading,
     fetchWorkflows, fetchWorkflowRuns, triggerWorkflow,
-    fetchWorkflowRunDetail, cancelWorkflowRun, retryWorkflowRun
+    fetchWorkflowRunDetail, cancelWorkflowRun, retryWorkflowRun,
+    fetchWorkflowRunLogs, deleteWorkflowRun
   } = useDirectoryStore()
   
   const [activeTab, setActiveTab] = useState("all")
   const [selectedRun, setSelectedRun] = useState<any>(null)
   const [isViewingRun, setIsViewingRun] = useState(false)
+  const [isViewingLogs, setIsViewingLogs] = useState(false)
+  const [logs, setLogs] = useState<string[]>([])
+  const [isLogsLoading, setIsLogsLoading] = useState(false)
 
   useEffect(() => {
     fetchWorkflows()
@@ -56,6 +60,18 @@ export default function WorkflowsPage() {
       setSelectedRun(run)
       setIsViewingRun(true)
     }
+  }
+
+  const handleViewLogs = async (runId: string) => {
+    setIsLogsLoading(true)
+    setIsViewingLogs(true)
+    const runLogs = await fetchWorkflowRunLogs(runId)
+    setLogs(runLogs)
+    setIsLogsLoading(false)
+  }
+
+  const handleDeleteLog = async (runId: string) => {
+    await deleteWorkflowRun(runId)
   }
 
   const handleCancelRun = async (runId: string) => {
@@ -190,7 +206,11 @@ export default function WorkflowsPage() {
                                     Retry Run
                                   </DropdownMenuItem>
                                 )}
-                                <DropdownMenuItem className="text-red-600">
+                                <DropdownMenuItem onClick={() => handleViewLogs(run.id)}>
+                                  <FileText className="w-3.5 h-3.5 mr-2" />
+                                  View Raw Logs
+                                </DropdownMenuItem>
+                                <DropdownMenuItem className="text-red-600" onClick={() => handleDeleteLog(run.id)}>
                                   <Trash2 className="w-3.5 h-3.5 mr-2" />
                                   Delete Log
                                 </DropdownMenuItem>
@@ -285,6 +305,41 @@ export default function WorkflowsPage() {
             {(selectedRun?.status === 'failed' || selectedRun?.status === 'cancelled') && (
               <Button className="bg-[#3f0e40] text-white" onClick={() => handleRetryRun(selectedRun.id)}>Retry Workflow</Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Raw Logs Dialog */}
+      <Dialog open={isViewingLogs} onOpenChange={setIsViewingLogs}>
+        <DialogContent className="sm:max-w-[700px] p-0 flex flex-col max-h-[85vh]">
+          <DialogHeader className="p-6 pb-2">
+            <DialogTitle className="text-xl font-black flex items-center gap-2">
+              <FileText className="w-5 h-5 text-purple-600" />
+              Raw Execution Logs
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 bg-[#0d0f12] text-green-500 font-mono text-[11px] p-4 overflow-hidden border-y border-white/5">
+            <ScrollArea className="h-full">
+              {isLogsLoading ? (
+                <div className="flex items-center justify-center py-20 opacity-50">
+                  <Loader2 className="w-6 h-6 animate-spin mr-2" />
+                  Streaming logs...
+                </div>
+              ) : logs.length === 0 ? (
+                <div className="py-20 text-center opacity-30 italic">No log entries recorded for this run.</div>
+              ) : (
+                <div className="space-y-1">
+                  {logs.map((log, i) => (
+                    <div key={i} className="whitespace-pre-wrap break-all border-l-2 border-white/10 pl-3 py-0.5 hover:bg-white/5 transition-colors">
+                      {log}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+          </div>
+          <DialogFooter className="p-4 bg-muted/20">
+            <Button variant="outline" size="sm" onClick={() => setIsViewingLogs(false)}>Close Logs</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

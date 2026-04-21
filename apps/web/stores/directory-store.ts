@@ -38,6 +38,8 @@ interface DirectoryState {
   fetchWorkflowRunDetail: (id: string) => Promise<WorkflowRun | null>
   cancelWorkflowRun: (id: string) => Promise<void>
   retryWorkflowRun: (id: string) => Promise<void>
+  fetchWorkflowRunLogs: (id: string) => Promise<string[]>
+  deleteWorkflowRun: (id: string) => Promise<void>
 }
 
 export const useDirectoryStore = create<DirectoryState>((set, get) => ({
@@ -254,6 +256,33 @@ export const useDirectoryStore = create<DirectoryState>((set, get) => ({
     } catch (error) {
       console.error("Failed to retry workflow run:", error)
       toast.error("Failed to retry run")
+    }
+  },
+
+  fetchWorkflowRunLogs: async (id) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/workflows/runs/${id}/logs`)
+      const data = await response.json()
+      return data.logs || []
+    } catch (error) {
+      console.error("Failed to fetch workflow run logs:", error)
+      return []
+    }
+  },
+
+  deleteWorkflowRun: async (id) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/workflows/runs/${id}`, {
+        method: "DELETE"
+      })
+      if (!response.ok) throw new Error("Delete failed")
+      set((state) => ({
+        workflowRuns: state.workflowRuns.filter(r => r.id !== id)
+      }))
+      toast.success("Workflow run log deleted")
+    } catch (error) {
+      console.error("Failed to delete workflow run:", error)
+      toast.error("Failed to delete log")
     }
   }
 }))

@@ -2,19 +2,34 @@
 
 import { useState } from "react"
 import { 
-  Bell, Hash, Lock, ChevronRight, Plus, X, Trash2, Pin,
+  Bell, Hash, Lock, Plus, X, Trash2, Pin,
   Sparkles, Loader2, RefreshCw, FileText, Download, File
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-Sheet,
-SheetContent,
-SheetHeader,
-SheetTitle,
-SheetTrigger,
+import { 
+  Sheet, 
+  SheetContent, 
+  SheetHeader, 
+  SheetTitle, 
+  SheetTrigger 
 } from "@/components/ui/sheet"
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select"
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -28,7 +43,8 @@ import { formatDistanceToNow } from "date-fns"
 export function ChannelInfo({ trigger }: { trigger: React.ReactNode }) {
   const { 
     currentChannel, members, updateChannel, addMember, removeMember,
-    currentChannelSummary, isSummaryLoading, generateChannelSummary
+    currentChannelSummary, isSummaryLoading, generateChannelSummary,
+    fetchChannelPreferences, updateChannelPreferences, leaveChannel
   } = useChannelStore()
   const { users, currentUser } = useUserStore()
   const { pinnedMessages, fetchPins, pinMessage } = useMessageStore()
@@ -39,8 +55,16 @@ export function ChannelInfo({ trigger }: { trigger: React.ReactNode }) {
     purpose: currentChannel?.purpose || ""
   })
   const [showAddMember, setShowAddMember] = useState(false)
+  
+  const [prefs, setPrefs] = useState<any>(null)
+  const [isConfirmingLeave, setIsConfirmingLeave] = useState(false)
 
   if (!currentChannel) return null
+
+  const handleFetchPrefs = async () => {
+    const data = await fetchChannelPreferences(currentChannel.id)
+    setPrefs(data)
+  }
 
   const handleUpdate = () => {
     updateChannel(currentChannel.id, editForm)
@@ -57,6 +81,7 @@ export function ChannelInfo({ trigger }: { trigger: React.ReactNode }) {
       if (open && currentChannel) {
         fetchPins(currentChannel.id)
         fetchFiles({ channelId: currentChannel.id })
+        handleFetchPrefs()
       }
     }}>
       <SheetTrigger asChild>
@@ -176,26 +201,61 @@ export function ChannelInfo({ trigger }: { trigger: React.ReactNode }) {
               </div>
 
               <div className="pt-4 border-t space-y-4">
-                <div className="flex items-center justify-between py-1">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded bg-muted">
-                      <Bell className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold">Notifications</p>
-                      <p className="text-xs text-muted-foreground">All new messages</p>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between py-1">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded bg-muted">
+                        <Bell className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold">Notifications</p>
+                        <p className="text-[10px] text-muted-foreground uppercase font-black tracking-tighter">
+                          {prefs?.notification_level || 'all'} {prefs?.is_muted && '• Muted'}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                  
+                  {prefs && (
+                    <div className="space-y-4 p-4 bg-muted/20 rounded-xl border border-border/50">
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Notification Level</Label>
+                        <Select 
+                          value={prefs.notification_level} 
+                          onValueChange={(val) => updateChannelPreferences(currentChannel.id, { notification_level: val }).then(handleFetchPrefs)}
+                        >
+                          <SelectTrigger className="h-8 text-xs bg-white dark:bg-black">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All new messages</SelectItem>
+                            <SelectItem value="mentions">Just mentions</SelectItem>
+                            <SelectItem value="none">Nothing</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs font-medium">Mute channel</Label>
+                        <Switch 
+                          checked={prefs.is_muted} 
+                          onCheckedChange={(val) => updateChannelPreferences(currentChannel.id, { is_muted: val }).then(handleFetchPrefs)}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
-                <div className="flex items-center justify-between py-1">
-                  <div className="flex items-center gap-3 text-red-500">
-                    <div className="p-2 rounded bg-red-500/10">
+                <div className="pt-2">
+                  <Button 
+                    variant="ghost" 
+                    className="w-full justify-start gap-3 p-0 h-auto hover:bg-transparent text-red-500 hover:text-red-600 group"
+                    onClick={() => setIsConfirmingLeave(true)}
+                  >
+                    <div className="p-2 rounded bg-red-500/10 group-hover:bg-red-500/20 transition-colors">
                       <Trash2 className="w-4 h-4" />
                     </div>
                     <p className="text-sm font-bold">Leave channel</p>
-                  </div>
+                  </Button>
                 </div>
               </div>
             </TabsContent>
@@ -366,6 +426,23 @@ export function ChannelInfo({ trigger }: { trigger: React.ReactNode }) {
           </ScrollArea>
         </Tabs>
       </SheetContent>
+
+      <Dialog open={isConfirmingLeave} onOpenChange={setIsConfirmingLeave}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black">Leave #{currentChannel.name}?</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Are you sure you want to leave this channel? You can always join back later if the channel is public.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsConfirmingLeave(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => leaveChannel(currentChannel.id)}>Leave Channel</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Sheet>
   )
 }

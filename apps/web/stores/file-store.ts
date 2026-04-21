@@ -15,6 +15,7 @@ interface FileState {
   deleteFile: (id: string) => Promise<void>
   fetchFileAuditHistory: (id: string) => Promise<FileAudit[]>
   updateFileRetention: (id: string, retentionDays: number) => Promise<void>
+  fetchFilePreview: (id: string) => Promise<any>
 }
 
 export const useFileStore = create<FileState>((set) => ({
@@ -154,6 +155,17 @@ export const useFileStore = create<FileState>((set) => ({
     } catch (error) {
       console.error("Failed to update file retention:", error)
       toast.error("Failed to update retention")
+    }
+  },
+
+  fetchFilePreview: async (id) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/files/${id}/preview`)
+      const data = await response.json()
+      return data.preview
+    } catch (error) {
+      console.error("Failed to fetch file preview:", error)
+      return null
     }
   }
 }))

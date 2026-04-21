@@ -4,6 +4,30 @@ All notable changes to Relay Agent Workspace are documented in this file.
 
 ## [0.5.59] - 2026-04-21
 
+This release implements Phase 32: Operational Shell Controls, bridging operational placeholders with real backend actions for workflows, files, and channels.
+
+### Added
+
+- **Workflow Transparency**: Added raw execution log viewing via `GET /api/v1/workflows/runs/:id/logs`.
+- **Workflow History Management**: Enabled log deletion for finished workflow runs.
+- **Richer File Previews**: Integrated a new preview dialog consuming `GET /api/v1/files/:id/preview` with metadata and visual previews.
+- **Channel Preferences**: Connected the Notifications control in `ChannelInfo` to `GET/PATCH /api/v1/channels/:id/preferences`.
+- **Channel Membership**: Wired the "Leave channel" action to `POST /api/v1/channels/:id/leave` with a confirmation flow.
+
+### Fixed
+
+- **UI Robustness**: Added missing `Loader2`, `Badge`, and `FileText` components to various surfaces.
+- **Next.js Compliance**: Migrated file preview `<img>` tags to `next/image`.
+- **Clean State**: Ensured 100% clean lint and production build stability.
+
+### Verification Used For This Release
+
+- `pnpm run build` (Verified PASS)
+- `pnpm lint` (Verified PASS)
+
+## [0.5.58] - 2026-04-21
+
+
 This release implements Phase 32: Operational Shell Controls, extending Slack-style admin and automation operations for workflows, files, and channels.
 
 ### Added
