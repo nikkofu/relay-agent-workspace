@@ -2,7 +2,7 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
-## [0.5.59] - 2026-04-21
+## [0.5.60] - 2026-04-21
 
 This release implements Phase 32: Operational Shell Controls, bridging operational placeholders with real backend actions for workflows, files, and channels.
 
