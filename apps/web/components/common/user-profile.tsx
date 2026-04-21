@@ -6,7 +6,7 @@ import { Sparkles, MessageCircle, Mail, Clock, Calendar, Users } from "lucide-re
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { useRouter } from "next/navigation"
-import { formatDistanceToNow } from "date-fns"
+import { format, formatDistanceToNow } from "date-fns"
 import { useUserStore } from "@/stores/user-store"
 import { useState } from "react"
 import { Input } from "@/components/ui/input"
@@ -20,6 +20,13 @@ import {
   DialogFooter
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select"
 
 interface UserProfileProps {
   user: User
@@ -31,6 +38,8 @@ export function UserProfile({ user }: UserProfileProps) {
   const [isEditingStatus, setIsEditingStatus] = useState(false)
   const [isEditingProfile, setIsEditingProfile] = useState(false)
   const [newStatusText, setNewStatusText] = useState(user.statusText || "")
+  const [newStatusEmoji, setNewStatusEmoji] = useState(user.statusEmoji || "💬")
+  const [expiryDuration, setExpiryDuration] = useState("0")
   
   const [editForm, setEditForm] = useState({
     title: user.title || "",
@@ -51,7 +60,12 @@ export function UserProfile({ user }: UserProfileProps) {
 
   const handleStatusUpdate = async () => {
     if (currentUser) {
-      await updateStatus(currentUser.id, currentUser.status, newStatusText)
+      await updateStatus(currentUser.id, {
+        status: currentUser.status,
+        statusText: newStatusText,
+        statusEmoji: newStatusEmoji,
+        expiresInMinutes: parseInt(expiryDuration)
+      })
       setIsEditingStatus(false)
     }
   }
@@ -80,6 +94,7 @@ export function UserProfile({ user }: UserProfileProps) {
         <div className="flex flex-col gap-0.5">
           <div className="flex items-center gap-2">
             <h3 className="text-xl font-black tracking-tight text-foreground">{user.name}</h3>
+            {user.statusEmoji && <span className="text-lg">{user.statusEmoji}</span>}
             <div className={`h-2.5 w-2.5 rounded-full ${statusColors[user.status] || statusColors.offline}`} />
           </div>
           <div className="flex flex-col">
@@ -91,23 +106,58 @@ export function UserProfile({ user }: UserProfileProps) {
                   </button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[280px] p-3" align="start">
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Update your status</h4>
-                    <Input 
-                      placeholder="What's happening?" 
-                      value={newStatusText}
-                      onChange={(e) => setNewStatusText(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleStatusUpdate()}
-                    />
-                    <div className="flex justify-end gap-2">
-                      <Button variant="ghost" size="sm" onClick={() => setIsEditingStatus(false)}>Cancel</Button>
-                      <Button size="sm" className="bg-[#3f0e40] text-white hover:bg-[#3f0e40]/90" onClick={handleStatusUpdate}>Save</Button>
+                    <div className="flex gap-2">
+                      <div className="w-10">
+                        <Input 
+                          placeholder="Icon" 
+                          value={newStatusEmoji}
+                          onChange={(e) => setNewStatusEmoji(e.target.value)}
+                          className="text-center px-0 bg-white dark:bg-black"
+                        />
+                      </div>
+                      <Input 
+                        placeholder="What's happening?" 
+                        value={newStatusText}
+                        onChange={(e) => setNewStatusText(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleStatusUpdate()}
+                        className="flex-1 bg-white dark:bg-black"
+                      />
+                    </div>
+                    
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Clear after</Label>
+                      <Select value={expiryDuration} onValueChange={setExpiryDuration}>
+                        <SelectTrigger className="h-8 text-xs bg-white dark:bg-black">
+                          <SelectValue placeholder="Don't clear" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">Don't clear</SelectItem>
+                          <SelectItem value="30">30 minutes</SelectItem>
+                          <SelectItem value="60">1 hour</SelectItem>
+                          <SelectItem value="240">4 hours</SelectItem>
+                          <SelectItem value="1440">Today</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-2">
+                      <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setIsEditingStatus(false)}>Cancel</Button>
+                      <Button size="sm" className="h-8 text-xs bg-[#3f0e40] text-white hover:bg-[#3f0e40]/90" onClick={handleStatusUpdate}>Save</Button>
                     </div>
                   </div>
                 </PopoverContent>
               </Popover>
             ) : (
               <p className="text-sm text-muted-foreground font-medium">{user.statusText || (user.status === 'online' ? "Active" : "Away")}</p>
+            )}
+            
+            {user.statusExpiresAt && (
+              <p className="text-[9px] text-purple-600 font-bold uppercase tracking-tight mt-1 flex items-center gap-1">
+                <Clock className="w-2.5 h-2.5" />
+                Until {format(new Date(user.statusExpiresAt), 'p')}
+              </p>
             )}
             
             {user.status === 'offline' && user.lastSeen && (

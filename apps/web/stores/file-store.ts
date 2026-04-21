@@ -1,6 +1,7 @@
 import { create } from "zustand"
 import { API_BASE_URL } from "@/lib/constants"
 import { toast } from "sonner"
+import { FileAudit } from "@/types"
 
 export interface FileAsset {
   id: string
@@ -24,6 +25,8 @@ interface FileState {
   uploadFile: (file: File, channelId?: string) => Promise<FileAsset | null>
   archiveFile: (id: string, isArchived: boolean) => Promise<void>
   deleteFile: (id: string) => Promise<void>
+  fetchFileAuditHistory: (id: string) => Promise<FileAudit[]>
+  updateFileRetention: (id: string, retentionDays: number) => Promise<void>
 }
 
 export const useFileStore = create<FileState>((set) => ({
@@ -137,6 +140,32 @@ export const useFileStore = create<FileState>((set) => ({
     } catch (error) {
       console.error("Failed to delete file:", error)
       toast.error("Failed to delete file")
+    }
+  },
+
+  fetchFileAuditHistory: async (id) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/files/${id}/audit`)
+      const data = await response.json()
+      return data.audit_history || []
+    } catch (error) {
+      console.error("Failed to fetch file audit history:", error)
+      return []
+    }
+  },
+
+  updateFileRetention: async (id, retentionDays) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/files/${id}/retention`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ retention_days: retentionDays })
+      })
+      if (!response.ok) throw new Error("Retention update failed")
+      toast.success("Retention policy updated")
+    } catch (error) {
+      console.error("Failed to update file retention:", error)
+      toast.error("Failed to update retention")
     }
   }
 }))

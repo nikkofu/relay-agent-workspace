@@ -10,13 +10,15 @@ interface UserState {
   fetchMe: () => Promise<void>
   fetchUsers: (params?: { q?: string, department?: string, status?: string, timezone?: string, userGroupId?: string }) => Promise<void>
   fetchUserDetail: (id: string) => Promise<void>
-  updateStatus: (id: string, status: string, statusText: string) => Promise<void>
+  updateStatus: (id: string, params: { status: string, statusText: string, statusEmoji?: string, expiresInMinutes?: number }) => Promise<void>
   updateProfile: (id: string, updates: { title?: string, department?: string, timezone?: string, workingHours?: string }) => Promise<void>
 }
 
 const mapUser = (u: any): User => ({
   ...u,
   statusText: u.status_text,
+  statusEmoji: u.status_emoji,
+  statusExpiresAt: u.status_expires_at,
   lastSeen: u.last_seen_at,
   workingHours: u.working_hours,
   aiInsight: u.ai_insight,
@@ -74,12 +76,17 @@ export const useUserStore = create<UserState>((set) => ({
       set({ isUserLoading: false })
     }
   },
-  updateStatus: async (id, status, statusText) => {
+  updateStatus: async (id, params) => {
     try {
       const response = await fetch(`${API_BASE_URL}/users/${id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, status_text: statusText })
+        body: JSON.stringify({ 
+          status: params.status, 
+          status_text: params.statusText,
+          status_emoji: params.statusEmoji,
+          expires_in_minutes: params.expiresInMinutes
+        })
       })
       const data = await response.json()
       const updated = mapUser(data.user)

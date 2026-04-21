@@ -7,6 +7,8 @@ export interface User {
   avatar?: string
   status: UserStatus
   statusText?: string
+  statusEmoji?: string
+  statusExpiresAt?: string
   lastSeen?: string
   title?: string
   department?: string
@@ -31,7 +33,34 @@ export interface UserGroup {
   handle: string
   description?: string
   memberCount: number
-  members?: { user: User, role: string }[]
+  members?: { user: User, role: string, joinedAt: string }[]
+}
+
+export interface WorkflowRun {
+  id: string
+  workflowId: string
+  workflowName: string
+  status: 'pending' | 'running' | 'success' | 'failed' | 'cancelled'
+  startedAt: string
+  finishedAt?: string
+  durationMs?: number
+  triggeredBy: string
+  error?: string
+  steps?: {
+    name: string
+    status: string
+    durationMs: number
+  }[]
+}
+
+export interface FileAudit {
+  id: string
+  fileId: string
+  userId: string
+  action: 'upload' | 'download' | 'archive' | 'restore' | 'delete' | 'retention_update'
+  occurredAt: string
+  metadata?: any
+  user?: User
 }
 
 export interface Workflow {

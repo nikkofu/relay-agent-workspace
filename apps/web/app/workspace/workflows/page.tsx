@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useDirectoryStore } from "@/stores/directory-store"
-import { Zap, Play, Clock, CheckCircle2, AlertCircle, Loader2, Settings, History } from "lucide-react"
+import { Zap, Play, Clock, CheckCircle2, AlertCircle, Loader2, Settings, History, MoreVertical, StopCircle, RotateCw, Trash2, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -15,14 +15,30 @@ import {
   TabsList, 
   TabsTrigger 
 } from "@/components/ui/tabs"
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu"
 
 export default function WorkflowsPage() {
   const { 
     workflows, workflowRuns, isWorkflowLoading,
-    fetchWorkflows, fetchWorkflowRuns, triggerWorkflow 
+    fetchWorkflows, fetchWorkflowRuns, triggerWorkflow,
+    fetchWorkflowRunDetail, cancelWorkflowRun, retryWorkflowRun
   } = useDirectoryStore()
   
   const [activeTab, setActiveTab] = useState("all")
+  const [selectedRun, setSelectedRun] = useState<any>(null)
+  const [isViewingRun, setIsViewingRun] = useState(false)
 
   useEffect(() => {
     fetchWorkflows()
@@ -34,6 +50,24 @@ export default function WorkflowsPage() {
     fetchWorkflowRuns()
   }
 
+  const handleViewRun = async (runId: string) => {
+    const run = await fetchWorkflowRunDetail(runId)
+    if (run) {
+      setSelectedRun(run)
+      setIsViewingRun(true)
+    }
+  }
+
+  const handleCancelRun = async (runId: string) => {
+    await cancelWorkflowRun(runId)
+    fetchWorkflowRuns()
+  }
+
+  const handleRetryRun = async (runId: string) => {
+    await retryWorkflowRun(runId)
+    fetchWorkflowRuns()
+  }
+
   return (
     <div className="flex-1 flex flex-col bg-white dark:bg-[#1a1d21] h-full overflow-hidden">
       <header className="h-14 px-6 flex items-center border-b shrink-0 justify-between">
@@ -42,7 +76,7 @@ export default function WorkflowsPage() {
           <h1 className="text-lg font-black tracking-tight uppercase">Automations & Workflows</h1>
         </div>
         <Button variant="outline" size="sm" className="h-8 text-xs font-bold gap-2 border-amber-500/20 bg-amber-500/5 text-amber-600">
-          <Plus className="w-3.5 h-3.5" />
+          <PlusBadge className="w-3.5 h-3.5" />
           Create Workflow
         </Button>
       </header>
@@ -128,11 +162,41 @@ export default function WorkflowsPage() {
                         <div className="flex items-center gap-6">
                           <div className="text-right">
                             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Duration</p>
-                            <p className="text-xs font-mono">{run.duration_ms}ms</p>
+                            <p className="text-xs font-mono">{run.durationMs || 0}ms</p>
                           </div>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <History className="w-4 h-4" />
-                          </Button>
+                          
+                          <div className="flex items-center gap-1">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleViewRun(run.id)}>
+                              <History className="w-4 h-4" />
+                            </Button>
+                            
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreVertical className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleViewRun(run.id)}>View Details</DropdownMenuItem>
+                                {run.status === 'running' && (
+                                  <DropdownMenuItem className="text-red-600" onClick={() => handleCancelRun(run.id)}>
+                                    <StopCircle className="w-3.5 h-3.5 mr-2" />
+                                    Cancel Run
+                                  </DropdownMenuItem>
+                                )}
+                                {(run.status === 'failed' || run.status === 'cancelled') && (
+                                  <DropdownMenuItem className="text-blue-600" onClick={() => handleRetryRun(run.id)}>
+                                    <RotateCw className="w-3.5 h-3.5 mr-2" />
+                                    Retry Run
+                                  </DropdownMenuItem>
+                                )}
+                                <DropdownMenuItem className="text-red-600">
+                                  <Trash2 className="w-3.5 h-3.5 mr-2" />
+                                  Delete Log
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -153,11 +217,82 @@ export default function WorkflowsPage() {
           </TabsContent>
         </div>
       </Tabs>
+
+      {/* Run Detail Dialog */}
+      <Dialog open={isViewingRun} onOpenChange={setIsViewingRun}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black">Workflow Run Details</DialogTitle>
+          </DialogHeader>
+          {selectedRun && (
+            <div className="py-4 space-y-6">
+              <div className="flex items-center justify-between p-4 bg-muted/30 rounded-xl">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Status</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <div className={cn(
+                      "w-2 h-2 rounded-full",
+                      selectedRun.status === 'success' ? "bg-green-500" :
+                      selectedRun.status === 'failed' ? "bg-red-500" :
+                      selectedRun.status === 'running' ? "bg-blue-500 animate-pulse" : "bg-slate-500"
+                    )} />
+                    <span className="text-sm font-black uppercase tracking-tight">{selectedRun.status}</span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Triggered By</p>
+                  <p className="text-sm font-bold mt-1">{selectedRun.triggeredBy}</p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
+                  <ChevronRight className="w-4 h-4 text-purple-600" />
+                  Execution Steps
+                </h4>
+                <div className="space-y-2">
+                  {selectedRun.steps?.map((step: any, idx: number) => (
+                    <div key={idx} className="flex items-center justify-between p-3 border rounded-lg bg-card/50">
+                      <div className="flex items-center gap-3">
+                        <div className="w-5 h-5 rounded bg-muted flex items-center justify-center text-[10px] font-bold">{idx + 1}</div>
+                        <span className="text-xs font-medium">{step.name}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-mono text-muted-foreground">{step.durationMs}ms</span>
+                        <Badge variant="outline" className="text-[8px] h-4 font-black uppercase tracking-tighter">{step.status}</Badge>
+                      </div>
+                    </div>
+                  ))}
+                  {(!selectedRun.steps || selectedRun.steps.length === 0) && (
+                    <p className="text-xs text-muted-foreground italic p-4 text-center border rounded-lg border-dashed">No step data available for this run.</p>
+                  )}
+                </div>
+              </div>
+
+              {selectedRun.error && (
+                <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-xl">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-red-600 mb-2">Error Message</p>
+                  <p className="text-xs font-mono text-red-700 bg-red-500/5 p-2 rounded whitespace-pre-wrap">{selectedRun.error}</p>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsViewingRun(false)}>Close</Button>
+            {selectedRun?.status === 'running' && (
+              <Button variant="destructive" onClick={() => handleCancelRun(selectedRun.id)}>Cancel Run</Button>
+            )}
+            {(selectedRun?.status === 'failed' || selectedRun?.status === 'cancelled') && (
+              <Button className="bg-[#3f0e40] text-white" onClick={() => handleRetryRun(selectedRun.id)}>Retry Workflow</Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
 
-function Plus({ className }: { className?: string }) {
+function PlusBadge({ className }: { className?: string }) {
   return (
     <div className={cn("w-4 h-4 rounded-full border-2 border-current flex items-center justify-center font-bold text-[10px]", className)}>
       +

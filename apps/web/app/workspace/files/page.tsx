@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useFileStore } from "@/stores/file-store"
-import { Search, Folder, FileIcon, Archive, Trash2, Download, Filter, MoreVertical, RefreshCcw } from "lucide-react"
+import { Search, Folder, FileIcon, Archive, Trash2, Download, Filter, MoreVertical, RefreshCcw, History, ShieldCheck } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -22,11 +22,21 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select"
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogFooter,
+} from "@/components/ui/dialog"
+
+import { Label } from "@/components/ui/label"
 
 export default function FilesPage() {
   const { 
     files, archivedFiles, 
-    fetchFiles, fetchArchivedFiles, archiveFile, deleteFile
+    fetchFiles, fetchArchivedFiles, archiveFile, deleteFile,
+    fetchFileAuditHistory, updateFileRetention
   } = useFileStore()
   const { currentChannel } = useChannelStore()
   const { users, fetchUsers } = useUserStore()
@@ -35,6 +45,13 @@ export default function FilesPage() {
   const [uploaderId, setUploaderId] = useState("all")
   const [contentType, setContentType] = useState("all")
   const [showArchived, setShowArchived] = useState(false)
+
+  // Governance State
+  const [isViewingAudit, setIsViewingAudit] = useState(false)
+  const [auditLogs, setAuditLogs] = useState<any[]>([])
+  const [selectedFile, setSelectedFile] = useState<any>(null)
+  const [isUpdatingRetention, setIsUpdatingRetention] = useState(false)
+  const [retentionDays, setRetentionDays] = useState("0")
 
   useEffect(() => {
     fetchUsers()
@@ -55,6 +72,20 @@ export default function FilesPage() {
 
   const activeFiles = showArchived ? archivedFiles : files
   const contentTypes = Array.from(new Set(activeFiles.map(f => f.type).filter(Boolean)))
+
+  const handleViewAudit = async (file: any) => {
+    setSelectedFile(file)
+    const logs = await fetchFileAuditHistory(file.id)
+    setAuditLogs(logs)
+    setIsViewingAudit(true)
+  }
+
+  const handleUpdateRetention = async () => {
+    if (selectedFile) {
+      await updateFileRetention(selectedFile.id, parseInt(retentionDays))
+      setIsUpdatingRetention(false)
+    }
+  }
 
   return (
     <div className="flex-1 flex flex-col bg-white dark:bg-[#1a1d21] h-full overflow-hidden">
@@ -154,6 +185,17 @@ export default function FilesPage() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => handleViewAudit(file)}>
+                        <History className="w-3.5 h-3.5 mr-2" />
+                        <span>Audit History</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => {
+                        setSelectedFile(file)
+                        setIsUpdatingRetention(true)
+                      }}>
+                        <ShieldCheck className="w-3.5 h-3.5 mr-2" />
+                        <span>Retention Policy</span>
+                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => archiveFile(file.id, !showArchived)}>
                         {showArchived ? (
                           <div className="flex items-center gap-2">
@@ -191,6 +233,73 @@ export default function FilesPage() {
           )}
         </div>
       </ScrollArea>
+
+      {/* Audit History Dialog */}
+      <Dialog open={isViewingAudit} onOpenChange={setIsViewingAudit}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black flex items-center gap-2">
+              <History className="w-5 h-5 text-purple-600" />
+              Audit Log: {selectedFile?.name}
+            </DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="max-h-[400px] mt-4 pr-4">
+            <div className="space-y-4">
+              {auditLogs.map((log) => (
+                <div key={log.id} className="flex gap-3 text-xs">
+                  <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 shrink-0" />
+                  <div className="flex-1">
+                    <p className="font-bold">
+                      {log.user?.name || "System"} <span className="font-normal text-muted-foreground">performed</span> {log.action.replace('_', ' ')}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{format(new Date(log.occurredAt), 'PPp')}</p>
+                    {log.metadata && (
+                      <pre className="mt-1 p-2 bg-muted rounded text-[9px] overflow-x-auto">
+                        {JSON.stringify(log.metadata, null, 2)}
+                      </pre>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {auditLogs.length === 0 && (
+                <p className="text-center py-10 text-muted-foreground italic">No audit history found.</p>
+              )}
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      {/* Retention Policy Dialog */}
+      <Dialog open={isUpdatingRetention} onOpenChange={setIsUpdatingRetention}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black">Retention Policy</DialogTitle>
+          </DialogHeader>
+          <div className="py-6 space-y-4">
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Define how long this file should be kept before it is automatically archived or deleted.
+            </p>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-bold uppercase tracking-wider">Storage Duration</Label>
+              <Select value={retentionDays} onValueChange={setRetentionDays}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select duration" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">Indefinite (Forever)</SelectItem>
+                  <SelectItem value="30">30 Days</SelectItem>
+                  <SelectItem value="90">90 Days</SelectItem>
+                  <SelectItem value="365">1 Year</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsUpdatingRetention(false)}>Cancel</Button>
+            <Button className="bg-[#3f0e40] text-white" onClick={handleUpdateRetention}>Update Policy</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

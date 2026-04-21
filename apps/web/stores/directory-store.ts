@@ -1,7 +1,17 @@
 import { create } from "zustand"
-import { UserGroup, Workflow, Tool } from "@/types"
+import { UserGroup, Workflow, Tool, WorkflowRun } from "@/types"
 import { API_BASE_URL } from "@/lib/constants"
 import { toast } from "sonner"
+
+const mapRun = (r: any): WorkflowRun => ({
+  ...r,
+  workflowId: r.workflow_id,
+  workflowName: r.workflow_name,
+  startedAt: r.started_at,
+  finishedAt: r.finished_at,
+  durationMs: r.duration_ms,
+  triggeredBy: r.triggered_by
+})
 
 interface DirectoryState {
   userGroups: UserGroup[]
@@ -21,6 +31,13 @@ interface DirectoryState {
   createGroup: (name: string, handle: string, description?: string) => Promise<void>
   updateGroup: (id: string, updates: Partial<UserGroup>) => Promise<void>
   deleteGroup: (id: string) => Promise<void>
+  fetchGroupMembers: (id: string) => Promise<void>
+  addGroupMember: (groupId: string, userId: string, role?: string) => Promise<void>
+  removeGroupMember: (groupId: string, userId: string) => Promise<void>
+  fetchGroupMentions: (q: string) => Promise<UserGroup[]>
+  fetchWorkflowRunDetail: (id: string) => Promise<WorkflowRun | null>
+  cancelWorkflowRun: (id: string) => Promise<void>
+  retryWorkflowRun: (id: string) => Promise<void>
 }
 
 export const useDirectoryStore = create<DirectoryState>((set, get) => ({
@@ -71,7 +88,7 @@ export const useDirectoryStore = create<DirectoryState>((set, get) => ({
       set({ isWorkflowLoading: true })
       const response = await fetch(`${API_BASE_URL}/workflows/runs`)
       const data = await response.json()
-      set({ workflowRuns: data.runs || [], isWorkflowLoading: false })
+      set({ workflowRuns: (data.runs || []).map(mapRun), isWorkflowLoading: false })
     } catch (error) {
       console.error("Failed to fetch workflow runs:", error)
       set({ isWorkflowLoading: false })
@@ -147,6 +164,96 @@ export const useDirectoryStore = create<DirectoryState>((set, get) => ({
     } catch (error) {
       console.error("Failed to delete group:", error)
       toast.error("Failed to delete group")
+    }
+  },
+
+  fetchGroupMembers: async (id) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/user-groups/${id}/members`)
+      const data = await response.json()
+      if (get().activeGroup?.id === id) {
+        set({ activeGroup: { ...get().activeGroup!, members: data.members } })
+      }
+    } catch (error) {
+      console.error("Failed to fetch group members:", error)
+    }
+  },
+
+  addGroupMember: async (groupId, userId, role = "member") => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/user-groups/${groupId}/members`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId, role })
+      })
+      if (!response.ok) throw new Error("Add member failed")
+      await get().fetchGroupMembers(groupId)
+      toast.success("Member added to group")
+    } catch (error) {
+      console.error("Failed to add group member:", error)
+      toast.error("Failed to add member")
+    }
+  },
+
+  removeGroupMember: async (groupId, userId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/user-groups/${groupId}/members/${userId}`, {
+        method: "DELETE"
+      })
+      if (!response.ok) throw new Error("Remove member failed")
+      await get().fetchGroupMembers(groupId)
+      toast.success("Member removed from group")
+    } catch (error) {
+      console.error("Failed to remove group member:", error)
+      toast.error("Failed to remove member")
+    }
+  },
+
+  fetchGroupMentions: async (q) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/user-groups/mentions?q=${encodeURIComponent(q)}`)
+      const data = await response.json()
+      return data.groups || []
+    } catch (error) {
+      console.error("Failed to fetch group mentions:", error)
+      return []
+    }
+  },
+
+  fetchWorkflowRunDetail: async (id) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/workflows/runs/${id}`)
+      const data = await response.json()
+      return mapRun(data.run)
+    } catch (error) {
+      console.error("Failed to fetch workflow run detail:", error)
+      return null
+    }
+  },
+
+  cancelWorkflowRun: async (id) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/workflows/runs/${id}/cancel`, {
+        method: "POST"
+      })
+      if (!response.ok) throw new Error("Cancel failed")
+      toast.success("Workflow run cancellation requested")
+    } catch (error) {
+      console.error("Failed to cancel workflow run:", error)
+      toast.error("Failed to cancel run")
+    }
+  },
+
+  retryWorkflowRun: async (id) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/workflows/runs/${id}/retry`, {
+        method: "POST"
+      })
+      if (!response.ok) throw new Error("Retry failed")
+      toast.success("Workflow run retry requested")
+    } catch (error) {
+      console.error("Failed to retry workflow run:", error)
+      toast.error("Failed to retry run")
     }
   }
 }))

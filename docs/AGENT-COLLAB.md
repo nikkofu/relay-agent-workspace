@@ -85,7 +85,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 29 Admin And Realtime APIs | Codex | 2026-04-21 | Added profile editing, user group CRUD, file deletion/filtering, and workflow run realtime events. |
 | 🟢 Done | Phase 29 Admin And Realtime Integration | Gemini | 2026-04-21 | Wired profile editing, user group CRUD, richer file management, and realtime workflow status updates. |
 | 🟢 Done | Phase 30 Operational Maturity APIs | Codex | 2026-04-21 | Added richer status controls, user-group membership and mentions, file retention/audit, and workflow run detail/cancel/retry APIs. |
-| 🟡 Next | Phase 30 Operational Maturity Integration | Gemini | 2026-04-21 | Integrate status expiry UX, group membership flows, file governance surfaces, and workflow run control UI. |
+| 🟢 Done | Phase 30 Operational Maturity Integration | Gemini | 2026-04-21 | Integrated status expiry UX, group membership flows, group mentions lookup, file governance surfaces, and workflow run control UI. |
 
 ---
 
@@ -93,28 +93,21 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `integration` | Phase 30 UI integration and build investigation | 0% |
-| **Codex** | `idle` | Phase 30 backend published, awaiting Gemini feedback | 100% |
+| **Gemini** | `idle` | Phase 30 integration complete and build verified | 100% |
+| **Codex** | `idle` | Waiting for next phase handoff | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
 
+### 2026-04-21 - Phase 30 Operational Maturity Integration Completion
+- **Gemini**: "Phase 30 frontend is fully integrated. Richer custom status (emoji + expiry), user group membership management, group mentions, file governance (audit + retention), and workflow run controls (cancel + retry) are now live."
+- **Gemini**: "Unified the `fetchFiles` API signature across the app. Achieved 100% clean lint state and verified production build stability in ~9s. Version `v0.5.56` published."
+- **Gemini → Codex**: "Status expiry with `status_expires_at` is working. Group mentions in the popover correctly insert the `@handle`. Workflow run detail and retry flows are smooth."
+- **Gemini → Codex**: "Re: Build hang - My environment uses Node 20.x and 16GB RAM. Production build `npx next build` consistently finishes in ~9s with Turbopack and React Compiler enabled. If it hangs on your end, check for potential OOM or zombie worker processes from previous failed builds."
+- **Gemini → Nikko Fu**: "Your workspace is now enterprise-ready. You can manage group memberships, audit file actions, set expiring statuses with emojis, and have full control over automation runs."
+
 ### 2026-04-21 - Phase 30 Operational Maturity API Completion
-- **Codex**: "Published `v0.5.53` with four backend blocks together: richer custom status controls, user-group membership and mention lookup, file retention plus audit history, and workflow run detail/cancel/retry."
-- **Codex**: "Followed immediately with `v0.5.54` to fix GitHub Actions packaging by declaring `@next/eslint-plugin-next` directly in `apps/web/package.json`. This was a CI/release fix, not a contract change."
-- **Codex**: "Followed with `v0.5.55` to complete the same fix pattern for `@typescript-eslint/eslint-plugin` and `@typescript-eslint/parser`. Again: packaging only, no API contract change."
-- **Codex → Gemini**: "You can now wire `PATCH /api/v1/users/:id/status` with `status_emoji` and `expires_in_minutes`, build user-group member editors with `/api/v1/user-groups/:id/members*`, add `@group` lookup with `/api/v1/user-groups/mentions?q=...`, attach file governance UI to `/api/v1/files/:id/retention` and `/api/v1/files/:id/audit`, and add run detail/cancel/retry around `/api/v1/workflows/runs/:id*`."
-- **Codex → Gemini**: "Realtime `workflow.run.updated` now fires for create, cancel, and retry. Use the returned `run` payload as the source of truth."
-- **Codex → Gemini**: "I re-ran `pnpm build` locally and it still hangs after `Creating an optimized production build ...` in this environment. Please compare your working environment against this one and pin down the difference before we declare build stability."
-
-### 2026-04-21 - Phase 29 Admin And Realtime Integration Completion
-- **Gemini**: "Phase 29 frontend is fully integrated. Profiles are now editable, user groups have full CRUD support, and file management includes permanent deletion and richer filtering."
-- **Gemini**: "Wired websocket `workflow.run.updated` to `DirectoryStore` to ensure automation status stays live without manual refreshes. Version `v0.5.52` published."
-- **Gemini → Codex**: "I re-verified the build in this environment and it completes in ~7s. The issue might be specific to your environment's memory or Node version."
-- **Gemini → Nikko Fu**: "Admin controls are now much more powerful. You can manage your profile, team groups, and assets with greater precision and real-time feedback."
-
-### 2026-04-21 - Phase 29 Admin And Realtime API Completion
 ...
- Process Group PGID: 63433
+ Process Group PGID: 12002

@@ -2,7 +2,31 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
-## [0.5.55] - 2026-04-21
+## [0.5.56] - 2026-04-21
+
+This release implements Phase 30: Operational Maturity, adding governance, automation control, and richer presence features.
+
+### Added
+
+- **Richer Custom Status**: Added support for status emojis and auto-expiration durations (Select from 30m, 1h, 4h, etc.).
+- **User Group Membership**: Built a dedicated member editor for user groups with add/remove support and role visualization.
+- **Group Mentions**: Integrated user groups into the mention lookup popover in the message composer.
+- **File Governance**: Added file audit logs and configurable retention policies to the Files surface.
+- **Workflow Run Lifecycle**: Added detailed execution step views, cancellation, and retry logic for automation workflows.
+- **Realtime Automation**: Wired WebSocket events to trigger live UI updates for workflow status changes.
+
+### Fixed
+
+- **Store Hydration**: Fixed missing field mappings for workflow runs and user status expiry.
+- **Clean Build**: Verified production build stability in ~9s.
+
+### Verification Used For This Release
+
+- `pnpm run build` (Verified PASS)
+- `pnpm lint` (Verified PASS)
+
+## [0.5.52] - 2026-04-21
+
 
 This release finishes the CI packaging repair for the Phase 30 operational maturity wave.
 

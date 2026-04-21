@@ -37,11 +37,15 @@ import {
   SelectValue 
 } from "@/components/ui/select"
 import { UserAvatar } from "@/components/common/user-avatar"
+import { formatDistanceToNow } from "date-fns"
 
 export default function PeopleDirectoryPage() {
   const { users, fetchUsers } = useUserStore()
-  const { userGroups, fetchUserGroups, createGroup, deleteGroup } = useDirectoryStore()
-  
+  const { 
+    userGroups, activeGroup, fetchUserGroups, createGroup, deleteGroup, 
+    fetchGroupMembers, addGroupMember, removeGroupMember 
+  } = useDirectoryStore()
+
   const [activeTab, setActiveTab] = useState("people")
   const [q, setQ] = useState("")
   const [department, setDepartment] = useState("all")
@@ -51,6 +55,11 @@ export default function PeopleDirectoryPage() {
   // Group Create State
   const [isCreatingGroup, setIsCreatingGroup] = useState(false)
   const [newGroup, setNewGroup] = useState({ name: "", handle: "", description: "" })
+
+  // Member Management State
+  const [isManagingMembers, setIsManagingMembers] = useState(false)
+  const [showAddMember, setShowAddMember] = useState(false)
+
 
   useEffect(() => {
     fetchUserGroups()
@@ -70,6 +79,18 @@ export default function PeopleDirectoryPage() {
     await createGroup(newGroup.name, newGroup.handle, newGroup.description)
     setIsCreatingGroup(false)
     setNewGroup({ name: "", handle: "", description: "" })
+  }
+
+  const handleViewMembers = (groupId: string) => {
+    fetchGroupMembers(groupId)
+    setIsManagingMembers(true)
+  }
+
+  const handleAddMember = async (userId: string) => {
+    if (activeGroup) {
+      await addGroupMember(activeGroup.id, userId)
+      setShowAddMember(false)
+    }
   }
 
   const departments = Array.from(new Set(users.map(u => u.department).filter(Boolean)))
@@ -272,7 +293,14 @@ export default function PeopleDirectoryPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="sm" className="h-8 text-xs font-bold">View Members</Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-8 text-xs font-bold"
+                      onClick={() => handleViewMembers(group.id)}
+                    >
+                      View Members
+                    </Button>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground opacity-0 group-hover/card:opacity-100 transition-opacity">
@@ -302,6 +330,82 @@ export default function PeopleDirectoryPage() {
           </ScrollArea>
         </TabsContent>
       </Tabs>
+
+      {/* Member Management Dialog */}
+      <Dialog open={isManagingMembers} onOpenChange={setIsManagingMembers}>
+        <DialogContent className="sm:max-w-[500px] p-0 flex flex-col max-h-[85vh]">
+          <DialogHeader className="p-6 pb-2">
+            <DialogTitle className="text-xl font-black flex items-center gap-2">
+              <Shield className="w-5 h-5 text-purple-600" />
+              {activeGroup?.name} Members
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="px-6 pb-4">
+            <Button 
+              variant="outline" 
+              className="w-full justify-start gap-2 h-10 border-dashed"
+              onClick={() => setShowAddMember(true)}
+            >
+              <Plus className="w-4 h-4" />
+              Add Member to Group
+            </Button>
+          </div>
+
+          {showAddMember && (
+            <div className="px-6 py-4 bg-muted/30 border-y space-y-3">
+              <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Select from Directory</Label>
+              <div className="flex flex-col gap-1 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
+                {users
+                  .filter(u => !activeGroup?.members?.find(m => m.user.id === u.id))
+                  .map(user => (
+                    <button 
+                      key={user.id}
+                      className="flex items-center justify-between p-2 hover:bg-white dark:hover:bg-black rounded-lg transition-colors group"
+                      onClick={() => handleAddMember(user.id)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <UserAvatar src={user.avatar} name={user.name} className="h-8 w-8" />
+                        <span className="text-sm font-medium">{user.name}</span>
+                      </div>
+                      <Plus className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100" />
+                    </button>
+                  ))}
+              </div>
+              <Button variant="ghost" size="sm" className="w-full h-8 text-xs" onClick={() => setShowAddMember(false)}>Cancel</Button>
+            </div>
+          )}
+
+          <ScrollArea className="flex-1 px-2">
+            <div className="flex flex-col p-4 pt-0">
+              {activeGroup?.members?.map(({ user, role, joinedAt }) => (
+                <div key={user.id} className="flex items-center justify-between p-3 hover:bg-muted/30 rounded-xl transition-colors border-b last:border-0 border-border/40">
+                  <div className="flex items-center gap-3">
+                    <UserAvatar src={user.avatar} name={user.name} status={user.status} />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold">{user.name}</span>
+                        {role === 'admin' && <Badge variant="outline" className="text-[8px] bg-blue-500/5 text-blue-500 border-blue-500/20 px-1 py-0 h-3.5 uppercase font-black">Admin</Badge>}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">Joined {formatDistanceToNow(new Date(joinedAt), { addSuffix: true })}</p>
+                    </div>
+                  </div>
+                  {activeGroup.memberCount > 1 && (
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                      onClick={() => removeGroupMember(activeGroup.id, user.id)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
