@@ -1,7 +1,7 @@
 import { create } from "zustand"
 import { API_BASE_URL } from "@/lib/constants"
 import { toast } from "sonner"
-import { FileAudit, FileAsset, FileComment, FileShare } from "@/types"
+import { FileAudit, FileAsset, FileComment, FileShare, FileChunk, FileCitation, FileSearchResult } from "@/types"
 
 interface FileState {
   files: FileAsset[]
@@ -25,6 +25,13 @@ interface FileState {
   fetchFileShares: (id: string) => Promise<FileShare[]>
   updateFileKnowledge: (id: string, meta: { knowledge_state?: string; source_kind?: string; summary?: string; tags?: string[] }) => Promise<FileAsset | null>
   fetchMessageFiles: (messageId: string) => Promise<FileAsset[]>
+  fetchFileExtraction: (id: string) => Promise<any>
+  rebuildFileExtraction: (id: string) => Promise<void>
+  fetchFileExtractedContent: (id: string) => Promise<{ text?: string; summary?: string } | null>
+  fetchFileChunks: (id: string) => Promise<FileChunk[]>
+  fetchFileCitations: (id: string) => Promise<FileCitation[]>
+  searchFiles: (q: string) => Promise<FileSearchResult[]>
+  updateFileLocally: (id: string, updates: Partial<FileAsset>) => void
 }
 
 export const useFileStore = create<FileState>((set) => ({
@@ -266,6 +273,87 @@ export const useFileStore = create<FileState>((set) => ({
       return data.shares || []
     } catch (error) {
       console.error("Failed to fetch file shares:", error)
+      return []
+    }
+  },
+
+  updateFileLocally: (id, updates) => {
+    set((state) => ({
+      files: state.files.map(f => f.id === id ? { ...f, ...updates } : f),
+      starredFiles: state.starredFiles.map(f => f.id === id ? { ...f, ...updates } : f),
+    }))
+  },
+
+  fetchFileExtraction: async (id) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/files/${id}/extraction`)
+      if (!res.ok) return null
+      const data = await res.json()
+      const ext = data.extraction || data
+      set((state) => ({
+        files: state.files.map(f => f.id === id ? { ...f, extraction_status: ext.status, last_indexed_at: ext.last_indexed_at, needs_ocr: ext.needs_ocr, is_searchable: ext.is_searchable, is_citable: ext.is_citable, content_summary: ext.content_summary } : f),
+      }))
+      return ext
+    } catch (error) {
+      console.error("Failed to fetch file extraction:", error)
+      return null
+    }
+  },
+
+  rebuildFileExtraction: async (id) => {
+    try {
+      await fetch(`${API_BASE_URL}/files/${id}/extraction/rebuild`, { method: "POST" })
+      toast.success("Extraction rebuild triggered")
+    } catch (error) {
+      console.error("Failed to rebuild extraction:", error)
+      toast.error("Failed to trigger rebuild")
+    }
+  },
+
+  fetchFileExtractedContent: async (id) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/files/${id}/extracted-content`)
+      if (!res.ok) return null
+      const data = await res.json()
+      return { text: data.text || data.content, summary: data.summary }
+    } catch (error) {
+      console.error("Failed to fetch extracted content:", error)
+      return null
+    }
+  },
+
+  fetchFileChunks: async (id) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/files/${id}/chunks`)
+      if (!res.ok) return []
+      const data = await res.json()
+      return data.chunks || []
+    } catch (error) {
+      console.error("Failed to fetch file chunks:", error)
+      return []
+    }
+  },
+
+  fetchFileCitations: async (id) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/files/${id}/citations`)
+      if (!res.ok) return []
+      const data = await res.json()
+      return data.citations || []
+    } catch (error) {
+      console.error("Failed to fetch file citations:", error)
+      return []
+    }
+  },
+
+  searchFiles: async (q) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/search/files?q=${encodeURIComponent(q)}`)
+      if (!res.ok) return []
+      const data = await res.json()
+      return data.results || data.files || []
+    } catch (error) {
+      console.error("Failed to search files:", error)
       return []
     }
   },

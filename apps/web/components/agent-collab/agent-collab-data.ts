@@ -112,9 +112,9 @@ export const MEMBERS: Member[] = [
 
 export const ACTIVE_SUPERPOWERS: AgentPower[] = [
   { agent: 'Gemini', skill: 'idle', task: 'Resting after Phase 38 handoff', progress: 100, status: 'done' },
-  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 43 Message-Level File Attachment API handoff complete', progress: 100, status: 'done' },
+  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 44 File Extraction/Search/Citation API handoff complete', progress: 100, status: 'done' },
   { agent: 'Claude Code', skill: 'idle', task: '-', progress: 0, status: 'idle' },
-  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 43 inline file card integration complete (v0.5.83)', progress: 100, status: 'done' },
+  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 44 File Extraction UI + Content Search complete (v0.5.84)', progress: 100, status: 'done' },
 ]
 
 // ─── Full Task Board ──────────────────────────────────────────────────────────
@@ -212,11 +212,24 @@ export const TASKS: Task[] = [
   { id: 't90', phase: 90, status: 'done',  task: 'Phase 42 File Collaboration Integration',           assignedTo: ['Windsurf'],        deadline: '2026-04-21', description: 'Wired file comments/shares/starring/knowledge into the Files page. Star toggle in file list, Starred filter, expanded preview dialog with Details/Comments/Shares/Knowledge tabs, Share-to-channel dialog.', type: 'frontend' },
   { id: 't91', phase: 91, status: 'done',  task: 'Phase 43 Message-Level File Attachment APIs',        assignedTo: ['Codex'],           deadline: '2026-04-21', description: 'Enriched message metadata.attachments for kind=file with nested file + preview payloads, uploader, counters, knowledge fields, archive/retention state. Added GET /api/v1/messages/:id/files. Normalized new IDs to prefixed UUIDs (msg-*, dm-*, dm-msg-*, invite-*, agent-*).', type: 'api' },
   { id: 't92', phase: 92, status: 'done',  task: 'Phase 43 Message-Level File Attachment Cards',       assignedTo: ['Windsurf'],        deadline: '2026-04-21', description: 'Rendered enriched file attachments as rich inline cards in channel feed and thread views. FileAttachmentCard: thumbnail, name, size/MIME, Wiki/Ready/Star badges, comment+share counters, tags, download+preview actions. Lazy-load inspector via GET /api/v1/messages/:id/files. Bumped to v0.5.83.', type: 'frontend' },
+  { id: 't93', phase: 93, status: 'done',  task: 'Phase 44 File Extraction, Search, And Citation APIs',  assignedTo: ['Codex'],           deadline: '2026-04-21', description: 'Added extraction lifecycle (GET/POST /files/:id/extraction[/rebuild]), extracted-content (GET /files/:id/extracted-content), chunks (GET /files/:id/chunks), citations (GET /files/:id/citations), file-content search (GET /search/files?q=...). FileAsset enriched with extraction_status, is_searchable, is_citable, needs_ocr etc. Realtime file.extraction.updated WS event.', type: 'api' },
+  { id: 't94', phase: 94, status: 'done',  task: 'Phase 44 File Extraction UI And Content Search',       assignedTo: ['Windsurf'],        deadline: '2026-04-21', description: 'Extraction status badges in file list (Indexing/Indexed/Failed/OCR icons) and FileAttachmentCard. Content Search panel in Files header. Indexing tab in preview dialog: status card + Rebuild trigger + Extracted Text + Chunks + Citations (all lazy-loaded). WS file.extraction.updated handled in useWebsocket. v0.5.84 published.', type: 'frontend' },
 ]
 
 // ─── Communication Log ────────────────────────────────────────────────────────
 
 export const COMM_SECTIONS: CommSection[] = [
+  {
+    id: 'cs9',
+    date: '2026-04-21',
+    title: 'Phase 44 File Extraction UI And Content Search Completion',
+    messages: [
+      { id: 'ws44a', from: 'Windsurf', content: 'Synced v0.5.83. Codex added file extraction lifecycle APIs (GET/POST /files/:id/extraction[/rebuild], /extracted-content, /chunks, /citations), file-content search (GET /search/files?q=...), enriched FileAsset with extraction_status/is_searchable/is_citable/needs_ocr/ocr_provider/ocr_is_mock/content_summary/last_indexed_at, and realtime file.extraction.updated WS event.' },
+      { id: 'ws44b', from: 'Windsurf', content: 'Phase 44 complete. (1) types: FileChunk/FileCitation/FileSearchResult + FileAsset extraction fields. (2) file-store: 7 new actions — fetchFileExtraction, rebuildFileExtraction, fetchFileExtractedContent, fetchFileChunks, fetchFileCitations, searchFiles, updateFileLocally. (3) use-websocket: file.extraction.updated refreshes file state live. (4) FileAttachmentCard: extraction badges (Indexing/Indexed/Failed/OCR Needed) + Searchable/Citable icons. (5) Files page: Content Search panel + extraction icons in file list + Indexing tab (status + Rebuild + Extracted Text + Chunks + Citations). v0.5.84 published.' },
+      { id: 'ws44c', from: 'Windsurf', to: 'Codex', content: 'File extraction/search UI is live. UX notes: (1) Content Search searches extracted text via /search/files and shows snippet + match_reason per result. (2) Indexing tab lazy-loads extraction data on tab click — no eager fetch. (3) Rebuild button calls POST /files/:id/extraction/rebuild and refreshes the status. (4) file.extraction.updated WS event updates badges in real-time across file list + FileAttachmentCard. For Phase 45, possible directions: (a) AI citation lookup (which messages/artifacts cite a file), (b) batch extraction status for a channel, or (c) AI-powered file summarization on demand.' },
+      { id: 'ws44d', from: 'Windsurf', to: 'Nikko Fu', content: 'Files are now a true knowledge substrate. Each file can be indexed, searched by content, broken into chunks, and cited by AI agents. The Files page has a new Content Search mode (top header button) and an Indexing tab in the preview dialog showing extraction status, extracted text, chunks, and citations. Shared files in channels show real-time indexing status icons. v0.5.84.' },
+    ],
+  },
   {
     id: 'cs8',
     date: '2026-04-21',

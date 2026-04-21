@@ -5,6 +5,7 @@ import {
   FileText, FileCode, FileImage, FileAudio, FileVideo, File,
   Star, MessageSquare, Share2, Download, ExternalLink,
   Tag, BookOpen, CheckCircle2, ChevronDown, ChevronUp, Loader2,
+  Cpu, AlertTriangle, Search as SearchIcon, Link2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -56,6 +57,9 @@ export function FileAttachmentCard({ attachment, messageId }: FileAttachmentCard
 
   const isWiki = file.source_kind === "wiki"
   const isReady = file.knowledge_state === "ready"
+  const extractionStatus = file.extraction_status
+  const isSearchable = file.is_searchable
+  const isCitable = file.is_citable
   const isStarred = !!file.starred
   const commentCount = file.comment_count ?? 0
   const shareCount = file.share_count ?? 0
@@ -163,6 +167,32 @@ export function FileAttachmentCard({ attachment, messageId }: FileAttachmentCard
             )}
             {isStarred && (
               <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
+            )}
+            {extractionStatus === 'processing' && (
+              <Badge variant="secondary" className="h-4 px-1.5 text-[9px] bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700 gap-0.5">
+                <Loader2 className="w-2.5 h-2.5 animate-spin" />Indexing
+              </Badge>
+            )}
+            {extractionStatus === 'ready' && (
+              <Badge variant="secondary" className="h-4 px-1.5 text-[9px] bg-sky-500/10 text-sky-700 dark:text-sky-400 border-sky-300 dark:border-sky-700 gap-0.5">
+                <Cpu className="w-2.5 h-2.5" />Indexed
+              </Badge>
+            )}
+            {extractionStatus === 'failed' && (
+              <Badge variant="secondary" className="h-4 px-1.5 text-[9px] bg-red-500/10 text-red-700 dark:text-red-400 border-red-300 dark:border-red-700 gap-0.5">
+                <AlertTriangle className="w-2.5 h-2.5" />Failed
+              </Badge>
+            )}
+            {extractionStatus === 'ocr_needed' && (
+              <Badge variant="secondary" className="h-4 px-1.5 text-[9px] bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-300 dark:border-orange-700 gap-0.5">
+                <AlertTriangle className="w-2.5 h-2.5" />OCR Needed
+              </Badge>
+            )}
+            {isSearchable && (
+              <SearchIcon className="w-3 h-3 text-sky-500" />
+            )}
+            {isCitable && (
+              <Link2 className="w-3 h-3 text-violet-500" />
             )}
             {commentCount > 0 && (
               <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">

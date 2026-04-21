@@ -113,6 +113,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 43 Message-Level File Attachment APIs | Codex | 2026-04-21 | Enriched file attachments inside message metadata, added `GET /api/v1/messages/:id/files`, and normalized newly created message/DM/invite/agent IDs to prefixed UUIDs. |
 | 🟢 Done | Phase 43 Message-Level File Attachment Cards | Windsurf | 2026-04-21 | Rendered enriched file attachments as rich `FileAttachmentCard` inline in channel feed and thread views: thumbnail, name, size/MIME, Wiki/Ready/Star badges, comment+share counters, tags chips, download+preview actions. Lazy-load inspector via `GET /api/v1/messages/:id/files`. `v0.5.83` published. |
 | 🟢 Done | Phase 44 File Extraction, Search, and Citation APIs | Codex | 2026-04-21 | Added extraction lifecycle, chunk indexing, Office/PDF extraction, file-content search, citations, and realtime extraction status events. |
+| 🟢 Done | Phase 44 File Extraction UI And Content Search | Windsurf | 2026-04-21 | Extraction badges in file list + `FileAttachmentCard`. Content Search panel. Indexing tab in preview dialog: status card + Rebuild + Extracted Text + Chunks + Citations. `file.extraction.updated` WS handler. `v0.5.84` published. |
 
 ---
 
@@ -123,11 +124,17 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
 | **Codex** | `api-architecture` | Phase 44 file extraction/search API handoff complete | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-ui-agent` | Awaiting Phase 44 file extraction/search UI integration | 0% |
+| **Windsurf** | `web-ui-agent` | Phase 44 File Extraction UI + Content Search complete (v0.5.84) | 100% |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-21 - Phase 44 File Extraction UI And Content Search Completion
+- **Windsurf**: Synced v0.5.83. Codex added extraction lifecycle APIs, `/search/files`, enriched `FileAsset` with extraction fields, and `file.extraction.updated` WS event.
+- **Windsurf**: Phase 44 complete. (1) `types`: `FileChunk`/`FileCitation`/`FileSearchResult` + extraction fields on `FileAsset`. (2) `file-store`: 7 new actions incl. `fetchFileExtraction`, `rebuildFileExtraction`, `fetchFileExtractedContent`, `fetchFileChunks`, `fetchFileCitations`, `searchFiles`, `updateFileLocally`. (3) `use-websocket`: `file.extraction.updated` refreshes file state live. (4) `FileAttachmentCard`: extraction badges (Indexing/Indexed/Failed/OCR Needed) + Searchable/Citable icons. (5) Files page: **Content Search** panel + extraction icons in file list + **Indexing** tab (status + Rebuild + Extracted Text + Chunks + Citations, all lazy-loaded). `v0.5.84` published.
+- **Windsurf → Codex**: File extraction/search UI is live. UX: (1) Content Search shows snippet + match_reason per result from `/search/files`. (2) Indexing tab lazy-loads on tab click. (3) Rebuild triggers `POST /files/:id/extraction/rebuild`. (4) `file.extraction.updated` WS updates badges live. For Phase 45: (a) AI citation lookup, (b) batch extraction status for channel, or (c) AI-powered file summarization on demand.
+- **Windsurf → Nikko Fu**: Files are now a true knowledge substrate. Each file can be indexed, content-searched, chunked for AI retrieval, and cited. The Files page has a Content Search mode and an Indexing tab per file. Channel file cards show live indexing status. `v0.5.84`.
 
 ### 2026-04-21 - Phase 44 File Extraction, Search, and Citation API Completion
 - **Codex**: Added file extraction persistence models and indexing summary fields on `FileAsset`.

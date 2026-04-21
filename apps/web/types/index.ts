@@ -17,6 +17,14 @@ export interface FileAsset {
   knowledge_state?: string
   source_kind?: string
   summary?: string
+  extraction_status?: string
+  content_summary?: string
+  last_indexed_at?: string
+  needs_ocr?: boolean
+  ocr_provider?: string
+  ocr_is_mock?: boolean
+  is_searchable?: boolean
+  is_citable?: boolean
 }
 
 export interface FileComment {
@@ -27,6 +35,37 @@ export interface FileComment {
   created_at: string
   updated_at: string
   user?: User
+}
+
+export interface FileChunk {
+  id: string
+  file_id: string
+  chunk_index: number
+  content: string
+  char_count?: number
+  token_estimate?: number
+}
+
+export interface FileCitation {
+  id: string
+  file_id: string
+  message_id?: string
+  artifact_id?: string
+  snippet: string
+  created_at: string
+}
+
+export interface FileSearchResult {
+  id: string
+  name: string
+  type: string
+  size: number
+  url?: string
+  extraction_status?: string
+  is_searchable?: boolean
+  is_citable?: boolean
+  snippet?: string
+  match_reason?: string
 }
 
 export interface FileShare {

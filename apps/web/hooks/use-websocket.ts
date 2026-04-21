@@ -6,6 +6,7 @@ import { usePresenceStore } from '@/stores/presence-store'
 import { useArtifactStore } from '@/stores/artifact-store'
 import { useActivityStore } from '@/stores/activity-store'
 import { useDirectoryStore } from '@/stores/directory-store'
+import { useFileStore } from '@/stores/file-store'
 
 export function useWebsocket() {
   const socketRef = useRef<WebSocket | null>(null)
@@ -72,6 +73,18 @@ export function useWebsocket() {
           markAsReadLocally(data.payload.item_ids || [])
         } else if (data.type === 'workflow.run.updated') {
           fetchWorkflowRuns()
+        } else if (data.type === 'file.extraction.updated') {
+          const { file_id, status, is_searchable, is_citable, content_summary, last_indexed_at, needs_ocr } = data.payload || {}
+          if (file_id) {
+            useFileStore.getState().updateFileLocally(file_id, {
+              extraction_status: status,
+              is_searchable,
+              is_citable,
+              content_summary,
+              last_indexed_at,
+              needs_ocr,
+            })
+          }
         }
       } catch (err) {
         console.error("Failed to parse WS message:", err)

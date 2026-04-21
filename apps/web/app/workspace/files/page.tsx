@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useFileStore } from "@/stores/file-store"
-import { Search, Folder, FileIcon, Archive, Trash2, Download, Filter, MoreVertical, RefreshCcw, History, ShieldCheck, Loader2, Star, MessageSquare, Share2, BookOpen, Tag, Send, Globe, CheckCircle2, Edit2, X } from "lucide-react"
+import { Search, Folder, FileIcon, Archive, Trash2, Download, Filter, MoreVertical, RefreshCcw, History, ShieldCheck, Loader2, Star, MessageSquare, Share2, BookOpen, Tag, Send, Globe, CheckCircle2, Edit2, X, Cpu, AlertTriangle, AlignLeft, Layers, Link2, FileSearch, RefreshCw } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -36,7 +36,7 @@ import {
 } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import { Label } from "@/components/ui/label"
-import type { FileComment, FileShare } from "@/types"
+import type { FileComment, FileShare, FileChunk, FileCitation, FileSearchResult } from "@/types"
 
 export default function FilesPage() {
   const { 
@@ -45,6 +45,8 @@ export default function FilesPage() {
     fetchFileAuditHistory, updateFileRetention, fetchFilePreview,
     fetchFileComments, createFileComment, toggleFileStar, fetchStarredFiles,
     shareFile, fetchFileShares, updateFileKnowledge,
+    fetchFileExtraction, rebuildFileExtraction, fetchFileExtractedContent,
+    fetchFileChunks, fetchFileCitations, searchFiles,
   } = useFileStore()
   const { channels } = useChannelStore()
   const { users, fetchUsers } = useUserStore()
@@ -77,6 +79,23 @@ export default function FilesPage() {
   const [shareChannelId, setShareChannelId] = useState("")
   const [shareComment, setShareComment] = useState("")
   const [isSharingFile, setIsSharingFile] = useState(false)
+
+  // Content search state
+  const [isContentSearch, setIsContentSearch] = useState(false)
+  const [contentSearchQ, setContentSearchQ] = useState("")
+  const [contentSearchResults, setContentSearchResults] = useState<FileSearchResult[]>([])
+  const [isSearchingContent, setIsSearchingContent] = useState(false)
+
+  // Indexing / extraction state
+  const [extraction, setExtraction] = useState<any>(null)
+  const [extractedText, setExtractedText] = useState<string | null>(null)
+  const [chunks, setChunks] = useState<FileChunk[]>([])
+  const [citations, setCitations] = useState<FileCitation[]>([])
+  const [isLoadingExtraction, setIsLoadingExtraction] = useState(false)
+  const [isRebuildingExtraction, setIsRebuildingExtraction] = useState(false)
+  const [showExtractedText, setShowExtractedText] = useState(false)
+  const [showChunks, setShowChunks] = useState(false)
+  const [showCitations, setShowCitations] = useState(false)
 
   // Knowledge state
   const [isEditingKnowledge, setIsEditingKnowledge] = useState(false)
@@ -124,6 +143,13 @@ export default function FilesPage() {
     setComments([])
     setShares([])
     setIsEditingKnowledge(false)
+    setExtraction(null)
+    setExtractedText(null)
+    setChunks([])
+    setCitations([])
+    setShowExtractedText(false)
+    setShowChunks(false)
+    setShowCitations(false)
     const preview = await fetchFilePreview(file.id)
     setFilePreview(preview)
     setIsPreviewLoading(false)
@@ -137,6 +163,49 @@ export default function FilesPage() {
     setSourceKind(file.source_kind || "")
     setKnowledgeSummary(file.summary || "")
     setKnowledgeTags((file.tags || []).join(", "))
+  }
+
+  const handleLoadExtraction = async (fileId: string) => {
+    if (extraction) return
+    setIsLoadingExtraction(true)
+    const ext = await fetchFileExtraction(fileId)
+    setExtraction(ext)
+    setIsLoadingExtraction(false)
+  }
+
+  const handleRebuildExtraction = async (fileId: string) => {
+    setIsRebuildingExtraction(true)
+    await rebuildFileExtraction(fileId)
+    setIsRebuildingExtraction(false)
+    setExtraction(null)
+    handleLoadExtraction(fileId)
+  }
+
+  const handleLoadExtractedText = async (fileId: string) => {
+    const result = await fetchFileExtractedContent(fileId)
+    setExtractedText(result?.text || null)
+    setShowExtractedText(true)
+  }
+
+  const handleLoadChunks = async (fileId: string) => {
+    const result = await fetchFileChunks(fileId)
+    setChunks(result)
+    setShowChunks(true)
+  }
+
+  const handleLoadCitations = async (fileId: string) => {
+    const result = await fetchFileCitations(fileId)
+    setCitations(result)
+    setShowCitations(true)
+  }
+
+  const handleContentSearch = async (value: string) => {
+    setContentSearchQ(value)
+    if (!value.trim()) { setContentSearchResults([]); return }
+    setIsSearchingContent(true)
+    const results = await searchFiles(value.trim())
+    setContentSearchResults(results)
+    setIsSearchingContent(false)
   }
 
   const handlePostComment = async () => {
@@ -190,14 +259,23 @@ export default function FilesPage() {
       <header className="h-14 px-6 flex items-center border-b shrink-0 justify-between">
         <div className="flex items-center gap-2">
           <Folder className="w-5 h-5 text-blue-600" />
-          <h1 className="text-lg font-black tracking-tight uppercase">Files & Assets</h1>
+          <h1 className="text-lg font-black tracking-tight uppercase">Files &amp; Assets</h1>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant={isContentSearch ? "secondary" : "ghost"}
+            size="sm"
+            className="text-xs font-bold gap-2"
+            onClick={() => { setIsContentSearch(!isContentSearch); setContentSearchQ(""); setContentSearchResults([]) }}
+          >
+            <FileSearch className={cn("w-3.5 h-3.5", isContentSearch && "text-sky-500")} />
+            Content Search
+          </Button>
           <Button 
             variant={showStarred ? "secondary" : "ghost"} 
             size="sm" 
             className="text-xs font-bold gap-2"
-            onClick={() => { setShowStarred(!showStarred); setShowArchived(false) }}
+            onClick={() => { setShowStarred(!showStarred); setShowArchived(false); setIsContentSearch(false) }}
           >
             <Star className={cn("w-3.5 h-3.5", showStarred && "fill-amber-400 text-amber-400")} />
             Starred
@@ -206,13 +284,59 @@ export default function FilesPage() {
             variant={showArchived ? "secondary" : "ghost"} 
             size="sm" 
             className="text-xs font-bold gap-2"
-            onClick={() => { setShowArchived(!showArchived); setShowStarred(false) }}
+            onClick={() => { setShowArchived(!showArchived); setShowStarred(false); setIsContentSearch(false) }}
           >
             <Archive className="w-3.5 h-3.5" />
             {showArchived ? "Back to Active" : "Archive"}
           </Button>
         </div>
       </header>
+
+      {/* Content Search Panel */}
+      {isContentSearch && (
+        <div className="p-4 border-b bg-sky-500/5 space-y-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-sky-500" />
+            <Input
+              placeholder="Search file content, extracted text, summaries..."
+              className="pl-9 border-sky-300 dark:border-sky-700"
+              value={contentSearchQ}
+              onChange={e => handleContentSearch(e.target.value)}
+            />
+            {isSearchingContent && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-sky-500" />}
+          </div>
+          {contentSearchQ && (
+            <div className="space-y-2">
+              {contentSearchResults.length === 0 && !isSearchingContent && (
+                <p className="text-xs text-muted-foreground italic text-center py-2">No indexed file content matches found.</p>
+              )}
+              {contentSearchResults.map(r => (
+                <div key={r.id} className="bg-white dark:bg-[#1a1d21] rounded-lg border p-3 space-y-1.5 cursor-pointer hover:bg-sky-500/5 transition-colors"
+                  onClick={() => handleViewPreview(r)}
+                >
+                  <div className="flex items-center gap-2">
+                    <FileIcon className="w-4 h-4 text-sky-600 shrink-0" />
+                    <span className="text-sm font-bold truncate">{r.name}</span>
+                    {r.extraction_status === 'ready' && (
+                      <Badge className="ml-auto text-[9px] h-4 px-1.5 bg-sky-500/10 text-sky-700 dark:text-sky-400 border-sky-300 gap-0.5 shrink-0">
+                        <Cpu className="w-2.5 h-2.5" />Indexed
+                      </Badge>
+                    )}
+                  </div>
+                  {r.snippet && (
+                    <p className="text-[11px] text-muted-foreground leading-relaxed bg-muted/30 rounded px-2 py-1 font-mono">
+                      ...{r.snippet}...
+                    </p>
+                  )}
+                  {r.match_reason && (
+                    <p className="text-[10px] text-sky-600 font-bold uppercase tracking-wider">{r.match_reason}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Filter Bar */}
       <div className="p-4 border-b bg-muted/10 flex flex-wrap gap-3">
@@ -273,7 +397,14 @@ export default function FilesPage() {
                     <FileIcon className="w-5 h-5" />
                   </div>
                   <div className="min-w-0">
-                    <h3 className="font-bold text-sm truncate">{file.name}</h3>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <h3 className="font-bold text-sm truncate">{file.name}</h3>
+                      {file.extraction_status === 'processing' && <Loader2 className="w-3 h-3 text-amber-500 animate-spin shrink-0" />}
+                      {file.extraction_status === 'ready' && file.is_searchable && <Cpu className="w-3 h-3 text-sky-500 shrink-0" />}
+                      {file.extraction_status === 'failed' && <AlertTriangle className="w-3 h-3 text-red-500 shrink-0" />}
+                      {file.extraction_status === 'ocr_needed' && <AlertTriangle className="w-3 h-3 text-orange-500 shrink-0" />}
+                      {file.is_citable && <Link2 className="w-3 h-3 text-violet-500 shrink-0" />}
+                    </div>
                     <p className="text-[10px] text-muted-foreground uppercase font-black tracking-tighter">
                       {file.type} • {(file.size / 1024).toFixed(1)} KB • {format(new Date(file.createdAt), 'MMM d, yyyy')}
                     </p>
@@ -516,6 +647,14 @@ export default function FilesPage() {
                 <BookOpen className="w-3 h-3" />
                 Knowledge
               </TabsTrigger>
+              <TabsTrigger
+                value="indexing"
+                className="text-xs h-7 px-3 gap-1"
+                onClick={() => selectedFile && handleLoadExtraction(selectedFile.id)}
+              >
+                <Cpu className="w-3 h-3" />
+                Indexing
+              </TabsTrigger>
             </TabsList>
 
             <ScrollArea className="flex-1">
@@ -731,6 +870,117 @@ export default function FilesPage() {
                         <X className="w-3.5 h-3.5 mr-1" /> Cancel
                       </Button>
                     </div>
+                  </div>
+                )}
+              </TabsContent>
+              {/* Indexing tab */}
+              <TabsContent value="indexing" className="p-5 m-0 space-y-4">
+                {isLoadingExtraction && (
+                  <div className="flex items-center gap-2 py-6 text-xs text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Loading indexing data...
+                  </div>
+                )}
+                {extraction && (
+                  <>
+                    {/* Status card */}
+                    <div className="rounded-xl border p-3 space-y-3 bg-muted/20">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Extraction Status</p>
+                        <Button
+                          variant="ghost" size="sm" className="h-6 text-[10px] gap-1 text-muted-foreground"
+                          disabled={isRebuildingExtraction}
+                          onClick={() => selectedFile && handleRebuildExtraction(selectedFile.id)}
+                        >
+                          {isRebuildingExtraction ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                          Rebuild
+                        </Button>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {extraction.status === 'processing' && <Badge className="gap-1 bg-amber-500/10 text-amber-700 border-amber-300 text-[10px]"><Loader2 className="w-3 h-3 animate-spin" />Processing</Badge>}
+                        {extraction.status === 'ready' && <Badge className="gap-1 bg-sky-500/10 text-sky-700 border-sky-300 text-[10px]"><Cpu className="w-3 h-3" />Indexed</Badge>}
+                        {extraction.status === 'failed' && <Badge className="gap-1 bg-red-500/10 text-red-700 border-red-300 text-[10px]"><AlertTriangle className="w-3 h-3" />Failed</Badge>}
+                        {extraction.status === 'ocr_needed' && <Badge className="gap-1 bg-orange-500/10 text-orange-700 border-orange-300 text-[10px]"><AlertTriangle className="w-3 h-3" />OCR Needed</Badge>}
+                        {extraction.is_searchable && <Badge className="gap-1 bg-sky-500/10 text-sky-700 border-sky-300 text-[10px]"><Search className="w-3 h-3" />Searchable</Badge>}
+                        {extraction.is_citable && <Badge className="gap-1 bg-violet-500/10 text-violet-700 border-violet-300 text-[10px]"><Link2 className="w-3 h-3" />Citable</Badge>}
+                        {extraction.needs_ocr && <Badge className="gap-1 bg-orange-500/10 text-orange-700 border-orange-300 text-[10px]"><AlertTriangle className="w-3 h-3" />{extraction.ocr_is_mock ? 'Mock OCR' : extraction.ocr_provider || 'OCR'}</Badge>}
+                      </div>
+                      {extraction.last_indexed_at && (
+                        <p className="text-[10px] text-muted-foreground">Last indexed: {format(new Date(extraction.last_indexed_at), 'PPp')}</p>
+                      )}
+                      {extraction.content_summary && (
+                        <p className="text-[11px] text-foreground/80 leading-relaxed bg-muted/40 rounded-lg px-3 py-2">{extraction.content_summary}</p>
+                      )}
+                    </div>
+
+                    {/* Extracted text */}
+                    <div className="space-y-2">
+                      <Button variant="outline" size="sm" className="text-[10px] font-bold gap-1.5 h-7"
+                        onClick={() => selectedFile && (showExtractedText ? setShowExtractedText(false) : handleLoadExtractedText(selectedFile.id))}
+                      >
+                        <AlignLeft className="w-3 h-3" />
+                        {showExtractedText ? 'Hide' : 'Show'} Extracted Text
+                      </Button>
+                      {showExtractedText && (
+                        <pre className="text-[10px] text-foreground/80 leading-relaxed bg-muted/30 rounded-lg p-3 max-h-40 overflow-y-auto whitespace-pre-wrap break-words font-mono">
+                          {extractedText || '(No extracted text available)'}
+                        </pre>
+                      )}
+                    </div>
+
+                    {/* Chunks */}
+                    <div className="space-y-2">
+                      <Button variant="outline" size="sm" className="text-[10px] font-bold gap-1.5 h-7"
+                        onClick={() => selectedFile && (showChunks ? setShowChunks(false) : handleLoadChunks(selectedFile.id))}
+                      >
+                        <Layers className="w-3 h-3" />
+                        {showChunks ? 'Hide' : 'Show'} Chunks {chunks.length > 0 && `(${chunks.length})`}
+                      </Button>
+                      {showChunks && (
+                        <div className="space-y-2 max-h-40 overflow-y-auto">
+                          {chunks.length === 0 && <p className="text-xs text-muted-foreground italic">No chunks available.</p>}
+                          {chunks.map((chunk, i) => (
+                            <div key={chunk.id || i} className="bg-muted/30 rounded-lg p-2 text-[10px] font-mono">
+                              <p className="text-muted-foreground mb-1 font-sans font-bold">Chunk {chunk.chunk_index + 1}{chunk.char_count ? ` · ${chunk.char_count} chars` : ''}{chunk.token_estimate ? ` · ~${chunk.token_estimate} tokens` : ''}</p>
+                              <p className="text-foreground/80 line-clamp-3 leading-relaxed break-words">{chunk.content}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Citations */}
+                    <div className="space-y-2">
+                      <Button variant="outline" size="sm" className="text-[10px] font-bold gap-1.5 h-7"
+                        onClick={() => selectedFile && (showCitations ? setShowCitations(false) : handleLoadCitations(selectedFile.id))}
+                      >
+                        <Link2 className="w-3 h-3" />
+                        {showCitations ? 'Hide' : 'Show'} Citations {citations.length > 0 && `(${citations.length})`}
+                      </Button>
+                      {showCitations && (
+                        <div className="space-y-2 max-h-40 overflow-y-auto">
+                          {citations.length === 0 && <p className="text-xs text-muted-foreground italic">No citations yet.</p>}
+                          {citations.map((cit, i) => (
+                            <div key={cit.id || i} className="bg-violet-500/5 border border-violet-500/20 rounded-lg p-2 text-[11px]">
+                              <p className="text-foreground/80 leading-relaxed italic">&ldquo;{cit.snippet}&rdquo;</p>
+                              <p className="text-[9px] text-muted-foreground mt-1">{format(new Date(cit.created_at), 'PPp')}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+                {!isLoadingExtraction && !extraction && (
+                  <div className="py-8 text-center space-y-2">
+                    <Cpu className="w-8 h-8 text-muted-foreground/20 mx-auto" />
+                    <p className="text-xs text-muted-foreground italic">No extraction data found. Try rebuilding.</p>
+                    <Button variant="outline" size="sm" className="text-[10px] font-bold gap-1.5 h-7"
+                      disabled={isRebuildingExtraction}
+                      onClick={() => selectedFile && handleRebuildExtraction(selectedFile.id)}
+                    >
+                      {isRebuildingExtraction ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                      Rebuild Extraction
+                    </Button>
                   </div>
                 )}
               </TabsContent>
