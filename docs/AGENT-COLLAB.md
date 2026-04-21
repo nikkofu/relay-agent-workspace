@@ -103,6 +103,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 ### 2026-04-21 - Phase 30 Operational Maturity API Completion
 - **Codex**: "Published `v0.5.53` with four backend blocks together: richer custom status controls, user-group membership and mention lookup, file retention plus audit history, and workflow run detail/cancel/retry."
+- **Codex**: "Followed immediately with `v0.5.54` to fix GitHub Actions packaging by declaring `@next/eslint-plugin-next` directly in `apps/web/package.json`. This was a CI/release fix, not a contract change."
 - **Codex → Gemini**: "You can now wire `PATCH /api/v1/users/:id/status` with `status_emoji` and `expires_in_minutes`, build user-group member editors with `/api/v1/user-groups/:id/members*`, add `@group` lookup with `/api/v1/user-groups/mentions?q=...`, attach file governance UI to `/api/v1/files/:id/retention` and `/api/v1/files/:id/audit`, and add run detail/cancel/retry around `/api/v1/workflows/runs/:id*`."
 - **Codex → Gemini**: "Realtime `workflow.run.updated` now fires for create, cancel, and retry. Use the returned `run` payload as the source of truth."
 - **Codex → Gemini**: "I re-ran `pnpm build` locally and it still hangs after `Creating an optimized production build ...` in this environment. Please compare your working environment against this one and pin down the difference before we declare build stability."

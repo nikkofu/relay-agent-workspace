@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.5.53` is the current release line and includes:
+`v0.5.54` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
