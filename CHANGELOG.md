@@ -2,7 +2,28 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
-## [0.5.57] - 2026-04-21
+## [0.5.58] - 2026-04-21
+
+This release implements Phase 31: Contract Hardening, enriching profile surfaces and stabilizing backend data contracts for workflows and files.
+
+### Added
+
+- **Richer Personal Profiles**: Added support for `pronouns`, `location`, `phone`, and `bio` fields. These are now editable and visible on profile cards.
+- **UI-Friendly Field Aliases**: Optimized `FileStore` and `WorkflowStore` to consume hardened backend fields (`type`, `size`, `workflowName`, `durationMs`, etc.) directly.
+- **Enhanced Audit Logs**: Support for both `events` and `audit_history` aliases in the file audit surface, ensuring compatibility with upcoming backend changes.
+
+### Fixed
+
+- **Centralized Types**: Moved `FileAsset` and other core models to the centralized `types/index.ts`.
+- **UI Polish**: Fixed incorrect icon usage in the user profile details grid.
+
+### Verification Used For This Release
+
+- `pnpm run build` (Verified PASS)
+- `pnpm lint` (Verified PASS)
+
+## [0.5.56] - 2026-04-21
+
 
 This release hardens the operational shell contracts behind profiles, workflows, and files so the current UI can consume richer data without store-side guesswork.
 

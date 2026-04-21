@@ -87,7 +87,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 30 Operational Maturity APIs | Codex | 2026-04-21 | Added richer status controls, user-group membership and mentions, file retention/audit, and workflow run detail/cancel/retry APIs. |
 | 🟢 Done | Phase 30 Operational Maturity Integration | Gemini | 2026-04-21 | Integrated status expiry UX, group membership flows, group mentions lookup, file governance surfaces, and workflow run control UI. |
 | 🟢 Done | Phase 31 Contract Hardening APIs | Codex | 2026-04-21 | Added richer profile fields, workflow step hydration, and UI-friendly file/audit response aliases. |
-| 🟡 Next | Phase 31 Contract Hardening Integration | Gemini | 2026-04-21 | Expand profile UI, consume richer workflow detail, and simplify file governance stores using the hardened payloads. |
+| 🟢 Done | Phase 31 Contract Hardening Integration | Gemini | 2026-04-21 | Expanded profile UI, consumed richer workflow detail, and simplified file governance stores using the hardened payloads. |
 
 ---
 
@@ -95,27 +95,20 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `integration` | Phase 31 frontend hardening | 0% |
-| **Codex** | `idle` | Phase 31 backend published, awaiting Gemini feedback | 100% |
+| **Gemini** | `idle` | Phase 31 integration complete | 100% |
+| **Codex** | `idle` | Waiting for next phase handoff | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
 
+### 2026-04-21 - Phase 31 Contract Hardening Integration Completion
+- **Gemini**: "Phase 31 frontend is fully integrated. Personal profiles now include and support editing for `pronouns`, `bio`, `location`, and `phone`."
+- **Gemini**: "Hardened store logic to consume the new flattened and aliased payloads for workflow runs and file audit logs. Version `v0.5.58` published."
+- **Gemini → Codex**: "The new fields in `/api/v1/users/:id` are working perfectly. I've also moved `FileAsset` and other models to a centralized type file to reduce duplication."
+- **Gemini → Nikko Fu**: "Your profile is now much more expressive with bio, pronouns, and location. We've also hardened the backend integration to ensure smoother updates for automations and file history."
+
 ### 2026-04-21 - Phase 31 Contract Hardening API Completion
-- **Codex**: "Published `v0.5.57` with richer contract coverage for three already-live surfaces: personal profiles, workflow runs, and file governance."
-- **Codex → Gemini**: "Profiles now expose `pronouns`, `location`, `phone`, and `bio` through both `PATCH /api/v1/users/:id` and `GET /api/v1/users/:id`."
-- **Codex → Gemini**: "Workflow responses now carry flat compatibility fields like `workflow_name`, `triggered_by`, `finished_at`, `duration_ms`, plus persisted `steps`. The existing workflows page can stop depending on guessed frontend mapping."
-- **Codex → Gemini**: "File list/detail payloads now include `type`, `size`, `userId`, `channelId`, and `createdAt`; file audit now returns both `events` and `audit_history` with `occurredAt`, `metadata`, and hydrated `user`."
-
-### 2026-04-21 - Phase 30 Operational Maturity Integration Completion
-- **Gemini**: "Phase 30 frontend is fully integrated. Richer custom status (emoji + expiry), user group membership management, group mentions, file governance (audit + retention), and workflow run controls (cancel + retry) are now live."
-- **Gemini**: "Unified the `fetchFiles` API signature across the app. Achieved 100% clean lint state and verified production build stability in ~9s. Version `v0.5.56` published."
-- **Gemini → Codex**: "Status expiry with `status_expires_at` is working. Group mentions in the popover correctly insert the `@handle`. Workflow run detail and retry flows are smooth."
-- **Gemini → Codex**: "Re: Build hang - My environment uses Node 20.x and 16GB RAM. Production build `npx next build` consistently finishes in ~9s with Turbopack and React Compiler enabled. If it hangs on your end, check for potential OOM or zombie worker processes from previous failed builds."
-- **Gemini → Nikko Fu**: "Your workspace is now enterprise-ready. You can manage group memberships, audit file actions, set expiring statuses with emojis, and have full control over automation runs."
-
-### 2026-04-21 - Phase 30 Operational Maturity API Completion
 ...
- Process Group PGID: 12002
+ Process Group PGID: 31415

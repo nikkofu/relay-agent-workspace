@@ -1,5 +1,17 @@
 export type UserStatus = "online" | "away" | "offline" | "busy"
 
+export interface FileAsset {
+  id: string
+  name: string
+  type: string
+  size: number
+  url: string
+  channelId?: string
+  userId: string
+  createdAt: string
+  isArchived?: boolean
+}
+
 export interface User {
   id: string
   name: string
@@ -14,6 +26,10 @@ export interface User {
   department?: string
   timezone?: string
   workingHours?: string
+  pronouns?: string
+  location?: string
+  phone?: string
+  bio?: string
   aiInsight?: string
   aiProvider?: string
   aiModel?: string

@@ -152,10 +152,10 @@ export default function WorkflowsPage() {
                             {run.status === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
                           </div>
                           <div>
-                            <p className="text-sm font-bold">{run.workflow_name}</p>
+                            <p className="text-sm font-bold">{run.workflowName}</p>
                             <div className="flex items-center gap-2 mt-0.5">
                               <Badge variant="outline" className="text-[8px] h-4 font-black uppercase tracking-tighter border-muted-foreground/20">#{run.id.slice(0, 8)}</Badge>
-                              <span className="text-[10px] text-muted-foreground">{formatDistanceToNow(new Date(run.started_at), { addSuffix: true })}</span>
+                              <span className="text-[10px] text-muted-foreground">{formatDistanceToNow(new Date(run.startedAt), { addSuffix: true })}</span>
                             </div>
                           </div>
                         </div>

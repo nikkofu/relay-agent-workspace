@@ -11,7 +11,16 @@ interface UserState {
   fetchUsers: (params?: { q?: string, department?: string, status?: string, timezone?: string, userGroupId?: string }) => Promise<void>
   fetchUserDetail: (id: string) => Promise<void>
   updateStatus: (id: string, params: { status: string, statusText: string, statusEmoji?: string, expiresInMinutes?: number }) => Promise<void>
-  updateProfile: (id: string, updates: { title?: string, department?: string, timezone?: string, workingHours?: string }) => Promise<void>
+  updateProfile: (id: string, updates: { 
+    title?: string, 
+    department?: string, 
+    timezone?: string, 
+    workingHours?: string,
+    pronouns?: string,
+    location?: string,
+    phone?: string,
+    bio?: string
+  }) => Promise<void>
 }
 
 const mapUser = (u: any): User => ({
@@ -21,6 +30,10 @@ const mapUser = (u: any): User => ({
   statusExpiresAt: u.status_expires_at,
   lastSeen: u.last_seen_at,
   workingHours: u.working_hours,
+  pronouns: u.pronouns,
+  location: u.location,
+  phone: u.phone,
+  bio: u.bio,
   aiInsight: u.ai_insight,
   aiProvider: u.ai_provider,
   aiModel: u.ai_model,
@@ -106,6 +119,10 @@ export const useUserStore = create<UserState>((set) => ({
       if (updates.department !== undefined) payload.department = updates.department
       if (updates.timezone !== undefined) payload.timezone = updates.timezone
       if (updates.workingHours !== undefined) payload.working_hours = updates.workingHours
+      if (updates.pronouns !== undefined) payload.pronouns = updates.pronouns
+      if (updates.location !== undefined) payload.location = updates.location
+      if (updates.phone !== undefined) payload.phone = updates.phone
+      if (updates.bio !== undefined) payload.bio = updates.bio
 
       const response = await fetch(`${API_BASE_URL}/users/${id}`, {
         method: "PATCH",

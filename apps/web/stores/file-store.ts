@@ -1,19 +1,7 @@
 import { create } from "zustand"
 import { API_BASE_URL } from "@/lib/constants"
 import { toast } from "sonner"
-import { FileAudit } from "@/types"
-
-export interface FileAsset {
-  id: string
-  name: string
-  type: string
-  size: number
-  url: string
-  channelId?: string
-  userId: string
-  createdAt: string
-  isArchived?: boolean
-}
+import { FileAudit, FileAsset } from "@/types"
 
 interface FileState {
   files: FileAsset[]
@@ -147,7 +135,7 @@ export const useFileStore = create<FileState>((set) => ({
     try {
       const response = await fetch(`${API_BASE_URL}/files/${id}/audit`)
       const data = await response.json()
-      return data.audit_history || []
+      return data.events || data.audit_history || []
     } catch (error) {
       console.error("Failed to fetch file audit history:", error)
       return []

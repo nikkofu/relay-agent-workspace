@@ -2,7 +2,7 @@
 
 import { User } from "@/types"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Sparkles, MessageCircle, Mail, Clock, Calendar, Users } from "lucide-react"
+import { Sparkles, MessageCircle, Mail, Clock, Calendar, Users, MapPin, Phone } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { useRouter } from "next/navigation"
@@ -44,7 +44,11 @@ export function UserProfile({ user }: UserProfileProps) {
   const [editForm, setEditForm] = useState({
     title: user.title || "",
     department: user.department || "",
-    timezone: user.timezone || "UTC+8"
+    timezone: user.timezone || "UTC+8",
+    pronouns: user.pronouns || "",
+    location: user.location || "",
+    phone: user.phone || "",
+    bio: user.bio || ""
   })
   
   const statusColors: Record<string, string> = {
@@ -94,6 +98,7 @@ export function UserProfile({ user }: UserProfileProps) {
         <div className="flex flex-col gap-0.5">
           <div className="flex items-center gap-2">
             <h3 className="text-xl font-black tracking-tight text-foreground">{user.name}</h3>
+            {user.pronouns && <span className="text-xs text-muted-foreground font-normal">({user.pronouns})</span>}
             {user.statusEmoji && <span className="text-lg">{user.statusEmoji}</span>}
             <div className={`h-2.5 w-2.5 rounded-full ${statusColors[user.status] || statusColors.offline}`} />
           </div>
@@ -190,7 +195,7 @@ export function UserProfile({ user }: UserProfileProps) {
                 <DialogHeader>
                   <DialogTitle className="text-xl font-black">Edit your profile</DialogTitle>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
+                <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto px-1 custom-scrollbar">
                   <div className="grid gap-2">
                     <Label htmlFor="title">Job Title</Label>
                     <Input 
@@ -205,6 +210,40 @@ export function UserProfile({ user }: UserProfileProps) {
                       id="dept" 
                       value={editForm.department}
                       onChange={(e) => setEditForm(prev => ({ ...prev, department: e.target.value }))}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="pronouns">Pronouns</Label>
+                    <Input 
+                      id="pronouns" 
+                      placeholder="e.g. they/them"
+                      value={editForm.pronouns}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, pronouns: e.target.value }))}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="bio">Bio</Label>
+                    <Input 
+                      id="bio" 
+                      placeholder="Tell us about yourself"
+                      value={editForm.bio}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, bio: e.target.value }))}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="loc">Location</Label>
+                    <Input 
+                      id="loc" 
+                      value={editForm.location}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, location: e.target.value }))}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="phone">Phone</Label>
+                    <Input 
+                      id="phone" 
+                      value={editForm.phone}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, phone: e.target.value }))}
                     />
                   </div>
                   <div className="grid gap-2">
@@ -237,12 +276,19 @@ export function UserProfile({ user }: UserProfileProps) {
 
         <Separator className="opacity-50" />
 
-        {/* Details Grid */}
         <div className="grid grid-cols-1 gap-3">
           <DetailItem icon={Clock} label="Local time" value={user.profile?.localTime || "10:45 AM"} />
           <DetailItem icon={Calendar} label="Role / Title" value={user.title || "Software Engineer"} />
           <DetailItem icon={Users} label="Department" value={user.department || "Engineering"} />
+          {user.location && <DetailItem icon={MapPin} label="Location" value={user.location} />}
+          {user.phone && <DetailItem icon={Phone} label="Phone" value={user.phone} />}
         </div>
+        {user.bio && (
+          <div className="mt-2 p-3 bg-muted/30 rounded-lg border border-dashed">
+            <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1 tracking-widest">About</p>
+            <p className="text-xs text-foreground/80 leading-relaxed italic">{user.bio}</p>
+          </div>
+        )}
       </div>
     </div>
   )
