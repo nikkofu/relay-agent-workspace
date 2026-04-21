@@ -124,6 +124,17 @@ func SeedData() {
 		})
 	}
 
+	channelPreferences := []domain.ChannelPreference{
+		{ChannelID: "ch-1", UserID: "user-1", NotificationLevel: "all", IsMuted: false, CreatedAt: time.Date(2026, 4, 21, 1, 0, 0, 0, time.UTC), UpdatedAt: time.Date(2026, 4, 21, 1, 0, 0, 0, time.UTC)},
+		{ChannelID: "ch-collab", UserID: "user-1", NotificationLevel: "mentions", IsMuted: false, CreatedAt: time.Date(2026, 4, 21, 1, 5, 0, 0, time.UTC), UpdatedAt: time.Date(2026, 4, 21, 1, 5, 0, 0, time.UTC)},
+	}
+	for _, preference := range channelPreferences {
+		DB.FirstOrCreate(&preference, domain.ChannelPreference{
+			ChannelID: preference.ChannelID,
+			UserID:    preference.UserID,
+		})
+	}
+
 	workspaceInvites := []domain.WorkspaceInvite{
 		{
 			ID:          "invite-1",
@@ -246,6 +257,29 @@ func SeedData() {
 		DB.FirstOrCreate(&step, domain.WorkflowRunStep{
 			WorkflowRunID: step.WorkflowRunID,
 			Name:          step.Name,
+		})
+	}
+
+	workflowRunLogs := []domain.WorkflowRunLog{
+		{
+			WorkflowRunID: "run-1",
+			Level:         "info",
+			Message:       "Workflow run accepted by Relay automation engine.",
+			Metadata:      `{"source":"seed","stage":"queued"}`,
+			CreatedAt:     time.Date(2026, 4, 20, 1, 0, 5, 0, time.UTC),
+		},
+		{
+			WorkflowRunID: "run-1",
+			Level:         "info",
+			Message:       "Generated summary and closed run successfully.",
+			Metadata:      `{"source":"seed","stage":"completed"}`,
+			CreatedAt:     time.Date(2026, 4, 20, 1, 5, 0, 0, time.UTC),
+		},
+	}
+	for _, log := range workflowRunLogs {
+		DB.FirstOrCreate(&log, domain.WorkflowRunLog{
+			WorkflowRunID: log.WorkflowRunID,
+			Message:       log.Message,
 		})
 	}
 

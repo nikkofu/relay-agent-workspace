@@ -2,6 +2,31 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.59] - 2026-04-21
+
+This release implements Phase 32: Operational Shell Controls, extending Slack-style admin and automation operations for workflows, files, and channels.
+
+### Added
+
+- **Workflow Run Logs API**: Added `GET /api/v1/workflows/runs/:id/logs`, returning ordered execution logs with `level`, `message`, parsed `metadata`, and `created_at`.
+- **Workflow Run Delete API**: Added `DELETE /api/v1/workflows/runs/:id`, deleting the run plus associated steps/logs and broadcasting `workflow.run.deleted` over WebSocket.
+- **Workflow Log Persistence**: Added `workflow_run_logs` storage and seeded sample run logs for the workflow run detail surface.
+- **File Preview Metadata API**: Added `GET /api/v1/files/:id/preview`, returning `file_id`, `name`, `content_type`, `preview_kind`, `preview_url`, `download_url`, `is_previewable`, `size`, `channel_id`, uploader metadata, and expiry metadata.
+- **Channel Preferences API**: Added `GET /api/v1/channels/:id/preferences` and `PATCH /api/v1/channels/:id/preferences` with `notification_level` values of `all`, `mentions`, or `none`, plus `is_muted`.
+- **Leave Channel API**: Added `POST /api/v1/channels/:id/leave`, removing the current user from channel membership and recomputing `member_count`.
+
+### Changed
+
+- Auto-migration now includes `WorkflowRunLog` and `ChannelPreference`.
+- Workflow create/cancel/retry flows now append operator-readable workflow logs.
+- README current release line now reflects the latest published backend/API baseline.
+
+### Verification Used For This Release
+
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+
 ## [0.5.58] - 2026-04-21
 
 This release implements Phase 31: Contract Hardening, enriching profile surfaces and stabilizing backend data contracts for workflows and files.

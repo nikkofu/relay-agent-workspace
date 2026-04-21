@@ -789,6 +789,79 @@ func TestWorkflowRunDetailCancelAndRetry(t *testing.T) {
 	}
 }
 
+func TestWorkflowRunLogsAndDeleteEndpoints(t *testing.T) {
+	setupTestDB(t)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko", Email: "nikko@example.com"})
+	db.DB.Create(&domain.WorkflowDefinition{ID: "wf-1", Name: "Daily Brief", Category: "automation", Trigger: "manual", IsActive: true})
+	db.DB.Create(&domain.WorkflowRun{
+		ID:         "run-1",
+		WorkflowID: "wf-1",
+		StartedBy:  "user-1",
+		Status:     "running",
+		Input:      `{"channel_id":"ch-1"}`,
+		Summary:    "Building a daily brief",
+		StartedAt:  now,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	})
+	db.DB.Create(&domain.WorkflowRunStep{WorkflowRunID: "run-1", Name: "Collect input", Status: "completed", Detail: "Loaded trigger context", CreatedAt: now})
+	db.DB.Create(&domain.WorkflowRunLog{WorkflowRunID: "run-1", Level: "info", Message: "Run accepted", Metadata: `{"source":"test"}`, CreatedAt: now})
+	db.DB.Create(&domain.WorkflowRunLog{WorkflowRunID: "run-1", Level: "warning", Message: "Waiting for agent", CreatedAt: now.Add(time.Second)})
+
+	router := gin.New()
+	router.GET("/api/v1/workflows/runs/:id/logs", GetWorkflowRunLogs)
+	router.DELETE("/api/v1/workflows/runs/:id", DeleteWorkflowRun)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/workflows/runs/run-1/logs", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var logsPayload struct {
+		Logs []struct {
+			Level    string         `json:"level"`
+			Message  string         `json:"message"`
+			Metadata map[string]any `json:"metadata"`
+		} `json:"logs"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &logsPayload); err != nil {
+		t.Fatalf("failed to decode logs response: %v", err)
+	}
+	if len(logsPayload.Logs) != 2 {
+		t.Fatalf("expected 2 logs, got %d", len(logsPayload.Logs))
+	}
+	if logsPayload.Logs[0].Level != "info" || logsPayload.Logs[0].Message != "Run accepted" || logsPayload.Logs[0].Metadata["source"] != "test" {
+		t.Fatalf("unexpected first log payload: %+v", logsPayload.Logs[0])
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodDelete, "/api/v1/workflows/runs/run-1", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on delete, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var runCount int64
+	db.DB.Model(&domain.WorkflowRun{}).Where("id = ?", "run-1").Count(&runCount)
+	if runCount != 0 {
+		t.Fatalf("expected workflow run to be deleted, got %d", runCount)
+	}
+	var stepCount int64
+	db.DB.Model(&domain.WorkflowRunStep{}).Where("workflow_run_id = ?", "run-1").Count(&stepCount)
+	if stepCount != 0 {
+		t.Fatalf("expected workflow run steps to be deleted, got %d", stepCount)
+	}
+	var logCount int64
+	db.DB.Model(&domain.WorkflowRunLog{}).Where("workflow_run_id = ?", "run-1").Count(&logCount)
+	if logCount != 0 {
+		t.Fatalf("expected workflow run logs to be deleted, got %d", logCount)
+	}
+}
+
 func TestNotificationPreferencesCanBeUpdated(t *testing.T) {
 	setupTestDB(t)
 
@@ -2310,6 +2383,75 @@ func TestChannelMembersEndpointsListAddAndRemoveMembers(t *testing.T) {
 	}
 }
 
+func TestChannelPreferencesAndLeaveEndpoint(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public", MemberCount: 1})
+	db.DB.Create(&domain.ChannelMember{ChannelID: "ch-1", UserID: "user-1", Role: "member"})
+
+	router := gin.New()
+	router.GET("/api/v1/channels/:id/preferences", GetChannelPreferences)
+	router.PATCH("/api/v1/channels/:id/preferences", PatchChannelPreferences)
+	router.POST("/api/v1/channels/:id/leave", LeaveChannel)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/channels/ch-1/preferences", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on preference get, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var getPayload struct {
+		Preferences struct {
+			NotificationLevel string `json:"notification_level"`
+			IsMuted           bool   `json:"is_muted"`
+		} `json:"preferences"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &getPayload); err != nil {
+		t.Fatalf("failed to decode preference get: %v", err)
+	}
+	if getPayload.Preferences.NotificationLevel != "all" || getPayload.Preferences.IsMuted {
+		t.Fatalf("unexpected default preferences: %#v", getPayload.Preferences)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPatch, "/api/v1/channels/ch-1/preferences", bytes.NewBufferString(`{"notification_level":"mentions","is_muted":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on preference patch, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var pref domain.ChannelPreference
+	if err := db.DB.First(&pref, "channel_id = ? AND user_id = ?", "ch-1", "user-1").Error; err != nil {
+		t.Fatalf("failed to load persisted channel preference: %v", err)
+	}
+	if pref.NotificationLevel != "mentions" || !pref.IsMuted {
+		t.Fatalf("unexpected persisted channel preference: %#v", pref)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/channels/ch-1/leave", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on channel leave, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var memberCount int64
+	db.DB.Model(&domain.ChannelMember{}).Where("channel_id = ?", "ch-1").Count(&memberCount)
+	if memberCount != 0 {
+		t.Fatalf("expected channel member to be removed, got %d", memberCount)
+	}
+	var channel domain.Channel
+	if err := db.DB.First(&channel, "id = ?", "ch-1").Error; err != nil {
+		t.Fatalf("failed to reload channel: %v", err)
+	}
+	if channel.MemberCount != 0 {
+		t.Fatalf("expected channel member_count=0, got %d", channel.MemberCount)
+	}
+}
+
 func TestPatchChannelUpdatesTopicPurposeAndArchiveState(t *testing.T) {
 	setupTestDB(t)
 
@@ -2338,6 +2480,56 @@ func TestPatchChannelUpdatesTopicPurposeAndArchiveState(t *testing.T) {
 	}
 	if channel.Topic != "Launch coordination" || channel.Purpose != "Keep launch work aligned" || !channel.IsArchived {
 		t.Fatalf("channel patch was not persisted: %#v", channel)
+	}
+}
+
+func TestFilePreviewEndpointReturnsPreviewMetadata(t *testing.T) {
+	setupTestDB(t)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.FileAsset{
+		ID:          "file-1",
+		ChannelID:   "ch-1",
+		UploaderID:  "user-1",
+		Name:        "roadmap.png",
+		StoragePath: "roadmap.png",
+		ContentType: "image/png",
+		SizeBytes:   2048,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	})
+
+	router := gin.New()
+	router.GET("/api/v1/files/:id/preview", GetFilePreview)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/files/file-1/preview", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on file preview, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Preview struct {
+			FileID        string `json:"file_id"`
+			Name          string `json:"name"`
+			ContentType   string `json:"content_type"`
+			PreviewKind   string `json:"preview_kind"`
+			PreviewURL    string `json:"preview_url"`
+			DownloadURL   string `json:"download_url"`
+			IsPreviewable bool   `json:"is_previewable"`
+			Size          int64  `json:"size"`
+		} `json:"preview"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode file preview: %v", err)
+	}
+	if payload.Preview.FileID != "file-1" || payload.Preview.PreviewKind != "image" || !payload.Preview.IsPreviewable {
+		t.Fatalf("unexpected file preview payload: %#v", payload.Preview)
+	}
+	if payload.Preview.PreviewURL != "/api/v1/files/file-1/content" || payload.Preview.DownloadURL != "/api/v1/files/file-1/content" {
+		t.Fatalf("unexpected preview/download urls: %#v", payload.Preview)
 	}
 }
 
@@ -2500,7 +2692,7 @@ func setupTestDB(t *testing.T) {
 		t.Fatalf("failed to open sqlite test db: %v", err)
 	}
 	db.DB = testDB
-	if err := db.DB.AutoMigrate(&domain.Organization{}, &domain.Team{}, &domain.User{}, &domain.Agent{}, &domain.Workspace{}, &domain.WorkspaceInvite{}, &domain.UserGroup{}, &domain.UserGroupMember{}, &domain.WorkflowDefinition{}, &domain.WorkflowRunStep{}, &domain.ToolDefinition{}, &domain.Channel{}, &domain.ChannelMember{}, &domain.Message{}); err != nil {
+	if err := db.DB.AutoMigrate(&domain.Organization{}, &domain.Team{}, &domain.User{}, &domain.Agent{}, &domain.Workspace{}, &domain.WorkspaceInvite{}, &domain.UserGroup{}, &domain.UserGroupMember{}, &domain.WorkflowDefinition{}, &domain.WorkflowRunStep{}, &domain.WorkflowRunLog{}, &domain.ToolDefinition{}, &domain.Channel{}, &domain.ChannelMember{}, &domain.ChannelPreference{}, &domain.Message{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.NotificationPreference{}, &domain.NotificationMuteRule{}, &domain.AIFeedback{}, &domain.AIConversation{}, &domain.AIConversationMessage{}, &domain.AISummary{}, &domain.Artifact{}, &domain.ArtifactVersion{}, &domain.FileAsset{}, &domain.FileAssetEvent{}, &domain.MessageArtifactReference{}, &domain.MessageFileAttachment{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}, &domain.WorkflowRun{}); err != nil {

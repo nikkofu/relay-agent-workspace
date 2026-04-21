@@ -28,6 +28,21 @@ type fileAssetResponse struct {
 	CreatedAtAlias time.Time    `json:"createdAt"`
 }
 
+type filePreviewResponse struct {
+	FileID        string       `json:"file_id"`
+	Name          string       `json:"name"`
+	ContentType   string       `json:"content_type"`
+	PreviewKind   string       `json:"preview_kind"`
+	PreviewURL    string       `json:"preview_url,omitempty"`
+	DownloadURL   string       `json:"download_url"`
+	IsPreviewable bool         `json:"is_previewable"`
+	Size          int64        `json:"size"`
+	ChannelID     string       `json:"channel_id,omitempty"`
+	Uploader      *domain.User `json:"uploader,omitempty"`
+	CreatedAt     time.Time    `json:"created_at"`
+	ExpiresAt     *time.Time   `json:"expires_at,omitempty"`
+}
+
 func UploadFile(c *gin.Context) {
 	currentUser, err := getCurrentUser()
 	if err != nil {
@@ -128,6 +143,16 @@ func GetFile(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"file": hydrateFileAssetResponse(asset)})
+}
+
+func GetFilePreview(c *gin.Context) {
+	var asset domain.FileAsset
+	if err := db.DB.First(&asset, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"preview": buildFilePreview(asset)})
 }
 
 func GetFileContent(c *gin.Context) {
@@ -360,6 +385,25 @@ func hydrateFileAssetResponse(asset domain.FileAsset) fileAssetResponse {
 	}
 
 	return response
+}
+
+func buildFilePreview(asset domain.FileAsset) filePreviewResponse {
+	file := hydrateFileAssetResponse(asset)
+	isPreviewable := file.PreviewKind == "image" || file.PreviewKind == "pdf"
+	return filePreviewResponse{
+		FileID:        asset.ID,
+		Name:          asset.Name,
+		ContentType:   file.ContentType,
+		PreviewKind:   file.PreviewKind,
+		PreviewURL:    file.PreviewURL,
+		DownloadURL:   file.URL,
+		IsPreviewable: isPreviewable,
+		Size:          asset.SizeBytes,
+		ChannelID:     asset.ChannelID,
+		Uploader:      file.Uploader,
+		CreatedAt:     asset.CreatedAt,
+		ExpiresAt:     asset.ExpiresAt,
+	}
 }
 
 func normalizeAuditAction(action string) string {

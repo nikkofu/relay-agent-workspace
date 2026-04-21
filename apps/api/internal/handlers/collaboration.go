@@ -182,6 +182,29 @@ func broadcastDMRealtimeEvent(dmID, messageID string, payload any) error {
 	})
 }
 
+func loadChannelPreference(channelID, userID string) domain.ChannelPreference {
+	prefs := domain.ChannelPreference{
+		ChannelID:         channelID,
+		UserID:            userID,
+		NotificationLevel: "all",
+		IsMuted:           false,
+	}
+	_ = db.DB.Where("channel_id = ? AND user_id = ?", channelID, userID).First(&prefs).Error
+	if strings.TrimSpace(prefs.NotificationLevel) == "" {
+		prefs.NotificationLevel = "all"
+	}
+	return prefs
+}
+
+func isValidChannelNotificationLevel(level string) bool {
+	switch level {
+	case "all", "mentions", "none":
+		return true
+	default:
+		return false
+	}
+}
+
 func decodeMessageMetadata(message domain.Message) messageMetadata {
 	if message.Metadata == "" {
 		return messageMetadata{}
@@ -790,6 +813,98 @@ func RemoveChannelMember(c *gin.Context) {
 	db.DB.Model(&channel).Update("member_count", int(memberCount))
 
 	c.JSON(http.StatusOK, gin.H{"removed": true, "user_id": userID})
+}
+
+func GetChannelPreferences(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var channel domain.Channel
+	if err := db.DB.First(&channel, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "channel not found"})
+		return
+	}
+
+	prefs := loadChannelPreference(channel.ID, currentUser.ID)
+	c.JSON(http.StatusOK, gin.H{"preferences": prefs})
+}
+
+func PatchChannelPreferences(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var channel domain.Channel
+	if err := db.DB.First(&channel, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "channel not found"})
+		return
+	}
+
+	var input struct {
+		NotificationLevel *string `json:"notification_level"`
+		IsMuted           *bool   `json:"is_muted"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	prefs := loadChannelPreference(channel.ID, currentUser.ID)
+	if input.NotificationLevel != nil {
+		level := strings.TrimSpace(*input.NotificationLevel)
+		if !isValidChannelNotificationLevel(level) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "notification_level must be all, mentions, or none"})
+			return
+		}
+		prefs.NotificationLevel = level
+	}
+	if input.IsMuted != nil {
+		prefs.IsMuted = *input.IsMuted
+	}
+	prefs.UpdatedAt = time.Now().UTC()
+
+	if prefs.ID == 0 {
+		prefs.CreatedAt = prefs.UpdatedAt
+		if err := db.DB.Create(&prefs).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create channel preferences"})
+			return
+		}
+	} else if err := db.DB.Save(&prefs).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update channel preferences"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"preferences": prefs})
+}
+
+func LeaveChannel(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var channel domain.Channel
+	if err := db.DB.First(&channel, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "channel not found"})
+		return
+	}
+
+	if err := db.DB.Where("channel_id = ? AND user_id = ?", channel.ID, currentUser.ID).Delete(&domain.ChannelMember{}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to leave channel"})
+		return
+	}
+	var memberCount int64
+	db.DB.Model(&domain.ChannelMember{}).Where("channel_id = ?", channel.ID).Count(&memberCount)
+	db.DB.Model(&channel).Update("member_count", int(memberCount))
+	channel.MemberCount = int(memberCount)
+
+	c.JSON(http.StatusOK, gin.H{"left": true, "channel": channel})
 }
 
 func UpdateChannel(c *gin.Context) {

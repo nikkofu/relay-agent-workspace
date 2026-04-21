@@ -125,6 +125,14 @@ type workflowRunStepResponse struct {
 	Detail     string `json:"detail,omitempty"`
 }
 
+type workflowRunLogResponse struct {
+	ID        uint           `json:"id"`
+	Level     string         `json:"level"`
+	Message   string         `json:"message"`
+	Metadata  map[string]any `json:"metadata,omitempty"`
+	CreatedAt time.Time      `json:"created_at"`
+}
+
 func GetUserProfile(c *gin.Context) {
 	var user domain.User
 	if err := db.DB.First(&user, "id = ?", c.Param("id")).Error; err != nil {
@@ -668,6 +676,7 @@ func CreateWorkflowRun(c *gin.Context) {
 	createWorkflowRunSteps(run.ID, []workflowRunStepResponse{
 		{Name: "Queued", Status: "queued", DurationMS: 0, Detail: "Run accepted by workflow engine"},
 	})
+	appendWorkflowRunLog(run.ID, "info", "Run accepted by workflow engine", gin.H{"workflow_id": workflow.ID})
 	response := hydrateWorkflowRun(run, workflow, enrichUser(currentUser))
 	if RealtimeHub != nil {
 		_ = RealtimeHub.Broadcast(realtime.Event{
@@ -697,6 +706,51 @@ func GetWorkflowRun(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"run": hydrateWorkflowRun(run, workflow, starter)})
+}
+
+func GetWorkflowRunLogs(c *gin.Context) {
+	var run domain.WorkflowRun
+	if err := db.DB.First(&run, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "workflow run not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"logs": loadWorkflowRunLogs(run.ID)})
+}
+
+func DeleteWorkflowRun(c *gin.Context) {
+	var run domain.WorkflowRun
+	if err := db.DB.First(&run, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "workflow run not found"})
+		return
+	}
+
+	if err := db.DB.Where("workflow_run_id = ?", run.ID).Delete(&domain.WorkflowRunStep{}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete workflow run steps"})
+		return
+	}
+	if err := db.DB.Where("workflow_run_id = ?", run.ID).Delete(&domain.WorkflowRunLog{}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete workflow run logs"})
+		return
+	}
+	if err := db.DB.Delete(&run).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete workflow run"})
+		return
+	}
+
+	now := time.Now().UTC()
+	if RealtimeHub != nil {
+		_ = RealtimeHub.Broadcast(realtime.Event{
+			ID:          "evt_" + now.Format("20060102150405.000000"),
+			Type:        "workflow.run.deleted",
+			WorkspaceID: primaryWorkspaceID(),
+			EntityID:    run.ID,
+			TS:          now.Format(time.RFC3339Nano),
+			Payload:     gin.H{"run_id": run.ID, "workflow_id": run.WorkflowID},
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"deleted": true, "run_id": run.ID})
 }
 
 func CancelWorkflowRun(c *gin.Context) {
@@ -731,6 +785,7 @@ func CancelWorkflowRun(c *gin.Context) {
 		DurationMS: 0,
 		Detail:     defaultString(strings.TrimSpace(input.Summary), "Run cancelled by operator"),
 	})
+	appendWorkflowRunLog(run.ID, "warning", "Run cancelled", gin.H{"summary": defaultString(strings.TrimSpace(input.Summary), "Run cancelled by operator")})
 
 	workflow, starter, err := loadWorkflowRunContext(run)
 	if err != nil {
@@ -789,6 +844,7 @@ func RetryWorkflowRun(c *gin.Context) {
 	createWorkflowRunSteps(run.ID, []workflowRunStepResponse{
 		{Name: "Retry queued", Status: "queued", DurationMS: 0, Detail: "Retry created from " + previous.ID},
 	})
+	appendWorkflowRunLog(run.ID, "info", "Retry queued", gin.H{"retry_of_run_id": previous.ID})
 
 	response := hydrateWorkflowRun(run, workflow, enrichUser(currentUser))
 	broadcastWorkflowRun(response, now)
@@ -1126,6 +1182,26 @@ func loadWorkflowRunSteps(runID string) []workflowRunStepResponse {
 	return items
 }
 
+func loadWorkflowRunLogs(runID string) []workflowRunLogResponse {
+	var rows []domain.WorkflowRunLog
+	_ = db.DB.Where("workflow_run_id = ?", runID).Order("created_at asc, id asc").Find(&rows).Error
+	items := make([]workflowRunLogResponse, 0, len(rows))
+	for _, row := range rows {
+		metadata := map[string]any{}
+		if strings.TrimSpace(row.Metadata) != "" {
+			_ = json.Unmarshal([]byte(row.Metadata), &metadata)
+		}
+		items = append(items, workflowRunLogResponse{
+			ID:        row.ID,
+			Level:     defaultString(strings.TrimSpace(row.Level), "info"),
+			Message:   row.Message,
+			Metadata:  metadata,
+			CreatedAt: row.CreatedAt,
+		})
+	}
+	return items
+}
+
 func createWorkflowRunSteps(runID string, steps []workflowRunStepResponse) {
 	for _, step := range steps {
 		appendWorkflowRunStep(runID, step)
@@ -1142,6 +1218,25 @@ func appendWorkflowRunStep(runID string, step workflowRunStepResponse) {
 		Status:        step.Status,
 		DurationMS:    step.DurationMS,
 		Detail:        step.Detail,
+		CreatedAt:     time.Now().UTC(),
+	}).Error
+}
+
+func appendWorkflowRunLog(runID, level, message string, metadata map[string]any) {
+	if runID == "" || strings.TrimSpace(message) == "" {
+		return
+	}
+	rawMetadata := "{}"
+	if len(metadata) > 0 {
+		if bytes, err := json.Marshal(metadata); err == nil {
+			rawMetadata = string(bytes)
+		}
+	}
+	_ = db.DB.Create(&domain.WorkflowRunLog{
+		WorkflowRunID: runID,
+		Level:         defaultString(strings.TrimSpace(level), "info"),
+		Message:       strings.TrimSpace(message),
+		Metadata:      rawMetadata,
 		CreatedAt:     time.Now().UTC(),
 	}).Error
 }

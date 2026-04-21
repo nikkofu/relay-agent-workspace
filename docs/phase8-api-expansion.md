@@ -80,7 +80,9 @@ Current backend surface already available:
 - `DELETE /api/v1/user-groups/:id`
 - `GET /api/v1/workflows`
 - `GET /api/v1/workflows/runs`
+- `GET /api/v1/workflows/runs/:id/logs`
 - `GET /api/v1/workflows/runs/:id`
+- `DELETE /api/v1/workflows/runs/:id`
 - `POST /api/v1/workflows/runs/:id/cancel`
 - `POST /api/v1/workflows/runs/:id/retry`
 - `POST /api/v1/workflows/:id/runs`
@@ -202,13 +204,14 @@ Baseline support now exists for:
 - `GET /api/v1/files/:id`
 - `GET /api/v1/files/:id/audit`
 - `GET /api/v1/files/:id/content`
+- `GET /api/v1/files/:id/preview`
 - `PATCH /api/v1/files/:id/archive`
 - `PATCH /api/v1/files/:id/retention`
 - `DELETE /api/v1/files/:id`
 
 Likely follow-ups:
 
-- image thumbnails and richer non-image previews
+- image thumbnails and richer preview transforms beyond direct image/PDF URLs
 - richer attachment previews in message surfaces
 - richer archive filters such as date windows and channel grouping
 - retention enforcement jobs and deleted-file governance surfaces
@@ -226,6 +229,9 @@ Recommended additions:
   - `DELETE /api/v1/channels/:id/members/:userId`
 - channel metadata and admin actions:
   - `PATCH /api/v1/channels/:id`
+  - `GET /api/v1/channels/:id/preferences`
+  - `PATCH /api/v1/channels/:id/preferences`
+  - `POST /api/v1/channels/:id/leave`
   - fields such as:
     - `topic`
     - `purpose`
@@ -285,6 +291,8 @@ Baseline support now exists for:
 - `GET /api/v1/workflows`
 - `GET /api/v1/workflows/runs`
 - `GET /api/v1/workflows/runs/:id`
+- `GET /api/v1/workflows/runs/:id/logs`
+- `DELETE /api/v1/workflows/runs/:id`
 - `POST /api/v1/workflows/runs/:id/cancel`
 - `POST /api/v1/workflows/runs/:id/retry`
 - `POST /api/v1/workflows/:id/runs`
@@ -296,8 +304,8 @@ Likely follow-ups:
 - tool execution audit history
 - channel- or DM-scoped tool availability
 - agent/tool routing metadata shared with the AI layer
-- workflow step logs and richer run telemetry
-- workflow deletion and retention controls for automation history
+- richer workflow telemetry such as token/tool cost and agent handoff spans
+- workflow retention controls for automation history
 
 ### 4.8 Notification Preferences And Mute Rules
 

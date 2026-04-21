@@ -118,6 +118,15 @@ type WorkflowRunStep struct {
 	CreatedAt     time.Time `json:"created_at"`
 }
 
+type WorkflowRunLog struct {
+	ID            uint      `gorm:"primaryKey" json:"id"`
+	WorkflowRunID string    `gorm:"index" json:"workflow_run_id"`
+	Level         string    `json:"level"`
+	Message       string    `json:"message"`
+	Metadata      string    `json:"metadata"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
 type ToolDefinition struct {
 	ID          string    `gorm:"primaryKey" json:"id"`
 	Name        string    `json:"name"`
@@ -161,6 +170,16 @@ type ChannelMember struct {
 	UserID    string    `gorm:"uniqueIndex:idx_channel_user" json:"user_id"`
 	Role      string    `json:"role"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type ChannelPreference struct {
+	ID                uint      `gorm:"primaryKey" json:"id"`
+	ChannelID         string    `gorm:"index;uniqueIndex:idx_channel_preference_user" json:"channel_id"`
+	UserID            string    `gorm:"uniqueIndex:idx_channel_preference_user;index" json:"user_id"`
+	NotificationLevel string    `json:"notification_level"`
+	IsMuted           bool      `json:"is_muted"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 type Message struct {
