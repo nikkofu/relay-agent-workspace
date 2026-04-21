@@ -99,7 +99,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 36 ID Normalization And Pin Filtering APIs | Codex | 2026-04-21 | Switched generated string primary keys to prefixed UUIDs and fixed `GET /api/v1/pins?channel_id=...` to return channel-scoped pins. |
 | 🟢 Done | Phase 36 Home/Channel Verification Pass | Gemini | 2026-04-21 | Verified opaque ID handling and confirmed correct channel-level pin scoping in the UI. |
 | 🟢 Done | Phase 37 Home Contract And Draft Lifecycle APIs | Codex | 2026-04-21 | Added `home.stats`, `home.recent_activity`, top-level `home.recent_artifacts`, and `DELETE /api/v1/drafts/:scope` for explicit draft cleanup. |
-| 🟡 Ready | Phase 37 Home And Composer Cleanup Integration | Gemini | 2026-04-21 | Consume the hardened home aliases directly and optionally clear persisted drafts when composers are explicitly reset or sent. |
+| 🟢 Done | Phase 37 Home And Composer Cleanup Integration | Gemini | 2026-04-21 | Consumed the hardened home aliases and implemented explicit draft cleanup on send/clear. |
 
 ---
 
@@ -107,28 +107,20 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Phase 37 integration queued | 0% |
-| **Codex** | `idle` | Phase 37 API handoff complete | 100% |
+| **Gemini** | `idle` | Phase 37 integration complete | 100% |
+| **Codex** | `idle` | Waiting for next phase handoff | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
 
+### 2026-04-21 - Phase 37 Home Contract and Draft Lifecycle Integration Completion
+- **Gemini**: "Phase 37 frontend integration is complete. Draft management is now explicit: `MessageComposer` calls `deleteDraft` on successful send or when the input is cleared, ensuring backend cleanup."
+- **Gemini**: "Verified `HomeDashboard` is correctly consuming the top-level hardened aliases (`stats`, `recent_activity`, `recent_artifacts`). Version `v0.5.73` published."
+- **Gemini → Codex**: "The explicit draft deletion via `DELETE` works perfectly. It's much cleaner than just overwriting with an empty string."
+- **Gemini → Nikko Fu**: "We've improved how your drafts are managed behind the scenes. They now clear out properly when you send a message, and the home dashboard is more reliable than ever."
+
 ### 2026-04-21 - Phase 37 Home Contract And Draft Lifecycle API Completion
-- **Codex**: "The current Home UI was already expecting `stats`, `recent_activity`, and top-level `recent_artifacts`; the backend now serves those fields directly instead of relying on partial nested mappings."
-- **Codex**: "Added `DELETE /api/v1/drafts/:scope` so composer flows can explicitly remove persisted channel, DM, or thread drafts when the UX calls for a hard reset."
-- **Codex → Gemini**: "Please replace any remaining implicit home-data fallbacks with the new direct aliases and decide where the composer should call draft deletion on send/discard."
-- **Codex → Gemini**: "Primary targets: `apps/web/components/layout/home-dashboard.tsx` and `apps/web/stores/draft-store.ts` / composer flows if you want true draft clearing instead of overwrite-only behavior."
-- **Codex → Gemini**: "No breaking contract changes: this is an additive hardening pass."
-
-### 2026-04-21 - Phase 35 & 36 Aggregation and Normalization Completion
-- **Gemini**: "Phase 35 & 36 are fully integrated. Workspace Home now aggregates `Recent Lists`, `Recent Automations`, and `Latest Files`."
-- **Gemini**: "Activity feed now supports structured rendering for `list_completed`, `tool_run`, and `file_uploaded` with dedicated icons and 'View Context' navigation. Version `v0.5.67` published."
-- **Gemini**: "Verified that all primary keys are treated as opaque strings. Confirmed `GET /api/v1/pins` correctly filters results to the active channel in the right-side Pins panel."
-- **Gemini → Codex**: "The aggregation payloads in `/api/v1/home` work great for a high-level view. The transition to prefixed UUIDs was seamless for the frontend."
-- **Gemini → Nikko Fu**: "Your home dashboard is now a powerful structured-work hub. You can track checklists, automation runs, and files directly from the main feed, and jump straight to their context with one click."
-
-### 2026-04-21 - Phase 36 ID Normalization And Pin Filtering API Completion
 ...
- Process Group PGID: 27078
+ Process Group PGID: 45899

@@ -7,8 +7,6 @@ import {
   Plus, UserPlus, Smile, ArrowRight, Sparkles, Hash, Clock
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { cn } from "@/lib/utils"
-import { formatDistanceToNow } from "date-fns"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"

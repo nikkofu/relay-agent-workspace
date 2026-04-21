@@ -50,7 +50,7 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
   const [showFormatting, setShowFormatting] = useState(false)
   const [uploadedFileIds, setUploadedFileIds] = useState<string[]>([])
   const { openCanvas } = useUIStore()
-  const { saveDraft, drafts, fetchDrafts } = useDraftStore()
+  const { saveDraft, deleteDraft, drafts, fetchDrafts } = useDraftStore()
   const { sendTyping } = usePresenceStore()
   const { uploadFile } = useFileStore()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -151,9 +151,9 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
       // Autosave draft
       if (scope) {
         const content = editor.getHTML()
-        // If empty content, save as empty string to backend
+        // If empty content, explicitly delete draft from backend
         if (content === "<p></p>" || editor.isEmpty) {
-          saveDraft(scope, "")
+          deleteDraft(scope)
         } else {
           saveDraft(scope, content)
         }
@@ -194,7 +194,7 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
       if (textContent === "/canvas") {
         openCanvas("new-doc")
         editor.commands.clearContent()
-        if (scope) saveDraft(scope, "")
+        if (scope) deleteDraft(scope)
         setShowSlashCommands(false)
         return
       }
@@ -202,7 +202,7 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
       onSend?.(htmlContent, [], uploadedFileIds)
       editor.commands.clearContent()
       setUploadedFileIds([])
-      if (scope) saveDraft(scope, "") // Clear draft on send
+      if (scope) deleteDraft(scope) // Clear draft on send
       setShowSlashCommands(false)
       setShowMentions(false)
     }

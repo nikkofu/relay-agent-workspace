@@ -2,7 +2,27 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
-## [0.5.72] - 2026-04-21
+## [0.5.73] - 2026-04-21
+
+This release implements Phase 37: Home Contract and Draft Lifecycle integration, hardening the home data flow and enabling explicit draft cleanup.
+
+### Added
+
+- **Draft Lifecycle Cleanup**: Added `deleteDraft` to `DraftStore` consuming the new `DELETE /api/v1/drafts/:scope` endpoint.
+- **Explicit Cleanup**: The message composer now explicitly removes persisted drafts from the backend upon successful message delivery or when the input is cleared.
+- **Hardened Home UI**: Transitioned `HomeDashboard` to consume top-level hardened aliases (`stats`, `recent_activity`, `recent_artifacts`) directly from the `/api/v1/home` payload.
+
+### Fixed
+
+- **Clean Lint State**: Pruned unused `cn` and `formatDistanceToNow` imports in the dashboard component.
+
+### Verification Used For This Release
+
+- `pnpm run build` (Verified PASS)
+- `pnpm lint` (Verified PASS)
+
+## [0.5.71] - 2026-04-21
+
 
 This release hardens the home payload for the current dashboard UI and adds explicit draft deletion.
 

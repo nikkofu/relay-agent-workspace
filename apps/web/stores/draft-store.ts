@@ -11,6 +11,7 @@ interface DraftState {
   drafts: Record<string, Draft>
   fetchDrafts: () => Promise<void>
   saveDraft: (scope: string, content: string) => Promise<void>
+  deleteDraft: (scope: string) => Promise<void>
   getDraft: (scope: string) => string | undefined
 }
 
@@ -54,6 +55,22 @@ export const useDraftStore = create<DraftState>((set, get) => ({
       })
     } catch (error) {
       console.error("Failed to save draft:", error)
+    }
+  },
+  deleteDraft: async (scope) => {
+    try {
+      // Optimistic update
+      set((state) => {
+        const nextDrafts = { ...state.drafts }
+        delete nextDrafts[scope]
+        return { drafts: nextDrafts }
+      })
+
+      await fetch(`${API_BASE_URL}/drafts/${scope}`, {
+        method: "DELETE"
+      })
+    } catch (error) {
+      console.error("Failed to delete draft:", error)
     }
   },
   getDraft: (scope) => {
