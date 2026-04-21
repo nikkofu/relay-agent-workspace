@@ -353,21 +353,21 @@ type AISummary struct {
 }
 
 type Artifact struct {
-	ID        string    `gorm:"primaryKey" json:"id"`
-	ChannelID string    `gorm:"index" json:"channel_id"`
-	Title     string    `json:"title"`
-	Version   int       `json:"version"`
-	Type      string    `json:"type"`
-	Status    string    `json:"status"`
-	Content   string    `json:"content"`
-	Source    string    `json:"source"`
-	TemplateID string   `json:"template_id"`
-	Provider  string    `json:"provider,omitempty"`
-	Model     string    `json:"model,omitempty"`
-	CreatedBy string    `json:"created_by"`
-	UpdatedBy string    `json:"updated_by"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID         string    `gorm:"primaryKey" json:"id"`
+	ChannelID  string    `gorm:"index" json:"channel_id"`
+	Title      string    `json:"title"`
+	Version    int       `json:"version"`
+	Type       string    `json:"type"`
+	Status     string    `json:"status"`
+	Content    string    `json:"content"`
+	Source     string    `json:"source"`
+	TemplateID string    `json:"template_id"`
+	Provider   string    `json:"provider,omitempty"`
+	Model      string    `json:"model,omitempty"`
+	CreatedBy  string    `json:"created_by"`
+	UpdatedBy  string    `json:"updated_by"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 type ArtifactVersion struct {
@@ -387,20 +387,24 @@ type ArtifactVersion struct {
 }
 
 type FileAsset struct {
-	ID            string     `gorm:"primaryKey" json:"id"`
-	ChannelID     string     `gorm:"index" json:"channel_id,omitempty"`
-	UploaderID    string     `gorm:"index" json:"uploader_id"`
-	Name          string     `json:"name"`
-	StoragePath   string     `json:"storage_path"`
-	ContentType   string     `json:"content_type"`
-	SizeBytes     int64      `json:"size_bytes"`
-	Description   string     `json:"description"`
-	RetentionDays int        `json:"retention_days"`
-	ExpiresAt     *time.Time `json:"expires_at,omitempty"`
-	IsArchived    bool       `json:"is_archived"`
-	ArchivedAt    *time.Time `json:"archived_at,omitempty"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
+	ID             string     `gorm:"primaryKey" json:"id"`
+	ChannelID      string     `gorm:"index" json:"channel_id,omitempty"`
+	UploaderID     string     `gorm:"index" json:"uploader_id"`
+	Name           string     `json:"name"`
+	StoragePath    string     `json:"storage_path"`
+	ContentType    string     `json:"content_type"`
+	SizeBytes      int64      `json:"size_bytes"`
+	Description    string     `json:"description"`
+	SourceKind     string     `json:"source_kind"`
+	KnowledgeState string     `json:"knowledge_state"`
+	Summary        string     `json:"summary"`
+	Tags           string     `json:"-"`
+	RetentionDays  int        `json:"retention_days"`
+	ExpiresAt      *time.Time `json:"expires_at,omitempty"`
+	IsArchived     bool       `json:"is_archived"`
+	ArchivedAt     *time.Time `json:"archived_at,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
 }
 
 type FileAssetEvent struct {
@@ -423,5 +427,32 @@ type MessageFileAttachment struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
 	MessageID string    `gorm:"index;uniqueIndex:idx_message_file_attachment" json:"message_id"`
 	FileID    string    `gorm:"uniqueIndex:idx_message_file_attachment;index" json:"file_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type FileComment struct {
+	ID        string    `gorm:"primaryKey" json:"id"`
+	FileID    string    `gorm:"index" json:"file_id"`
+	UserID    string    `gorm:"index" json:"user_id"`
+	Content   string    `json:"content"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type FileShare struct {
+	ID        string    `gorm:"primaryKey" json:"id"`
+	FileID    string    `gorm:"index" json:"file_id"`
+	ChannelID string    `gorm:"index" json:"channel_id,omitempty"`
+	ThreadID  string    `gorm:"index" json:"thread_id,omitempty"`
+	MessageID string    `gorm:"index" json:"message_id,omitempty"`
+	SharedBy  string    `gorm:"index" json:"shared_by"`
+	Comment   string    `json:"comment"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type StarredFile struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	FileID    string    `gorm:"index;uniqueIndex:idx_starred_file" json:"file_id"`
+	UserID    string    `gorm:"index;uniqueIndex:idx_starred_file" json:"user_id"`
 	CreatedAt time.Time `json:"created_at"`
 }

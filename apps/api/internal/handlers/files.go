@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"os"
@@ -27,6 +28,10 @@ type fileAssetResponse struct {
 	UserID         string       `json:"userId"`
 	ChannelIDAlias string       `json:"channelId,omitempty"`
 	CreatedAtAlias time.Time    `json:"createdAt"`
+	CommentCount   int64        `json:"comment_count"`
+	ShareCount     int64        `json:"share_count"`
+	Starred        bool         `json:"starred"`
+	Tags           []string     `json:"tags"`
 }
 
 type filePreviewResponse struct {
@@ -42,6 +47,17 @@ type filePreviewResponse struct {
 	Uploader      *domain.User `json:"uploader,omitempty"`
 	CreatedAt     time.Time    `json:"created_at"`
 	ExpiresAt     *time.Time   `json:"expires_at,omitempty"`
+}
+
+type fileCommentResponse struct {
+	domain.FileComment
+	User *domain.User `json:"user,omitempty"`
+}
+
+type fileShareResponse struct {
+	domain.FileShare
+	Actor   *domain.User    `json:"actor,omitempty"`
+	Message *domain.Message `json:"message,omitempty"`
 }
 
 func UploadFile(c *gin.Context) {
@@ -144,6 +160,278 @@ func GetFile(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"file": hydrateFileAssetResponse(asset)})
+}
+
+func GetFileComments(c *gin.Context) {
+	if err := db.DB.First(&domain.FileAsset{}, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
+		return
+	}
+
+	var comments []domain.FileComment
+	if err := db.DB.Where("file_id = ?", c.Param("id")).Order("created_at asc").Find(&comments).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load file comments"})
+		return
+	}
+
+	items := make([]fileCommentResponse, 0, len(comments))
+	for _, comment := range comments {
+		item := fileCommentResponse{FileComment: comment}
+		var user domain.User
+		if err := db.DB.First(&user, "id = ?", comment.UserID).Error; err == nil {
+			enriched := enrichUser(user)
+			item.User = &enriched
+		}
+		items = append(items, item)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"comments": items})
+}
+
+func CreateFileComment(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var asset domain.FileAsset
+	if err := db.DB.First(&asset, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
+		return
+	}
+
+	var input struct {
+		Content string `json:"content" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	now := time.Now().UTC()
+	comment := domain.FileComment{
+		ID:        ids.NewPrefixedUUID("fcomment"),
+		FileID:    asset.ID,
+		UserID:    currentUser.ID,
+		Content:   strings.TrimSpace(input.Content),
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if comment.Content == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "content is required"})
+		return
+	}
+	if err := db.DB.Create(&comment).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create file comment"})
+		return
+	}
+
+	recordFileEvent(asset.ID, currentUser.ID, "commented", "Commented on "+asset.Name)
+	c.JSON(http.StatusCreated, gin.H{"comment": fileCommentResponse{FileComment: comment, User: ptrUser(enrichUser(currentUser))}})
+}
+
+func UpdateFileKnowledge(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var asset domain.FileAsset
+	if err := db.DB.First(&asset, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
+		return
+	}
+
+	var input struct {
+		KnowledgeState string   `json:"knowledge_state"`
+		SourceKind     string   `json:"source_kind"`
+		Summary        string   `json:"summary"`
+		Tags           []string `json:"tags"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	asset.KnowledgeState = strings.TrimSpace(input.KnowledgeState)
+	asset.SourceKind = strings.TrimSpace(input.SourceKind)
+	asset.Summary = strings.TrimSpace(input.Summary)
+	asset.Tags = encodeTags(input.Tags)
+	asset.UpdatedAt = time.Now().UTC()
+	if err := db.DB.Save(&asset).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update file knowledge"})
+		return
+	}
+
+	recordFileEvent(asset.ID, currentUser.ID, "knowledge.updated", "Updated knowledge metadata for "+asset.Name)
+	c.JSON(http.StatusOK, gin.H{"file": hydrateFileAssetResponse(asset)})
+}
+
+func ToggleFileStar(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var asset domain.FileAsset
+	if err := db.DB.First(&asset, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
+		return
+	}
+
+	var star domain.StarredFile
+	err = db.DB.First(&star, "file_id = ? AND user_id = ?", asset.ID, currentUser.ID).Error
+	if err == nil {
+		if err := db.DB.Delete(&star).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to unstar file"})
+			return
+		}
+		recordFileEvent(asset.ID, currentUser.ID, "unstarred", "Removed star from "+asset.Name)
+		c.JSON(http.StatusOK, gin.H{"starred": false, "file": hydrateFileAssetResponse(asset)})
+		return
+	}
+
+	now := time.Now().UTC()
+	star = domain.StarredFile{FileID: asset.ID, UserID: currentUser.ID, CreatedAt: now}
+	if err := db.DB.Create(&star).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to star file"})
+		return
+	}
+	recordFileEvent(asset.ID, currentUser.ID, "starred", "Starred "+asset.Name)
+	c.JSON(http.StatusOK, gin.H{"starred": true, "file": hydrateFileAssetResponse(asset)})
+}
+
+func GetStarredFiles(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var stars []domain.StarredFile
+	if err := db.DB.Where("user_id = ?", currentUser.ID).Order("created_at desc").Find(&stars).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load starred files"})
+		return
+	}
+
+	items := make([]fileAssetResponse, 0, len(stars))
+	for _, star := range stars {
+		var asset domain.FileAsset
+		if err := db.DB.First(&asset, "id = ?", star.FileID).Error; err == nil {
+			items = append(items, hydrateFileAssetResponse(asset))
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"files": items})
+}
+
+func ShareFile(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var asset domain.FileAsset
+	if err := db.DB.First(&asset, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
+		return
+	}
+
+	var input struct {
+		ChannelID string `json:"channel_id" binding:"required"`
+		ThreadID  string `json:"thread_id"`
+		Comment   string `json:"comment"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var channel domain.Channel
+	if err := db.DB.First(&channel, "id = ?", input.ChannelID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "channel not found"})
+		return
+	}
+
+	now := time.Now().UTC()
+	message := domain.Message{
+		ID:        "msg_" + now.Format("20060102150405.000000"),
+		ChannelID: input.ChannelID,
+		UserID:    currentUser.ID,
+		Content:   strings.TrimSpace(input.Comment),
+		ThreadID:  strings.TrimSpace(input.ThreadID),
+		CreatedAt: now,
+	}
+	if err := db.DB.Create(&message).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create file share message"})
+		return
+	}
+
+	attachment := domain.MessageFileAttachment{
+		MessageID: message.ID,
+		FileID:    asset.ID,
+		CreatedAt: now,
+	}
+	if err := db.DB.Create(&attachment).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to attach shared file"})
+		return
+	}
+
+	refreshed, err := refreshMessageMetadata(message.ID)
+	if err == nil && refreshed != nil {
+		message = *refreshed
+	}
+
+	share := domain.FileShare{
+		ID:        ids.NewPrefixedUUID("fshare"),
+		FileID:    asset.ID,
+		ChannelID: input.ChannelID,
+		ThreadID:  strings.TrimSpace(input.ThreadID),
+		MessageID: message.ID,
+		SharedBy:  currentUser.ID,
+		Comment:   message.Content,
+		CreatedAt: now,
+	}
+	if err := db.DB.Create(&share).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to persist file share"})
+		return
+	}
+
+	recordFileEvent(asset.ID, currentUser.ID, "shared", "Shared "+asset.Name+" in #"+channel.Name)
+	if RealtimeHub != nil {
+		_ = broadcastRealtimeEvent("message.created", message, message)
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"share": hydrateFileShareResponse(share, &message)})
+}
+
+func GetFileShares(c *gin.Context) {
+	if err := db.DB.First(&domain.FileAsset{}, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
+		return
+	}
+
+	var shares []domain.FileShare
+	if err := db.DB.Where("file_id = ?", c.Param("id")).Order("created_at desc").Find(&shares).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load file shares"})
+		return
+	}
+
+	items := make([]fileShareResponse, 0, len(shares))
+	for _, share := range shares {
+		var message *domain.Message
+		var msg domain.Message
+		if share.MessageID != "" && db.DB.First(&msg, "id = ?", share.MessageID).Error == nil {
+			message = &msg
+		}
+		items = append(items, hydrateFileShareResponse(share, message))
+	}
+
+	c.JSON(http.StatusOK, gin.H{"shares": items})
 }
 
 func GetFilePreview(c *gin.Context) {
@@ -364,6 +652,7 @@ func hydrateFileAssetResponse(asset domain.FileAsset) fileAssetResponse {
 		UserID:         asset.UploaderID,
 		ChannelIDAlias: asset.ChannelID,
 		CreatedAtAlias: asset.CreatedAt,
+		Tags:           decodeTags(asset.Tags),
 	}
 
 	var uploader domain.User
@@ -383,6 +672,14 @@ func hydrateFileAssetResponse(asset domain.FileAsset) fileAssetResponse {
 		response.PreviewURL = response.URL
 	} else {
 		response.PreviewKind = "file"
+	}
+
+	db.DB.Model(&domain.FileComment{}).Where("file_id = ?", asset.ID).Count(&response.CommentCount)
+	db.DB.Model(&domain.FileShare{}).Where("file_id = ?", asset.ID).Count(&response.ShareCount)
+	if currentUser, err := getCurrentUser(); err == nil {
+		var count int64
+		db.DB.Model(&domain.StarredFile{}).Where("file_id = ? AND user_id = ?", asset.ID, currentUser.ID).Count(&count)
+		response.Starred = count > 0
 	}
 
 	return response
@@ -435,4 +732,50 @@ func recordFileEvent(fileID, actorID, action, detail string) {
 		Detail:    detail,
 		CreatedAt: time.Now().UTC(),
 	}).Error
+}
+
+func hydrateFileShareResponse(share domain.FileShare, message *domain.Message) fileShareResponse {
+	response := fileShareResponse{FileShare: share, Message: message}
+	var actor domain.User
+	if err := db.DB.First(&actor, "id = ?", share.SharedBy).Error; err == nil {
+		enriched := enrichUser(actor)
+		response.Actor = &enriched
+	}
+	return response
+}
+
+func encodeTags(tags []string) string {
+	items := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		if trimmed := strings.TrimSpace(tag); trimmed != "" {
+			items = append(items, trimmed)
+		}
+	}
+	if len(items) == 0 {
+		return ""
+	}
+	raw, _ := json.Marshal(items)
+	return string(raw)
+}
+
+func decodeTags(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return []string{}
+	}
+	var tags []string
+	if err := json.Unmarshal([]byte(raw), &tags); err == nil {
+		return tags
+	}
+	items := strings.Split(raw, ",")
+	tags = make([]string, 0, len(items))
+	for _, item := range items {
+		if trimmed := strings.TrimSpace(item); trimmed != "" {
+			tags = append(tags, trimmed)
+		}
+	}
+	return tags
+}
+
+func ptrUser(user domain.User) *domain.User {
+	return &user
 }

@@ -107,7 +107,9 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 40 Dynamic Agent-Collab APIs | Codex | 2026-04-21 | Added `GET /api/v1/agent-collab/members`, `POST /api/v1/agent-collab/comm-log`, expanded snapshot payloads, and realtime `agent_collab.sync` refresh. |
 | 🟢 Done | Phase 40 Agent-Collab Dynamic Hub Integration | Windsurf | 2026-04-21 | Replaced static member/comm-log data with live API. collab-store extended: fetchSnapshot/fetchMembers/postCommLog, parsePrimaryTools (string→array), groupCommLog (flat→sections). Page shows Live/Static badge, live member count, live active superpowers, live comm log. Static data kept as offline fallback. |
 | 🟢 Done | Phase 41 Agent-Collab Contract Hardening APIs | Codex | 2026-04-21 | Added stable `comm_log.to` output and `primary_tools_array` member payloads while keeping existing fields backward compatible. |
-| � Done | Phase 41 Agent-Collab Payload Simplification | Windsurf | 2026-04-21 | Added `extractTools()` helper: prefers `primary_tools_array` when available, falls back to `parsePrimaryTools` string-split. `comm_log.to` already handled correctly in `groupCommLog`. Legacy parsers retained for offline/old-binary fallback. |
+| 🟢 Done | Phase 41 Agent-Collab Payload Simplification | Windsurf | 2026-04-21 | Added `extractTools()` helper: prefers `primary_tools_array` when available, falls back to `parsePrimaryTools` string-split. `comm_log.to` already handled correctly in `groupCommLog`. Legacy parsers retained for offline/old-binary fallback. |
+| 🟢 Done | Phase 42 File Collaboration And Knowledge Metadata APIs | Codex | 2026-04-21 | Added file comments, shares, stars, and knowledge metadata APIs plus hydrated file collaboration counters. |
+| 🟡 Ready | Phase 42 File Collaboration Integration | Windsurf | 2026-04-21 | Wire file comments, file shares, file starring, and knowledge metadata editing into Files, message, and home knowledge surfaces. |
 
 ---
 
@@ -116,14 +118,20 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
-| **Codex** | `api-architecture` | Phase 41 Agent-Collab contract hardening handoff complete | 100% |
+| **Codex** | `api-architecture` | Phase 42 file collaboration API handoff complete | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-ui-agent` | Phase 41 Agent-Collab Payload Simplification complete (v0.5.80) | 100% |
+| **Windsurf** | `web-ui-agent` | Phase 42 file collaboration integration queued | 0% |
 
 ---
 
 ## 💬 Communication Log
 
+### 2026-04-21 - Phase 42 File Collaboration And Knowledge Metadata API Completion
+- **Codex**: Added `GET/POST /api/v1/files/:id/comments`, `GET/POST /api/v1/files/:id/shares`, `POST /api/v1/files/:id/star`, `GET /api/v1/files/starred`, and `PATCH /api/v1/files/:id/knowledge`.
+- **Codex**: File payloads now expose `comment_count`, `share_count`, `starred`, and structured `tags`.
+- **Codex**: `POST /api/v1/files/:id/share` creates a real channel/thread message plus `MessageFileAttachment`, so shared files become visible conversation knowledge instead of only archive records.
+- **Codex**: Knowledge metadata now supports `knowledge_state`, `source_kind`, `summary`, and `tags` so files can feed future LLM/wiki retrieval flows.
+- **Codex → Windsurf**: Please wire file comments and shares into the Files page/detail drawers first, then add star toggles and knowledge metadata editing where the UX already exposes file detail. Treat `source_kind=wiki` and `knowledge_state=ready` as the first-class “knowledge file” affordance.
 ### 2026-04-21 - Phase 41 Agent-Collab Payload Simplification Completion
 - **Windsurf**: Synced v0.5.79. Codex added `primary_tools_array` to member profiles and hardened `comm_log.to` (always present: direct messages return the recipient name, broadcasts return empty string).
 - **Windsurf**: Phase 41 complete. Added `extractTools()` helper in `collab-store.ts` that prefers `primary_tools_array` when available, falling back to `parsePrimaryTools` string-split for legacy payloads. `comm_log.to` handling in `groupCommLog` already works correctly — empty string becomes `undefined` (broadcast), non-empty becomes the direct recipient. Version `v0.5.80` published.

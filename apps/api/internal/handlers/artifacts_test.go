@@ -741,3 +741,195 @@ func TestFileRetentionAndAuditEndpoints(t *testing.T) {
 		t.Fatalf("unexpected audit history payload: %#v", auditPayload.AuditHistory)
 	}
 }
+
+func TestFileCollaborationCommentsStarsAndKnowledgeMetadata(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.User{ID: "user-2", Name: "Windsurf", Email: "windsurf@example.com"})
+	db.DB.Create(&domain.FileAsset{
+		ID:          "file-1",
+		ChannelID:   "ch-5",
+		UploaderID:  "user-1",
+		Name:        "workspace-wiki.md",
+		StoragePath: "workspace-wiki.md",
+		ContentType: "text/markdown",
+		SizeBytes:   2048,
+		CreatedAt:   now.Add(-time.Hour),
+		UpdatedAt:   now.Add(-time.Hour),
+	})
+
+	router := gin.New()
+	router.GET("/api/v1/files/:id", GetFile)
+	router.GET("/api/v1/files/:id/comments", GetFileComments)
+	router.POST("/api/v1/files/:id/comments", CreateFileComment)
+	router.POST("/api/v1/files/:id/star", ToggleFileStar)
+	router.GET("/api/v1/files/starred", GetStarredFiles)
+	router.PATCH("/api/v1/files/:id/knowledge", UpdateFileKnowledge)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/files/file-1/comments", bytes.NewBufferString(`{"content":"This should be linked from the launch wiki."}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on file comment create, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPatch, "/api/v1/files/file-1/knowledge", bytes.NewBufferString(`{"knowledge_state":"ready","source_kind":"wiki","summary":"Canonical launch workspace wiki","tags":["launch","wiki","team"]}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on file knowledge patch, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/files/file-1/star", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on file star toggle, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/files/file-1", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on file detail, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var filePayload struct {
+		File map[string]any `json:"file"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &filePayload); err != nil {
+		t.Fatalf("failed to decode hydrated file payload: %v", err)
+	}
+	if filePayload.File["knowledge_state"] != "ready" || filePayload.File["source_kind"] != "wiki" {
+		t.Fatalf("expected file knowledge fields, got %#v", filePayload.File)
+	}
+	if filePayload.File["comment_count"] != float64(1) || filePayload.File["starred"] != true {
+		t.Fatalf("expected comment count and starred state, got %#v", filePayload.File)
+	}
+
+	tags, ok := filePayload.File["tags"].([]any)
+	if !ok || len(tags) != 3 || tags[0] != "launch" {
+		t.Fatalf("expected structured tags, got %#v", filePayload.File["tags"])
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/files/file-1/comments", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on file comments list, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var commentsPayload struct {
+		Comments []map[string]any `json:"comments"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &commentsPayload); err != nil {
+		t.Fatalf("failed to decode comments payload: %v", err)
+	}
+	if len(commentsPayload.Comments) != 1 || commentsPayload.Comments[0]["content"] != "This should be linked from the launch wiki." {
+		t.Fatalf("unexpected comments payload: %#v", commentsPayload.Comments)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/files/starred", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on starred files list, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var starredPayload struct {
+		Files []map[string]any `json:"files"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &starredPayload); err != nil {
+		t.Fatalf("failed to decode starred files payload: %v", err)
+	}
+	if len(starredPayload.Files) != 1 || starredPayload.Files[0]["id"] != "file-1" {
+		t.Fatalf("unexpected starred files payload: %#v", starredPayload.Files)
+	}
+}
+
+func TestFileShareCreatesAttachmentMessageAndAuditEvent(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-5", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	db.DB.Create(&domain.FileAsset{
+		ID:          "file-1",
+		ChannelID:   "ch-5",
+		UploaderID:  "user-1",
+		Name:        "launch-plan.pdf",
+		StoragePath: "launch-plan.pdf",
+		ContentType: "application/pdf",
+		SizeBytes:   4096,
+		CreatedAt:   now.Add(-time.Hour),
+		UpdatedAt:   now.Add(-time.Hour),
+	})
+
+	router := gin.New()
+	router.POST("/api/v1/files/:id/share", ShareFile)
+	router.GET("/api/v1/files/:id/shares", GetFileShares)
+	router.GET("/api/v1/files/:id/audit", GetFileAudit)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/files/file-1/share", bytes.NewBufferString(`{"channel_id":"ch-5","thread_id":"msg-parent","comment":"Sharing the latest launch plan"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on file share, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var sharePayload struct {
+		Share map[string]any `json:"share"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &sharePayload); err != nil {
+		t.Fatalf("failed to decode file share payload: %v", err)
+	}
+	if sharePayload.Share["channel_id"] != "ch-5" || sharePayload.Share["thread_id"] != "msg-parent" {
+		t.Fatalf("unexpected share payload: %#v", sharePayload.Share)
+	}
+
+	var attachment domain.MessageFileAttachment
+	if err := db.DB.First(&attachment, "file_id = ?", "file-1").Error; err != nil {
+		t.Fatalf("expected shared file attachment row: %v", err)
+	}
+	var message domain.Message
+	if err := db.DB.First(&message, "id = ?", attachment.MessageID).Error; err != nil {
+		t.Fatalf("expected share message to persist: %v", err)
+	}
+	if message.ThreadID != "msg-parent" || message.Content != "Sharing the latest launch plan" {
+		t.Fatalf("unexpected share message: %#v", message)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/files/file-1/shares", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on file shares list, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var sharesPayload struct {
+		Shares []map[string]any `json:"shares"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &sharesPayload); err != nil {
+		t.Fatalf("failed to decode shares payload: %v", err)
+	}
+	if len(sharesPayload.Shares) != 1 || sharesPayload.Shares[0]["message_id"] != message.ID {
+		t.Fatalf("unexpected shares payload: %#v", sharesPayload.Shares)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/files/file-1/audit", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on file audit after share, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "share") {
+		t.Fatalf("expected audit log to include share action, got %s", rec.Body.String())
+	}
+}

@@ -2,6 +2,30 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.81] - 2026-04-21
+
+This release implements Phase 42: File Collaboration And Knowledge Metadata APIs, making files first-class collaborative knowledge objects.
+
+### Added
+
+- **File Comments API**: Added `GET /api/v1/files/:id/comments` and `POST /api/v1/files/:id/comments`.
+- **File Share API**: Added `GET /api/v1/files/:id/shares` and `POST /api/v1/files/:id/share` for sharing a file into a channel or thread with an attached message.
+- **File Stars API**: Added `POST /api/v1/files/:id/star` and `GET /api/v1/files/starred`.
+- **Knowledge Metadata API**: Added `PATCH /api/v1/files/:id/knowledge` with `knowledge_state`, `source_kind`, `summary`, and `tags`.
+- **Hydrated File Fields**: File detail/list payloads now expose `comment_count`, `share_count`, `starred`, and structured `tags`.
+
+### Knowledge Positioning
+
+- Files can now be marked as `wiki` or other source kinds and carry summary/tags for future LLM and wiki retrieval flows.
+- File share operations create a real message attachment record so file knowledge can surface in conversations, not just in the archive.
+
+### Verification Used For This Release
+
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go test ./internal/handlers -run 'TestFile(CollaborationCommentsStarsAndKnowledgeMetadata|ShareCreatesAttachmentMessageAndAuditEvent)$'`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+
 ## [0.5.80] - 2026-04-21
 
 This release implements Phase 41: Agent-Collab Payload Simplification. Windsurf consumes Codex's hardened backend contracts directly, eliminating manual parsing workarounds.

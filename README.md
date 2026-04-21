@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.5.79` is the current release line and includes:
+`v0.5.81` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -37,6 +37,7 @@ For product, design, and marketing, the short version is:
 - `AGENT-COLLAB.md` watcher and `agent_collab.sync` websocket broadcast for the `#agent-collab` dashboard
 - dynamic Agent-Collab Hub APIs for members, comm-log persistence, and realtime hub refresh
 - hardened Agent-Collab Hub payloads with direct-message `to` fields and normalized member tool arrays
+- file collaboration APIs for comments, shares, stars, and knowledge-oriented metadata
 - provider-based LLM gateway with OpenAI, OpenAI-compatible, OpenRouter, and Gemini configuration
 - `GET /api/v1/users`, thread-aware messages, and `POST /api/v1/ai/execute` SSE streaming
 - local LLM config merge fixes and real provider validation
