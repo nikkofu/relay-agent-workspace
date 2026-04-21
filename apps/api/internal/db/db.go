@@ -63,6 +63,8 @@ func InitDB() error {
 		&domain.ArtifactVersion{},
 		&domain.FileAsset{},
 		&domain.FileAssetEvent{},
+		&domain.FileExtraction{},
+		&domain.FileExtractionChunk{},
 		&domain.FileComment{},
 		&domain.FileShare{},
 		&domain.StarredFile{},

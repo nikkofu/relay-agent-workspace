@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.5.83` is the current release line and includes:
+`v0.5.84` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -40,6 +40,9 @@ For product, design, and marketing, the short version is:
 - file collaboration APIs for comments, shares, stars, and knowledge-oriented metadata
 - message-level rich file attachment payloads for inline channel/thread rendering
 - `GET /api/v1/messages/:id/files` for message-scoped file card hydration
+- file extraction lifecycle, chunk indexing, and file-content search/citation APIs
+- real extraction support for `txt`, `md`, `pdf`, `docx`, `xlsx`, and `pptx`
+- OCR provider abstraction for image files with a mock OCR implementation
 - provider-based LLM gateway with OpenAI, OpenAI-compatible, OpenRouter, and Gemini configuration
 - `GET /api/v1/users`, thread-aware messages, and `POST /api/v1/ai/execute` SSE streaming
 - local LLM config merge fixes and real provider validation
@@ -113,6 +116,13 @@ For product, design, and marketing, the short version is:
 - `DELETE /api/v1/drafts/:scope` for explicit draft cleanup flows
 - File retention policy and file audit trail APIs
 - File preview metadata API for images, PDFs, and fallback downloads
+- File extraction detail APIs:
+  - `GET /api/v1/files/:id/extraction`
+  - `POST /api/v1/files/:id/extraction/rebuild`
+  - `GET /api/v1/files/:id/extracted-content`
+  - `GET /api/v1/files/:id/chunks`
+  - `GET /api/v1/files/:id/citations`
+  - `GET /api/v1/search/files?q=...`
 - Channel notification preferences and self-service leave-channel API
 - Structured workspace list APIs for shared checklists and operational tracking
 - Artifact template APIs and virtual `new-doc` bootstrap support for canvas-first creation
@@ -127,6 +137,7 @@ For product, design, and marketing, the short version is:
 - Presence heartbeat, status text, and last-seen metadata
 - Workspace search API across channels, users, messages, and DM conversations
 - Search suggestions and richer result snippets for command-palette style discovery
+- Realtime file extraction updates through websocket `file.extraction.updated`
 - Docked DM chat windows in the workspace shell
 - Phase 10 Slack-parity foundation APIs for:
   - channel members

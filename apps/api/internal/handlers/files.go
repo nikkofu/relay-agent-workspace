@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"os"
@@ -11,10 +12,13 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"github.com/nikkofu/relay-agent-workspace/api/internal/db"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/domain"
+	"github.com/nikkofu/relay-agent-workspace/api/internal/fileindex"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/ids"
+	"github.com/nikkofu/relay-agent-workspace/api/internal/realtime"
 )
 
 type fileAssetResponse struct {
@@ -32,6 +36,8 @@ type fileAssetResponse struct {
 	ShareCount     int64        `json:"share_count"`
 	Starred        bool         `json:"starred"`
 	Tags           []string     `json:"tags"`
+	IsSearchable   bool         `json:"is_searchable"`
+	IsCitable      bool         `json:"is_citable"`
 }
 
 type filePreviewResponse struct {
@@ -118,9 +124,37 @@ func UploadFile(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save file asset"})
 		return
 	}
+	extraction, err := rebuildFileExtraction(asset)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to build file extraction"})
+		return
+	}
+	_ = db.DB.First(&asset, "id = ?", asset.ID).Error
+	_ = broadcastFileExtractionEvent(asset, extraction)
 	recordFileEvent(asset.ID, currentUser.ID, "uploaded", "Uploaded "+asset.Name)
 
 	c.JSON(http.StatusCreated, gin.H{"file": hydrateFileAssetResponse(asset)})
+}
+
+func RebuildFileExtraction(c *gin.Context) {
+	var asset domain.FileAsset
+	if err := db.DB.First(&asset, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
+		return
+	}
+
+	extraction, err := rebuildFileExtraction(asset)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to rebuild file extraction"})
+		return
+	}
+	_ = db.DB.First(&asset, "id = ?", asset.ID).Error
+	_ = broadcastFileExtractionEvent(asset, extraction)
+
+	c.JSON(http.StatusOK, gin.H{
+		"file":       hydrateFileAssetResponse(asset),
+		"extraction": extraction,
+	})
 }
 
 func ListFiles(c *gin.Context) {
@@ -160,6 +194,174 @@ func GetFile(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"file": hydrateFileAssetResponse(asset)})
+}
+
+func GetFileExtraction(c *gin.Context) {
+	if err := db.DB.First(&domain.FileAsset{}, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
+		return
+	}
+
+	var extraction domain.FileExtraction
+	if err := db.DB.First(&extraction, "file_id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "file extraction not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"extraction": extraction})
+}
+
+func GetFileExtractedContent(c *gin.Context) {
+	if err := db.DB.First(&domain.FileAsset{}, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
+		return
+	}
+
+	var extraction domain.FileExtraction
+	if err := db.DB.First(&extraction, "file_id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "file extraction not found"})
+		return
+	}
+
+	var chunkCount int64
+	db.DB.Model(&domain.FileExtractionChunk{}).Where("file_id = ?", c.Param("id")).Count(&chunkCount)
+
+	c.JSON(http.StatusOK, gin.H{
+		"file_id":         c.Param("id"),
+		"status":          extraction.Status,
+		"extractor":       extraction.Extractor,
+		"content_text":    extraction.ContentText,
+		"content_summary": extraction.ContentSummary,
+		"chunks_count":    chunkCount,
+	})
+}
+
+func GetFileExtractionChunks(c *gin.Context) {
+	if err := db.DB.First(&domain.FileAsset{}, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
+		return
+	}
+
+	var chunks []domain.FileExtractionChunk
+	if err := db.DB.Where("file_id = ?", c.Param("id")).Order("chunk_index asc, id asc").Find(&chunks).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load extraction chunks"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"file_id": c.Param("id"),
+		"chunks":  chunks,
+	})
+}
+
+func SearchFiles(c *gin.Context) {
+	q := strings.TrimSpace(c.Query("q"))
+	if q == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "q is required"})
+		return
+	}
+
+	type searchResult struct {
+		File         fileAssetResponse `json:"file"`
+		Snippet      string            `json:"snippet"`
+		LocatorType  string            `json:"locator_type"`
+		LocatorValue string            `json:"locator_value"`
+		Heading      string            `json:"heading"`
+		MatchReason  string            `json:"match_reason"`
+	}
+
+	needle := strings.ToLower(q)
+	var assets []domain.FileAsset
+	if err := db.DB.Where("extraction_status = ?", "ready").Order("created_at desc").Find(&assets).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to search files"})
+		return
+	}
+
+	results := make([]searchResult, 0)
+	for _, asset := range assets {
+		var chunks []domain.FileExtractionChunk
+		if err := db.DB.Where("file_id = ?", asset.ID).Order("chunk_index asc").Find(&chunks).Error; err != nil {
+			continue
+		}
+
+		matchReason := ""
+		snippet := ""
+		locatorType := ""
+		locatorValue := ""
+		heading := ""
+
+		if strings.Contains(strings.ToLower(asset.Name), needle) {
+			matchReason = "file_name"
+			snippet = asset.Name
+		}
+		for _, chunk := range chunks {
+			if !strings.Contains(strings.ToLower(chunk.Text), needle) {
+				continue
+			}
+			if matchReason == "" {
+				matchReason = "content"
+				snippet = chunk.Text
+				locatorType = chunk.LocatorType
+				locatorValue = chunk.LocatorValue
+				heading = chunk.Heading
+			}
+			break
+		}
+		if matchReason == "" {
+			continue
+		}
+
+		results = append(results, searchResult{
+			File:         hydrateFileAssetResponse(asset),
+			Snippet:      snippet,
+			LocatorType:  locatorType,
+			LocatorValue: locatorValue,
+			Heading:      heading,
+			MatchReason:  matchReason,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"query":   q,
+		"results": results,
+	})
+}
+
+func GetFileCitations(c *gin.Context) {
+	if err := db.DB.First(&domain.FileAsset{}, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
+		return
+	}
+
+	var chunks []domain.FileExtractionChunk
+	if err := db.DB.Where("file_id = ?", c.Param("id")).Order("chunk_index asc, id asc").Find(&chunks).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load file citations"})
+		return
+	}
+
+	type citationResponse struct {
+		ChunkID      uint   `json:"chunk_id"`
+		Text         string `json:"text"`
+		LocatorType  string `json:"locator_type"`
+		LocatorValue string `json:"locator_value"`
+		Heading      string `json:"heading"`
+	}
+
+	citations := make([]citationResponse, 0, len(chunks))
+	for _, chunk := range chunks {
+		citations = append(citations, citationResponse{
+			ChunkID:      chunk.ID,
+			Text:         chunk.Text,
+			LocatorType:  chunk.LocatorType,
+			LocatorValue: chunk.LocatorValue,
+			Heading:      chunk.Heading,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"file_id":   c.Param("id"),
+		"citations": citations,
+	})
 }
 
 func GetFileComments(c *gin.Context) {
@@ -653,6 +855,8 @@ func hydrateFileAssetResponse(asset domain.FileAsset) fileAssetResponse {
 		ChannelIDAlias: asset.ChannelID,
 		CreatedAtAlias: asset.CreatedAt,
 		Tags:           decodeTags(asset.Tags),
+		IsSearchable:   asset.ExtractionStatus == "ready",
+		IsCitable:      asset.ExtractionStatus == "ready",
 	}
 
 	var uploader domain.User
@@ -732,6 +936,151 @@ func recordFileEvent(fileID, actorID, action, detail string) {
 		Detail:    detail,
 		CreatedAt: time.Now().UTC(),
 	}).Error
+}
+
+func broadcastFileExtractionEvent(asset domain.FileAsset, extraction domain.FileExtraction) error {
+	if RealtimeHub == nil {
+		return nil
+	}
+
+	workspaceID := ""
+	if asset.ChannelID != "" {
+		var channel domain.Channel
+		if err := db.DB.First(&channel, "id = ?", asset.ChannelID).Error; err == nil {
+			workspaceID = channel.WorkspaceID
+		}
+	}
+
+	return RealtimeHub.Broadcast(realtime.Event{
+		ID:          "evt_" + time.Now().Format("20060102150405.000000"),
+		Type:        "file.extraction.updated",
+		WorkspaceID: workspaceID,
+		ChannelID:   asset.ChannelID,
+		EntityID:    asset.ID,
+		TS:          time.Now().UTC().Format(time.RFC3339Nano),
+		Payload: gin.H{
+			"file_id":         asset.ID,
+			"status":          extraction.Status,
+			"content_summary": extraction.ContentSummary,
+			"needs_ocr":       extraction.NeedsOCR,
+			"ocr_provider":    extraction.OCRProvider,
+			"ocr_is_mock":     extraction.OCRIsMock,
+			"is_searchable":   extraction.Status == "ready",
+			"is_citable":      extraction.Status == "ready",
+		},
+	})
+}
+
+func rebuildFileExtraction(asset domain.FileAsset) (domain.FileExtraction, error) {
+	extraction, err := ensureFileExtraction(asset)
+	if err != nil {
+		return domain.FileExtraction{}, err
+	}
+
+	path := filepath.Join("uploads", asset.StoragePath)
+	now := time.Now().UTC()
+	extraction.Status = "processing"
+	extraction.StartedAt = &now
+	extraction.ErrorCode = ""
+	extraction.ErrorMessage = ""
+	extraction.UpdatedAt = now
+	if extraction.CreatedAt.IsZero() {
+		extraction.CreatedAt = now
+	}
+
+	if extraction.ID == "" {
+		extraction.ID = ids.NewPrefixedUUID("fextract")
+		if err := db.DB.Create(&extraction).Error; err != nil {
+			return domain.FileExtraction{}, err
+		}
+	} else if err := db.DB.Save(&extraction).Error; err != nil {
+		return domain.FileExtraction{}, err
+	}
+
+	result := fileindex.NewService(fileindex.MockOCRProvider{}).ExtractFile(path, asset)
+	return persistExtractionResult(asset, extraction, result)
+}
+
+func ensureFileExtraction(asset domain.FileAsset) (domain.FileExtraction, error) {
+	var extraction domain.FileExtraction
+	err := db.DB.First(&extraction, "file_id = ?", asset.ID).Error
+	switch {
+	case err == nil:
+		return extraction, nil
+	case err != nil && !errors.Is(err, gorm.ErrRecordNotFound):
+		return domain.FileExtraction{}, err
+	}
+
+	now := time.Now().UTC()
+	extraction = domain.FileExtraction{
+		ID:        ids.NewPrefixedUUID("fextract"),
+		FileID:    asset.ID,
+		Status:    "pending",
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := db.DB.Create(&extraction).Error; err != nil {
+		return domain.FileExtraction{}, err
+	}
+	return extraction, nil
+}
+
+func persistExtractionResult(asset domain.FileAsset, extraction domain.FileExtraction, result fileindex.ExtractionResult) (domain.FileExtraction, error) {
+	completedAt := time.Now().UTC()
+	extraction.Status = result.Status
+	extraction.Extractor = result.Extractor
+	extraction.ContentText = result.ContentText
+	extraction.ContentSummary = result.ContentSummary
+	extraction.ErrorCode = result.ErrorCode
+	extraction.ErrorMessage = result.ErrorMessage
+	extraction.NeedsOCR = result.NeedsOCR
+	extraction.OCRProvider = result.OCRProvider
+	extraction.OCRIsMock = result.OCRIsMock
+	extraction.CompletedAt = &completedAt
+	extraction.UpdatedAt = completedAt
+
+	if err := db.DB.Save(&extraction).Error; err != nil {
+		return domain.FileExtraction{}, err
+	}
+
+	if err := db.DB.Where("file_id = ?", asset.ID).Delete(&domain.FileExtractionChunk{}).Error; err != nil {
+		return domain.FileExtraction{}, err
+	}
+	for idx, chunk := range result.Chunks {
+		row := domain.FileExtractionChunk{
+			ExtractionID:  extraction.ID,
+			FileID:        asset.ID,
+			ChunkIndex:    idx,
+			Text:          chunk.Text,
+			TokenEstimate: chunk.TokenEstimate,
+			LocatorType:   chunk.LocatorType,
+			LocatorValue:  chunk.LocatorValue,
+			Heading:       chunk.Heading,
+			CreatedAt:     completedAt,
+		}
+		if err := db.DB.Create(&row).Error; err != nil {
+			return domain.FileExtraction{}, err
+		}
+	}
+
+	updates := map[string]any{
+		"extraction_status": extraction.Status,
+		"content_summary":   extraction.ContentSummary,
+		"needs_ocr":         extraction.NeedsOCR,
+		"ocr_provider":      extraction.OCRProvider,
+		"ocr_is_mock":       extraction.OCRIsMock,
+		"updated_at":        completedAt,
+	}
+	if extraction.Status == "ready" {
+		updates["last_indexed_at"] = &completedAt
+	} else {
+		updates["last_indexed_at"] = nil
+	}
+	if err := db.DB.Model(&domain.FileAsset{}).Where("id = ?", asset.ID).Updates(updates).Error; err != nil {
+		return domain.FileExtraction{}, err
+	}
+
+	return extraction, nil
 }
 
 func hydrateFileShareResponse(share domain.FileShare, message *domain.Message) fileShareResponse {

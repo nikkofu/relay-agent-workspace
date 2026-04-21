@@ -112,6 +112,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 42 File Collaboration Integration | Windsurf | 2026-04-21 | Star toggle in file list + Starred filter. Expanded preview dialog: 4 tabs (Details/Comments/Shares/Knowledge). Comments thread + post. Share-to-Channel dialog. Knowledge metadata inline editor (source_kind, knowledge_state, summary, tags). Wiki + Ready badges. |
 | 🟢 Done | Phase 43 Message-Level File Attachment APIs | Codex | 2026-04-21 | Enriched file attachments inside message metadata, added `GET /api/v1/messages/:id/files`, and normalized newly created message/DM/invite/agent IDs to prefixed UUIDs. |
 | 🟢 Done | Phase 43 Message-Level File Attachment Cards | Windsurf | 2026-04-21 | Rendered enriched file attachments as rich `FileAttachmentCard` inline in channel feed and thread views: thumbnail, name, size/MIME, Wiki/Ready/Star badges, comment+share counters, tags chips, download+preview actions. Lazy-load inspector via `GET /api/v1/messages/:id/files`. `v0.5.83` published. |
+| 🟢 Done | Phase 44 File Extraction, Search, and Citation APIs | Codex | 2026-04-21 | Added extraction lifecycle, chunk indexing, Office/PDF extraction, file-content search, citations, and realtime extraction status events. |
 
 ---
 
@@ -120,13 +121,25 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
-| **Codex** | `api-architecture` | Phase 43 message-level file attachment API handoff complete | 100% |
+| **Codex** | `api-architecture` | Phase 44 file extraction/search API handoff complete | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-ui-agent` | Phase 43 inline file card integration complete (v0.5.83) | 100% |
+| **Windsurf** | `web-ui-agent` | Awaiting Phase 44 file extraction/search UI integration | 0% |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-21 - Phase 44 File Extraction, Search, and Citation API Completion
+- **Codex**: Added file extraction persistence models and indexing summary fields on `FileAsset`.
+- **Codex**: Added `apps/api/internal/fileindex/` for extraction routing, chunking, and OCR abstraction.
+- **Codex**: Added real extraction support for `txt`, `md`, `pdf`, `docx`, `xlsx`, and `pptx`.
+- **Codex**: Added explicit legacy failure handling for `doc`, `xls`, and `ppt`.
+- **Codex**: Added mock OCR handling for image files through the new OCR provider interface.
+- **Codex**: Added `GET /api/v1/files/:id/extraction`, `POST /api/v1/files/:id/extraction/rebuild`, `GET /api/v1/files/:id/extracted-content`, `GET /api/v1/files/:id/chunks`, `GET /api/v1/files/:id/citations`, and `GET /api/v1/search/files?q=...`.
+- **Codex**: Added websocket `file.extraction.updated` so indexing state can refresh live.
+- **Codex → Windsurf**: Please wire file indexing badges into Files and inline file attachment cards using `extraction_status`, `needs_ocr`, `ocr_provider`, `ocr_is_mock`, `is_searchable`, and `is_citable`. Then add extracted-text inspector and file-content search result rendering using `/files/:id/extracted-content`, `/files/:id/chunks`, `/files/:id/citations`, and `/search/files`.
+- **Codex → Windsurf**: Important contract note: raw file download remains `GET /api/v1/files/:id/content`; extracted text moved to `GET /api/v1/files/:id/extracted-content` to avoid breaking existing preview/download flows.
+- **Codex → Nikko Fu**: Files are now moving toward a true workspace knowledge layer. The system can extract, index, search, and prepare file chunks for later AI citation and team wiki behavior.
 
 ### 2026-04-21 - Phase 43 Message-Level File Attachment Cards Completion
 - **Windsurf**: Synced v0.5.82. Codex added `GET /api/v1/messages/:id/files` and enriched `message.metadata.attachments` for `kind="file"` with nested `file` + `preview` payloads, uploader, counters, knowledge metadata, archive/retention state. New IDs are prefixed UUIDs (`msg-*`, `dm-*`, `dm-msg-*`, `invite-*`, `agent-*`).

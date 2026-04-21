@@ -387,24 +387,30 @@ type ArtifactVersion struct {
 }
 
 type FileAsset struct {
-	ID             string     `gorm:"primaryKey" json:"id"`
-	ChannelID      string     `gorm:"index" json:"channel_id,omitempty"`
-	UploaderID     string     `gorm:"index" json:"uploader_id"`
-	Name           string     `json:"name"`
-	StoragePath    string     `json:"storage_path"`
-	ContentType    string     `json:"content_type"`
-	SizeBytes      int64      `json:"size_bytes"`
-	Description    string     `json:"description"`
-	SourceKind     string     `json:"source_kind"`
-	KnowledgeState string     `json:"knowledge_state"`
-	Summary        string     `json:"summary"`
-	Tags           string     `json:"-"`
-	RetentionDays  int        `json:"retention_days"`
-	ExpiresAt      *time.Time `json:"expires_at,omitempty"`
-	IsArchived     bool       `json:"is_archived"`
-	ArchivedAt     *time.Time `json:"archived_at,omitempty"`
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
+	ID               string     `gorm:"primaryKey" json:"id"`
+	ChannelID        string     `gorm:"index" json:"channel_id,omitempty"`
+	UploaderID       string     `gorm:"index" json:"uploader_id"`
+	Name             string     `json:"name"`
+	StoragePath      string     `json:"storage_path"`
+	ContentType      string     `json:"content_type"`
+	SizeBytes        int64      `json:"size_bytes"`
+	Description      string     `json:"description"`
+	SourceKind       string     `json:"source_kind"`
+	KnowledgeState   string     `json:"knowledge_state"`
+	Summary          string     `json:"summary"`
+	Tags             string     `json:"-"`
+	RetentionDays    int        `json:"retention_days"`
+	ExpiresAt        *time.Time `json:"expires_at,omitempty"`
+	IsArchived       bool       `json:"is_archived"`
+	ArchivedAt       *time.Time `json:"archived_at,omitempty"`
+	ExtractionStatus string     `json:"extraction_status"`
+	ContentSummary   string     `json:"content_summary"`
+	LastIndexedAt    *time.Time `json:"last_indexed_at,omitempty"`
+	NeedsOCR         bool       `json:"needs_ocr"`
+	OCRProvider      string     `json:"ocr_provider"`
+	OCRIsMock        bool       `json:"ocr_is_mock"`
+	CreatedAt        time.Time  `json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
 }
 
 type FileAssetEvent struct {
@@ -414,6 +420,37 @@ type FileAssetEvent struct {
 	Action    string    `json:"action"`
 	Detail    string    `json:"detail"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type FileExtraction struct {
+	ID             string     `gorm:"primaryKey" json:"id"`
+	FileID         string     `gorm:"index;uniqueIndex" json:"file_id"`
+	Status         string     `json:"status"`
+	Extractor      string     `json:"extractor"`
+	ContentText    string     `json:"content_text"`
+	ContentSummary string     `json:"content_summary"`
+	ErrorCode      string     `json:"error_code"`
+	ErrorMessage   string     `json:"error_message"`
+	NeedsOCR       bool       `json:"needs_ocr"`
+	OCRProvider    string     `json:"ocr_provider"`
+	OCRIsMock      bool       `json:"ocr_is_mock"`
+	StartedAt      *time.Time `json:"started_at,omitempty"`
+	CompletedAt    *time.Time `json:"completed_at,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
+}
+
+type FileExtractionChunk struct {
+	ID            uint      `gorm:"primaryKey" json:"id"`
+	ExtractionID  string    `gorm:"index" json:"extraction_id"`
+	FileID        string    `gorm:"index" json:"file_id"`
+	ChunkIndex    int       `json:"chunk_index"`
+	Text          string    `json:"text"`
+	TokenEstimate int       `json:"token_estimate"`
+	LocatorType   string    `json:"locator_type"`
+	LocatorValue  string    `json:"locator_value"`
+	Heading       string    `json:"heading"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 type MessageArtifactReference struct {

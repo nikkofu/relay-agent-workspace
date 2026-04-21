@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/nikkofu/relay-agent-workspace/api/internal/db"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/domain"
+	"github.com/nikkofu/relay-agent-workspace/api/internal/ids"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/realtime"
 )
 
@@ -3059,6 +3061,474 @@ func assertRealtimeEventType(t *testing.T, client *realtime.TestClient, expected
 	}
 }
 
+func TestFileExtractionModelsPersist(t *testing.T) {
+	setupTestDB(t)
+
+	now := time.Now().UTC()
+	extraction := domain.FileExtraction{
+		ID:        ids.NewPrefixedUUID("fextract"),
+		FileID:    "file-1",
+		Status:    "pending",
+		Extractor: "plain_text",
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := db.DB.Create(&extraction).Error; err != nil {
+		t.Fatalf("failed to create extraction: %v", err)
+	}
+
+	chunk := domain.FileExtractionChunk{
+		ExtractionID:  extraction.ID,
+		FileID:        "file-1",
+		ChunkIndex:    0,
+		Text:          "hello world",
+		TokenEstimate: 2,
+		LocatorType:   "document",
+		LocatorValue:  "root",
+		CreatedAt:     now,
+	}
+	if err := db.DB.Create(&chunk).Error; err != nil {
+		t.Fatalf("failed to create extraction chunk: %v", err)
+	}
+
+	var persistedExtraction domain.FileExtraction
+	if err := db.DB.First(&persistedExtraction, "id = ?", extraction.ID).Error; err != nil {
+		t.Fatalf("failed to load extraction: %v", err)
+	}
+	if persistedExtraction.FileID != "file-1" || persistedExtraction.Status != "pending" {
+		t.Fatalf("unexpected persisted extraction: %#v", persistedExtraction)
+	}
+
+	var persistedChunk domain.FileExtractionChunk
+	if err := db.DB.First(&persistedChunk, "file_id = ? AND chunk_index = ?", "file-1", 0).Error; err != nil {
+		t.Fatalf("failed to load extraction chunk: %v", err)
+	}
+	if persistedChunk.Text != "hello world" || persistedChunk.LocatorType != "document" {
+		t.Fatalf("unexpected persisted chunk: %#v", persistedChunk)
+	}
+}
+
+func TestUploadFileCreatesExtractionRecord(t *testing.T) {
+	setupTestDB(t)
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+
+	_ = os.RemoveAll("uploads")
+	t.Cleanup(func() {
+		_ = os.RemoveAll("uploads")
+	})
+
+	router := gin.New()
+	router.POST("/api/v1/files/upload", UploadFile)
+
+	body, contentType := buildMultipartFileUpload(t, "channel_id", "ch-1", "notes.txt", []byte("Launch checklist\n\nShip file search"))
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/files/upload", body)
+	req.Header.Set("Content-Type", contentType)
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on file upload, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		File domain.FileAsset `json:"file"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode upload payload: %v", err)
+	}
+
+	var extraction domain.FileExtraction
+	if err := db.DB.First(&extraction, "file_id = ?", payload.File.ID).Error; err != nil {
+		t.Fatalf("expected extraction record for uploaded file: %v", err)
+	}
+	if extraction.Status != "ready" || extraction.ContentSummary == "" {
+		t.Fatalf("expected ready extraction summary, got %#v", extraction)
+	}
+
+	var chunks []domain.FileExtractionChunk
+	if err := db.DB.Where("file_id = ?", payload.File.ID).Find(&chunks).Error; err != nil {
+		t.Fatalf("failed to load extraction chunks: %v", err)
+	}
+	if len(chunks) == 0 {
+		t.Fatalf("expected extraction chunks for uploaded file")
+	}
+}
+
+func TestRebuildFileExtractionRegeneratesExtraction(t *testing.T) {
+	setupTestDB(t)
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+
+	_ = os.RemoveAll("uploads")
+	t.Cleanup(func() {
+		_ = os.RemoveAll("uploads")
+	})
+
+	router := gin.New()
+	router.POST("/api/v1/files/upload", UploadFile)
+	router.POST("/api/v1/files/:id/extraction/rebuild", RebuildFileExtraction)
+
+	body, contentType := buildMultipartFileUpload(t, "channel_id", "ch-1", "notes.txt", []byte("First extraction body"))
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/files/upload", body)
+	req.Header.Set("Content-Type", contentType)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on file upload, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var uploadPayload struct {
+		File domain.FileAsset `json:"file"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &uploadPayload); err != nil {
+		t.Fatalf("failed to decode upload payload: %v", err)
+	}
+
+	var asset domain.FileAsset
+	if err := db.DB.First(&asset, "id = ?", uploadPayload.File.ID).Error; err != nil {
+		t.Fatalf("failed to load uploaded asset: %v", err)
+	}
+	updatedPath := filepath.Join("uploads", asset.StoragePath)
+	if err := os.WriteFile(updatedPath, []byte("Updated extraction body with different summary"), 0o644); err != nil {
+		t.Fatalf("failed to update uploaded file contents: %v", err)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/files/"+asset.ID+"/extraction/rebuild", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on extraction rebuild, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var extraction domain.FileExtraction
+	if err := db.DB.First(&extraction, "file_id = ?", asset.ID).Error; err != nil {
+		t.Fatalf("failed to reload extraction: %v", err)
+	}
+	if !strings.Contains(extraction.ContentText, "Updated extraction body") {
+		t.Fatalf("expected rebuilt extraction content, got %#v", extraction)
+	}
+}
+
+func TestImageFileExtractionUsesMockOCR(t *testing.T) {
+	setupTestDB(t)
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+
+	_ = os.RemoveAll("uploads")
+	t.Cleanup(func() {
+		_ = os.RemoveAll("uploads")
+	})
+
+	router := gin.New()
+	router.POST("/api/v1/files/upload", UploadFile)
+
+	body, contentType := buildMultipartFileUpload(t, "channel_id", "ch-1", "diagram.png", []byte("fake-image"))
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/files/upload", body)
+	req.Header.Set("Content-Type", contentType)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on image upload, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		File domain.FileAsset `json:"file"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode upload payload: %v", err)
+	}
+
+	var extraction domain.FileExtraction
+	if err := db.DB.First(&extraction, "file_id = ?", payload.File.ID).Error; err != nil {
+		t.Fatalf("expected extraction record for uploaded image: %v", err)
+	}
+	if extraction.OCRProvider != "mock" || !extraction.OCRIsMock || !extraction.NeedsOCR {
+		t.Fatalf("expected mock OCR metadata, got %#v", extraction)
+	}
+	if !strings.Contains(extraction.ContentText, "Mock OCR text extracted from diagram.png") {
+		t.Fatalf("expected mock OCR text, got %#v", extraction)
+	}
+}
+
+func TestGetFileExtractionReturnsStatusAndSummary(t *testing.T) {
+	setupTestDB(t)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.FileAsset{
+		ID:               "file-1",
+		Name:             "notes.txt",
+		StoragePath:      "notes.txt",
+		UploaderID:       "user-1",
+		ContentType:      "text/plain",
+		ExtractionStatus: "ready",
+		ContentSummary:   "Launch checklist summary",
+		LastIndexedAt:    &now,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+	db.DB.Create(&domain.FileExtraction{
+		ID:             ids.NewPrefixedUUID("fextract"),
+		FileID:         "file-1",
+		Status:         "ready",
+		Extractor:      "plain_text",
+		ContentSummary: "Launch checklist summary",
+		CreatedAt:      now,
+		UpdatedAt:      now,
+		CompletedAt:    &now,
+	})
+
+	router := gin.New()
+	router.GET("/api/v1/files/:id/extraction", GetFileExtraction)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/files/file-1/extraction", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on get extraction, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestGetFileContentReturnsExtractedText(t *testing.T) {
+	setupTestDB(t)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.FileAsset{
+		ID:          "file-1",
+		Name:        "notes.txt",
+		StoragePath: "notes.txt",
+		UploaderID:  "user-1",
+		ContentType: "text/plain",
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	})
+	db.DB.Create(&domain.FileExtraction{
+		ID:             ids.NewPrefixedUUID("fextract"),
+		FileID:         "file-1",
+		Status:         "ready",
+		Extractor:      "plain_text",
+		ContentText:    "Launch checklist\n\nShip search",
+		ContentSummary: "Launch checklist summary",
+		CreatedAt:      now,
+		UpdatedAt:      now,
+		CompletedAt:    &now,
+	})
+
+	router := gin.New()
+	router.GET("/api/v1/files/:id/content", GetFileExtractedContent)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/files/file-1/content", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on get file content, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestGetFileChunksReturnsLocatorMetadata(t *testing.T) {
+	setupTestDB(t)
+
+	now := time.Now().UTC()
+	extractionID := ids.NewPrefixedUUID("fextract")
+	db.DB.Create(&domain.FileAsset{
+		ID:          "file-1",
+		Name:        "notes.txt",
+		StoragePath: "notes.txt",
+		UploaderID:  "user-1",
+		ContentType: "text/plain",
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	})
+	db.DB.Create(&domain.FileExtraction{
+		ID:             extractionID,
+		FileID:         "file-1",
+		Status:         "ready",
+		Extractor:      "plain_text",
+		ContentText:    "Launch checklist",
+		ContentSummary: "Launch checklist summary",
+		CreatedAt:      now,
+		UpdatedAt:      now,
+		CompletedAt:    &now,
+	})
+	db.DB.Create(&domain.FileExtractionChunk{
+		ExtractionID:  extractionID,
+		FileID:        "file-1",
+		ChunkIndex:    0,
+		Text:          "Launch checklist",
+		TokenEstimate: 2,
+		LocatorType:   "document",
+		LocatorValue:  "root",
+		Heading:       "Launch",
+		CreatedAt:     now,
+	})
+
+	router := gin.New()
+	router.GET("/api/v1/files/:id/chunks", GetFileExtractionChunks)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/files/file-1/chunks", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on get file chunks, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSearchFilesReturnsContentHitsAndLocators(t *testing.T) {
+	setupTestDB(t)
+
+	now := time.Now().UTC()
+	extractionID := ids.NewPrefixedUUID("fextract")
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.FileAsset{
+		ID:               "file-1",
+		Name:             "launch-plan.docx",
+		StoragePath:      "launch-plan.docx",
+		UploaderID:       "user-1",
+		ContentType:      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		ExtractionStatus: "ready",
+		ContentSummary:   "Launch plan summary",
+		LastIndexedAt:    &now,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+	db.DB.Create(&domain.FileExtraction{
+		ID:             extractionID,
+		FileID:         "file-1",
+		Status:         "ready",
+		Extractor:      "docx",
+		ContentText:    "Launch checklist and rollout plan",
+		ContentSummary: "Launch plan summary",
+		CreatedAt:      now,
+		UpdatedAt:      now,
+		CompletedAt:    &now,
+	})
+	db.DB.Create(&domain.FileExtractionChunk{
+		ExtractionID:  extractionID,
+		FileID:        "file-1",
+		ChunkIndex:    0,
+		Text:          "Launch checklist and rollout plan",
+		TokenEstimate: 5,
+		LocatorType:   "document",
+		LocatorValue:  "root",
+		Heading:       "Launch",
+		CreatedAt:     now,
+	})
+
+	router := gin.New()
+	router.GET("/api/v1/search/files", SearchFiles)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/search/files?q=launch", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on search files, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestGetFileCitationsReturnsChunkCandidates(t *testing.T) {
+	setupTestDB(t)
+
+	now := time.Now().UTC()
+	extractionID := ids.NewPrefixedUUID("fextract")
+	db.DB.Create(&domain.FileAsset{
+		ID:               "file-1",
+		Name:             "launch-plan.docx",
+		StoragePath:      "launch-plan.docx",
+		UploaderID:       "user-1",
+		ContentType:      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		ExtractionStatus: "ready",
+		ContentSummary:   "Launch plan summary",
+		LastIndexedAt:    &now,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+	db.DB.Create(&domain.FileExtraction{
+		ID:             extractionID,
+		FileID:         "file-1",
+		Status:         "ready",
+		Extractor:      "docx",
+		ContentText:    "Launch checklist and rollout plan",
+		ContentSummary: "Launch plan summary",
+		CreatedAt:      now,
+		UpdatedAt:      now,
+		CompletedAt:    &now,
+	})
+	db.DB.Create(&domain.FileExtractionChunk{
+		ExtractionID:  extractionID,
+		FileID:        "file-1",
+		ChunkIndex:    0,
+		Text:          "Launch checklist and rollout plan",
+		TokenEstimate: 5,
+		LocatorType:   "document",
+		LocatorValue:  "root",
+		Heading:       "Launch",
+		CreatedAt:     now,
+	})
+
+	router := gin.New()
+	router.GET("/api/v1/files/:id/citations", GetFileCitations)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/files/file-1/citations", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on get file citations, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestFileExtractionBroadcastsRealtimeUpdate(t *testing.T) {
+	setupTestDB(t)
+
+	hub := realtime.NewHub()
+	go hub.Run()
+	SetRealtimeHub(hub)
+	defer SetRealtimeHub(nil)
+
+	client := realtime.NewTestClient(8)
+	hub.RegisterTestClient(client)
+	defer hub.UnregisterTestClient(client)
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public"})
+
+	_ = os.RemoveAll("uploads")
+	t.Cleanup(func() {
+		_ = os.RemoveAll("uploads")
+	})
+
+	router := gin.New()
+	router.POST("/api/v1/files/upload", UploadFile)
+
+	body, contentType := buildMultipartFileUpload(t, "channel_id", "ch-1", "notes.txt", []byte("Launch checklist\n\nShip file search"))
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/files/upload", body)
+	req.Header.Set("Content-Type", contentType)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on upload, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	assertRealtimeEventType(t, client, "file.extraction.updated")
+}
+
+func buildMultipartFileUpload(t *testing.T, fieldName, fieldValue, filename string, contents []byte) (*bytes.Buffer, string) {
+	t.Helper()
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	if fieldName != "" {
+		_ = writer.WriteField(fieldName, fieldValue)
+	}
+	fileWriter, err := writer.CreateFormFile("file", filename)
+	if err != nil {
+		t.Fatalf("failed to create multipart file: %v", err)
+	}
+	if _, err := fileWriter.Write(contents); err != nil {
+		t.Fatalf("failed to write multipart file contents: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("failed to close multipart writer: %v", err)
+	}
+	return body, writer.FormDataContentType()
+}
+
 func setupTestDB(t *testing.T) {
 	t.Helper()
 
@@ -3073,7 +3543,7 @@ func setupTestDB(t *testing.T) {
 	if err := db.DB.AutoMigrate(&domain.Organization{}, &domain.Team{}, &domain.User{}, &domain.Agent{}, &domain.Workspace{}, &domain.WorkspaceInvite{}, &domain.UserGroup{}, &domain.UserGroupMember{}, &domain.WorkflowDefinition{}, &domain.WorkflowRunStep{}, &domain.WorkflowRunLog{}, &domain.ToolDefinition{}, &domain.ToolRun{}, &domain.ToolRunLog{}, &domain.Channel{}, &domain.ChannelMember{}, &domain.ChannelPreference{}, &domain.WorkspaceList{}, &domain.WorkspaceListItem{}, &domain.Message{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
-	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.NotificationPreference{}, &domain.NotificationMuteRule{}, &domain.AIFeedback{}, &domain.AIConversation{}, &domain.AIConversationMessage{}, &domain.AISummary{}, &domain.Artifact{}, &domain.ArtifactVersion{}, &domain.FileAsset{}, &domain.FileAssetEvent{}, &domain.FileComment{}, &domain.FileShare{}, &domain.StarredFile{}, &domain.MessageArtifactReference{}, &domain.MessageFileAttachment{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}, &domain.WorkflowRun{}); err != nil {
+	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.NotificationPreference{}, &domain.NotificationMuteRule{}, &domain.AIFeedback{}, &domain.AIConversation{}, &domain.AIConversationMessage{}, &domain.AISummary{}, &domain.Artifact{}, &domain.ArtifactVersion{}, &domain.FileAsset{}, &domain.FileAssetEvent{}, &domain.FileExtraction{}, &domain.FileExtractionChunk{}, &domain.FileComment{}, &domain.FileShare{}, &domain.StarredFile{}, &domain.MessageArtifactReference{}, &domain.MessageFileAttachment{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}, &domain.WorkflowRun{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 }

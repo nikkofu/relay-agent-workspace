@@ -2,6 +2,69 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.84] - 2026-04-21
+
+This release implements Phase 44: File Extraction, Search, and Citation Substrate. Files now move beyond metadata-only objects and become indexed knowledge sources for search, retrieval, and future AI citation flows.
+
+### Added
+
+- **File Extraction Lifecycle APIs**:
+  - `GET /api/v1/files/:id/extraction`
+  - `POST /api/v1/files/:id/extraction/rebuild`
+  - `GET /api/v1/files/:id/chunks`
+  - `GET /api/v1/files/:id/citations`
+- **File Content Retrieval API**:
+  - `GET /api/v1/files/:id/extracted-content`
+  - Returns normalized extracted text and summary without colliding with the existing raw download endpoint at `GET /api/v1/files/:id/content`.
+- **File Content Search API**:
+  - `GET /api/v1/search/files?q=...`
+  - Returns file matches with snippets, locator metadata, and match reasons.
+- **File Indexing Package**:
+  - Added `apps/api/internal/fileindex/` for extraction routing, chunking, and OCR abstraction.
+- **Office And PDF Extraction Support**:
+  - Real parsing paths for `txt`, `md`, `pdf`, `docx`, `xlsx`, and `pptx`.
+- **Mock OCR Path**:
+  - Image files now flow through an OCR provider interface with an initial mock implementation.
+- **Realtime File Indexing Event**:
+  - Added websocket `file.extraction.updated`.
+
+### Changed
+
+- **File Payloads** now include:
+  - `extraction_status`
+  - `content_summary`
+  - `last_indexed_at`
+  - `needs_ocr`
+  - `ocr_provider`
+  - `ocr_is_mock`
+  - `is_searchable`
+  - `is_citable`
+- **Legacy Office Formats**:
+  - `doc`, `xls`, and `ppt` now fail explicitly with extraction status instead of pretending they are searchable.
+
+### Windsurf Handoff
+
+- Add file indexing state badges to Files and inline message file cards:
+  - `processing`
+  - `ready`
+  - `failed`
+  - `ocr needed`
+- Use:
+  - `GET /api/v1/files/:id/extraction`
+  - `GET /api/v1/files/:id/extracted-content`
+  - `GET /api/v1/files/:id/chunks`
+  - `GET /api/v1/files/:id/citations`
+  - `GET /api/v1/search/files?q=...`
+- Listen for websocket `file.extraction.updated` to refresh file/search state live.
+
+### Verification Used For This Release
+
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go test ./internal/fileindex`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go test ./internal/handlers`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+
 ## [0.5.83] - 2026-04-21
 
 This release implements Phase 43: Message-Level File Attachment APIs. Shared files can now render as rich cards inside channel messages and thread views without requiring the frontend to reconstruct file metadata from multiple endpoints.
