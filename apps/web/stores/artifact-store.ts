@@ -51,18 +51,22 @@ interface ArtifactState {
   versions: ArtifactVersion[]
   currentDiff: ArtifactDiff | null
   references: { message: any, user: any, channel: any }[]
+  templates: { id: string, title: string, description: string, type: string }[]
   isLoading: boolean
   isHistoryLoading: boolean
   isDiffLoading: boolean
   isReferencesLoading: boolean
+  isTemplatesLoading: boolean
   fetchArtifacts: (channelId: string) => Promise<void>
   fetchArtifactDetail: (id: string) => Promise<void>
   fetchVersions: (id: string) => Promise<void>
   fetchVersionDetail: (id: string, version: number) => Promise<ArtifactVersion | null>
   fetchDiff: (id: string, fromVersion: number, toVersion: number) => Promise<void>
   fetchReferences: (id: string) => Promise<void>
+  fetchTemplates: () => Promise<void>
   restoreVersion: (id: string, version: number) => Promise<void>
   createArtifact: (data: Partial<Artifact>) => Promise<Artifact | null>
+  createArtifactFromTemplate: (templateId: string, channelId: string, userId: string) => Promise<Artifact | null>
   updateArtifact: (id: string, updates: Partial<Artifact>) => Promise<void>
   generateAIArtifact: (prompt: string, channelId: string) => Promise<void>
   setActiveArtifact: (artifact: Artifact | null) => void
@@ -96,10 +100,12 @@ export const useArtifactStore = create<ArtifactState>((set, get) => ({
   versions: [],
   currentDiff: null,
   references: [],
+  templates: [],
   isLoading: false,
   isHistoryLoading: false,
   isDiffLoading: false,
   isReferencesLoading: false,
+  isTemplatesLoading: false,
 
   fetchArtifacts: async (channelId) => {
     try {
@@ -301,6 +307,45 @@ export const useArtifactStore = create<ArtifactState>((set, get) => ({
       console.error("Failed to generate AI artifact:", error)
       set({ isLoading: false })
       toast.error("Failed to generate AI artifact")
+    }
+  },
+
+  fetchTemplates: async () => {
+    try {
+      set({ isTemplatesLoading: true })
+      const response = await fetch(`${API_BASE_URL}/artifacts/templates`)
+      const data = await response.json()
+      set({ templates: data.templates || [], isTemplatesLoading: false })
+    } catch (error) {
+      console.error("Failed to fetch artifact templates:", error)
+      set({ isTemplatesLoading: false })
+    }
+  },
+
+  createArtifactFromTemplate: async (templateId, channelId, userId) => {
+    try {
+      set({ isLoading: true })
+      const response = await fetch(`${API_BASE_URL}/artifacts/from-template`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          template_id: templateId,
+          channel_id: channelId,
+          user_id: userId
+        })
+      })
+      const result = await response.json()
+      const newArtifact = mapArtifact(result.artifact)
+      if (newArtifact) {
+        set((state) => ({ artifacts: [newArtifact, ...state.artifacts], activeArtifact: newArtifact, isLoading: false }))
+      } else {
+        set({ isLoading: false })
+      }
+      return newArtifact
+    } catch (error) {
+      console.error("Failed to create artifact from template:", error)
+      set({ isLoading: false })
+      return null
     }
   },
 

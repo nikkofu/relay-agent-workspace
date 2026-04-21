@@ -4,7 +4,8 @@ import { useState, useEffect } from "react"
 import { useUIStore } from "@/stores/ui-store"
 import { useArtifactStore, ArtifactVersion } from "@/stores/artifact-store"
 import { useChannelStore } from "@/stores/channel-store"
-import { X, Maximize2, RotateCcw, Share2, Save, Wand2, History, MessageSquare, Copy, Code, Type, ExternalLink, MoreVertical, ChevronLeft, Loader2, GitCompare } from "lucide-react"
+import { useUserStore } from "@/stores/user-store"
+import { X, Maximize2, RotateCcw, Share2, Save, Wand2, History, MessageSquare, Copy, Code, Type, ExternalLink, MoreVertical, ChevronLeft, Loader2, GitCompare, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
@@ -18,6 +19,7 @@ export function CanvasPanel() {
     activeArtifact, 
     fetchArtifactDetail, 
     createArtifact,
+    createArtifactFromTemplate,
     updateArtifact, 
     restoreVersion,
     isLoading,
@@ -31,20 +33,29 @@ export function CanvasPanel() {
     clearDiff,
     references,
     fetchReferences,
-    isReferencesLoading
+    isReferencesLoading,
+    templates,
+    fetchTemplates,
+    isTemplatesLoading
   } = useArtifactStore()
   const { currentChannel, setCurrentChannelById } = useChannelStore()
+  const { currentUser } = useUserStore()
   
   const [content, setContent] = useState("")
   const [isEditing, setIsEditing] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [showReferences, setShowReferences] = useState(false)
+  const [showTemplates, setShowTemplates] = useState(false)
   const [selectedVersion, setSelectedVersion] = useState<ArtifactVersion | null>(null)
   const [compareMode, setCompareMode] = useState(false)
   const [compareVersions, setCompareVersions] = useState<number[]>([])
 
   useEffect(() => {
     if (activeCanvasId) {
+      if (activeCanvasId === "new-doc") {
+        fetchTemplates()
+        setShowTemplates(true)
+      }
       fetchArtifactDetail(activeCanvasId)
       fetchReferences(activeCanvasId)
       setSelectedVersion(null)
@@ -54,7 +65,7 @@ export function CanvasPanel() {
       setCompareVersions([])
       clearDiff()
     }
-  }, [activeCanvasId, fetchArtifactDetail, fetchReferences, clearDiff])
+  }, [activeCanvasId, fetchArtifactDetail, fetchReferences, fetchTemplates, clearDiff])
 
   useEffect(() => {
     if (activeArtifact && !selectedVersion && !currentDiff) {
@@ -110,6 +121,15 @@ export function CanvasPanel() {
     // The message area will automatically update
   }
 
+  const handleSelectTemplate = async (templateId: string) => {
+    if (currentChannel && currentUser) {
+      const created = await createArtifactFromTemplate(templateId, currentChannel.id, currentUser.id)
+      if (created) {
+        setShowTemplates(false)
+      }
+    }
+  }
+
   const handleVersionClick = async (versionNum: number) => {
     if (!activeArtifact) return
 
@@ -156,6 +176,68 @@ export function CanvasPanel() {
 
   return (
     <div className="w-full h-full flex flex-col bg-white dark:bg-[#1a1d21] border-l shadow-2xl relative overflow-hidden animate-in slide-in-from-right duration-300">
+      {/* Template Picker Overlay */}
+      {showTemplates && activeArtifact?.id === "new-doc" && (
+        <div className="absolute inset-0 z-50 bg-white dark:bg-[#1a1d21] flex flex-col">
+          <header className="h-14 px-6 flex items-center justify-between border-b shrink-0">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-purple-600" />
+              <h1 className="text-lg font-black tracking-tight uppercase">New Canvas</h1>
+            </div>
+            <Button variant="ghost" size="icon" className="rounded-full" onClick={closeCanvas}>
+              <X className="w-5 h-5" />
+            </Button>
+          </header>
+          
+          <ScrollArea className="flex-1">
+            <div className="p-10 max-w-4xl mx-auto space-y-10">
+              <div className="space-y-1 text-center">
+                <h2 className="text-3xl font-black tracking-tight">How would you like to start?</h2>
+                <p className="text-muted-foreground">Select a template or start from a blank canvas.</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {isTemplatesLoading ? (
+                  Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="h-32 rounded-xl bg-muted animate-pulse" />
+                  ))
+                ) : (
+                  <>
+                    <button
+                      onClick={() => { setShowTemplates(false); setIsEditing(true); }}
+                      className="group p-6 text-left border-2 border-dashed rounded-2xl hover:border-purple-500/50 hover:bg-purple-500/5 transition-all flex flex-col justify-between h-40"
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center group-hover:bg-purple-100 dark:group-hover:bg-purple-900/20 group-hover:text-purple-600 transition-colors">
+                        <PlusBadge className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="font-black text-sm uppercase tracking-tight">Blank Document</p>
+                        <p className="text-xs text-muted-foreground mt-1">Start with a clean slate</p>
+                      </div>
+                    </button>
+
+                    {templates.map(template => (
+                      <button
+                        key={template.id}
+                        onClick={() => handleSelectTemplate(template.id)}
+                        className="group p-6 text-left border rounded-2xl hover:border-blue-500/50 hover:bg-blue-500/5 transition-all flex flex-col justify-between h-40"
+                      >
+                        <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-600">
+                          {template.type === 'code' ? <Code className="w-5 h-5" /> : <Type className="w-5 h-5" />}
+                        </div>
+                        <div>
+                          <p className="font-black text-sm uppercase tracking-tight">{template.title}</p>
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{template.description}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </>
+                )}
+              </div>
+            </div>
+          </ScrollArea>
+        </div>
+      )}
       {/* Header */}
       <header className="h-14 px-4 flex items-center justify-between border-b shrink-0 bg-muted/30">
         <div className="flex items-center gap-3 min-w-0">
@@ -412,6 +494,14 @@ export function CanvasPanel() {
           </Button>
         </footer>
       )}
+    </div>
+  )
+}
+
+function PlusBadge({ className }: { className?: string }) {
+  return (
+    <div className={cn("w-4 h-4 rounded-full border-2 border-current flex items-center justify-center font-bold text-[10px]", className)}>
+      +
     </div>
   )
 }
