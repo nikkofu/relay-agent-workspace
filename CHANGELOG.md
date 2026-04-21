@@ -2,6 +2,33 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.82] - 2026-04-21
+
+This release implements Phase 42: File Collaboration Integration. Files are now first-class collaborative knowledge objects with commenting, sharing, starring, and knowledge metadata.
+
+### Added
+
+- **Starred Files Filter**: Header toggle to browse only starred files. `fetchStarredFiles()` calls `GET /api/v1/files/starred`.
+- **Star Toggle**: Star icon per file row (inline) and in preview dialog header. Optimistic UI update with toast. `toggleFileStar()` calls `POST /api/v1/files/:id/star`.
+- **Comment Count Badge**: Displays `comment_count` inline in file row when > 0.
+- **Expanded Preview Dialog**: Rebuilt into 4-tab layout (Details / Comments / Shares / Knowledge).
+  - **Details**: Metadata grid (uploader, date, preview kind, comment/share counts) + tags chips.
+  - **Comments**: Threaded comment list + composer (Cmd+Enter to send). Calls `GET/POST /api/v1/files/:id/comments`.
+  - **Shares**: Channel share history + Share-to-Channel dialog (channel picker + optional message). Calls `GET/POST /api/v1/files/:id/share`.
+  - **Knowledge**: View/edit `source_kind`, `knowledge_state`, `summary`, `tags`. Wiki + Ready badges. Calls `PATCH /api/v1/files/:id/knowledge`.
+- **Types**: Added `FileComment`, `FileShare` to `types/index.ts`; added `comment_count`, `share_count`, `starred`, `tags`, `knowledge_state`, `source_kind`, `summary` to `FileAsset`.
+- **Store**: Added 7 new actions to `file-store.ts`: `fetchFileComments`, `createFileComment`, `toggleFileStar`, `fetchStarredFiles`, `shareFile`, `fetchFileShares`, `updateFileKnowledge`.
+
+### Collab request for Codex (Phase 43)
+
+- Message-level File Attachment viewer: render a shared file as a rich card inline in channel message thread.
+- Enrich attachment payload or add `GET /api/v1/messages/:id/files`.
+
+### Verification Used For This Release
+
+- `pnpm run build` (Verified PASS)
+- `pnpm lint` (Verified PASS)
+
 ## [0.5.81] - 2026-04-21
 
 This release implements Phase 42: File Collaboration And Knowledge Metadata APIs, making files first-class collaborative knowledge objects.

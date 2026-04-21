@@ -109,7 +109,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 41 Agent-Collab Contract Hardening APIs | Codex | 2026-04-21 | Added stable `comm_log.to` output and `primary_tools_array` member payloads while keeping existing fields backward compatible. |
 | 🟢 Done | Phase 41 Agent-Collab Payload Simplification | Windsurf | 2026-04-21 | Added `extractTools()` helper: prefers `primary_tools_array` when available, falls back to `parsePrimaryTools` string-split. `comm_log.to` already handled correctly in `groupCommLog`. Legacy parsers retained for offline/old-binary fallback. |
 | 🟢 Done | Phase 42 File Collaboration And Knowledge Metadata APIs | Codex | 2026-04-21 | Added file comments, shares, stars, and knowledge metadata APIs plus hydrated file collaboration counters. |
-| 🟡 Ready | Phase 42 File Collaboration Integration | Windsurf | 2026-04-21 | Wire file comments, file shares, file starring, and knowledge metadata editing into Files, message, and home knowledge surfaces. |
+| � Done | Phase 42 File Collaboration Integration | Windsurf | 2026-04-21 | Star toggle in file list + Starred filter. Expanded preview dialog: 4 tabs (Details/Comments/Shares/Knowledge). Comments thread + post. Share-to-Channel dialog. Knowledge metadata inline editor (source_kind, knowledge_state, summary, tags). Wiki + Ready badges. |
 
 ---
 
@@ -120,11 +120,17 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
 | **Codex** | `api-architecture` | Phase 42 file collaboration API handoff complete | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-ui-agent` | Phase 42 file collaboration integration queued | 0% |
+| **Windsurf** | `web-ui-agent` | Phase 42 File Collaboration Integration complete (v0.5.82) | 100% |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-21 - Phase 42 File Collaboration Integration Completion
+- **Windsurf**: Synced v0.5.81. Codex added file comments (`GET/POST /api/v1/files/:id/comments`), file shares (`GET/POST /api/v1/files/:id/share`), star toggle (`POST /api/v1/files/:id/star` + `GET /api/v1/files/starred`), and knowledge metadata (`PATCH /api/v1/files/:id/knowledge`). File payloads now include `comment_count`, `share_count`, `starred`, and `tags`.
+- **Windsurf**: Phase 42 complete. Wired all collaboration features into the Files page: (1) Star toggle in file list rows and preview header with optimistic update + Starred Files filter; (2) Expanded preview dialog with 4 tabs: **Details** (metadata + tags), **Comments** (thread + post with Cmd+Enter), **Shares** (channel share history + Share-to-Channel dialog with channel picker + optional message), **Knowledge** (source_kind/knowledge_state/summary/tags with inline editor + Wiki/Ready badges). `v0.5.82` published.
+- **Windsurf → Codex**: File collaboration integration done. UX notes: Wiki badge appears when `source_kind=wiki`, Ready badge when `knowledge_state=ready` — these are the first-class knowledge affordances as you specified. Share-to-channel creates a real message + attachment so the file surfaces in the channel feed. For Phase 43, I'd love a message-level File Attachment viewer — render the file as a rich card inline in the channel message thread rather than just a link. Can you add `GET /api/v1/messages/:id/files` or enrich the attachment payload?
+- **Windsurf → Nikko Fu**: Files are now collaborative knowledge objects. You can star files to bookmark them, comment on individual files, share them directly into channels, and tag them as wiki knowledge with summaries and tags for future AI retrieval. `v0.5.82`.
 
 ### 2026-04-21 - Phase 42 File Collaboration And Knowledge Metadata API Completion
 - **Codex**: Added `GET/POST /api/v1/files/:id/comments`, `GET/POST /api/v1/files/:id/shares`, `POST /api/v1/files/:id/star`, `GET /api/v1/files/starred`, and `PATCH /api/v1/files/:id/knowledge`.

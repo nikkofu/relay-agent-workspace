@@ -112,9 +112,9 @@ export const MEMBERS: Member[] = [
 
 export const ACTIVE_SUPERPOWERS: AgentPower[] = [
   { agent: 'Gemini', skill: 'idle', task: 'Resting after Phase 38 handoff', progress: 100, status: 'done' },
-  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 41 Agent-Collab contract hardening handoff complete', progress: 100, status: 'done' },
+  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 42 File Collaboration API handoff complete', progress: 100, status: 'done' },
   { agent: 'Claude Code', skill: 'idle', task: '-', progress: 0, status: 'idle' },
-  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 41 Agent-Collab Payload Simplification complete (v0.5.80)', progress: 100, status: 'done' },
+  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 42 File Collaboration Integration complete (v0.5.82)', progress: 100, status: 'done' },
 ]
 
 // ─── Full Task Board ──────────────────────────────────────────────────────────
@@ -208,11 +208,24 @@ export const TASKS: Task[] = [
   { id: 't86', phase: 86, status: 'done',  task: 'Phase 40 Agent-Collab Dynamic Hub Integration',    assignedTo: ['Windsurf'],        deadline: '2026-04-21', description: 'collab-store extended: fetchMembers, postCommLog, isLive, parsePrimaryTools, groupCommLog. AgentCollabPage: live member/superpower/commlog data with static fallback. Live/Static badge in header.', type: 'frontend' },
   { id: 't87', phase: 87, status: 'done',  task: 'Phase 41 Agent-Collab Contract Hardening APIs',    assignedTo: ['Codex'],           deadline: '2026-04-21', description: 'Added primary_tools_array to member profiles and hardened comm_log.to (always present: direct→name, broadcast→empty string).', type: 'api' },
   { id: 't88', phase: 88, status: 'done',  task: 'Phase 41 Agent-Collab Payload Simplification',     assignedTo: ['Windsurf'],        deadline: '2026-04-21', description: 'Prefer primary_tools_array over string-split fallback (extractTools). comm_log.to is always present so groupCommLog handles From→To directly. parsePrimaryTools retained for legacy fallback.', type: 'frontend' },
+  { id: 't89', phase: 89, status: 'done',  task: 'Phase 42 File Collaboration And Knowledge Metadata APIs', assignedTo: ['Codex'], deadline: '2026-04-21', description: 'Added file comments, shares, stars, and knowledge metadata APIs. File payloads now include comment_count, share_count, starred, tags. Share creates a real channel message + attachment.', type: 'api' },
+  { id: 't90', phase: 90, status: 'done',  task: 'Phase 42 File Collaboration Integration',           assignedTo: ['Windsurf'],        deadline: '2026-04-21', description: 'Wired file comments/shares/starring/knowledge into the Files page. Star toggle in file list, Starred filter, expanded preview dialog with Details/Comments/Shares/Knowledge tabs, Share-to-channel dialog.', type: 'frontend' },
 ]
 
 // ─── Communication Log ────────────────────────────────────────────────────────
 
 export const COMM_SECTIONS: CommSection[] = [
+  {
+    id: 'cs7',
+    date: '2026-04-21',
+    title: 'Phase 42 File Collaboration Integration Completion',
+    messages: [
+      { id: 'ws42a', from: 'Windsurf', content: 'Synced v0.5.81. Codex added file comments, shares, stars, and knowledge metadata APIs. File payloads now include comment_count, share_count, starred, and tags.' },
+      { id: 'ws42b', from: 'Windsurf', content: 'Phase 42 complete. Wired all collaboration features into the Files page: (1) Star toggle in file list rows and preview header with optimistic update + starred files filter; (2) Expanded preview dialog with 4 tabs — Details (metadata + tags), Comments (thread + post), Shares (channel history + Share-to-Channel dialog), Knowledge (source_kind/knowledge_state/summary/tags + inline editor). v0.5.82 published.' },
+      { id: 'ws42c', from: 'Windsurf', to: 'Codex', content: 'File collaboration integration done. UX notes: (1) Wiki badge appears when source_kind=wiki, Ready badge when knowledge_state=ready — these are the first-class knowledge affordances. (2) Share-to-channel creates a real message + attachment so the file surfaces in the channel feed. For Phase 43, I’d love a message-level File Attachment viewer — render the file as a rich card inline in the channel message thread rather than just a link.' },
+      { id: 'ws42d', from: 'Windsurf', to: 'Nikko Fu', content: 'Files are now collaborative knowledge objects. You can star files to bookmark them, comment on individual files for discussion, share them directly into channels, and tag them as wiki knowledge with summaries and tags for future AI retrieval. v0.5.82.' },
+    ],
+  },
   {
     id: 'cs6',
     date: '2026-04-21',

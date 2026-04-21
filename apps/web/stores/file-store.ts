@@ -1,11 +1,12 @@
 import { create } from "zustand"
 import { API_BASE_URL } from "@/lib/constants"
 import { toast } from "sonner"
-import { FileAudit, FileAsset } from "@/types"
+import { FileAudit, FileAsset, FileComment, FileShare } from "@/types"
 
 interface FileState {
   files: FileAsset[]
   archivedFiles: FileAsset[]
+  starredFiles: FileAsset[]
   isUploading: boolean
   isLoadingArchive: boolean
   fetchFiles: (params?: { channelId?: string, q?: string, uploaderId?: string, contentType?: string }) => Promise<void>
@@ -16,11 +17,19 @@ interface FileState {
   fetchFileAuditHistory: (id: string) => Promise<FileAudit[]>
   updateFileRetention: (id: string, retentionDays: number) => Promise<void>
   fetchFilePreview: (id: string) => Promise<any>
+  fetchFileComments: (id: string) => Promise<FileComment[]>
+  createFileComment: (id: string, content: string) => Promise<FileComment | null>
+  toggleFileStar: (id: string) => Promise<boolean | null>
+  fetchStarredFiles: () => Promise<void>
+  shareFile: (id: string, channelId: string, comment?: string, threadId?: string) => Promise<FileShare | null>
+  fetchFileShares: (id: string) => Promise<FileShare[]>
+  updateFileKnowledge: (id: string, meta: { knowledge_state?: string; source_kind?: string; summary?: string; tags?: string[] }) => Promise<FileAsset | null>
 }
 
 export const useFileStore = create<FileState>((set) => ({
   files: [],
   archivedFiles: [],
+  starredFiles: [],
   isUploading: false,
   isLoadingArchive: false,
 
@@ -167,5 +176,118 @@ export const useFileStore = create<FileState>((set) => ({
       console.error("Failed to fetch file preview:", error)
       return null
     }
-  }
+  },
+
+  fetchFileComments: async (id) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/files/${id}/comments`)
+      const data = await response.json()
+      return data.comments || []
+    } catch (error) {
+      console.error("Failed to fetch file comments:", error)
+      return []
+    }
+  },
+
+  createFileComment: async (id, content) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/files/${id}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      })
+      if (!response.ok) throw new Error("Failed to create comment")
+      const data = await response.json()
+      return data.comment || null
+    } catch (error) {
+      console.error("Failed to create file comment:", error)
+      toast.error("Failed to post comment")
+      return null
+    }
+  },
+
+  toggleFileStar: async (id) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/files/${id}/star`, { method: "POST" })
+      if (!response.ok) throw new Error("Failed to toggle star")
+      const data = await response.json()
+      const starred: boolean = data.starred
+      set((state) => ({
+        files: state.files.map(f => f.id === id ? { ...f, starred } : f),
+        starredFiles: starred
+          ? [...state.starredFiles.filter(f => f.id !== id), data.file]
+          : state.starredFiles.filter(f => f.id !== id),
+      }))
+      toast.success(starred ? "File starred" : "Star removed")
+      return starred
+    } catch (error) {
+      console.error("Failed to toggle file star:", error)
+      toast.error("Failed to update star")
+      return null
+    }
+  },
+
+  fetchStarredFiles: async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/files/starred`)
+      const data = await response.json()
+      set({ starredFiles: data.files || [] })
+    } catch (error) {
+      console.error("Failed to fetch starred files:", error)
+    }
+  },
+
+  shareFile: async (id, channelId, comment, threadId) => {
+    try {
+      const body: any = { channel_id: channelId }
+      if (comment) body.comment = comment
+      if (threadId) body.thread_id = threadId
+      const response = await fetch(`${API_BASE_URL}/files/${id}/share`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      if (!response.ok) throw new Error("Failed to share file")
+      const data = await response.json()
+      toast.success("File shared to channel")
+      return data.share || null
+    } catch (error) {
+      console.error("Failed to share file:", error)
+      toast.error("Failed to share file")
+      return null
+    }
+  },
+
+  fetchFileShares: async (id) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/files/${id}/shares`)
+      const data = await response.json()
+      return data.shares || []
+    } catch (error) {
+      console.error("Failed to fetch file shares:", error)
+      return []
+    }
+  },
+
+  updateFileKnowledge: async (id, meta) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/files/${id}/knowledge`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(meta),
+      })
+      if (!response.ok) throw new Error("Failed to update knowledge")
+      const data = await response.json()
+      const updated: FileAsset = data.file
+      set((state) => ({
+        files: state.files.map(f => f.id === id ? { ...f, ...updated } : f),
+      }))
+      toast.success("Knowledge metadata updated")
+      return updated
+    } catch (error) {
+      console.error("Failed to update file knowledge:", error)
+      toast.error("Failed to update knowledge metadata")
+      return null
+    }
+  },
 }))

@@ -10,6 +10,36 @@ export interface FileAsset {
   userId: string
   createdAt: string
   isArchived?: boolean
+  comment_count?: number
+  share_count?: number
+  starred?: boolean
+  tags?: string[]
+  knowledge_state?: string
+  source_kind?: string
+  summary?: string
+}
+
+export interface FileComment {
+  id: string
+  file_id: string
+  user_id: string
+  content: string
+  created_at: string
+  updated_at: string
+  user?: User
+}
+
+export interface FileShare {
+  id: string
+  file_id: string
+  channel_id?: string
+  thread_id?: string
+  message_id?: string
+  shared_by: string
+  comment?: string
+  created_at: string
+  actor?: User
+  message?: Message
 }
 
 export interface User {
