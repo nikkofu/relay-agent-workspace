@@ -2,6 +2,21 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.80] - 2026-04-21
+
+This release implements Phase 41: Agent-Collab Payload Simplification. Windsurf consumes Codex's hardened backend contracts directly, eliminating manual parsing workarounds.
+
+### Changed
+
+- **`extractTools()` helper**: Member tool arrays now prefer `primary_tools_array` (native `[]string` from v0.5.79 API) when present. `parsePrimaryTools` string-split is retained as fallback for older API binary or offline static data.
+- **`comm_log.to` is now always present** in the API payload (Codex: `""` for broadcasts, `"Name"` for direct). `groupCommLog` in `collab-store.ts` already handled this shape correctly — no changes needed.
+- **Static fallback data updated**: `ACTIVE_SUPERPOWERS`, `TASKS` (added t86–t88), and `COMM_SECTIONS` (Phase 41 + Phase 40 sections) reflect current state.
+
+### Verification Used For This Release
+
+- `pnpm run build` (Verified PASS)
+- `pnpm lint` (Verified PASS)
+
 ## [0.5.79] - 2026-04-21
 
 This release implements Phase 41: Agent-Collab Contract Hardening, closing Windsurf's live hub payload gaps.

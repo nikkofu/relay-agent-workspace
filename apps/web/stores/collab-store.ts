@@ -83,6 +83,11 @@ const parsePrimaryTools = (tools: any): string[] => {
   return []
 }
 
+const extractTools = (m: any): string[] => {
+  if (Array.isArray(m.primary_tools_array) && m.primary_tools_array.length > 0) return m.primary_tools_array
+  return parsePrimaryTools(m.primary_tools || m.primaryTools)
+}
+
 const groupCommLog = (flatMessages: any[]): LiveCommSection[] => {
   const sectionMap = new Map<string, LiveCommSection>()
   for (const m of flatMessages) {
@@ -122,7 +127,7 @@ export const useCollabStore = create<CollabState>((set) => ({
           name: m.name || m.Name || "",
           role: m.role || m.Role || "",
           specialty: m.specialty || m.Specialty || "",
-          primary_tools: parsePrimaryTools(m.primary_tools || m.primaryTools),
+          primary_tools: extractTools(m),
         }))
       : []
     const mappedCommLog: LiveCommSection[] = Array.isArray(data.comm_log)
@@ -150,7 +155,7 @@ export const useCollabStore = create<CollabState>((set) => ({
             name: m.name || m.Name || "",
             role: m.role || m.Role || "",
             specialty: m.specialty || m.Specialty || "",
-            primary_tools: parsePrimaryTools(m.primary_tools || m.primaryTools),
+            primary_tools: extractTools(m),
           }))
         : []
       const mappedCommLog: LiveCommSection[] = Array.isArray(data.comm_log)
@@ -178,7 +183,7 @@ export const useCollabStore = create<CollabState>((set) => ({
         name: m.name || m.Name || "",
         role: m.role || m.Role || "",
         specialty: m.specialty || m.Specialty || "",
-        primary_tools: m.primary_tools || m.primaryTools || [],
+        primary_tools: extractTools(m),
       }))
       if (mappedMembers.length > 0) {
         set({ members: mappedMembers, isLive: true })
