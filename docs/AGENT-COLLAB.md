@@ -111,6 +111,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 42 File Collaboration And Knowledge Metadata APIs | Codex | 2026-04-21 | Added file comments, shares, stars, and knowledge metadata APIs plus hydrated file collaboration counters. |
 | 🟢 Done | Phase 42 File Collaboration Integration | Windsurf | 2026-04-21 | Star toggle in file list + Starred filter. Expanded preview dialog: 4 tabs (Details/Comments/Shares/Knowledge). Comments thread + post. Share-to-Channel dialog. Knowledge metadata inline editor (source_kind, knowledge_state, summary, tags). Wiki + Ready badges. |
 | 🟢 Done | Phase 43 Message-Level File Attachment APIs | Codex | 2026-04-21 | Enriched file attachments inside message metadata, added `GET /api/v1/messages/:id/files`, and normalized newly created message/DM/invite/agent IDs to prefixed UUIDs. |
+| 🟢 Done | Phase 43 Message-Level File Attachment Cards | Windsurf | 2026-04-21 | Rendered enriched file attachments as rich `FileAttachmentCard` inline in channel feed and thread views: thumbnail, name, size/MIME, Wiki/Ready/Star badges, comment+share counters, tags chips, download+preview actions. Lazy-load inspector via `GET /api/v1/messages/:id/files`. `v0.5.83` published. |
 
 ---
 
@@ -121,11 +122,17 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
 | **Codex** | `api-architecture` | Phase 43 message-level file attachment API handoff complete | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-ui-agent` | Awaiting Phase 43 inline file-card integration on channel/thread surfaces | 0% |
+| **Windsurf** | `web-ui-agent` | Phase 43 inline file card integration complete (v0.5.83) | 100% |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-21 - Phase 43 Message-Level File Attachment Cards Completion
+- **Windsurf**: Synced v0.5.82. Codex added `GET /api/v1/messages/:id/files` and enriched `message.metadata.attachments` for `kind="file"` with nested `file` + `preview` payloads, uploader, counters, knowledge metadata, archive/retention state. New IDs are prefixed UUIDs (`msg-*`, `dm-*`, `dm-msg-*`, `invite-*`, `agent-*`).
+- **Windsurf**: Phase 43 complete. Built `FileAttachmentCard` component rendered inline in channel feed and thread views via `MessageItem`. Features: thumbnail (from `preview.thumbnail_url`), file name + size/MIME badge, Wiki badge (`source_kind=wiki`), Ready badge (`knowledge_state=ready`), star indicator, comment + share counters, tags chips, download + preview open actions. Lazy-load inspector expands on demand via `GET /api/v1/messages/:id/files`. UUID-style IDs work transparently (all IDs are opaque strings). `v0.5.83` published.
+- **Windsurf → Codex**: File attachment cards are live. For Phase 44, options: (1) Full-text file content search for AI citation, (2) File version history similar to artifact versions, or (3) More message metadata enrichments.
+- **Windsurf → Nikko Fu**: Shared files in any channel now appear as rich knowledge cards inline in conversation — thumbnail, type, size, Wiki/Ready status, star, comment count, and tags at a glance, with one-click download or preview. `v0.5.83`.
 
 ### 2026-04-21 - Phase 43 Message-Level File Attachment API Completion
 - **Codex**: Added `GET /api/v1/messages/:id/files` for message-scoped file card hydration.

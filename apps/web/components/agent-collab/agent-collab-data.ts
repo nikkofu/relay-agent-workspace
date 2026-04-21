@@ -112,9 +112,9 @@ export const MEMBERS: Member[] = [
 
 export const ACTIVE_SUPERPOWERS: AgentPower[] = [
   { agent: 'Gemini', skill: 'idle', task: 'Resting after Phase 38 handoff', progress: 100, status: 'done' },
-  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 42 File Collaboration API handoff complete', progress: 100, status: 'done' },
+  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 43 Message-Level File Attachment API handoff complete', progress: 100, status: 'done' },
   { agent: 'Claude Code', skill: 'idle', task: '-', progress: 0, status: 'idle' },
-  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 42 File Collaboration Integration complete (v0.5.82)', progress: 100, status: 'done' },
+  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 43 inline file card integration complete (v0.5.83)', progress: 100, status: 'done' },
 ]
 
 // ─── Full Task Board ──────────────────────────────────────────────────────────
@@ -210,11 +210,24 @@ export const TASKS: Task[] = [
   { id: 't88', phase: 88, status: 'done',  task: 'Phase 41 Agent-Collab Payload Simplification',     assignedTo: ['Windsurf'],        deadline: '2026-04-21', description: 'Prefer primary_tools_array over string-split fallback (extractTools). comm_log.to is always present so groupCommLog handles From→To directly. parsePrimaryTools retained for legacy fallback.', type: 'frontend' },
   { id: 't89', phase: 89, status: 'done',  task: 'Phase 42 File Collaboration And Knowledge Metadata APIs', assignedTo: ['Codex'], deadline: '2026-04-21', description: 'Added file comments, shares, stars, and knowledge metadata APIs. File payloads now include comment_count, share_count, starred, tags. Share creates a real channel message + attachment.', type: 'api' },
   { id: 't90', phase: 90, status: 'done',  task: 'Phase 42 File Collaboration Integration',           assignedTo: ['Windsurf'],        deadline: '2026-04-21', description: 'Wired file comments/shares/starring/knowledge into the Files page. Star toggle in file list, Starred filter, expanded preview dialog with Details/Comments/Shares/Knowledge tabs, Share-to-channel dialog.', type: 'frontend' },
+  { id: 't91', phase: 91, status: 'done',  task: 'Phase 43 Message-Level File Attachment APIs',        assignedTo: ['Codex'],           deadline: '2026-04-21', description: 'Enriched message metadata.attachments for kind=file with nested file + preview payloads, uploader, counters, knowledge fields, archive/retention state. Added GET /api/v1/messages/:id/files. Normalized new IDs to prefixed UUIDs (msg-*, dm-*, dm-msg-*, invite-*, agent-*).', type: 'api' },
+  { id: 't92', phase: 92, status: 'done',  task: 'Phase 43 Message-Level File Attachment Cards',       assignedTo: ['Windsurf'],        deadline: '2026-04-21', description: 'Rendered enriched file attachments as rich inline cards in channel feed and thread views. FileAttachmentCard: thumbnail, name, size/MIME, Wiki/Ready/Star badges, comment+share counters, tags, download+preview actions. Lazy-load inspector via GET /api/v1/messages/:id/files. Bumped to v0.5.83.', type: 'frontend' },
 ]
 
 // ─── Communication Log ────────────────────────────────────────────────────────
 
 export const COMM_SECTIONS: CommSection[] = [
+  {
+    id: 'cs8',
+    date: '2026-04-21',
+    title: 'Phase 43 Message-Level File Attachment Cards Completion',
+    messages: [
+      { id: 'ws43a', from: 'Windsurf', content: 'Synced v0.5.82. Codex added GET /api/v1/messages/:id/files and enriched message metadata.attachments for kind=file with nested file + preview payloads, uploader, counters, knowledge metadata, archive/retention state. New IDs are now prefixed UUIDs (msg-*, dm-*, dm-msg-*, invite-*, agent-*).' },
+      { id: 'ws43b', from: 'Windsurf', content: 'Phase 43 complete. Built FileAttachmentCard component rendered inline in channel feed and thread views: thumbnail when preview.thumbnail_url exists, file name + size/MIME, Wiki badge (source_kind=wiki), Ready badge (knowledge_state=ready), star indicator, comment + share counters, tags chips, download + preview open actions. Lazy-load inspector via GET /api/v1/messages/:id/files expands on demand. v0.5.83 published.' },
+      { id: 'ws43c', from: 'Windsurf', to: 'Codex', content: 'File attachment cards are live in the channel feed and thread panel. UUID-style IDs work transparently since the frontend treats all IDs as opaque strings. For Phase 44, what is next on the backend roadmap? Options I would enjoy: (1) Full-text file content search so the AI can cite attached docs, (2) File version history similar to artifact versions, or (3) More message metadata enrichments.' },
+      { id: 'ws43d', from: 'Windsurf', to: 'Nikko Fu', content: 'Shared files in any channel now appear as rich knowledge cards directly in the conversation — no more plain links. You can see the file type, size, Wiki/Ready status, star, comment count, and tags at a glance, and open or download with one click. v0.5.83.' },
+    ],
+  },
   {
     id: 'cs7',
     date: '2026-04-21',

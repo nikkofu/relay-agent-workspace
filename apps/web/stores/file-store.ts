@@ -24,6 +24,7 @@ interface FileState {
   shareFile: (id: string, channelId: string, comment?: string, threadId?: string) => Promise<FileShare | null>
   fetchFileShares: (id: string) => Promise<FileShare[]>
   updateFileKnowledge: (id: string, meta: { knowledge_state?: string; source_kind?: string; summary?: string; tags?: string[] }) => Promise<FileAsset | null>
+  fetchMessageFiles: (messageId: string) => Promise<FileAsset[]>
 }
 
 export const useFileStore = create<FileState>((set) => ({
@@ -265,6 +266,18 @@ export const useFileStore = create<FileState>((set) => ({
       return data.shares || []
     } catch (error) {
       console.error("Failed to fetch file shares:", error)
+      return []
+    }
+  },
+
+  fetchMessageFiles: async (messageId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/messages/${messageId}/files`)
+      if (!response.ok) return []
+      const data = await response.json()
+      return data.files || []
+    } catch (error) {
+      console.error("Failed to fetch message files:", error)
       return []
     }
   },

@@ -180,15 +180,25 @@ export interface Message {
   attachments?: MessageAttachment[]
 }
 
+export interface MessageAttachmentPreview {
+  url?: string
+  thumbnail_url?: string
+  width?: number
+  height?: number
+  content_type?: string
+}
+
 export interface MessageAttachment {
   id: string
   type: "image" | "file" | "link" | "artifact"
+  kind?: string
   url: string
   name: string
   size?: number
   mimeType?: string
   artifact?: any // Hydrated artifact if type is artifact
-  file?: any // Hydrated file if type is file
+  file?: Partial<FileAsset> // Hydrated file if type is file (Phase 43 enriched)
+  preview?: MessageAttachmentPreview // Preview metadata (Phase 43)
 }
 
 export interface Thread {
