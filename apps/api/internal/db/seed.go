@@ -8,6 +8,15 @@ import (
 )
 
 func SeedData() {
+	seedNow := time.Now().UTC()
+	at := func(offset time.Duration) time.Time {
+		return seedNow.Add(offset)
+	}
+	atPtr := func(offset time.Duration) *time.Time {
+		value := at(offset)
+		return &value
+	}
+
 	// 1. Organizations
 	org := domain.Organization{ID: "ws-1", Name: "Relay"}
 	DB.FirstOrCreate(&org, domain.Organization{ID: org.ID})
@@ -125,8 +134,8 @@ func SeedData() {
 	}
 
 	channelPreferences := []domain.ChannelPreference{
-		{ChannelID: "ch-1", UserID: "user-1", NotificationLevel: "all", IsMuted: false, CreatedAt: time.Date(2026, 4, 21, 1, 0, 0, 0, time.UTC), UpdatedAt: time.Date(2026, 4, 21, 1, 0, 0, 0, time.UTC)},
-		{ChannelID: "ch-collab", UserID: "user-1", NotificationLevel: "mentions", IsMuted: false, CreatedAt: time.Date(2026, 4, 21, 1, 5, 0, 0, time.UTC), UpdatedAt: time.Date(2026, 4, 21, 1, 5, 0, 0, time.UTC)},
+		{ChannelID: "ch-1", UserID: "user-1", NotificationLevel: "all", IsMuted: false, CreatedAt: at(-6 * time.Hour), UpdatedAt: at(-6 * time.Hour)},
+		{ChannelID: "ch-collab", UserID: "user-1", NotificationLevel: "mentions", IsMuted: false, CreatedAt: at(-5 * time.Hour), UpdatedAt: at(-5 * time.Hour)},
 	}
 	for _, preference := range channelPreferences {
 		DB.FirstOrCreate(&preference, domain.ChannelPreference{
@@ -142,7 +151,7 @@ func SeedData() {
 			Email:       "new.designer@example.com",
 			Role:        "member",
 			Status:      "pending",
-			CreatedAt:   time.Date(2026, 4, 17, 8, 0, 0, 0, time.UTC),
+			CreatedAt:   at(-96 * time.Hour),
 		},
 	}
 	for _, invite := range workspaceInvites {
@@ -157,8 +166,8 @@ func SeedData() {
 			Handle:      "leadership",
 			Description: "Cross-functional leadership group for company planning.",
 			CreatedBy:   "user-1",
-			CreatedAt:   time.Date(2026, 4, 18, 7, 0, 0, 0, time.UTC),
-			UpdatedAt:   time.Date(2026, 4, 20, 8, 0, 0, 0, time.UTC),
+			CreatedAt:   at(-72 * time.Hour),
+			UpdatedAt:   at(-24 * time.Hour),
 		},
 		{
 			ID:          "group-2",
@@ -167,8 +176,8 @@ func SeedData() {
 			Handle:      "design-guild",
 			Description: "Design systems and UX critique circle.",
 			CreatedBy:   "user-4",
-			CreatedAt:   time.Date(2026, 4, 18, 9, 0, 0, 0, time.UTC),
-			UpdatedAt:   time.Date(2026, 4, 20, 9, 0, 0, 0, time.UTC),
+			CreatedAt:   at(-70 * time.Hour),
+			UpdatedAt:   at(-23 * time.Hour),
 		},
 	}
 	for _, group := range userGroups {
@@ -176,10 +185,10 @@ func SeedData() {
 	}
 
 	groupMembers := []domain.UserGroupMember{
-		{UserGroupID: "group-1", UserID: "user-1", Role: "owner", CreatedAt: time.Date(2026, 4, 18, 7, 0, 0, 0, time.UTC)},
-		{UserGroupID: "group-1", UserID: "user-3", Role: "member", CreatedAt: time.Date(2026, 4, 18, 7, 0, 0, 0, time.UTC)},
-		{UserGroupID: "group-2", UserID: "user-4", Role: "owner", CreatedAt: time.Date(2026, 4, 18, 9, 0, 0, 0, time.UTC)},
-		{UserGroupID: "group-2", UserID: "user-1", Role: "member", CreatedAt: time.Date(2026, 4, 18, 9, 15, 0, 0, time.UTC)},
+		{UserGroupID: "group-1", UserID: "user-1", Role: "owner", CreatedAt: at(-72 * time.Hour)},
+		{UserGroupID: "group-1", UserID: "user-3", Role: "member", CreatedAt: at(-71 * time.Hour)},
+		{UserGroupID: "group-2", UserID: "user-4", Role: "owner", CreatedAt: at(-70 * time.Hour)},
+		{UserGroupID: "group-2", UserID: "user-1", Role: "member", CreatedAt: at(-69 * time.Hour)},
 	}
 	for _, member := range groupMembers {
 		DB.FirstOrCreate(&member, domain.UserGroupMember{
@@ -196,8 +205,8 @@ func SeedData() {
 			Description: "Collect daily progress updates and blockers from the team.",
 			Trigger:     "manual",
 			IsActive:    true,
-			CreatedAt:   time.Date(2026, 4, 19, 7, 30, 0, 0, time.UTC),
-			UpdatedAt:   time.Date(2026, 4, 20, 7, 30, 0, 0, time.UTC),
+			CreatedAt:   at(-48 * time.Hour),
+			UpdatedAt:   at(-20 * time.Hour),
 		},
 		{
 			ID:          "workflow-2",
@@ -206,8 +215,8 @@ func SeedData() {
 			Description: "Review launch readiness across product, design, and engineering.",
 			Trigger:     "scheduled",
 			IsActive:    true,
-			CreatedAt:   time.Date(2026, 4, 19, 8, 0, 0, 0, time.UTC),
-			UpdatedAt:   time.Date(2026, 4, 20, 8, 30, 0, 0, time.UTC),
+			CreatedAt:   at(-47 * time.Hour),
+			UpdatedAt:   at(-19 * time.Hour),
 		},
 	}
 	for _, workflow := range workflows {
@@ -216,19 +225,16 @@ func SeedData() {
 
 	workflowRuns := []domain.WorkflowRun{
 		{
-			ID:         "run-1",
-			WorkflowID: "workflow-1",
-			StartedBy:  "user-1",
-			Status:     "completed",
-			Input:      `{"channel_id":"ch-1"}`,
-			Summary:    "Collected standup updates from the product channel.",
-			StartedAt:  time.Date(2026, 4, 20, 1, 0, 0, 0, time.UTC),
-			CompletedAt: func() *time.Time {
-				v := time.Date(2026, 4, 20, 1, 5, 0, 0, time.UTC)
-				return &v
-			}(),
-			CreatedAt: time.Date(2026, 4, 20, 1, 0, 0, 0, time.UTC),
-			UpdatedAt: time.Date(2026, 4, 20, 1, 5, 0, 0, time.UTC),
+			ID:          "run-1",
+			WorkflowID:  "workflow-1",
+			StartedBy:   "user-1",
+			Status:      "completed",
+			Input:       `{"channel_id":"ch-1"}`,
+			Summary:     "Collected standup updates from the product channel.",
+			StartedAt:   at(-2 * time.Hour),
+			CompletedAt: atPtr(-2*time.Hour + 5*time.Minute),
+			CreatedAt:   at(-2 * time.Hour),
+			UpdatedAt:   at(-2*time.Hour + 5*time.Minute),
 		},
 	}
 	for _, run := range workflowRuns {
@@ -242,7 +248,7 @@ func SeedData() {
 			Status:        "completed",
 			DurationMS:    210,
 			Detail:        "Read the latest standup messages from #general.",
-			CreatedAt:     time.Date(2026, 4, 20, 1, 1, 0, 0, time.UTC),
+			CreatedAt:     at(-2*time.Hour + time.Minute),
 		},
 		{
 			WorkflowRunID: "run-1",
@@ -250,7 +256,7 @@ func SeedData() {
 			Status:        "completed",
 			DurationMS:    340,
 			Detail:        "Grouped progress and blockers into a concise update.",
-			CreatedAt:     time.Date(2026, 4, 20, 1, 2, 0, 0, time.UTC),
+			CreatedAt:     at(-2*time.Hour + 2*time.Minute),
 		},
 	}
 	for _, step := range workflowRunSteps {
@@ -266,14 +272,14 @@ func SeedData() {
 			Level:         "info",
 			Message:       "Workflow run accepted by Relay automation engine.",
 			Metadata:      `{"source":"seed","stage":"queued"}`,
-			CreatedAt:     time.Date(2026, 4, 20, 1, 0, 5, 0, time.UTC),
+			CreatedAt:     at(-2*time.Hour + 5*time.Second),
 		},
 		{
 			WorkflowRunID: "run-1",
 			Level:         "info",
 			Message:       "Generated summary and closed run successfully.",
 			Metadata:      `{"source":"seed","stage":"completed"}`,
-			CreatedAt:     time.Date(2026, 4, 20, 1, 5, 0, 0, time.UTC),
+			CreatedAt:     at(-2*time.Hour + 5*time.Minute),
 		},
 	}
 	for _, log := range workflowRunLogs {
@@ -292,8 +298,8 @@ func SeedData() {
 			Description: "Search the web for current information and citations.",
 			Icon:        "search",
 			IsEnabled:   true,
-			CreatedAt:   time.Date(2026, 4, 19, 10, 0, 0, 0, time.UTC),
-			UpdatedAt:   time.Date(2026, 4, 20, 10, 0, 0, 0, time.UTC),
+			CreatedAt:   at(-46 * time.Hour),
+			UpdatedAt:   at(-18 * time.Hour),
 		},
 		{
 			ID:          "tool-2",
@@ -303,8 +309,8 @@ func SeedData() {
 			Description: "Turn prompts into artifacts and editable canvas documents.",
 			Icon:        "file-text",
 			IsEnabled:   true,
-			CreatedAt:   time.Date(2026, 4, 19, 10, 15, 0, 0, time.UTC),
-			UpdatedAt:   time.Date(2026, 4, 20, 10, 15, 0, 0, time.UTC),
+			CreatedAt:   at(-45 * time.Hour),
+			UpdatedAt:   at(-17 * time.Hour),
 		},
 	}
 	for _, tool := range tools {
@@ -342,7 +348,7 @@ func SeedData() {
 		Content     string
 		SenderID    string
 		ChannelID   string
-		CreatedAt   string
+		CreatedAt   time.Time
 		Reactions   interface{}
 		Attachments interface{}
 	}
@@ -353,7 +359,7 @@ func SeedData() {
 			Content:   "Welcome to the team everyone! Glad to have you here.",
 			SenderID:  "user-1",
 			ChannelID: "ch-1",
-			CreatedAt: "2026-04-14T10:00:00Z",
+			CreatedAt: at(-7 * time.Hour),
 			Reactions: []map[string]interface{}{{"emoji": "👋", "count": 3, "userIds": []string{"user-2", "user-3", "user-4"}}},
 		},
 		{
@@ -361,14 +367,14 @@ func SeedData() {
 			Content:   "Thanks @Nikko Fu! Excited to get started on the AI integration.",
 			SenderID:  "user-3",
 			ChannelID: "ch-1",
-			CreatedAt: "2026-04-14T11:30:00Z",
+			CreatedAt: at(-6*time.Hour - 30*time.Minute),
 		},
 		{
 			ID:          "msg-3",
 			Content:     "I've drafted the implementation plan for Relay Agent Workspace. Take a look: https://github.com/nikkofu/relay-agent-workspace",
 			SenderID:    "user-1",
 			ChannelID:   "ch-5",
-			CreatedAt:   "2026-04-15T08:00:00Z",
+			CreatedAt:   at(-5 * time.Hour),
 			Attachments: []map[string]interface{}{{"id": "att-1", "type": "link", "url": "https://github.com/nikkofu/relay-agent-workspace", "name": "Relay Agent Workspace Repository"}},
 		},
 		{
@@ -376,14 +382,14 @@ func SeedData() {
 			Content:   "The AI components look promising. Can we add support for streaming responses?",
 			SenderID:  "user-4",
 			ChannelID: "ch-5",
-			CreatedAt: "2026-04-15T08:30:00Z",
+			CreatedAt: at(-4*time.Hour - 30*time.Minute),
 		},
 		{
 			ID:        "msg-5",
 			Content:   "Absolutely. Vercel AI SDK provides great primitives for that. I'll include it in Phase 3.",
 			SenderID:  "user-1",
 			ChannelID: "ch-5",
-			CreatedAt: "2026-04-15T09:00:00Z",
+			CreatedAt: at(-4 * time.Hour),
 			Reactions: []map[string]interface{}{{"emoji": "✅", "count": 2, "userIds": []string{"user-4", "user-2"}}},
 		},
 		{
@@ -391,13 +397,11 @@ func SeedData() {
 			Content:   "Here is a quick summary of today's progress:\n- Setup project with Next.js 15\n- Initialized shadcn/ui components\n- Defined core types and mock data",
 			SenderID:  "user-2",
 			ChannelID: "ch-5",
-			CreatedAt: "2026-04-15T09:30:00Z",
+			CreatedAt: at(-3*time.Hour - 30*time.Minute),
 		},
 	}
 
 	for _, m := range mockMessages {
-		t, _ := time.Parse(time.RFC3339, m.CreatedAt)
-
 		metadata := make(map[string]interface{})
 		if m.Reactions != nil {
 			metadata["reactions"] = m.Reactions
@@ -413,7 +417,7 @@ func SeedData() {
 			ChannelID:  m.ChannelID,
 			UserID:     m.SenderID,
 			Content:    m.Content,
-			CreatedAt:  t,
+			CreatedAt:  m.CreatedAt,
 			Metadata:   string(metadataJSON),
 			ThreadID:   "",
 			ReplyCount: 0,
@@ -459,8 +463,8 @@ func SeedData() {
 			Model:     "gemini-3-flash-preview",
 			CreatedBy: "user-2",
 			UpdatedBy: "user-2",
-			CreatedAt: time.Date(2026, 4, 18, 9, 0, 0, 0, time.UTC),
-			UpdatedAt: time.Date(2026, 4, 18, 9, 5, 0, 0, time.UTC),
+			CreatedAt: at(-3 * time.Hour),
+			UpdatedAt: at(-3*time.Hour + 5*time.Minute),
 		},
 	}
 	for _, artifact := range artifacts {
@@ -489,7 +493,7 @@ func SeedData() {
 		UserID:    "user-4",
 		Content:   "Yes, thread support will make the channel list much cleaner.",
 		ThreadID:  "msg-3",
-		CreatedAt: time.Date(2026, 4, 15, 9, 15, 0, 0, time.UTC),
+		CreatedAt: at(-3*time.Hour - 45*time.Minute),
 		Metadata:  "{}",
 	}
 	DB.FirstOrCreate(&threadReply, domain.Message{ID: threadReply.ID})
@@ -505,8 +509,8 @@ func SeedData() {
 			UserID:    "user-1",
 			Scope:     "channel:ch-5",
 			Content:   "Need to summarize the AI provider matrix before posting the next update.",
-			CreatedAt: time.Date(2026, 4, 18, 9, 45, 0, 0, time.UTC),
-			UpdatedAt: time.Date(2026, 4, 18, 9, 45, 0, 0, time.UTC),
+			CreatedAt: at(-90 * time.Minute),
+			UpdatedAt: at(-90 * time.Minute),
 		},
 	}
 	for _, draft := range drafts {
@@ -519,7 +523,7 @@ func SeedData() {
 	// 6. DM conversations
 	dmConversation := domain.DMConversation{
 		ID:        "dm-1",
-		CreatedAt: time.Date(2026, 4, 15, 7, 45, 0, 0, time.UTC),
+		CreatedAt: at(-2 * time.Hour),
 	}
 	DB.FirstOrCreate(&dmConversation, domain.DMConversation{ID: dmConversation.ID})
 
@@ -540,14 +544,14 @@ func SeedData() {
 			DMConversationID: dmConversation.ID,
 			UserID:           "user-2",
 			Content:          "I can help summarize the latest delivery status when you are ready.",
-			CreatedAt:        time.Date(2026, 4, 15, 7, 50, 0, 0, time.UTC),
+			CreatedAt:        at(-100 * time.Minute),
 		},
 		{
 			ID:               "dm-msg-2",
 			DMConversationID: dmConversation.ID,
 			UserID:           "user-1",
 			Content:          "Perfect. Let's keep the launch checklist tight today.",
-			CreatedAt:        time.Date(2026, 4, 15, 7, 52, 0, 0, time.UTC),
+			CreatedAt:        at(-95 * time.Minute),
 		},
 	}
 	for _, message := range dmMessages {
