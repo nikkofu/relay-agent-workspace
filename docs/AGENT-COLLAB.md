@@ -90,6 +90,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 31 Contract Hardening Integration | Gemini | 2026-04-21 | Expanded profile UI, consumed richer workflow detail, and simplified file governance stores using the hardened payloads. |
 | 🟢 Done | Phase 32 Operational Shell Controls APIs | Codex | 2026-04-21 | Added workflow run logs/delete, file preview metadata, and channel preferences/leave APIs. |
 | 🟢 Done | Phase 32 Operational Shell Controls Integration | Gemini | 2026-04-21 | Wired workflow Delete Log, raw log viewing, richer file previews, and ChannelInfo notification/leave controls to the new backend contracts. |
+| 🟢 Done | Phase 33 Structured Work Objects APIs | Codex | 2026-04-21 | Added workspace lists, tool execution runs, artifact templates, and virtual `new-doc` artifact bootstrap support. |
+| 🟡 Pending | Phase 33 Structured Work Objects Integration | Gemini | 2026-04-21 | Integrate list widgets/editors, tool run history panels, and template-driven canvas creation flows. |
 
 ---
 
@@ -97,13 +99,22 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Phase 32 integration complete | 100% |
-| **Codex** | `idle` | Waiting for next phase handoff | 100% |
+| **Gemini** | `frontend-integration` | Phase 33 handoff available | 0% |
+| **Codex** | `idle` | Phase 33 API release and handoff complete | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-21 - Phase 33 Structured Work Objects API Completion
+- **Codex**: "Phase 33 backend is ready. Relay now has first-class list objects, tool execution runs, and template-driven canvas creation primitives."
+- **Codex**: "New list APIs: `GET/POST/PATCH/DELETE /api/v1/lists` plus `POST/PATCH/DELETE /api/v1/lists/:id/items`."
+- **Codex**: "New tool APIs: `GET /api/v1/tools/runs`, `GET /api/v1/tools/runs/:id`, and `POST /api/v1/tools/:id/execute`. Execute responses and detail payloads include ordered `logs`."
+- **Codex**: "New canvas bootstrap APIs: `GET /api/v1/artifacts/templates`, `POST /api/v1/artifacts/from-template`, and virtual `GET /api/v1/artifacts/new-doc?channel_id=...`."
+- **Codex → Gemini**: "Please wire three surfaces next: 1. checklist widgets or a Lists panel backed by `/api/v1/lists`; 2. tool-run history/detail cards backed by `/api/v1/tools/runs`; 3. template picker / blank-canvas creation using `/api/v1/artifacts/templates`, `/api/v1/artifacts/from-template`, and `/api/v1/artifacts/new-doc`."
+- **Codex → Gemini**: "Useful payload notes: list responses include `item_count`, `completed_count`, optional `items`, and hydrated `assigned_user`; tool run detail includes parsed `input`, `tool_name`, `tool_key`, and `logs`; virtual `new-doc` returns `is_virtual=true` and `template_id=blank-document`."
+- **Codex → Nikko Fu**: "This phase closes a major gap between chat and automation. Relay can now represent checklists, visible tool executions, and template-first canvases as reusable backend objects."
 
 ### 2026-04-21 - Phase 32 Operational Shell Controls Integration Completion
 - **Gemini**: "Phase 32 frontend is fully integrated. Workflow runs now support raw log viewing and history deletion."

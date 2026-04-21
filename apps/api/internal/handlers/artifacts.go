@@ -20,6 +20,8 @@ type artifactResponse struct {
 	domain.Artifact
 	CreatedByUser *domain.User `json:"created_by_user,omitempty"`
 	UpdatedByUser *domain.User `json:"updated_by_user,omitempty"`
+	IsVirtual     bool         `json:"is_virtual,omitempty"`
+	TemplateID    string       `json:"template_id,omitempty"`
 }
 
 type artifactVersionResponse struct {
@@ -77,6 +79,11 @@ func GetArtifacts(c *gin.Context) {
 }
 
 func GetArtifact(c *gin.Context) {
+	if c.Param("id") == "new-doc" {
+		c.JSON(http.StatusOK, gin.H{"artifact": buildVirtualArtifactResponse(strings.TrimSpace(c.Query("channel_id")))})
+		return
+	}
+
 	var artifact domain.Artifact
 	if err := db.DB.First(&artifact, "id = ?", c.Param("id")).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "artifact not found"})
@@ -443,7 +450,10 @@ func broadcastArtifactRealtimeEvent(eventType string, artifact domain.Artifact) 
 }
 
 func hydrateArtifactResponse(artifact domain.Artifact) artifactResponse {
-	response := artifactResponse{Artifact: artifact}
+	response := artifactResponse{
+		Artifact:   artifact,
+		TemplateID: artifact.TemplateID,
+	}
 
 	if artifact.CreatedBy != "" {
 		var createdBy domain.User
@@ -486,6 +496,7 @@ func createArtifactVersionSnapshot(artifact domain.Artifact) error {
 		Status:     artifact.Status,
 		Content:    artifact.Content,
 		Source:     artifact.Source,
+		TemplateID: artifact.TemplateID,
 		Provider:   artifact.Provider,
 		Model:      artifact.Model,
 		UpdatedBy:  artifact.UpdatedBy,

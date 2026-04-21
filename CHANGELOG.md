@@ -2,6 +2,28 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.61] - 2026-04-21
+
+This release starts the next structured-work wave for Relay, adding lightweight lists, tool execution history, and template-first canvas creation.
+
+### Added
+
+- **Workspace Lists API**: Added `GET/POST/PATCH/DELETE /api/v1/lists` plus item mutation endpoints for shared checklists and operational tracking.
+- **Tool Execution APIs**: Added `GET /api/v1/tools/runs`, `GET /api/v1/tools/runs/:id`, and `POST /api/v1/tools/:id/execute` for visible tool history and manual execution.
+- **Artifact Template APIs**: Added `GET /api/v1/artifacts/templates`, `POST /api/v1/artifacts/from-template`, and virtual `GET /api/v1/artifacts/new-doc` support.
+- **Structured Work Seeds**: Added sample list data and sample tool execution logs to the runtime seed set.
+
+### Changed
+
+- `artifacts` and `artifact_versions` now persist `template_id` metadata for template-derived canvases.
+- README, phase targets, and collaboration docs now treat lists, tool runs, and templates as first-class backend capabilities.
+
+### Verification Used For This Release
+
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+
 ## [0.5.60] - 2026-04-21
 
 This release implements Phase 32: Operational Shell Controls, bridging operational placeholders with real backend actions for workflows, files, and channels.

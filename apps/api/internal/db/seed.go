@@ -317,6 +317,92 @@ func SeedData() {
 		DB.FirstOrCreate(&tool, domain.ToolDefinition{ID: tool.ID})
 	}
 
+	toolRuns := []domain.ToolRun{
+		{
+			ID:          "toolrun-1",
+			ToolID:      "tool-2",
+			TriggeredBy: "user-1",
+			Status:      "success",
+			Input:       `{"channel_id":"ch-5","prompt":"Summarize launch blockers"}`,
+			Summary:     "Generated a draft launch readiness canvas from the latest discussion.",
+			StartedAt:   at(-110 * time.Minute),
+			CompletedAt: atPtr(-109 * time.Minute),
+			CreatedAt:   at(-110 * time.Minute),
+			UpdatedAt:   at(-109 * time.Minute),
+		},
+	}
+	for _, run := range toolRuns {
+		DB.FirstOrCreate(&run, domain.ToolRun{ID: run.ID})
+	}
+
+	toolRunLogs := []domain.ToolRunLog{
+		{
+			ToolRunID: "toolrun-1",
+			Level:     "info",
+			Message:   "Canvas Generator accepted the request from Home.",
+			CreatedAt: at(-110 * time.Minute),
+		},
+		{
+			ToolRunID: "toolrun-1",
+			Level:     "info",
+			Message:   "Canvas draft rendered and attached to #ai-lab.",
+			CreatedAt: at(-109 * time.Minute),
+		},
+	}
+	for _, log := range toolRunLogs {
+		DB.FirstOrCreate(&log, domain.ToolRunLog{
+			ToolRunID: log.ToolRunID,
+			Message:   log.Message,
+		})
+	}
+
+	workspaceLists := []domain.WorkspaceList{
+		{
+			ID:          "list-1",
+			WorkspaceID: "ws-1",
+			ChannelID:   "ch-5",
+			Title:       "Launch Checklist",
+			Description: "Shared readiness checks before the next Relay release.",
+			CreatedBy:   "user-1",
+			CreatedAt:   at(-150 * time.Minute),
+			UpdatedAt:   at(-108 * time.Minute),
+		},
+	}
+	for _, list := range workspaceLists {
+		DB.FirstOrCreate(&list, domain.WorkspaceList{ID: list.ID})
+	}
+
+	workspaceListItems := []domain.WorkspaceListItem{
+		{
+			ListID:      "list-1",
+			Content:     "Finalize release notes",
+			Position:    1,
+			IsCompleted: true,
+			AssignedTo:  "user-1",
+			CompletedAt: atPtr(-120 * time.Minute),
+			CreatedBy:   "user-1",
+			CreatedAt:   at(-149 * time.Minute),
+			UpdatedAt:   at(-120 * time.Minute),
+		},
+		{
+			ListID:      "list-1",
+			Content:     "QA final smoke run",
+			Position:    2,
+			IsCompleted: false,
+			AssignedTo:  "user-3",
+			DueAt:       atPtr(6 * time.Hour),
+			CreatedBy:   "user-1",
+			CreatedAt:   at(-148 * time.Minute),
+			UpdatedAt:   at(-108 * time.Minute),
+		},
+	}
+	for _, item := range workspaceListItems {
+		DB.FirstOrCreate(&item, domain.WorkspaceListItem{
+			ListID:   item.ListID,
+			Position: item.Position,
+		})
+	}
+
 	notificationPreference := domain.NotificationPreference{
 		UserID:          "user-1",
 		InboxEnabled:    true,

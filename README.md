@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.5.59` is the current release line and includes:
+`v0.5.61` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -93,9 +93,12 @@ For product, design, and marketing, the short version is:
 - User group membership and mention lookup APIs
 - Workflow run detail, cancel, and retry APIs
 - Workflow run execution log APIs and run deletion lifecycle
+- Tool execution history APIs and on-demand tool run execution
 - File retention policy and file audit trail APIs
 - File preview metadata API for images, PDFs, and fallback downloads
 - Channel notification preferences and self-service leave-channel API
+- Structured workspace list APIs for shared checklists and operational tracking
+- Artifact template APIs and virtual `new-doc` bootstrap support for canvas-first creation
 - Custom status emoji and status expiration support
 - Extended profile fields for pronouns, location, phone, and bio
 - Workflow run step history, flat compatibility fields, and richer run detail hydration

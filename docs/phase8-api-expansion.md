@@ -87,6 +87,9 @@ Current backend surface already available:
 - `POST /api/v1/workflows/runs/:id/retry`
 - `POST /api/v1/workflows/:id/runs`
 - `GET /api/v1/tools`
+- `GET /api/v1/tools/runs`
+- `GET /api/v1/tools/runs/:id`
+- `POST /api/v1/tools/:id/execute`
 - `GET /api/v1/orgs`
 - `GET /api/v1/orgs/:id/teams`
 - `POST /api/v1/orgs/:id/agents`
@@ -119,6 +122,14 @@ Current backend surface already available:
 - `PUT /api/v1/drafts/:scope`
 - `GET /api/v1/search`
 - `GET /api/v1/search/suggestions`
+- `GET /api/v1/lists`
+- `POST /api/v1/lists`
+- `GET /api/v1/lists/:id`
+- `PATCH /api/v1/lists/:id`
+- `DELETE /api/v1/lists/:id`
+- `POST /api/v1/lists/:id/items`
+- `PATCH /api/v1/lists/:id/items/:itemId`
+- `DELETE /api/v1/lists/:id/items/:itemId`
 - `GET /api/v1/messages`
 - `GET /api/v1/messages/:id/thread`
 - `POST /api/v1/messages`
@@ -177,6 +188,8 @@ Likely follow-ups:
 Baseline support now exists for:
 
 - `GET /api/v1/artifacts`
+- `GET /api/v1/artifacts/templates`
+- `POST /api/v1/artifacts/from-template`
 - `POST /api/v1/artifacts`
 - `GET /api/v1/artifacts/:id`
 - `PATCH /api/v1/artifacts/:id`
@@ -193,6 +206,8 @@ Likely follow-ups:
 - canvas collaboration cursors or presence
 - deeper artifact backlinks such as thread-level and DM-level references
 - artifact templates and generation presets
+- richer template galleries grouped by workflow or team use case
+- dedicated canvas duplicate/fork APIs
 
 ### 4.4 Files
 
@@ -297,6 +312,9 @@ Baseline support now exists for:
 - `POST /api/v1/workflows/runs/:id/retry`
 - `POST /api/v1/workflows/:id/runs`
 - `GET /api/v1/tools`
+- `GET /api/v1/tools/runs`
+- `GET /api/v1/tools/runs/:id`
+- `POST /api/v1/tools/:id/execute`
 
 Likely follow-ups:
 
@@ -307,7 +325,31 @@ Likely follow-ups:
 - richer workflow telemetry such as token/tool cost and agent handoff spans
 - workflow retention controls for automation history
 
-### 4.8 Notification Preferences And Mute Rules
+### 4.8 Structured Work Objects
+
+Baseline support now exists for:
+
+- `GET /api/v1/lists`
+- `POST /api/v1/lists`
+- `GET /api/v1/lists/:id`
+- `PATCH /api/v1/lists/:id`
+- `DELETE /api/v1/lists/:id`
+- `POST /api/v1/lists/:id/items`
+- `PATCH /api/v1/lists/:id/items/:itemId`
+- `DELETE /api/v1/lists/:id/items/:itemId`
+- virtual `GET /api/v1/artifacts/new-doc`
+- `GET /api/v1/artifacts/templates`
+- `POST /api/v1/artifacts/from-template`
+
+Likely follow-ups:
+
+- list-to-message linkage and activity feed events for item completion
+- assignee filters and due-date reminder jobs for list items
+- workspace and channel home widgets backed by structured lists
+- richer template bundles for product, design, engineering, and incident response
+- canvas duplication/fork flows from templates or existing artifacts
+
+### 4.9 Notification Preferences And Mute Rules
 
 Baseline support now exists for:
 

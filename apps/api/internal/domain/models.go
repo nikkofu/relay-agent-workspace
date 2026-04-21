@@ -139,6 +139,27 @@ type ToolDefinition struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+type ToolRun struct {
+	ID          string     `gorm:"primaryKey" json:"id"`
+	ToolID      string     `gorm:"index" json:"tool_id"`
+	TriggeredBy string     `gorm:"index" json:"triggered_by"`
+	Status      string     `json:"status"`
+	Input       string     `json:"input"`
+	Summary     string     `json:"summary"`
+	StartedAt   time.Time  `json:"started_at"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+}
+
+type ToolRunLog struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	ToolRunID string    `gorm:"index" json:"tool_run_id"`
+	Level     string    `json:"level"`
+	Message   string    `json:"message"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 type DMConversation struct {
 	ID        string    `gorm:"primaryKey" json:"id"`
 	CreatedAt time.Time `json:"created_at"`
@@ -180,6 +201,31 @@ type ChannelPreference struct {
 	IsMuted           bool      `json:"is_muted"`
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
+}
+
+type WorkspaceList struct {
+	ID          string    `gorm:"primaryKey" json:"id"`
+	WorkspaceID string    `gorm:"index" json:"workspace_id"`
+	ChannelID   string    `gorm:"index" json:"channel_id"`
+	Title       string    `json:"title"`
+	Description string    `json:"description"`
+	CreatedBy   string    `gorm:"index" json:"created_by"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type WorkspaceListItem struct {
+	ID          uint       `gorm:"primaryKey" json:"id"`
+	ListID      string     `gorm:"index" json:"list_id"`
+	Content     string     `json:"content"`
+	Position    int        `json:"position"`
+	IsCompleted bool       `json:"is_completed"`
+	AssignedTo  string     `gorm:"index" json:"assigned_to"`
+	DueAt       *time.Time `json:"due_at,omitempty"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
+	CreatedBy   string     `gorm:"index" json:"created_by"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
 type Message struct {
@@ -315,6 +361,7 @@ type Artifact struct {
 	Status    string    `json:"status"`
 	Content   string    `json:"content"`
 	Source    string    `json:"source"`
+	TemplateID string   `json:"template_id"`
 	Provider  string    `json:"provider,omitempty"`
 	Model     string    `json:"model,omitempty"`
 	CreatedBy string    `json:"created_by"`
@@ -332,6 +379,7 @@ type ArtifactVersion struct {
 	Status     string    `json:"status"`
 	Content    string    `json:"content"`
 	Source     string    `json:"source"`
+	TemplateID string    `json:"template_id"`
 	Provider   string    `json:"provider,omitempty"`
 	Model      string    `json:"model,omitempty"`
 	UpdatedBy  string    `json:"updated_by"`
