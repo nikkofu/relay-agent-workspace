@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.5.81` is the current release line and includes:
+`v0.5.83` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -38,6 +38,8 @@ For product, design, and marketing, the short version is:
 - dynamic Agent-Collab Hub APIs for members, comm-log persistence, and realtime hub refresh
 - hardened Agent-Collab Hub payloads with direct-message `to` fields and normalized member tool arrays
 - file collaboration APIs for comments, shares, stars, and knowledge-oriented metadata
+- message-level rich file attachment payloads for inline channel/thread rendering
+- `GET /api/v1/messages/:id/files` for message-scoped file card hydration
 - provider-based LLM gateway with OpenAI, OpenAI-compatible, OpenRouter, and Gemini configuration
 - `GET /api/v1/users`, thread-aware messages, and `POST /api/v1/ai/execute` SSE streaming
 - local LLM config merge fixes and real provider validation
@@ -102,7 +104,7 @@ For product, design, and marketing, the short version is:
 - Phase 34 contract-alignment aliases for structured lists, tool runs, and canvas bootstrap payloads
 - Home aggregation for recent lists, tool runs, and files
 - Activity and inbox feeds that include structured list completion, tool execution, and file upload signals
-- UUID-style prefixed string primary keys for newly created channels, lists, tool runs, workflow runs, files, artifacts, user groups, and AI conversations/messages
+- UUID-style prefixed string primary keys for newly created channels, lists, tool runs, workflow runs, files, artifacts, user groups, AI conversations/messages, DM conversations/messages, workspace invites, and agents
 - Channel-scoped pin retrieval for `GET /api/v1/pins?channel_id=...`
 - Home dashboard compatibility fields:
   - `stats`

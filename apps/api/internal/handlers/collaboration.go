@@ -27,17 +27,35 @@ type reactionSummary struct {
 }
 
 type messageAttachment struct {
-	ID         string `json:"id"`
-	Kind       string `json:"kind"`
-	Type       string `json:"type"`
-	URL        string `json:"url"`
-	Name       string `json:"name"`
-	Size       int64  `json:"size,omitempty"`
-	MimeType   string `json:"mimeType,omitempty"`
-	ArtifactID string `json:"artifact_id,omitempty"`
-	FileID     string `json:"file_id,omitempty"`
-	Version    int    `json:"version,omitempty"`
-	Status     string `json:"status,omitempty"`
+	ID             string               `json:"id"`
+	Kind           string               `json:"kind"`
+	Type           string               `json:"type"`
+	URL            string               `json:"url"`
+	Name           string               `json:"name"`
+	Size           int64                `json:"size,omitempty"`
+	MimeType       string               `json:"mimeType,omitempty"`
+	ArtifactID     string               `json:"artifact_id,omitempty"`
+	FileID         string               `json:"file_id,omitempty"`
+	Version        int                  `json:"version,omitempty"`
+	Status         string               `json:"status,omitempty"`
+	PreviewKind    string               `json:"preview_kind,omitempty"`
+	PreviewURL     string               `json:"preview_url,omitempty"`
+	DownloadURL    string               `json:"download_url,omitempty"`
+	ChannelID      string               `json:"channel_id,omitempty"`
+	CreatedAt      *time.Time           `json:"created_at,omitempty"`
+	Uploader       *domain.User         `json:"uploader,omitempty"`
+	CommentCount   int64                `json:"comment_count,omitempty"`
+	ShareCount     int64                `json:"share_count,omitempty"`
+	Starred        bool                 `json:"starred,omitempty"`
+	Tags           []string             `json:"tags,omitempty"`
+	KnowledgeState string               `json:"knowledge_state,omitempty"`
+	SourceKind     string               `json:"source_kind,omitempty"`
+	Summary        string               `json:"summary,omitempty"`
+	IsArchived     bool                 `json:"is_archived,omitempty"`
+	RetentionDays  int                  `json:"retention_days,omitempty"`
+	ExpiresAt      *time.Time           `json:"expires_at,omitempty"`
+	File           *fileAssetResponse   `json:"file,omitempty"`
+	Preview        *filePreviewResponse `json:"preview,omitempty"`
 }
 
 var CollabSnapshotPath = agentcollab.DefaultPath()
@@ -306,22 +324,7 @@ func buildMessageAttachments(messageID string) ([]messageAttachment, error) {
 		if err := db.DB.First(&asset, "id = ?", ref.FileID).Error; err != nil {
 			continue
 		}
-
-		attachmentType := "file"
-		if strings.HasPrefix(strings.ToLower(asset.ContentType), "image/") {
-			attachmentType = "image"
-		}
-
-		attachments = append(attachments, messageAttachment{
-			ID:       "file:" + asset.ID,
-			Kind:     "file",
-			Type:     attachmentType,
-			URL:      "/api/v1/files/" + asset.ID + "/content",
-			Name:     asset.Name,
-			Size:     asset.SizeBytes,
-			MimeType: asset.ContentType,
-			FileID:   asset.ID,
-		})
+		attachments = append(attachments, hydrateMessageFileAttachment(asset))
 	}
 
 	if len(attachments) == 0 {
@@ -329,6 +332,46 @@ func buildMessageAttachments(messageID string) ([]messageAttachment, error) {
 	}
 
 	return attachments, nil
+}
+
+func hydrateMessageFileAttachment(asset domain.FileAsset) messageAttachment {
+	file := hydrateFileAssetResponse(asset)
+	preview := buildFilePreview(asset)
+	createdAt := asset.CreatedAt
+
+	attachmentType := "file"
+	if strings.HasPrefix(strings.ToLower(file.ContentType), "image/") {
+		attachmentType = "image"
+	}
+
+	return messageAttachment{
+		ID:             "file:" + asset.ID,
+		Kind:           "file",
+		Type:           attachmentType,
+		URL:            file.URL,
+		Name:           asset.Name,
+		Size:           asset.SizeBytes,
+		MimeType:       file.ContentType,
+		FileID:         asset.ID,
+		PreviewKind:    file.PreviewKind,
+		PreviewURL:     file.PreviewURL,
+		DownloadURL:    file.URL,
+		ChannelID:      asset.ChannelID,
+		CreatedAt:      &createdAt,
+		Uploader:       file.Uploader,
+		CommentCount:   file.CommentCount,
+		ShareCount:     file.ShareCount,
+		Starred:        file.Starred,
+		Tags:           file.Tags,
+		KnowledgeState: asset.KnowledgeState,
+		SourceKind:     asset.SourceKind,
+		Summary:        asset.Summary,
+		IsArchived:     asset.IsArchived,
+		RetentionDays:  asset.RetentionDays,
+		ExpiresAt:      asset.ExpiresAt,
+		File:           &file,
+		Preview:        &preview,
+	}
 }
 
 func recomputeThreadParentWithDB(conn *gorm.DB, parentID string) error {
@@ -811,7 +854,7 @@ func CreateAgent(c *gin.Context) {
 	}
 
 	agent := domain.Agent{
-		ID:             "agent_" + time.Now().Format("20060102150405"),
+		ID:             ids.NewPrefixedUUID("agent"),
 		OrganizationID: orgID,
 		Name:           input.Name,
 		Type:           input.Type,
@@ -1179,7 +1222,7 @@ func CreateWorkspaceInvite(c *gin.Context) {
 	}
 
 	invite := domain.WorkspaceInvite{
-		ID:          "invite_" + time.Now().Format("20060102150405"),
+		ID:          ids.NewPrefixedUUID("invite"),
 		WorkspaceID: workspaceID,
 		Email:       input.Email,
 		Role:        role,
@@ -1303,7 +1346,7 @@ func CreateOrOpenDMConversation(c *gin.Context) {
 	}
 
 	conversation := domain.DMConversation{
-		ID:        "dm_" + time.Now().Format("20060102150405"),
+		ID:        ids.NewPrefixedUUID("dm"),
 		CreatedAt: time.Now().UTC(),
 	}
 	if err := db.DB.Create(&conversation).Error; err != nil {
@@ -1362,7 +1405,7 @@ func CreateDMMessage(c *gin.Context) {
 	}
 
 	message := domain.DMMessage{
-		ID:               "dm_msg_" + time.Now().Format("20060102150405"),
+		ID:               ids.NewPrefixedUUID("dm-msg"),
 		DMConversationID: dmID,
 		UserID:           input.UserID,
 		Content:          input.Content,
@@ -2301,6 +2344,34 @@ func GetMessageThread(c *gin.Context) {
 	})
 }
 
+func GetMessageFiles(c *gin.Context) {
+	messageID := c.Param("id")
+
+	var message domain.Message
+	if err := db.DB.First(&message, "id = ?", messageID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "message not found"})
+		return
+	}
+
+	attachments, err := buildMessageAttachments(messageID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load message attachments"})
+		return
+	}
+
+	files := make([]messageAttachment, 0)
+	for _, attachment := range attachments {
+		if attachment.Kind == "file" {
+			files = append(files, attachment)
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message_id": message.ID,
+		"files":      files,
+	})
+}
+
 func CreateMessage(c *gin.Context) {
 	var input struct {
 		ChannelID   string   `json:"channel_id" binding:"required"`
@@ -2317,7 +2388,7 @@ func CreateMessage(c *gin.Context) {
 	}
 
 	msg := domain.Message{
-		ID:        "msg_" + time.Now().Format("20060102150405"),
+		ID:        ids.NewPrefixedUUID("msg"),
 		ChannelID: input.ChannelID,
 		UserID:    input.UserID,
 		Content:   input.Content,

@@ -109,7 +109,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 41 Agent-Collab Contract Hardening APIs | Codex | 2026-04-21 | Added stable `comm_log.to` output and `primary_tools_array` member payloads while keeping existing fields backward compatible. |
 | 🟢 Done | Phase 41 Agent-Collab Payload Simplification | Windsurf | 2026-04-21 | Added `extractTools()` helper: prefers `primary_tools_array` when available, falls back to `parsePrimaryTools` string-split. `comm_log.to` already handled correctly in `groupCommLog`. Legacy parsers retained for offline/old-binary fallback. |
 | 🟢 Done | Phase 42 File Collaboration And Knowledge Metadata APIs | Codex | 2026-04-21 | Added file comments, shares, stars, and knowledge metadata APIs plus hydrated file collaboration counters. |
-| � Done | Phase 42 File Collaboration Integration | Windsurf | 2026-04-21 | Star toggle in file list + Starred filter. Expanded preview dialog: 4 tabs (Details/Comments/Shares/Knowledge). Comments thread + post. Share-to-Channel dialog. Knowledge metadata inline editor (source_kind, knowledge_state, summary, tags). Wiki + Ready badges. |
+| 🟢 Done | Phase 42 File Collaboration Integration | Windsurf | 2026-04-21 | Star toggle in file list + Starred filter. Expanded preview dialog: 4 tabs (Details/Comments/Shares/Knowledge). Comments thread + post. Share-to-Channel dialog. Knowledge metadata inline editor (source_kind, knowledge_state, summary, tags). Wiki + Ready badges. |
+| 🟢 Done | Phase 43 Message-Level File Attachment APIs | Codex | 2026-04-21 | Enriched file attachments inside message metadata, added `GET /api/v1/messages/:id/files`, and normalized newly created message/DM/invite/agent IDs to prefixed UUIDs. |
 
 ---
 
@@ -118,13 +119,21 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
-| **Codex** | `api-architecture` | Phase 42 file collaboration API handoff complete | 100% |
+| **Codex** | `api-architecture` | Phase 43 message-level file attachment API handoff complete | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-ui-agent` | Phase 42 File Collaboration Integration complete (v0.5.82) | 100% |
+| **Windsurf** | `web-ui-agent` | Awaiting Phase 43 inline file-card integration on channel/thread surfaces | 0% |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-21 - Phase 43 Message-Level File Attachment API Completion
+- **Codex**: Added `GET /api/v1/messages/:id/files` for message-scoped file card hydration.
+- **Codex**: Enriched message `metadata.attachments` for `kind="file"` with preview data, uploader, counters, knowledge metadata, archive/retention state, and nested `file` / `preview` payloads.
+- **Codex**: Newly created channel messages, share-generated messages, DM conversations, DM messages, workspace invites, and agents now use prefixed UUIDs instead of timestamp-style IDs.
+- **Codex → Windsurf**: Backend is ready for inline file cards. On channel feed and thread views, render directly from `message.metadata.attachments[*].file` plus `message.metadata.attachments[*].preview`. Use `GET /api/v1/messages/:id/files` only as fallback or lazy-load when a richer inspector is opened. Knowledge badges can come from `source_kind`, `knowledge_state`, `summary`, and `tags`.
+- **Codex → Windsurf**: Please verify these create flows still behave correctly with UUID-style IDs: new channel message send, share-file-to-channel, DM create, DM send, and workspace invite list/detail usage. New ID prefixes are `msg-*`, `dm-*`, `dm-msg-*`, `invite-*`, and `agent-*`.
+- **Codex → Nikko Fu**: Shared files are now first-class conversation cards instead of generic attachments. This is the bridge between Slack-like messaging and the later wiki/LLM knowledge layer.
 
 ### 2026-04-21 - Phase 42 File Collaboration Integration Completion
 - **Windsurf**: Synced v0.5.81. Codex added file comments (`GET/POST /api/v1/files/:id/comments`), file shares (`GET/POST /api/v1/files/:id/share`), star toggle (`POST /api/v1/files/:id/star` + `GET /api/v1/files/starred`), and knowledge metadata (`PATCH /api/v1/files/:id/knowledge`). File payloads now include `comment_count`, `share_count`, `starred`, and `tags`.

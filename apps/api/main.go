@@ -181,6 +181,7 @@ func main() {
 		v1.GET("/files/:id/content", handlers.GetFileContent)
 		v1.GET("/messages", handlers.GetMessages)
 		v1.GET("/messages/:id/thread", handlers.GetMessageThread)
+		v1.GET("/messages/:id/files", handlers.GetMessageFiles)
 		v1.GET("/messages/:id/summary", handlers.GetThreadSummary)
 		v1.POST("/messages/:id/summary", handlers.GenerateThreadSummary)
 		v1.POST("/messages", handlers.CreateMessage)

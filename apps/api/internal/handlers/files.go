@@ -359,7 +359,7 @@ func ShareFile(c *gin.Context) {
 
 	now := time.Now().UTC()
 	message := domain.Message{
-		ID:        "msg_" + now.Format("20060102150405.000000"),
+		ID:        ids.NewPrefixedUUID("msg"),
 		ChannelID: input.ChannelID,
 		UserID:    currentUser.ID,
 		Content:   strings.TrimSpace(input.Comment),

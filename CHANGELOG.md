@@ -2,6 +2,32 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.83] - 2026-04-21
+
+This release implements Phase 43: Message-Level File Attachment APIs. Shared files can now render as rich cards inside channel messages and thread views without requiring the frontend to reconstruct file metadata from multiple endpoints.
+
+### Added
+
+- **Rich Message File Attachments**: `metadata.attachments` for `kind="file"` now includes preview metadata, uploader, counters, knowledge fields, archive/retention state, and nested `file` / `preview` payloads suitable for inline cards.
+- **Message Files Endpoint**: Added `GET /api/v1/messages/:id/files` to return message-scoped hydrated file attachments for lazy loading or detail drawers.
+
+### Changed
+
+- **UUID Normalization**: Newly created channel messages, share-generated messages, DM conversations, DM messages, workspace invites, and agents now use prefixed UUIDs instead of timestamp-style string IDs.
+- **README Sync**: Updated the published capability list so GitHub-facing project documentation matches the shipped backend surface.
+
+### Windsurf Handoff
+
+- Render inline file cards directly from `message.metadata.attachments[*].file` and `message.metadata.attachments[*].preview`.
+- Use `GET /api/v1/messages/:id/files` as a fallback or lazy-load path for message thread drawers and richer attachment inspectors.
+- Expect newly created IDs from message/DM/invite flows to use prefixed UUIDs: `msg-*`, `dm-*`, `dm-msg-*`, `invite-*`, and `agent-*`.
+
+### Verification Used For This Release
+
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go test ./internal/handlers -run 'TestCreateMessageHydratesArtifactAndFileAttachments|TestDMEndpointsListCreateAndSendMessages|TestWorkspaceInvitesEndpointsCreateAndListInvites'`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+
 ## [0.5.82] - 2026-04-21
 
 This release implements Phase 42: File Collaboration Integration. Files are now first-class collaborative knowledge objects with commenting, sharing, starring, and knowledge metadata.

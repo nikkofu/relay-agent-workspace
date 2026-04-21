@@ -1080,6 +1080,7 @@ func TestCreateMessageReplyUpdatesParentReplyMetadata(t *testing.T) {
 func TestCreateMessageHydratesArtifactAndFileAttachments(t *testing.T) {
 	setupTestDB(t)
 
+	now := time.Now().UTC()
 	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
 	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public"})
 	db.DB.Create(&domain.Artifact{
@@ -1093,23 +1094,32 @@ func TestCreateMessageHydratesArtifactAndFileAttachments(t *testing.T) {
 		Source:    "manual",
 		CreatedBy: "user-1",
 		UpdatedBy: "user-1",
-		CreatedAt: time.Now().Add(-time.Hour).UTC(),
-		UpdatedAt: time.Now().UTC(),
+		CreatedAt: now.Add(-time.Hour),
+		UpdatedAt: now,
 	})
 	db.DB.Create(&domain.FileAsset{
-		ID:          "file-1",
-		ChannelID:   "ch-1",
-		UploaderID:  "user-1",
-		Name:        "brief.pdf",
-		StoragePath: "brief.pdf",
-		ContentType: "application/pdf",
-		SizeBytes:   2048,
-		CreatedAt:   time.Now().UTC(),
+		ID:             "file-1",
+		ChannelID:      "ch-1",
+		UploaderID:     "user-1",
+		Name:           "brief.pdf",
+		StoragePath:    "brief.pdf",
+		ContentType:    "application/pdf",
+		SizeBytes:      2048,
+		KnowledgeState: "ready",
+		SourceKind:     "wiki",
+		Summary:        "Launch brief with milestone details",
+		Tags:           `["launch","wiki"]`,
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	})
+	db.DB.Create(&domain.FileComment{ID: "fcomment-1", FileID: "file-1", UserID: "user-1", Content: "Looks good", CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.FileShare{ID: "fshare-1", FileID: "file-1", ChannelID: "ch-1", SharedBy: "user-1", Comment: "share", CreatedAt: now})
+	db.DB.Create(&domain.StarredFile{FileID: "file-1", UserID: "user-1", CreatedAt: now})
 
 	router := gin.New()
 	router.POST("/api/v1/messages", CreateMessage)
 	router.GET("/api/v1/messages", GetMessages)
+	router.GET("/api/v1/messages/:id/files", GetMessageFiles)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/messages", bytes.NewBufferString(`{"channel_id":"ch-1","content":"See linked assets","user_id":"user-1","artifact_ids":["artifact-1"],"file_ids":["file-1"]}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -1121,14 +1131,57 @@ func TestCreateMessageHydratesArtifactAndFileAttachments(t *testing.T) {
 	}
 
 	var createPayload struct {
-		Message domain.Message `json:"message"`
+		Message struct {
+			ID       string `json:"id"`
+			Metadata string `json:"metadata"`
+		} `json:"message"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &createPayload); err != nil {
 		t.Fatalf("failed to decode create message payload: %v", err)
 	}
-	if !strings.Contains(createPayload.Message.Metadata, `"kind":"artifact"`) || !strings.Contains(createPayload.Message.Metadata, `"kind":"file"`) {
-		t.Fatalf("expected metadata to include hydrated artifact and file attachments, got %s", createPayload.Message.Metadata)
+
+	var createMeta struct {
+		Attachments []struct {
+			Kind           string         `json:"kind"`
+			FileID         string         `json:"file_id"`
+			PreviewKind    string         `json:"preview_kind"`
+			CommentCount   int64          `json:"comment_count"`
+			ShareCount     int64          `json:"share_count"`
+			Starred        bool           `json:"starred"`
+			KnowledgeState string         `json:"knowledge_state"`
+			SourceKind     string         `json:"source_kind"`
+			Summary        string         `json:"summary"`
+			Tags           []string       `json:"tags"`
+			File           map[string]any `json:"file"`
+			Preview        map[string]any `json:"preview"`
+		} `json:"attachments"`
 	}
+	if err := json.Unmarshal([]byte(createPayload.Message.Metadata), &createMeta); err != nil {
+		t.Fatalf("failed to decode message metadata: %v", err)
+	}
+	if len(createMeta.Attachments) != 2 {
+		t.Fatalf("expected 2 attachments, got %#v", createMeta.Attachments)
+	}
+	var foundRichFile bool
+	for _, attachment := range createMeta.Attachments {
+		if attachment.Kind != "file" {
+			continue
+		}
+		foundRichFile = true
+		if attachment.FileID != "file-1" || attachment.PreviewKind != "pdf" || attachment.CommentCount != 1 || attachment.ShareCount != 1 {
+			t.Fatalf("expected rich file attachment counters and preview, got %#v", attachment)
+		}
+		if !attachment.Starred || attachment.KnowledgeState != "ready" || attachment.SourceKind != "wiki" || attachment.Summary == "" {
+			t.Fatalf("expected rich file attachment knowledge metadata, got %#v", attachment)
+		}
+		if len(attachment.Tags) != 2 || attachment.File == nil || attachment.Preview == nil {
+			t.Fatalf("expected nested file/preview payloads, got %#v", attachment)
+		}
+	}
+	if !foundRichFile {
+		t.Fatalf("expected metadata to include hydrated file attachment, got %s", createPayload.Message.Metadata)
+	}
+	assertPrefixedUUID(t, createPayload.Message.ID, "msg")
 
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/messages?channel_id=ch-1", nil)
@@ -1148,6 +1201,43 @@ func TestCreateMessageHydratesArtifactAndFileAttachments(t *testing.T) {
 	}
 	if !strings.Contains(listPayload.Messages[0].Metadata, `"artifact_id":"artifact-1"`) || !strings.Contains(listPayload.Messages[0].Metadata, `"file_id":"file-1"`) {
 		t.Fatalf("expected refreshed message metadata to include reference ids, got %s", listPayload.Messages[0].Metadata)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/messages/"+createPayload.Message.ID+"/files", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on get message files, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var filesPayload struct {
+		MessageID string `json:"message_id"`
+		Files     []struct {
+			FileID         string `json:"file_id"`
+			Name           string `json:"name"`
+			PreviewKind    string `json:"preview_kind"`
+			DownloadURL    string `json:"download_url"`
+			CommentCount   int64  `json:"comment_count"`
+			ShareCount     int64  `json:"share_count"`
+			Starred        bool   `json:"starred"`
+			KnowledgeState string `json:"knowledge_state"`
+			SourceKind     string `json:"source_kind"`
+		} `json:"files"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &filesPayload); err != nil {
+		t.Fatalf("failed to decode message files payload: %v", err)
+	}
+	if filesPayload.MessageID != createPayload.Message.ID || len(filesPayload.Files) != 1 {
+		t.Fatalf("expected one message file attachment, got %#v", filesPayload)
+	}
+	if filesPayload.Files[0].FileID != "file-1" || filesPayload.Files[0].PreviewKind != "pdf" || filesPayload.Files[0].DownloadURL == "" {
+		t.Fatalf("expected hydrated file card payload, got %#v", filesPayload.Files[0])
+	}
+	if filesPayload.Files[0].CommentCount != 1 || filesPayload.Files[0].ShareCount != 1 || !filesPayload.Files[0].Starred {
+		t.Fatalf("expected rich file counters in endpoint payload, got %#v", filesPayload.Files[0])
+	}
+	if filesPayload.Files[0].KnowledgeState != "ready" || filesPayload.Files[0].SourceKind != "wiki" {
+		t.Fatalf("expected knowledge metadata in endpoint payload, got %#v", filesPayload.Files[0])
 	}
 }
 
@@ -1571,6 +1661,7 @@ func TestDMEndpointsListCreateAndSendMessages(t *testing.T) {
 	if createPayload.Conversation.ID == "" {
 		t.Fatal("expected created dm conversation id")
 	}
+	assertPrefixedUUID(t, createPayload.Conversation.ID, "dm")
 	if len(createPayload.Conversation.UserIDs) != 2 {
 		t.Fatalf("expected created conversation user_ids, got %#v", createPayload.Conversation.UserIDs)
 	}
@@ -1599,6 +1690,14 @@ func TestDMEndpointsListCreateAndSendMessages(t *testing.T) {
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("expected 201 on dm send, got %d body=%s", rec.Code, rec.Body.String())
 	}
+
+	var sendPayload struct {
+		Message domain.DMMessage `json:"message"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &sendPayload); err != nil {
+		t.Fatalf("failed to decode dm send payload: %v", err)
+	}
+	assertPrefixedUUID(t, sendPayload.Message.ID, "dm-msg")
 
 	var count int64
 	db.DB.Model(&domain.DMMessage{}).Where("dm_conversation_id = ?", "dm-1").Count(&count)
@@ -2882,6 +2981,11 @@ func TestWorkspaceInvitesEndpointsCreateAndListInvites(t *testing.T) {
 	if len(listPayload.Invites) != 1 {
 		t.Fatalf("expected 1 invite in response, got %d", len(listPayload.Invites))
 	}
+	inviteID, ok := listPayload.Invites[0]["id"].(string)
+	if !ok || inviteID == "" {
+		t.Fatalf("expected invite id in list payload, got %#v", listPayload.Invites[0])
+	}
+	assertPrefixedUUID(t, inviteID, "invite")
 }
 
 func TestReactionPinAndDeleteBroadcastRealtimeEvents(t *testing.T) {
