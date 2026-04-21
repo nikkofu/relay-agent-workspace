@@ -65,6 +65,8 @@ func InitDB() error {
 		&domain.FileAssetEvent{},
 		&domain.FileExtraction{},
 		&domain.FileExtractionChunk{},
+		&domain.KnowledgeEvidenceLink{},
+		&domain.KnowledgeEvidenceEntityRef{},
 		&domain.FileComment{},
 		&domain.FileShare{},
 		&domain.StarredFile{},

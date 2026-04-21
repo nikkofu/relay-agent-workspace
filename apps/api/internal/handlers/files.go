@@ -18,6 +18,7 @@ import (
 	"github.com/nikkofu/relay-agent-workspace/api/internal/domain"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/fileindex"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/ids"
+	"github.com/nikkofu/relay-agent-workspace/api/internal/knowledge"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/realtime"
 )
 
@@ -339,27 +340,58 @@ func GetFileCitations(c *gin.Context) {
 		return
 	}
 
-	type citationResponse struct {
-		ChunkID      uint   `json:"chunk_id"`
-		Text         string `json:"text"`
-		LocatorType  string `json:"locator_type"`
-		LocatorValue string `json:"locator_value"`
-		Heading      string `json:"heading"`
-	}
-
-	citations := make([]citationResponse, 0, len(chunks))
+	citations := make([]knowledge.Citation, 0, len(chunks))
 	for _, chunk := range chunks {
-		citations = append(citations, citationResponse{
-			ChunkID:      chunk.ID,
-			Text:         chunk.Text,
-			LocatorType:  chunk.LocatorType,
-			LocatorValue: chunk.LocatorValue,
-			Heading:      chunk.Heading,
-		})
+		citation := knowledge.Citation{
+			ID:           "file-chunk-" + strconv.FormatUint(uint64(chunk.ID), 10),
+			EvidenceKind: "file_chunk",
+			SourceKind:   "file",
+			SourceRef:    c.Param("id"),
+			RefKind:      "file_chunk",
+			Locator:      chunk.LocatorType + ":" + chunk.LocatorValue,
+			Snippet:      chunk.Text,
+			Title:        chunk.Heading,
+			Score:        1,
+		}
+		citations = append(citations, citation)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"file_id":   c.Param("id"),
+		"citations": citations,
+	})
+}
+
+func LookupCitations(c *gin.Context) {
+	q := strings.TrimSpace(c.Query("q"))
+	if q == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "q is required"})
+		return
+	}
+
+	limit := 20
+	if rawLimit := strings.TrimSpace(c.Query("limit")); rawLimit != "" {
+		parsed, err := strconv.Atoi(rawLimit)
+		if err != nil || parsed <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "limit must be a positive integer"})
+			return
+		}
+		limit = parsed
+	}
+
+	citations, err := knowledge.Lookup(db.DB, knowledge.LookupParams{
+		Query:     q,
+		ChannelID: strings.TrimSpace(c.Query("channel_id")),
+		EntityID:  strings.TrimSpace(c.Query("entity_id")),
+		Limit:     limit,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to lookup citations"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"query":     q,
 		"citations": citations,
 	})
 }

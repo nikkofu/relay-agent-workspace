@@ -127,6 +127,26 @@ func TestExecuteAIForwardsCommandField(t *testing.T) {
 	}
 }
 
+func TestExecuteAIAllowsCitationPayloadField(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+	gateway := &captureGateway{}
+	AIGateway = gateway
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+
+	router := gin.New()
+	router.POST("/api/v1/ai/execute", ExecuteAI)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/ai/execute", strings.NewReader(`{"prompt":"hello","channel_id":"ch-1","citations":[{"id":"citation-1","source_kind":"file","source_ref":"file-1"}]}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestGetAIConversationsAndDetail(t *testing.T) {
 	setupTestDB(t)
 	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})

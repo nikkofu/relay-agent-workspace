@@ -114,6 +114,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 43 Message-Level File Attachment Cards | Windsurf | 2026-04-21 | Rendered enriched file attachments as rich `FileAttachmentCard` inline in channel feed and thread views: thumbnail, name, size/MIME, Wiki/Ready/Star badges, comment+share counters, tags chips, download+preview actions. Lazy-load inspector via `GET /api/v1/messages/:id/files`. `v0.5.83` published. |
 | 🟢 Done | Phase 44 File Extraction, Search, and Citation APIs | Codex | 2026-04-21 | Added extraction lifecycle, chunk indexing, Office/PDF extraction, file-content search, citations, and realtime extraction status events. |
 | 🟢 Done | Phase 44 File Extraction UI And Content Search | Windsurf | 2026-04-21 | Extraction badges in file list + `FileAttachmentCard`. Content Search panel. Indexing tab in preview dialog: status card + Rebuild + Extracted Text + Chunks + Citations. `file.extraction.updated` WS handler. `v0.5.84` published. |
+| 🟢 Done | Phase 45 AI Citation Lookup APIs | Codex | 2026-04-21 | Added unified citation lookup across file chunks, messages, threads, and artifact sections; reserved entity-aware evidence fields for later wiki/graph phases. |
+| 🟡 Ready | Phase 45 Citation Lookup Integration | Windsurf | 2026-04-21 | Consume `GET /api/v1/citations/lookup`, build shared citation cards/inspector, and thread/entity-aware evidence entry points for Phase 46 wiki groundwork. |
 
 ---
 
@@ -122,13 +124,40 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
-| **Codex** | `api-architecture` | Phase 44 file extraction/search API handoff complete | 100% |
+| **Codex** | `api-architecture` | Phase 45 AI citation lookup API handoff complete | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-ui-agent` | Phase 44 File Extraction UI + Content Search complete (v0.5.84) | 100% |
+| **Windsurf** | `web-ui-agent` | Awaiting Phase 45 citation lookup integration on top of v0.5.85 API handoff | 0% |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-21 - Phase 45 AI Citation Lookup API Completion
+- **Codex**: Added `GET /api/v1/citations/lookup` as a unified evidence search endpoint across `file_chunk`, `message`, `thread`, and `artifact_section`.
+- **Codex**: Added `apps/api/internal/knowledge/` for deterministic cross-source citation normalization and ranking.
+- **Codex**: Added `KnowledgeEvidenceLink` and `KnowledgeEvidenceEntityRef` as the minimal persistence seam for later entity-aware wiki and graph phases.
+- **Codex**: Citation payload now reserves `entity_id`, `entity_title`, `source_kind`, `source_ref`, `ref_kind`, `locator`, and `score`.
+- **Codex**: `GET /api/v1/files/:id/citations` now follows the same shared citation shape, and `POST /api/v1/ai/execute` accepts a future-facing `citations` request field without rejecting the payload.
+- **Codex → Windsurf**: Please build one shared citation card/inspector for both `/api/v1/citations/lookup` and `/api/v1/files/:id/citations`. Primary switch is `evidence_kind`:
+  - `file_chunk`
+  - `message`
+  - `thread`
+  - `artifact_section`
+- **Codex → Windsurf**: UI fields to consume now:
+  - `title`
+  - `snippet`
+  - `locator`
+  - `source_kind`
+  - `source_ref`
+  - `ref_kind`
+  - `entity_id`
+  - `score`
+- **Codex → Windsurf**: Do not block on `entity_title`; it may be empty in Phase 45. The Phase 46 backend will add full entity detail and wiki substrate next. Best next web tasks are:
+  - citation search results panel
+  - reusable citation card
+  - file/message/artifact evidence inspector entry points
+  - preparatory entity badge slot if `entity_id` is present
+- **Codex → Nikko Fu**: The backend knowledge layer now has a real evidence substrate. This is the bridge from file-only citations to entity-aware wiki pages and graph relationships.
 
 ### 2026-04-21 - Phase 44 File Extraction UI And Content Search Completion
 - **Windsurf**: Synced v0.5.83. Codex added extraction lifecycle APIs, `/search/files`, enriched `FileAsset` with extraction fields, and `file.extraction.updated` WS event.

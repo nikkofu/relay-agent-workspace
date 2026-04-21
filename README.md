@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.5.84` is the current release line and includes:
+`v0.5.85` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -41,6 +41,8 @@ For product, design, and marketing, the short version is:
 - message-level rich file attachment payloads for inline channel/thread rendering
 - `GET /api/v1/messages/:id/files` for message-scoped file card hydration
 - file extraction lifecycle, chunk indexing, and file-content search/citation APIs
+- unified AI citation lookup across file chunks, messages, threads, and artifact sections
+- `apps/api/internal/knowledge/` evidence lookup layer for later wiki and graph phases
 - real extraction support for `txt`, `md`, `pdf`, `docx`, `xlsx`, and `pptx`
 - OCR provider abstraction for image files with a mock OCR implementation
 - provider-based LLM gateway with OpenAI, OpenAI-compatible, OpenRouter, and Gemini configuration
@@ -123,6 +125,8 @@ For product, design, and marketing, the short version is:
   - `GET /api/v1/files/:id/chunks`
   - `GET /api/v1/files/:id/citations`
   - `GET /api/v1/search/files?q=...`
+- Unified citation lookup API:
+  - `GET /api/v1/citations/lookup?q=...`
 - Channel notification preferences and self-service leave-channel API
 - Structured workspace list APIs for shared checklists and operational tracking
 - Artifact template APIs and virtual `new-doc` bootstrap support for canvas-first creation

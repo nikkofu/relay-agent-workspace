@@ -453,6 +453,27 @@ type FileExtractionChunk struct {
 	CreatedAt     time.Time `json:"created_at"`
 }
 
+type KnowledgeEvidenceLink struct {
+	ID            string    `gorm:"primaryKey" json:"id"`
+	WorkspaceID   string    `gorm:"index" json:"workspace_id"`
+	EvidenceKind  string    `json:"evidence_kind"`
+	EvidenceRefID string    `gorm:"index" json:"evidence_ref_id"`
+	SourceKind    string    `json:"source_kind"`
+	SourceRef     string    `json:"source_ref"`
+	RefKind       string    `json:"ref_kind"`
+	Locator       string    `json:"locator"`
+	Snippet       string    `json:"snippet"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+type KnowledgeEvidenceEntityRef struct {
+	ID         string    `gorm:"primaryKey" json:"id"`
+	EvidenceID string    `gorm:"index" json:"evidence_id"`
+	EntityID   string    `gorm:"index" json:"entity_id"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
 type MessageArtifactReference struct {
 	ID         uint      `gorm:"primaryKey" json:"id"`
 	MessageID  string    `gorm:"index;uniqueIndex:idx_message_artifact_ref" json:"message_id"`

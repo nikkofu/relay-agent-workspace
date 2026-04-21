@@ -3473,6 +3473,135 @@ func TestGetFileCitationsReturnsChunkCandidates(t *testing.T) {
 	}
 }
 
+func TestKnowledgeEvidenceModelsPersist(t *testing.T) {
+	setupTestDB(t)
+
+	now := time.Now().UTC()
+	link := domain.KnowledgeEvidenceLink{
+		ID:            ids.NewPrefixedUUID("evidence"),
+		WorkspaceID:   "ws-1",
+		EvidenceKind:  "file_chunk",
+		EvidenceRefID: "chunk-1",
+		SourceKind:    "file",
+		SourceRef:     "file-1",
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+	if err := db.DB.Create(&link).Error; err != nil {
+		t.Fatalf("failed to create evidence link: %v", err)
+	}
+
+	ref := domain.KnowledgeEvidenceEntityRef{
+		ID:         ids.NewPrefixedUUID("evidence-ref"),
+		EvidenceID: link.ID,
+		EntityID:   "entity-1",
+		CreatedAt:  now,
+	}
+	if err := db.DB.Create(&ref).Error; err != nil {
+		t.Fatalf("failed to create evidence entity ref: %v", err)
+	}
+}
+
+func TestCitationLookupReturnsMixedEvidenceKinds(t *testing.T) {
+	setupTestDB(t)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+
+	db.DB.Create(&domain.Message{
+		ID:        "msg-1",
+		ChannelID: "ch-1",
+		UserID:    "user-1",
+		Content:   "Launch checklist and rollout plan",
+		CreatedAt: now,
+	})
+	db.DB.Create(&domain.Artifact{
+		ID:        "artifact-1",
+		ChannelID: "ch-1",
+		Title:     "Launch Canvas",
+		Version:   1,
+		Type:      "document",
+		Status:    "draft",
+		Content:   "Launch architecture and rollout plan",
+		CreatedBy: "user-1",
+		UpdatedBy: "user-1",
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+	extractionID := ids.NewPrefixedUUID("fextract")
+	db.DB.Create(&domain.FileAsset{
+		ID:               "file-1",
+		ChannelID:        "ch-1",
+		Name:             "launch-plan.docx",
+		StoragePath:      "launch-plan.docx",
+		UploaderID:       "user-1",
+		ContentType:      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		ExtractionStatus: "ready",
+		ContentSummary:   "Launch plan summary",
+		LastIndexedAt:    &now,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+	db.DB.Create(&domain.FileExtraction{
+		ID:             extractionID,
+		FileID:         "file-1",
+		Status:         "ready",
+		Extractor:      "docx",
+		ContentText:    "Launch checklist and rollout plan",
+		ContentSummary: "Launch plan summary",
+		CreatedAt:      now,
+		UpdatedAt:      now,
+		CompletedAt:    &now,
+	})
+	db.DB.Create(&domain.FileExtractionChunk{
+		ExtractionID:  extractionID,
+		FileID:        "file-1",
+		ChunkIndex:    0,
+		Text:          "Launch checklist and rollout plan",
+		TokenEstimate: 5,
+		LocatorType:   "document",
+		LocatorValue:  "root",
+		Heading:       "Launch",
+		CreatedAt:     now,
+	})
+
+	router := gin.New()
+	router.GET("/api/v1/citations/lookup", LookupCitations)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/citations/lookup?q=launch", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on citation lookup, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestCitationLookupIncludesOptionalEntityFields(t *testing.T) {
+	setupTestDB(t)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	db.DB.Create(&domain.Message{
+		ID:        "msg-1",
+		ChannelID: "ch-1",
+		UserID:    "user-1",
+		Content:   "Launch checklist and rollout plan",
+		CreatedAt: now,
+	})
+
+	router := gin.New()
+	router.GET("/api/v1/citations/lookup", LookupCitations)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/citations/lookup?q=launch&entity_id=entity-1", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on citation lookup with entity filter, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestFileExtractionBroadcastsRealtimeUpdate(t *testing.T) {
 	setupTestDB(t)
 
@@ -3543,7 +3672,7 @@ func setupTestDB(t *testing.T) {
 	if err := db.DB.AutoMigrate(&domain.Organization{}, &domain.Team{}, &domain.User{}, &domain.Agent{}, &domain.Workspace{}, &domain.WorkspaceInvite{}, &domain.UserGroup{}, &domain.UserGroupMember{}, &domain.WorkflowDefinition{}, &domain.WorkflowRunStep{}, &domain.WorkflowRunLog{}, &domain.ToolDefinition{}, &domain.ToolRun{}, &domain.ToolRunLog{}, &domain.Channel{}, &domain.ChannelMember{}, &domain.ChannelPreference{}, &domain.WorkspaceList{}, &domain.WorkspaceListItem{}, &domain.Message{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
-	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.NotificationPreference{}, &domain.NotificationMuteRule{}, &domain.AIFeedback{}, &domain.AIConversation{}, &domain.AIConversationMessage{}, &domain.AISummary{}, &domain.Artifact{}, &domain.ArtifactVersion{}, &domain.FileAsset{}, &domain.FileAssetEvent{}, &domain.FileExtraction{}, &domain.FileExtractionChunk{}, &domain.FileComment{}, &domain.FileShare{}, &domain.StarredFile{}, &domain.MessageArtifactReference{}, &domain.MessageFileAttachment{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}, &domain.WorkflowRun{}); err != nil {
+	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.NotificationPreference{}, &domain.NotificationMuteRule{}, &domain.AIFeedback{}, &domain.AIConversation{}, &domain.AIConversationMessage{}, &domain.AISummary{}, &domain.Artifact{}, &domain.ArtifactVersion{}, &domain.FileAsset{}, &domain.FileAssetEvent{}, &domain.FileExtraction{}, &domain.FileExtractionChunk{}, &domain.FileComment{}, &domain.FileShare{}, &domain.StarredFile{}, &domain.MessageArtifactReference{}, &domain.MessageFileAttachment{}, &domain.KnowledgeEvidenceLink{}, &domain.KnowledgeEvidenceEntityRef{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}, &domain.WorkflowRun{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 }

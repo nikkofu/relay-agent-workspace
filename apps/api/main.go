@@ -140,6 +140,7 @@ func main() {
 		v1.PUT("/drafts/:scope", handlers.PutDraft)
 		v1.DELETE("/drafts/:scope", handlers.DeleteDraft)
 		v1.GET("/search", handlers.SearchWorkspace)
+		v1.GET("/citations/lookup", handlers.LookupCitations)
 		v1.GET("/search/files", handlers.SearchFiles)
 		v1.GET("/search/intelligent", handlers.IntelligentSearch)
 		v1.GET("/search/suggestions", handlers.SearchSuggestions)

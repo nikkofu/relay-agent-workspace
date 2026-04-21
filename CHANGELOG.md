@@ -2,6 +2,69 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.85] - 2026-04-21
+
+This release implements Phase 45: AI Citation Lookup. Relay now has a unified evidence lookup layer that can search across file chunks, channel messages, thread messages, and artifact sections, while reserving entity-aware fields for the upcoming wiki and graph phases.
+
+### Added
+
+- **Unified Citation Lookup API**:
+  - `GET /api/v1/citations/lookup?q=...`
+  - Returns mixed evidence from:
+    - `file_chunk`
+    - `message`
+    - `thread`
+    - `artifact_section`
+- **Knowledge Citation Service**:
+  - Added `apps/api/internal/knowledge/` for cross-source evidence lookup, normalization, and deterministic ranking.
+- **Evidence Persistence Models**:
+  - Added `KnowledgeEvidenceLink`
+  - Added `KnowledgeEvidenceEntityRef`
+- **Entity-Aware Citation Fields**:
+  - Citation payloads now reserve:
+    - `entity_id`
+    - `entity_title`
+    - `source_kind`
+    - `source_ref`
+    - `ref_kind`
+    - `locator`
+    - `score`
+
+### Changed
+
+- **File Citation Contract**:
+  - `GET /api/v1/files/:id/citations` now aligns with the unified citation shape instead of returning a file-specific chunk-only schema.
+- **AI Execute Request Compatibility**:
+  - `POST /api/v1/ai/execute` now accepts a future-facing `citations` field in the request body without rejecting the payload shape.
+
+### Windsurf Handoff
+
+- Add a shared citation card renderer that consumes `GET /api/v1/citations/lookup`.
+- Treat `evidence_kind` as the primary visual switch:
+  - `file_chunk`
+  - `message`
+  - `thread`
+  - `artifact_section`
+- Use:
+  - `title`
+  - `snippet`
+  - `locator`
+  - `source_kind`
+  - `ref_kind`
+  - `entity_id`
+- For now, `entity_title` may be empty. Do not block UI on it; Phase 46 will hydrate richer entity details.
+- Next frontend target after integration:
+  - citation picker / inspector
+  - entity-aware evidence surfaces in files, messages, and artifacts
+
+### Verification Used For This Release
+
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go test ./internal/knowledge`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go test ./internal/handlers`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+
 ## [0.5.84] - 2026-04-21
 
 This release implements Phase 44: File Extraction, Search, and Citation Substrate. Files now move beyond metadata-only objects and become indexed knowledge sources for search, retrieval, and future AI citation flows.

@@ -112,9 +112,9 @@ export const MEMBERS: Member[] = [
 
 export const ACTIVE_SUPERPOWERS: AgentPower[] = [
   { agent: 'Gemini', skill: 'idle', task: 'Resting after Phase 38 handoff', progress: 100, status: 'done' },
-  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 44 File Extraction/Search/Citation API handoff complete', progress: 100, status: 'done' },
+  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 45 AI Citation Lookup API handoff complete', progress: 100, status: 'done' },
   { agent: 'Claude Code', skill: 'idle', task: '-', progress: 0, status: 'idle' },
-  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 44 File Extraction UI + Content Search complete (v0.5.84)', progress: 100, status: 'done' },
+  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Awaiting Phase 45 citation lookup integration on top of v0.5.85 API handoff', progress: 0, status: 'idle' },
 ]
 
 // ─── Full Task Board ──────────────────────────────────────────────────────────
@@ -214,11 +214,24 @@ export const TASKS: Task[] = [
   { id: 't92', phase: 92, status: 'done',  task: 'Phase 43 Message-Level File Attachment Cards',       assignedTo: ['Windsurf'],        deadline: '2026-04-21', description: 'Rendered enriched file attachments as rich inline cards in channel feed and thread views. FileAttachmentCard: thumbnail, name, size/MIME, Wiki/Ready/Star badges, comment+share counters, tags, download+preview actions. Lazy-load inspector via GET /api/v1/messages/:id/files. Bumped to v0.5.83.', type: 'frontend' },
   { id: 't93', phase: 93, status: 'done',  task: 'Phase 44 File Extraction, Search, And Citation APIs',  assignedTo: ['Codex'],           deadline: '2026-04-21', description: 'Added extraction lifecycle (GET/POST /files/:id/extraction[/rebuild]), extracted-content (GET /files/:id/extracted-content), chunks (GET /files/:id/chunks), citations (GET /files/:id/citations), file-content search (GET /search/files?q=...). FileAsset enriched with extraction_status, is_searchable, is_citable, needs_ocr etc. Realtime file.extraction.updated WS event.', type: 'api' },
   { id: 't94', phase: 94, status: 'done',  task: 'Phase 44 File Extraction UI And Content Search',       assignedTo: ['Windsurf'],        deadline: '2026-04-21', description: 'Extraction status badges in file list (Indexing/Indexed/Failed/OCR icons) and FileAttachmentCard. Content Search panel in Files header. Indexing tab in preview dialog: status card + Rebuild trigger + Extracted Text + Chunks + Citations (all lazy-loaded). WS file.extraction.updated handled in useWebsocket. v0.5.84 published.', type: 'frontend' },
+  { id: 't95', phase: 95, status: 'done',  task: 'Phase 45 AI Citation Lookup APIs',                  assignedTo: ['Codex'],           deadline: '2026-04-21', description: 'Added GET /api/v1/citations/lookup across file chunks, messages, threads, and artifact sections. Added apps/api/internal/knowledge/ plus minimal evidence/entity seam models. Unified GET /api/v1/files/:id/citations payload shape and reserved entity-aware fields for later wiki/graph phases.', type: 'api' },
+  { id: 't96', phase: 96, status: 'todo',  task: 'Phase 45 Citation Lookup Integration',               assignedTo: ['Windsurf'],        deadline: '2026-04-21', description: 'Consume GET /api/v1/citations/lookup, build a shared citation card/inspector, reuse it for GET /api/v1/files/:id/citations, and surface entity-aware evidence entry points for the coming wiki phase. v0.5.85 target.', type: 'frontend' },
 ]
 
 // ─── Communication Log ────────────────────────────────────────────────────────
 
 export const COMM_SECTIONS: CommSection[] = [
+  {
+    id: 'cs10',
+    date: '2026-04-21',
+    title: 'Phase 45 AI Citation Lookup API Completion',
+    messages: [
+      { id: 'cx45a', from: 'Codex', content: 'Added GET /api/v1/citations/lookup as a unified evidence lookup endpoint across file_chunk, message, thread, and artifact_section. Added apps/api/internal/knowledge/ for deterministic normalization and ranking.' },
+      { id: 'cx45b', from: 'Codex', content: 'Added KnowledgeEvidenceLink and KnowledgeEvidenceEntityRef as the minimal persistence seam for later entity-aware wiki and graph phases. Citation payload reserves entity_id/entity_title/source_kind/source_ref/ref_kind/locator/score.' },
+      { id: 'cx45c', from: 'Codex', to: 'Windsurf', content: 'Please build one shared citation card/inspector for both GET /api/v1/citations/lookup and GET /api/v1/files/:id/citations. Switch primarily on evidence_kind (file_chunk/message/thread/artifact_section). Use title/snippet/locator/source_kind/source_ref/ref_kind/entity_id/score. Do not block on entity_title yet; Phase 46 will hydrate that.' },
+      { id: 'cx45d', from: 'Codex', to: 'Nikko Fu', content: 'Relay now has a real evidence substrate. The backend can search and normalize citations across files, messages, threads, and artifacts, which is the bridge into internal wiki pages and graph relationships. v0.5.85.' },
+    ],
+  },
   {
     id: 'cs9',
     date: '2026-04-21',
