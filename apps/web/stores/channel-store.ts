@@ -45,12 +45,8 @@ export const useChannelStore = create<ChannelState>((set, get) => ({
       const response = await fetch(`${API_BASE_URL}/channels?workspace_id=${workspaceId}`)
       const data = await response.json()
       set({ 
-        channels: data.channels,
-        currentChannel: data.channels[0] || null
+        channels: data.channels
       })
-      if (data.channels[0]) {
-        get().fetchMembers(data.channels[0].id)
-      }
     } catch (error) {
       console.error("Failed to fetch channels:", error)
     }

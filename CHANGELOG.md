@@ -2,6 +2,20 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.70] - 2026-04-21
+
+This release refines navigation persistence and AI context precision.
+
+### Fixed
+
+- **Home Navigation Persistence**: Reimplemented the Home sidebar button to explicitly clear the active channel state. This ensures users can always return to the Home Dashboard even after browsing specific channels.
+- **AI Context Precision**: Updated the "Summarize this channel" suggestion to dynamically inject the active channel's name and ID into the prompt (e.g., `Summarize the #general channel (ID: ch_1)`). This prevents the AI from incorrectly referencing external platforms like YouTube and locks it to the workspace context.
+- **UI Cleanup**: Pruned unused icons and redundant store imports in the Dashboard and Navigation components.
+
+### Verification Used For This Release
+
+- `pnpm lint` (Verified PASS)
+
 ## [0.5.69] - 2026-04-21
 
 This release addresses accessibility warnings and improves external asset reliability.

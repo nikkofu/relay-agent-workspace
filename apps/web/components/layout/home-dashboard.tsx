@@ -1,216 +1,251 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useDirectoryStore } from "@/stores/directory-store"
-import { Layout, Users, Zap, Briefcase, ChevronRight, ListTodo, Terminal, FileText, CheckCircle2 } from "lucide-react"
+import { 
+  Layout, Users, Zap, Briefcase, ChevronRight, FileText, MessageSquare, 
+  Plus, UserPlus, Smile, ArrowRight, Sparkles, Hash
+} from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { cn } from "@/lib/utils"
-import { formatDistanceToNow } from "date-fns"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
 import { useWorkspaceStore } from "@/stores/workspace-store"
+import { useUserStore } from "@/stores/user-store"
+import { useChannelStore } from "@/stores/channel-store"
+import { useUIStore } from "@/stores/ui-store"
 
 export function HomeDashboard() {
   const { userGroups, workflows, tools, fetchUserGroups, fetchWorkflows, fetchTools } = useDirectoryStore()
-  const { homeData, fetchHome } = useWorkspaceStore()
+  const { homeData, fetchHome, currentWorkspace } = useWorkspaceStore()
+  const { currentUser } = useUserStore()
+  const { setCurrentChannelById } = useChannelStore()
+  const { openCanvas } = useUIStore()
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    setMounted(true)
     fetchUserGroups()
     fetchWorkflows()
     fetchTools()
     fetchHome()
   }, [fetchUserGroups, fetchWorkflows, fetchTools, fetchHome])
 
+  if (!mounted) return null
+
   return (
-    <div className="flex-1 flex flex-col h-full bg-white dark:bg-[#1a1d21]">
-      <header className="h-14 px-6 flex items-center border-b shrink-0">
-        <Layout className="w-5 h-5 mr-2 text-purple-600" />
-        <h1 className="text-lg font-black tracking-tight uppercase">Workspace Home</h1>
+    <div className="flex-1 flex flex-col h-full bg-white dark:bg-[#1a1d21] overflow-hidden">
+      {/* Slack-style Floating Header */}
+      <header className="h-14 px-6 flex items-center border-b shrink-0 bg-white/80 dark:bg-[#1a1d21]/80 backdrop-blur-md sticky top-0 z-10">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded bg-purple-600 flex items-center justify-center">
+            <Layout className="w-3.5 h-3.5 text-white" />
+          </div>
+          <h1 className="text-sm font-black tracking-tight uppercase">{currentWorkspace?.name || 'Relay'} Home</h1>
+        </div>
       </header>
 
       <ScrollArea className="flex-1">
-        <div className="p-8 max-w-5xl mx-auto space-y-10 pb-20">
-          {/* Quick Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="bg-purple-500/5 border-purple-500/20 shadow-none">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-bold uppercase tracking-widest text-purple-600">Pending Actions</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-black">{homeData?.activity?.unread_count || 0}</div>
-              </CardContent>
-            </Card>
-            <Card className="bg-blue-500/5 border-blue-500/20 shadow-none">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-bold uppercase tracking-widest text-blue-600">Active Threads</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-black">{homeData?.activity?.draft_count || 0}</div>
-              </CardContent>
-            </Card>
-            <Card className="bg-green-500/5 border-green-500/20 shadow-none">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-bold uppercase tracking-widest text-green-600">Recent Artifacts</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-black">{homeData?.profile?.recent_artifacts?.length || 0}</div>
-              </CardContent>
-            </Card>
+        <div className="flex flex-col">
+          {/* Hero Welcome Section */}
+          <div className="px-8 pt-10 pb-12 bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-800 text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
+              <Sparkles className="w-64 h-64 rotate-12" />
+            </div>
+            
+            <div className="max-w-5xl mx-auto relative z-10">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
+                <div className="space-y-4">
+                  <Badge className="bg-white/20 hover:bg-white/30 text-white border-none text-[10px] font-black uppercase tracking-widest px-2 py-0.5">
+                    Workspace Overview
+                  </Badge>
+                  <h2 className="text-4xl font-black tracking-tight leading-tight">
+                    Good {new Date().getHours() < 12 ? 'morning' : 'afternoon'},<br />
+                    {currentUser?.name || 'Team member'}.
+                  </h2>
+                  <p className="text-purple-100/80 max-w-lg text-lg font-medium leading-relaxed">
+                    Here&apos;s what&apos;s happening in <span className="text-white font-bold">{currentWorkspace?.name || 'Relay'}</span> today. 
+                    You have <span className="text-white font-bold">{homeData?.stats?.pending_actions || 0} pending actions</span> to review.
+                  </p>
+                </div>
+                
+                <div className="flex flex-col gap-3 min-w-[200px]">
+                  <Button className="bg-white text-purple-700 hover:bg-purple-50 font-bold shadow-xl border-none h-11 justify-start gap-3 px-5">
+                    <Plus className="w-4 h-4" /> Create Channel
+                  </Button>
+                  <Button variant="ghost" className="text-white hover:bg-white/10 font-bold h-11 justify-start gap-3 px-5 border border-white/20">
+                    <UserPlus className="w-4 h-4" /> Invite Teammates
+                  </Button>
+                  <Button variant="ghost" className="text-white hover:bg-white/10 font-bold h-11 justify-start gap-3 px-5 border border-white/20">
+                    <Smile className="w-4 h-4" /> Set a Status
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Recent Work Aggregation */}
-            <section className="space-y-6">
-              {/* Recent Lists */}
-              <div className="space-y-4">
-                <h2 className="text-sm font-bold flex items-center gap-2 px-1 text-muted-foreground uppercase tracking-widest">
-                  <ListTodo className="w-4 h-4" />
-                  Recent Lists
-                </h2>
-                <div className="grid gap-2">
-                  {(homeData?.recent_lists || []).map((list: any) => (
-                    <div key={list.id} className="p-3 border rounded-xl flex items-center justify-between hover:bg-muted/30 transition-colors cursor-pointer group">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded bg-purple-500/10 flex items-center justify-center text-purple-600">
-                          <ListTodo className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold">{list.title}</p>
-                          <p className="text-[10px] text-muted-foreground">
-                            {list.completed_count}/{list.item_count} items completed
-                          </p>
-                        </div>
-                      </div>
-                      <Badge variant="outline" className="text-[8px] h-4 font-black">#{list.channel_name || 'general'}</Badge>
-                    </div>
-                  ))}
-                  {(!homeData?.recent_lists || homeData.recent_lists.length === 0) && (
-                    <div className="p-4 border border-dashed rounded-xl text-center text-[10px] text-muted-foreground italic">
-                      No recent checklists found.
-                    </div>
-                  )}
-                </div>
-              </div>
+          <div className="p-8 max-w-6xl mx-auto w-full space-y-12 pb-32">
+            {/* Quick Stats Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 -mt-20 relative z-20">
+              <Card className="bg-white dark:bg-[#222529] border-none shadow-2xl hover:translate-y-[-4px] transition-all duration-300">
+                <CardContent className="p-6 flex items-center gap-5">
+                  <div className="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-600 shrink-0">
+                    <MessageSquare className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Unread Mentions</p>
+                    <p className="text-2xl font-black">{homeData?.stats?.pending_actions || 0}</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="bg-white dark:bg-[#222529] border-none shadow-2xl hover:translate-y-[-4px] transition-all duration-300">
+                <CardContent className="p-6 flex items-center gap-5">
+                  <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-600 shrink-0">
+                    <Clock className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Active Threads</p>
+                    <p className="text-2xl font-black">{homeData?.stats?.active_threads || 0}</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="bg-white dark:bg-[#222529] border-none shadow-2xl hover:translate-y-[-4px] transition-all duration-300">
+                <CardContent className="p-6 flex items-center gap-5">
+                  <div className="w-12 h-12 rounded-2xl bg-green-500/10 flex items-center justify-center text-green-600 shrink-0">
+                    <Sparkles className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">New Knowledge</p>
+                    <p className="text-2xl font-black">{homeData?.recent_artifacts?.length || 0}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
 
-              {/* Recent Tool Runs */}
-              <div className="space-y-4">
-                <h2 className="text-sm font-bold flex items-center gap-2 px-1 text-muted-foreground uppercase tracking-widest">
-                  <Terminal className="w-4 h-4" />
-                  Recent Automations
-                </h2>
-                <div className="grid gap-2">
-                  {(homeData?.recent_tool_runs || []).map((run: any) => (
-                    <div key={run.id} className="p-3 border rounded-xl flex items-center justify-between hover:bg-muted/30 transition-colors cursor-pointer group">
-                      <div className="flex items-center gap-3">
-                        <div className={cn(
-                          "w-8 h-8 rounded bg-muted flex items-center justify-center",
-                          run.status === 'success' ? "text-green-600 bg-green-500/10" : "text-amber-600 bg-amber-500/10"
-                        )}>
-                          <Zap className="w-4 h-4" />
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 pt-4">
+              {/* Left Column: Recent Activity & Discussion */}
+              <div className="lg:col-span-7 space-y-10">
+                <div className="space-y-5">
+                  <h3 className="text-lg font-black tracking-tight flex items-center gap-2">
+                    <MessageSquare className="w-5 h-5 text-purple-600" />
+                    Recent Conversations
+                  </h3>
+                  <div className="space-y-1">
+                    {(homeData?.recent_activity || []).map((item: any) => (
+                      <button 
+                        key={item.id}
+                        onClick={() => item.channel_id && setCurrentChannelById(item.channel_id)}
+                        className="w-full flex items-start gap-4 p-4 hover:bg-muted/50 rounded-2xl transition-all text-left group border border-transparent hover:border-border"
+                      >
+                        <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center shrink-0 group-hover:bg-white dark:group-hover:bg-black transition-colors">
+                          <Hash className="w-5 h-5 text-muted-foreground group-hover:text-purple-600" />
                         </div>
-                        <div>
-                          <p className="text-sm font-bold">{run.tool_name}</p>
-                          <p className="text-[10px] text-muted-foreground">
-                            {run.status} • {formatDistanceToNow(new Date(run.started_at), { addSuffix: true })}
-                          </p>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-bold truncate leading-tight">#{item.channel_name || 'general'}</p>
+                            <span className="text-[10px] text-muted-foreground font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 uppercase">
+                              Jump to <ArrowRight className="w-2.5 h-2.5" />
+                            </span>
+                          </div>
+                          <p className="text-sm text-muted-foreground line-clamp-1 mt-1 font-medium">{item.last_message}</p>
                         </div>
-                      </div>
-                      {run.status === 'success' && <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />}
-                    </div>
-                  ))}
-                  {(!homeData?.recent_tool_runs || homeData.recent_tool_runs.length === 0) && (
-                    <div className="p-4 border border-dashed rounded-xl text-center text-[10px] text-muted-foreground italic">
-                      No recent tool executions.
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Latest Files */}
-              <div className="space-y-4">
-                <h2 className="text-sm font-bold flex items-center gap-2 px-1 text-muted-foreground uppercase tracking-widest">
-                  <FileText className="w-4 h-4" />
-                  Latest Files
-                </h2>
-                <div className="grid gap-2">
-                  {(homeData?.recent_files || []).map((file: any) => (
-                    <div key={file.id} className="p-3 border rounded-xl flex items-center justify-between hover:bg-muted/30 transition-colors cursor-pointer group">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded bg-blue-500/10 flex items-center justify-center text-blue-600">
-                          <FileText className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold truncate max-w-[200px]">{file.name}</p>
-                          <p className="text-[10px] text-muted-foreground">
-                            {file.type} • {(file.size / 1024).toFixed(1)} KB
-                          </p>
-                        </div>
-                      </div>
-                      <Badge variant="outline" className="text-[8px] h-4 font-black">#{file.channel_name || 'general'}</Badge>
-                    </div>
-                  ))}
-                  {(!homeData?.recent_files || homeData.recent_files.length === 0) && (
-                    <div className="p-4 border border-dashed rounded-xl text-center text-[10px] text-muted-foreground italic">
-                      No files uploaded recently.
-                    </div>
-                  )}
-                </div>
-              </div>
-            </section>
-
-            <section className="space-y-10">
-              {/* User Groups */}
-              <div className="space-y-4">
-                <h2 className="text-sm font-bold flex items-center gap-2 px-1 text-muted-foreground uppercase tracking-widest">
-                  <Users className="w-4 h-4" />
-                  User Groups
-                </h2>
-                <div className="grid gap-2">
-                  {userGroups.map(group => (
-                    <div key={group.id} className="p-3 border rounded-xl flex items-center justify-between hover:bg-muted/30 transition-colors cursor-pointer group">
-                      <div>
-                        <p className="text-sm font-bold group-hover:text-purple-600 transition-colors">{group.name}</p>
-                        <p className="text-[10px] text-muted-foreground">{group.memberCount} members</p>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Workflows & Tools */}
-              <div className="space-y-6">
-                <div className="space-y-4">
-                  <h2 className="text-sm font-bold flex items-center gap-2 px-1 text-muted-foreground uppercase tracking-widest">
-                    <Zap className="w-4 h-4 text-amber-500" />
-                    Workflows
-                  </h2>
-                  <div className="grid gap-2">
-                    {workflows.map(wf => (
-                      <div key={wf.id} className="p-3 border rounded-xl bg-amber-500/5 border-amber-500/10 flex items-center gap-3">
-                        <Zap className="w-4 h-4 text-amber-600" />
-                        <span className="text-sm font-bold">{wf.name}</span>
-                      </div>
+                      </button>
                     ))}
+                    {(!homeData?.recent_activity || homeData.recent_activity.length === 0) && (
+                      <div className="py-12 text-center border-2 border-dashed rounded-3xl opacity-40">
+                        <p className="text-sm font-bold italic">No recent activity to show.</p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <h2 className="text-sm font-bold flex items-center gap-2 px-1 text-muted-foreground uppercase tracking-widest">
-                    <Briefcase className="w-4 h-4 text-blue-500" />
-                    Integration Tools
-                  </h2>
-                  <div className="grid grid-cols-2 gap-2">
-                    {tools.map(tool => (
-                      <button key={tool.id} className="p-3 border rounded-xl hover:bg-muted transition-colors text-left group">
-                        <p className="text-xs font-bold group-hover:text-blue-600 transition-colors">{tool.name}</p>
-                        <p className="text-[9px] text-muted-foreground">{tool.category}</p>
+                <div className="space-y-5">
+                  <h3 className="text-lg font-black tracking-tight flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-blue-600" />
+                    Latest Knowledge
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {(homeData?.recent_artifacts || []).slice(0, 4).map((art: any) => (
+                      <button
+                        key={art.id}
+                        onClick={() => openCanvas(art.id)}
+                        className="p-5 bg-blue-500/5 hover:bg-blue-500/10 border border-blue-500/10 hover:border-blue-500/30 rounded-2xl transition-all text-left group flex flex-col justify-between h-36"
+                      >
+                        <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600 mb-4 group-hover:bg-blue-600 group-hover:text-white transition-all">
+                          <FileText className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold truncate group-hover:text-blue-600 transition-colors">{art.title}</p>
+                          <p className="text-[10px] text-muted-foreground uppercase font-black tracking-tighter mt-1">v{art.version} • {art.type}</p>
+                        </div>
                       </button>
                     ))}
                   </div>
                 </div>
               </div>
-            </section>
+
+              {/* Right Column: Organization & Tools */}
+              <div className="lg:col-span-5 space-y-12">
+                {/* User Groups */}
+                <div className="space-y-5">
+                  <h3 className="text-lg font-black tracking-tight flex items-center gap-2">
+                    <Users className="w-5 h-5 text-purple-600" />
+                    User Groups
+                  </h3>
+                  <div className="bg-muted/30 rounded-3xl p-2 border">
+                    {userGroups.slice(0, 3).map(group => (
+                      <div key={group.id} className="p-4 hover:bg-white dark:hover:bg-black rounded-2xl flex items-center justify-between transition-all cursor-pointer group shadow-sm hover:shadow-md mb-1 last:mb-0">
+                        <div>
+                          <p className="text-sm font-bold group-hover:text-purple-600 transition-colors">{group.name}</p>
+                          <p className="text-[10px] text-muted-foreground font-black uppercase tracking-tighter mt-0.5">{group.memberCount} members</p>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-muted-foreground opacity-30 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+                      </div>
+                    ))}
+                    <Button variant="ghost" className="w-full text-xs font-black uppercase tracking-widest text-muted-foreground hover:text-purple-600 h-12 rounded-2xl">
+                      View All Groups
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Automations */}
+                <div className="space-y-5">
+                  <h3 className="text-lg font-black tracking-tight flex items-center gap-2">
+                    <Zap className="w-5 h-5 text-amber-500" />
+                    Workflows
+                  </h3>
+                  <div className="grid gap-3">
+                    {workflows.slice(0, 3).map(wf => (
+                      <div key={wf.id} className="p-4 border rounded-2xl flex items-center gap-4 hover:border-amber-500/50 hover:bg-amber-500/5 transition-all group cursor-pointer">
+                        <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600 group-hover:scale-110 transition-transform">
+                          <Zap className="w-5 h-5 fill-current" />
+                        </div>
+                        <div>
+                          <span className="text-sm font-bold">{wf.name}</span>
+                          <p className="text-[10px] text-muted-foreground line-clamp-1 mt-0.5">{wf.description}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Tools */}
+                <div className="space-y-5">
+                  <h3 className="text-lg font-black tracking-tight flex items-center gap-2">
+                    <Briefcase className="w-5 h-5 text-blue-500" />
+                    Tools
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    {tools.slice(0, 4).map(tool => (
+                      <button key={tool.id} className="p-4 border rounded-2xl hover:bg-muted transition-all text-left group hover:border-blue-500/30">
+                        <p className="text-xs font-bold group-hover:text-blue-600 transition-colors">{tool.name}</p>
+                        <p className="text-[10px] text-muted-foreground uppercase font-black tracking-tighter mt-1">{tool.category}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </ScrollArea>

@@ -9,10 +9,12 @@ import { X, Sparkles, Wand2, History, Plus, MessageSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useUIStore } from "@/stores/ui-store"
 import { useAIStore } from "@/stores/ai-store"
+import { useChannelStore } from "@/stores/channel-store"
 import { useEffect, useRef, useState } from "react"
 import { AISettings } from "./ai-settings"
 import { formatDistanceToNow } from "date-fns"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 
 export function AIChatPanel() {
   const { 
@@ -33,6 +35,7 @@ export function AIChatPanel() {
   } = useAIChat()
   const { conversations, fetchConversations, setCurrentConversation } = useAIStore()
   const { isAIPanelOpen, closeAIPanel, openCanvas } = useUIStore()
+  const { currentChannel } = useChannelStore()
   const [showHistory, setShowHistory] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -58,6 +61,18 @@ export function AIChatPanel() {
       openCanvas('ai-assistant')
     }
     append(content)
+  }
+
+  const handleSuggestionClick = (suggestion: string) => {
+    if (suggestion === "Summarize this channel") {
+      if (currentChannel) {
+        handleSend(`Summarize the #${currentChannel.name} channel (ID: ${currentChannel.id})`)
+      } else {
+        toast.info("Please select a channel to summarize first.")
+      }
+      return
+    }
+    handleSend(suggestion)
   }
 
   if (!isAIPanelOpen) return null
@@ -184,9 +199,9 @@ export function AIChatPanel() {
                     </p>
                   </div>
                   <div className="grid grid-cols-1 gap-2 w-full mt-4 px-2">
-                    <SuggestionButton text="Summarize this channel" onClick={() => handleSend("Summarize this channel")} />
-                    <SuggestionButton text="Help me draft a professional reply" onClick={() => handleSend("Help me draft a professional reply")} />
-                    <SuggestionButton text="Explain current engineering trends" onClick={() => handleSend("Explain current engineering trends")} />
+                    <SuggestionButton text="Summarize this channel" onClick={() => handleSuggestionClick("Summarize this channel")} />
+                    <SuggestionButton text="Help me draft a professional reply" onClick={() => handleSuggestionClick("Help me draft a professional reply")} />
+                    <SuggestionButton text="Explain current engineering trends" onClick={() => handleSuggestionClick("Explain current engineering trends")} />
                   </div>
                 </div>
               ) : (

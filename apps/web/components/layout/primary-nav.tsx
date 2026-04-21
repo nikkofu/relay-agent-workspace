@@ -9,8 +9,8 @@ import { useWorkspaceStore } from "@/stores/workspace-store"
 import { useUIStore } from "@/stores/ui-store"
 import { useUserStore } from "@/stores/user-store"
 import { useDMStore } from "@/stores/dm-store"
-import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { useChannelStore } from "@/stores/channel-store"
+import { usePathname, useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 
 const NAV_ITEMS = [
@@ -29,12 +29,21 @@ export function PrimaryNav() {
   const { toggleAIPanel, isAIPanelOpen } = useUIStore()
   const { currentUser } = useUserStore()
   const { conversations } = useDMStore()
+  const { setCurrentChannel } = useChannelStore()
+  const router = useRouter()
   const pathname = usePathname()
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  const handleNavItemClick = (item: typeof NAV_ITEMS[0]) => {
+    if (item.label === "Home") {
+      setCurrentChannel(null)
+    }
+    router.push(item.href)
+  }
 
   if (!mounted) {
     return (
@@ -69,23 +78,22 @@ export function PrimaryNav() {
           return (
             <Tooltip key={idx}>
               <TooltipTrigger asChild>
-                <Link href={item.href}>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className={cn(
-                      "w-9 h-9 rounded-lg text-white/70 hover:bg-white/10 hover:text-white transition-colors relative",
-                      isActive && "bg-white/10 text-white"
-                    )}
-                  >
-                    <item.icon className="w-5 h-5" />
-                    {unreadCount > 0 && (
-                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#e01e5a] text-white text-[10px] rounded-full flex items-center justify-center border-2 border-[#3f0e40] dark:border-[#1a1d21]">
-                        {unreadCount}
-                      </span>
-                    )}
-                  </Button>
-                </Link>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    "w-9 h-9 rounded-lg text-white/70 hover:bg-white/10 hover:text-white transition-colors relative",
+                    isActive && "bg-white/10 text-white"
+                  )}
+                  onClick={() => handleNavItemClick(item)}
+                >
+                  <item.icon className="w-5 h-5" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#e01e5a] text-white text-[10px] rounded-full flex items-center justify-center border-2 border-[#3f0e40] dark:border-[#1a1d21]">
+                      {unreadCount}
+                    </span>
+                  )}
+                </Button>
               </TooltipTrigger>
               <TooltipContent side="right">
                 <p>{item.label}</p>
