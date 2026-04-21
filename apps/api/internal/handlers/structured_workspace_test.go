@@ -55,6 +55,7 @@ func TestWorkspaceListLifecycleEndpoints(t *testing.T) {
 	if createPayload.List.ID == "" || createPayload.List.Title != "Launch Checklist" || createPayload.List.ItemCount != 0 || createPayload.List.WorkspaceID != "ws-1" || createPayload.List.UserID != "user-1" {
 		t.Fatalf("unexpected list create payload: %#v", createPayload.List)
 	}
+	assertPrefixedUUID(t, createPayload.List.ID, "list")
 
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/lists/"+createPayload.List.ID+"/items", bytes.NewBufferString(`{"content":"Freeze release notes","assigned_to":"user-1","due_at":"2026-04-22T10:00:00Z"}`))
@@ -187,16 +188,16 @@ func TestToolExecutionEndpoints(t *testing.T) {
 
 	var createPayload struct {
 		Run struct {
-			ID       string `json:"id"`
-			ToolID   string `json:"tool_id"`
-			Status   string `json:"status"`
-			Summary  string `json:"summary"`
-			ToolName string `json:"tool_name"`
-			UserID   string `json:"user_id"`
-			ChannelID string `json:"channel_id"`
+			ID         string `json:"id"`
+			ToolID     string `json:"tool_id"`
+			Status     string `json:"status"`
+			Summary    string `json:"summary"`
+			ToolName   string `json:"tool_name"`
+			UserID     string `json:"user_id"`
+			ChannelID  string `json:"channel_id"`
 			FinishedAt string `json:"finished_at"`
-			DurationMS int `json:"duration_ms"`
-			Logs     []struct {
+			DurationMS int    `json:"duration_ms"`
+			Logs       []struct {
 				Level   string `json:"level"`
 				Message string `json:"message"`
 			} `json:"logs"`
@@ -208,6 +209,7 @@ func TestToolExecutionEndpoints(t *testing.T) {
 	if createPayload.Run.ID == "" || createPayload.Run.ToolID != "tool-1" || createPayload.Run.Status == "" || len(createPayload.Run.Logs) == 0 || createPayload.Run.UserID != "user-1" || createPayload.Run.ChannelID != "ch-1" || createPayload.Run.FinishedAt == "" || createPayload.Run.DurationMS < 0 {
 		t.Fatalf("unexpected tool run create payload: %#v", createPayload.Run)
 	}
+	assertPrefixedUUID(t, createPayload.Run.ID, "toolrun")
 
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/tools/runs?channel_id=ch-1", nil)
@@ -218,10 +220,10 @@ func TestToolExecutionEndpoints(t *testing.T) {
 
 	var listPayload struct {
 		Runs []struct {
-			ID       string `json:"id"`
-			ToolName string `json:"tool_name"`
-			Status   string `json:"status"`
-			UserID   string `json:"user_id"`
+			ID        string `json:"id"`
+			ToolName  string `json:"tool_name"`
+			Status    string `json:"status"`
+			UserID    string `json:"user_id"`
 			ChannelID string `json:"channel_id"`
 		} `json:"runs"`
 	}
@@ -241,14 +243,14 @@ func TestToolExecutionEndpoints(t *testing.T) {
 
 	var detailPayload struct {
 		Run struct {
-			ID       string `json:"id"`
-			ToolName string `json:"tool_name"`
-			Input    any    `json:"input"`
-			UserID   string `json:"user_id"`
-			ChannelID string `json:"channel_id"`
+			ID         string `json:"id"`
+			ToolName   string `json:"tool_name"`
+			Input      any    `json:"input"`
+			UserID     string `json:"user_id"`
+			ChannelID  string `json:"channel_id"`
 			FinishedAt string `json:"finished_at"`
-			DurationMS int `json:"duration_ms"`
-			Logs     []struct {
+			DurationMS int    `json:"duration_ms"`
+			Logs       []struct {
 				Level string `json:"level"`
 			} `json:"logs"`
 		} `json:"run"`
@@ -344,4 +346,5 @@ func TestArtifactTemplatesAndVirtualNewDoc(t *testing.T) {
 	if createPayload.Artifact.ID == "" || createPayload.Artifact.ChannelID != "ch-1" || createPayload.Artifact.UserID != "user-1" || createPayload.Artifact.Source != "template" || createPayload.Artifact.TemplateID != "launch-checklist" || createPayload.Artifact.Content == "" {
 		t.Fatalf("unexpected create-from-template payload: %#v", createPayload.Artifact)
 	}
+	assertPrefixedUUID(t, createPayload.Artifact.ID, "artifact")
 }

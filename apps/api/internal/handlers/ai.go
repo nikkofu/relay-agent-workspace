@@ -14,6 +14,7 @@ import (
 
 	"github.com/nikkofu/relay-agent-workspace/api/internal/db"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/domain"
+	"github.com/nikkofu/relay-agent-workspace/api/internal/ids"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/llm"
 )
 
@@ -212,7 +213,7 @@ func ExecuteAI(c *gin.Context) {
 	reasoningContent := ""
 	conversationID := input.ConversationID
 	if conversationID == "" {
-		conversationID = "ai-conv-" + time.Now().Format("20060102150405.000000")
+		conversationID = ids.NewPrefixedUUID("ai-conv")
 	}
 
 	writeSSE(writer, "start", map[string]any{
@@ -417,7 +418,7 @@ func persistAIConversation(user domain.User, input llm.Request, session *llm.Str
 	}
 
 	userMessage := domain.AIConversationMessage{
-		ID:             "ai-msg-" + time.Now().Format("20060102150405.000001"),
+		ID:             ids.NewPrefixedUUID("ai-msg"),
 		ConversationID: conversationID,
 		Role:           "user",
 		Content:        input.Prompt,
@@ -428,7 +429,7 @@ func persistAIConversation(user domain.User, input llm.Request, session *llm.Str
 	}
 
 	assistantMessage := domain.AIConversationMessage{
-		ID:             "ai-msg-" + time.Now().Format("20060102150405.000002"),
+		ID:             ids.NewPrefixedUUID("ai-msg"),
 		ConversationID: conversationID,
 		Role:           "assistant",
 		Content:        assistantContent,

@@ -11,6 +11,7 @@ import (
 
 	"github.com/nikkofu/relay-agent-workspace/api/internal/db"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/domain"
+	"github.com/nikkofu/relay-agent-workspace/api/internal/ids"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/realtime"
 )
 
@@ -136,7 +137,7 @@ func CreateWorkspaceList(c *gin.Context) {
 
 	now := time.Now().UTC()
 	list := domain.WorkspaceList{
-		ID:          "list-" + now.Format("20060102150405.000000"),
+		ID:          ids.NewPrefixedUUID("list"),
 		WorkspaceID: workspaceID,
 		ChannelID:   strings.TrimSpace(input.ChannelID),
 		Title:       strings.TrimSpace(input.Title),
@@ -276,11 +277,11 @@ func UpdateWorkspaceListItem(c *gin.Context) {
 	}
 
 	var input struct {
-		Content     *string    `json:"content"`
-		AssignedTo  *string    `json:"assigned_to"`
+		Content     *string     `json:"content"`
+		AssignedTo  *string     `json:"assigned_to"`
 		DueAt       **time.Time `json:"due_at"`
-		Position    *int       `json:"position"`
-		IsCompleted *bool      `json:"is_completed"`
+		Position    *int        `json:"position"`
+		IsCompleted *bool       `json:"is_completed"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -411,7 +412,7 @@ func ExecuteTool(c *gin.Context) {
 		}
 	}
 	run := domain.ToolRun{
-		ID:          "toolrun-" + now.Format("20060102150405.000000"),
+		ID:          ids.NewPrefixedUUID("toolrun"),
 		ToolID:      tool.ID,
 		TriggeredBy: currentUser.ID,
 		Status:      "success",
@@ -472,7 +473,7 @@ func CreateArtifactFromTemplate(c *gin.Context) {
 
 	now := time.Now().UTC()
 	artifact := domain.Artifact{
-		ID:         "artifact-" + now.Format("20060102150405.000000"),
+		ID:         ids.NewPrefixedUUID("artifact"),
 		ChannelID:  input.ChannelID,
 		Title:      defaultString(strings.TrimSpace(input.Title), template.Title),
 		Version:    1,

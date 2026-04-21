@@ -322,6 +322,12 @@ func TestGetHomeReturnsWorkspaceSummary(t *testing.T) {
 	db.DB.Create(&domain.DMMessage{ID: "dm-msg-1", DMConversationID: "dm-1", UserID: "user-2", Content: "Quick sync?", CreatedAt: now.Add(-20 * time.Minute)})
 	db.DB.Create(&domain.WorkflowDefinition{ID: "wf-1", Name: "Daily Standup", Category: "communication", Description: "Collect quick progress updates", Trigger: "manual", IsActive: true, CreatedAt: now.Add(-time.Hour), UpdatedAt: now})
 	db.DB.Create(&domain.ToolDefinition{ID: "tool-1", Name: "Web Search", Key: "web-search", Category: "research", Description: "Search current information", Icon: "search", IsEnabled: true, CreatedAt: now.Add(-time.Hour), UpdatedAt: now})
+	db.DB.Create(&domain.WorkspaceList{ID: "list-1", WorkspaceID: "ws-1", ChannelID: "ch-1", Title: "Launch Checklist", Description: "Critical preflight items", CreatedBy: "user-2", CreatedAt: now.Add(-12 * time.Minute), UpdatedAt: now.Add(-10 * time.Minute)})
+	db.DB.Create(&domain.WorkspaceListItem{ID: 1, ListID: "list-1", Content: "Review API contract", Position: 1, IsCompleted: true, AssignedTo: "user-1", CompletedAt: ptrTime(now.Add(-9 * time.Minute)), CreatedBy: "user-2", CreatedAt: now.Add(-12 * time.Minute), UpdatedAt: now.Add(-9 * time.Minute)})
+	toolInput := `{"channel_id":"ch-1","thread_id":"msg-1"}`
+	db.DB.Create(&domain.ToolRun{ID: "toolrun-1", ToolID: "tool-1", TriggeredBy: "user-1", Status: "success", Input: toolInput, Summary: "Executed Web Search", StartedAt: now.Add(-8 * time.Minute), CompletedAt: ptrTime(now.Add(-7 * time.Minute)), CreatedAt: now.Add(-8 * time.Minute), UpdatedAt: now.Add(-7 * time.Minute)})
+	db.DB.Create(&domain.ToolRunLog{ToolRunID: "toolrun-1", Level: "info", Message: "Tool execution completed", CreatedAt: now.Add(-7 * time.Minute)})
+	db.DB.Create(&domain.FileAsset{ID: "file-1", ChannelID: "ch-1", UploaderID: "user-2", Name: "handoff.md", StoragePath: "handoff.md", ContentType: "text/markdown", SizeBytes: 128, CreatedAt: now.Add(-6 * time.Minute), UpdatedAt: now.Add(-6 * time.Minute)})
 
 	router := gin.New()
 	router.GET("/api/v1/home", GetHome)
@@ -349,6 +355,19 @@ func TestGetHomeReturnsWorkspaceSummary(t *testing.T) {
 			Drafts          []any `json:"drafts"`
 			Tools           []any `json:"tools"`
 			Workflows       []any `json:"workflows"`
+			RecentLists     []struct {
+				ID             string `json:"id"`
+				CompletedCount int    `json:"completed_count"`
+			} `json:"recent_lists"`
+			RecentToolRuns []struct {
+				ID        string `json:"id"`
+				ChannelID string `json:"channel_id"`
+			} `json:"recent_tool_runs"`
+			RecentFiles []struct {
+				ID        string `json:"id"`
+				UserID    string `json:"userId"`
+				ChannelID string `json:"channelId"`
+			} `json:"recent_files"`
 		} `json:"home"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
@@ -362,6 +381,15 @@ func TestGetHomeReturnsWorkspaceSummary(t *testing.T) {
 	}
 	if len(payload.Home.StarredChannels) != 1 || len(payload.Home.RecentDMs) != 1 || len(payload.Home.Tools) != 1 || len(payload.Home.Workflows) != 1 {
 		t.Fatalf("expected populated home sections, got %#v", payload.Home)
+	}
+	if len(payload.Home.RecentLists) != 1 || payload.Home.RecentLists[0].CompletedCount != 1 {
+		t.Fatalf("expected recent list summary, got %#v", payload.Home.RecentLists)
+	}
+	if len(payload.Home.RecentToolRuns) != 1 || payload.Home.RecentToolRuns[0].ChannelID != "ch-1" {
+		t.Fatalf("expected recent tool run summary, got %#v", payload.Home.RecentToolRuns)
+	}
+	if len(payload.Home.RecentFiles) != 1 || payload.Home.RecentFiles[0].UserID != "user-2" || payload.Home.RecentFiles[0].ChannelID != "ch-1" {
+		t.Fatalf("expected recent files summary, got %#v", payload.Home.RecentFiles)
 	}
 }
 
@@ -460,6 +488,7 @@ func TestUserGroupCrudLifecycle(t *testing.T) {
 	if createPayload.Group.ID == "" || len(createPayload.Group.Members) != 2 {
 		t.Fatalf("unexpected create payload: %#v", createPayload.Group)
 	}
+	assertPrefixedUUID(t, createPayload.Group.ID, "group")
 
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodPatch, "/api/v1/user-groups/group-1", bytes.NewBufferString(`{"name":"Design Leadership","description":"Updated desc","member_ids":["user-1","user-2"]}`))
@@ -667,6 +696,7 @@ func TestWorkflowRunsCanBeCreatedAndListed(t *testing.T) {
 	if len(payload.Runs) != 1 || payload.Runs[0].Workflow.ID != "wf-1" || payload.Runs[0].StartedBy.ID != "user-1" {
 		t.Fatalf("unexpected workflow runs payload: %#v", payload.Runs)
 	}
+	assertPrefixedUUID(t, payload.Runs[0].ID, "run")
 }
 
 func TestWorkflowRunCreateBroadcastsRealtimeEvent(t *testing.T) {
@@ -1496,6 +1526,7 @@ func TestGetActivityReturnsRecentWorkspaceSignals(t *testing.T) {
 		db.DB.Create(&user)
 	}
 	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public"})
+	db.DB.Create(&domain.ChannelMember{ChannelID: "ch-1", UserID: "user-1", Role: "member"})
 	parent := domain.Message{ID: "msg-parent", ChannelID: "ch-1", UserID: "user-1", Content: "Root update", CreatedAt: now.Add(-2 * time.Hour), Metadata: "{}"}
 	reply := domain.Message{ID: "msg-reply", ChannelID: "ch-1", UserID: "user-3", Content: "Replying in thread", ThreadID: "msg-parent", CreatedAt: now.Add(-time.Hour), Metadata: "{}"}
 	mention := domain.Message{ID: "msg-mention", ChannelID: "ch-1", UserID: "user-2", Content: "Looping in Nikko Fu for review", CreatedAt: now.Add(-30 * time.Minute), Metadata: "{}"}
@@ -1503,6 +1534,11 @@ func TestGetActivityReturnsRecentWorkspaceSignals(t *testing.T) {
 	db.DB.Create(&reply)
 	db.DB.Create(&mention)
 	db.DB.Create(&domain.MessageReaction{MessageID: "msg-parent", UserID: "user-2", Emoji: "🔥", CreatedAt: now.Add(-20 * time.Minute)})
+	db.DB.Create(&domain.WorkspaceList{ID: "list-1", WorkspaceID: "ws-1", ChannelID: "ch-1", Title: "Launch Checklist", CreatedBy: "user-2", CreatedAt: now.Add(-18 * time.Minute), UpdatedAt: now.Add(-14 * time.Minute)})
+	db.DB.Create(&domain.WorkspaceListItem{ID: 1, ListID: "list-1", Content: "Review launch copy", Position: 1, IsCompleted: true, AssignedTo: "user-1", CompletedAt: ptrTime(now.Add(-14 * time.Minute)), CreatedBy: "user-2", CreatedAt: now.Add(-18 * time.Minute), UpdatedAt: now.Add(-14 * time.Minute)})
+	db.DB.Create(&domain.ToolDefinition{ID: "tool-1", Name: "Web Search", Key: "web-search", Category: "research", Description: "Search current information", Icon: "search", IsEnabled: true, CreatedAt: now.Add(-time.Hour), UpdatedAt: now.Add(-time.Hour)})
+	db.DB.Create(&domain.ToolRun{ID: "toolrun-1", ToolID: "tool-1", TriggeredBy: "user-1", Status: "success", Input: `{"channel_id":"ch-1"}`, Summary: "Executed Web Search", StartedAt: now.Add(-12 * time.Minute), CompletedAt: ptrTime(now.Add(-11 * time.Minute)), CreatedAt: now.Add(-12 * time.Minute), UpdatedAt: now.Add(-11 * time.Minute)})
+	db.DB.Create(&domain.FileAsset{ID: "file-1", ChannelID: "ch-1", UploaderID: "user-2", Name: "brief.md", StoragePath: "brief.md", ContentType: "text/markdown", SizeBytes: 256, CreatedAt: now.Add(-10 * time.Minute), UpdatedAt: now.Add(-10 * time.Minute)})
 
 	router := gin.New()
 	router.GET("/api/v1/activity", GetActivity)
@@ -1520,8 +1556,28 @@ func TestGetActivityReturnsRecentWorkspaceSignals(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("failed to decode activity payload: %v", err)
 	}
-	if len(payload.Activities) < 3 {
-		t.Fatalf("expected at least 3 activity items, got %d", len(payload.Activities))
+	if len(payload.Activities) < 6 {
+		t.Fatalf("expected at least 6 activity items, got %d", len(payload.Activities))
+	}
+	requiredTypes := map[string]bool{
+		"mention":        false,
+		"thread_reply":   false,
+		"reaction":       false,
+		"list_completed": false,
+		"tool_run":       false,
+		"file_uploaded":  false,
+	}
+	for _, item := range payload.Activities {
+		if itemType, ok := item["type"].(string); ok {
+			if _, exists := requiredTypes[itemType]; exists {
+				requiredTypes[itemType] = true
+			}
+		}
+	}
+	for itemType, found := range requiredTypes {
+		if !found {
+			t.Fatalf("expected activity type %s in payload, got %#v", itemType, payload.Activities)
+		}
 	}
 }
 
@@ -1538,6 +1594,7 @@ func TestGetInboxReturnsAggregatedSignals(t *testing.T) {
 		db.DB.Create(&user)
 	}
 	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public"})
+	db.DB.Create(&domain.ChannelMember{ChannelID: "ch-1", UserID: "user-1", Role: "member"})
 	parent := domain.Message{ID: "msg-parent", ChannelID: "ch-1", UserID: "user-1", Content: "Root update", CreatedAt: now.Add(-2 * time.Hour), Metadata: "{}"}
 	reply := domain.Message{ID: "msg-reply", ChannelID: "ch-1", UserID: "user-3", Content: "Replying in thread", ThreadID: "msg-parent", CreatedAt: now.Add(-time.Hour), Metadata: "{}"}
 	mention := domain.Message{ID: "msg-mention", ChannelID: "ch-1", UserID: "user-2", Content: "Looping in Nikko Fu for review", CreatedAt: now.Add(-30 * time.Minute), Metadata: "{}"}
@@ -1545,6 +1602,11 @@ func TestGetInboxReturnsAggregatedSignals(t *testing.T) {
 	db.DB.Create(&reply)
 	db.DB.Create(&mention)
 	db.DB.Create(&domain.MessageReaction{MessageID: "msg-parent", UserID: "user-2", Emoji: "🔥", CreatedAt: now.Add(-20 * time.Minute)})
+	db.DB.Create(&domain.WorkspaceList{ID: "list-1", WorkspaceID: "ws-1", ChannelID: "ch-1", Title: "Launch Checklist", CreatedBy: "user-2", CreatedAt: now.Add(-18 * time.Minute), UpdatedAt: now.Add(-14 * time.Minute)})
+	db.DB.Create(&domain.WorkspaceListItem{ID: 1, ListID: "list-1", Content: "Review launch copy", Position: 1, IsCompleted: true, AssignedTo: "user-1", CompletedAt: ptrTime(now.Add(-14 * time.Minute)), CreatedBy: "user-2", CreatedAt: now.Add(-18 * time.Minute), UpdatedAt: now.Add(-14 * time.Minute)})
+	db.DB.Create(&domain.ToolDefinition{ID: "tool-1", Name: "Web Search", Key: "web-search", Category: "research", Description: "Search current information", Icon: "search", IsEnabled: true, CreatedAt: now.Add(-time.Hour), UpdatedAt: now.Add(-time.Hour)})
+	db.DB.Create(&domain.ToolRun{ID: "toolrun-1", ToolID: "tool-1", TriggeredBy: "user-1", Status: "success", Input: `{"channel_id":"ch-1"}`, Summary: "Executed Web Search", StartedAt: now.Add(-12 * time.Minute), CompletedAt: ptrTime(now.Add(-11 * time.Minute)), CreatedAt: now.Add(-12 * time.Minute), UpdatedAt: now.Add(-11 * time.Minute)})
+	db.DB.Create(&domain.FileAsset{ID: "file-1", ChannelID: "ch-1", UploaderID: "user-2", Name: "brief.md", StoragePath: "brief.md", ContentType: "text/markdown", SizeBytes: 256, CreatedAt: now.Add(-10 * time.Minute), UpdatedAt: now.Add(-10 * time.Minute)})
 
 	router := gin.New()
 	router.GET("/api/v1/inbox", GetInbox)
@@ -1562,9 +1624,13 @@ func TestGetInboxReturnsAggregatedSignals(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("failed to decode inbox payload: %v", err)
 	}
-	if len(payload.Items) < 3 {
-		t.Fatalf("expected at least 3 inbox items, got %d", len(payload.Items))
+	if len(payload.Items) < 6 {
+		t.Fatalf("expected at least 6 inbox items, got %d", len(payload.Items))
 	}
+}
+
+func ptrTime(v time.Time) *time.Time {
+	return &v
 }
 
 func TestGetMentionsReturnsOnlyDirectMentions(t *testing.T) {
@@ -1917,6 +1983,7 @@ func TestGetPinsReturnsPinnedMessagesWithChannelAndUser(t *testing.T) {
 	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
 	db.DB.Create(&domain.User{ID: "user-2", Name: "AI Assistant", Email: "ai@example.com"})
 	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public"})
+	db.DB.Create(&domain.Channel{ID: "ch-2", WorkspaceID: "ws-1", Name: "game", Type: "public"})
 	db.DB.Create(&domain.Message{
 		ID:        "msg-1",
 		ChannelID: "ch-1",
@@ -1933,6 +2000,15 @@ func TestGetPinsReturnsPinnedMessagesWithChannelAndUser(t *testing.T) {
 		Content:   "Regular update",
 		IsPinned:  false,
 		CreatedAt: now.Add(time.Minute),
+		Metadata:  "{}",
+	})
+	db.DB.Create(&domain.Message{
+		ID:        "msg-3",
+		ChannelID: "ch-2",
+		UserID:    "user-2",
+		Content:   "Pinned elsewhere",
+		IsPinned:  true,
+		CreatedAt: now.Add(2 * time.Minute),
 		Metadata:  "{}",
 	})
 
@@ -1952,12 +2028,30 @@ func TestGetPinsReturnsPinnedMessagesWithChannelAndUser(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("failed to decode pins payload: %v", err)
 	}
-	if len(payload.Items) != 1 {
-		t.Fatalf("expected 1 pinned item, got %d", len(payload.Items))
+	if len(payload.Items) != 2 {
+		t.Fatalf("expected 2 pinned items globally, got %d", len(payload.Items))
 	}
 	message, ok := payload.Items[0]["message"].(map[string]any)
-	if !ok || message["id"] != "msg-1" {
-		t.Fatalf("expected pinned message payload, got %#v", payload.Items[0]["message"])
+	if !ok || message["id"] != "msg-3" {
+		t.Fatalf("expected newest pinned message payload, got %#v", payload.Items[0]["message"])
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/pins?channel_id=ch-2", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on filtered pins list, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode filtered pins payload: %v", err)
+	}
+	if len(payload.Items) != 1 {
+		t.Fatalf("expected 1 filtered pinned item, got %d", len(payload.Items))
+	}
+	message, ok = payload.Items[0]["message"].(map[string]any)
+	if !ok || message["id"] != "msg-3" {
+		t.Fatalf("expected channel-scoped pinned message payload, got %#v", payload.Items[0]["message"])
 	}
 }
 
@@ -2559,6 +2653,7 @@ func TestCreateChannelCreatesChannelAndOwnerMembership(t *testing.T) {
 	if payload.Channel.Name != "launch" || payload.Channel.Type != "private" || payload.Channel.MemberCount != 1 {
 		t.Fatalf("unexpected created channel payload: %#v", payload.Channel)
 	}
+	assertPrefixedUUID(t, payload.Channel.ID, "ch")
 
 	var membership domain.ChannelMember
 	if err := db.DB.First(&membership, "channel_id = ? AND user_id = ?", payload.Channel.ID, "user-1").Error; err != nil {

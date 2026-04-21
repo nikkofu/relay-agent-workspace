@@ -85,6 +85,7 @@ func TestExecuteAIStreamsSSE(t *testing.T) {
 	if len(conversations) != 1 {
 		t.Fatalf("expected 1 ai conversation, got %d", len(conversations))
 	}
+	assertPrefixedUUID(t, conversations[0].ID, "ai-conv")
 
 	var messages []domain.AIConversationMessage
 	if err := db.DB.Where("conversation_id = ?", conversations[0].ID).Order("created_at asc").Find(&messages).Error; err != nil {
@@ -96,6 +97,8 @@ func TestExecuteAIStreamsSSE(t *testing.T) {
 	if messages[0].Role != "user" || messages[1].Role != "assistant" {
 		t.Fatalf("unexpected ai message roles: %#v", messages)
 	}
+	assertPrefixedUUID(t, messages[0].ID, "ai-msg")
+	assertPrefixedUUID(t, messages[1].ID, "ai-msg")
 	if messages[1].Reasoning == "" {
 		t.Fatalf("expected assistant reasoning to be persisted: %#v", messages[1])
 	}

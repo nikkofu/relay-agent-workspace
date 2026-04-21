@@ -118,6 +118,7 @@ Current backend surface already available:
 - `GET /api/v1/starred`
 - `POST /api/v1/channels/:id/star`
 - `GET /api/v1/pins`
+- `GET /api/v1/pins?channel_id=...`
 - `GET /api/v1/drafts`
 - `PUT /api/v1/drafts/:scope`
 - `GET /api/v1/search`
@@ -294,7 +295,7 @@ Baseline support now exists for:
 Likely follow-ups:
 
 - deeper profile editing such as phone, bio, and avatar workflows
-- dedicated home widgets for onboarding, workflows, and unread work
+- dedicated home widgets for onboarding, workflows, unread work, and structured work summaries
 - deeper directory facets such as title and working-hours filters
 - user-group membership roles and permissions
 - profile visibility/privacy controls
@@ -324,6 +325,7 @@ Likely follow-ups:
 - agent/tool routing metadata shared with the AI layer
 - richer workflow telemetry such as token/tool cost and agent handoff spans
 - workflow retention controls for automation history
+- home and activity surfaces that foreground recent workflow and tool execution context
 
 ### 4.8 Structured Work Objects
 
@@ -343,9 +345,9 @@ Baseline support now exists for:
 
 Likely follow-ups:
 
-- list-to-message linkage and activity feed events for item completion
+- list-to-message linkage and deeper structured activity context beyond item completion
 - assignee filters and due-date reminder jobs for list items
-- workspace and channel home widgets backed by structured lists
+- richer workspace and channel home widgets backed by structured lists, tool runs, and files
 - richer template bundles for product, design, engineering, and incident response
 - canvas duplication/fork flows from templates or existing artifacts
 
@@ -361,6 +363,7 @@ Likely follow-ups:
 - mute rules for DMs and user groups
 - schedule-based do-not-disturb windows
 - per-surface badge suppression preferences
+- treat string IDs as opaque identifiers; do not depend on timestamp-derived shapes in UI routing or stores
 
 ## 5. Realtime Target State
 

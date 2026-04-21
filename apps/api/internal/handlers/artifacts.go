@@ -12,6 +12,7 @@ import (
 
 	"github.com/nikkofu/relay-agent-workspace/api/internal/db"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/domain"
+	"github.com/nikkofu/relay-agent-workspace/api/internal/ids"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/llm"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/realtime"
 )
@@ -221,7 +222,7 @@ func CreateArtifact(c *gin.Context) {
 	}
 
 	artifact := domain.Artifact{
-		ID:        "artifact-" + time.Now().UTC().Format("20060102150405.000000"),
+		ID:        ids.NewPrefixedUUID("artifact"),
 		ChannelID: input.ChannelID,
 		Title:     input.Title,
 		Version:   1,
@@ -400,7 +401,7 @@ func GenerateCanvasArtifact(c *gin.Context) {
 
 	now := time.Now().UTC()
 	artifact := domain.Artifact{
-		ID:        "artifact-" + now.Format("20060102150405.000000"),
+		ID:        ids.NewPrefixedUUID("artifact"),
 		ChannelID: input.ChannelID,
 		Title:     defaultString(strings.TrimSpace(input.Title), "AI Canvas"),
 		Version:   1,

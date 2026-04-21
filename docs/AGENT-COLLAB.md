@@ -94,6 +94,10 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 33 Structured Work Objects Integration | Gemini | 2026-04-21 | Integrated list widgets/editors, tool run history panels, and template-driven canvas creation flows. |
 | 🟢 Done | Phase 34 Structured Contract Alignment APIs | Codex | 2026-04-21 | Added UI-friendly aliases and channel-first compatibility for lists, tool runs, and virtual/template artifacts. |
 | 🟢 Done | Phase 34 Structured Contract Alignment Cleanup | Gemini | 2026-04-21 | Removed frontend-side fallbacks and consumed the hardened list/tool/artifact aliases directly. |
+| 🟢 Done | Phase 35 Structured Work Aggregation APIs | Codex | 2026-04-21 | Added home aggregation for recent lists/tool runs/files plus structured activity and inbox signals for list completion, tool execution, and file uploads. |
+| 🟡 Ready | Phase 35 Structured Work Aggregation Integration | Gemini | 2026-04-21 | Consume the new home/activity payloads in Workspace Home and Activity so structured work becomes visible in the primary Slack-like surfaces. |
+| 🟢 Done | Phase 36 ID Normalization And Pin Filtering APIs | Codex | 2026-04-21 | Switched generated string primary keys to prefixed UUIDs and fixed `GET /api/v1/pins?channel_id=...` to return channel-scoped pins. |
+| 🟡 Ready | Phase 36 Home/Channel Verification Pass | Gemini | 2026-04-21 | Verify no frontend logic assumes timestamp-shaped channel IDs and confirm ChannelInfo pins are now correctly scoped per channel. |
 
 ---
 
@@ -101,13 +105,27 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Phase 34 cleanup complete | 100% |
-| **Codex** | `idle` | Waiting for next phase handoff | 100% |
+| **Gemini** | `idle` | Phase 35 integration + Phase 36 verification queued | 0% |
+| **Codex** | `idle` | Phase 36 API handoff complete | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-21 - Phase 36 ID Normalization And Pin Filtering API Completion
+- **Codex**: "Newly generated string primary keys now use a unified `prefix-uuid` shape instead of timestamp concatenation. This covers channels, lists, tool runs, workflow runs, files, artifacts, user groups, and AI conversation records."
+- **Codex**: "`GET /api/v1/pins?channel_id=...` now properly scopes pins to the active channel, fixing ChannelInfo showing unrelated pinned messages."
+- **Codex → Gemini**: "Please run a frontend verification pass on Home/Channel flows and remove any hidden assumptions that a new channel ID looks timestamp-like. Treat channel IDs as opaque strings."
+- **Codex → Gemini**: "Explicit verification target: open at least two channels with pinned messages and confirm the right-side Pins tab only shows pins for the active channel."
+- **Codex → Gemini**: "No new store contract is required; this is a backend correctness + ID-shape normalization pass."
+
+### 2026-04-21 - Phase 35 Structured Work Aggregation API Completion
+- **Codex**: "Phase 35 backend aggregation is complete. `GET /api/v1/home` now exposes `recent_lists`, `recent_tool_runs`, and `recent_files`."
+- **Codex**: "`GET /api/v1/activity` and `GET /api/v1/inbox` now emit structured event types: `list_completed`, `tool_run`, and `file_uploaded`."
+- **Codex → Gemini**: "Next frontend pass should wire the home dashboard to the new structured sections and render the new activity types with dedicated icons/cards instead of the current generic fallback."
+- **Codex → Gemini**: "Required integration targets: `apps/web/components/layout/home-dashboard.tsx`, `apps/web/app/workspace/activity/page.tsx`, and any supporting stores/types needed to surface `recent_lists`, `recent_tool_runs`, and `recent_files`."
+- **Codex → Gemini**: "Desired deliverables: 1. recent structured-work widgets on Home, 2. dedicated activity iconography/titles for list/tool/file events, 3. click-through navigation from those events into channel, list, file, or tool-run context where practical."
 
 ### 2026-04-21 - Phase 34 Structured Contract Alignment Completion
 - **Gemini**: "Phase 34 frontend cleanup is complete. Removed all local fallbacks and stubs for lists, tool runs, and artifacts."

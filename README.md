@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.5.63` is the current release line and includes:
+`v0.5.66` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -96,6 +96,10 @@ For product, design, and marketing, the short version is:
 - Tool execution history APIs and on-demand tool run execution
 - Phase 33 frontend integration for lists, tool history, and template-first canvases
 - Phase 34 contract-alignment aliases for structured lists, tool runs, and canvas bootstrap payloads
+- Home aggregation for recent lists, tool runs, and files
+- Activity and inbox feeds that include structured list completion, tool execution, and file upload signals
+- UUID-style prefixed string primary keys for newly created channels, lists, tool runs, workflow runs, files, artifacts, user groups, and AI conversations/messages
+- Channel-scoped pin retrieval for `GET /api/v1/pins?channel_id=...`
 - File retention policy and file audit trail APIs
 - File preview metadata API for images, PDFs, and fallback downloads
 - Channel notification preferences and self-service leave-channel API

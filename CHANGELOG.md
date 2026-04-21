@@ -2,6 +2,70 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.66] - 2026-04-21
+
+This release normalizes generated string primary keys to UUID-style IDs and fixes channel-scoped pin retrieval.
+
+### Added
+
+- **Unified ID Generator**: New runtime ID generation now uses prefixed UUID-style values for newly created:
+  - channels
+  - user groups
+  - workflow runs
+  - lists
+  - tool runs
+  - files
+  - artifacts
+  - AI conversations
+  - AI conversation messages
+
+### Fixed
+
+- **Channel Pins Filtering**: `GET /api/v1/pins?channel_id=...` now correctly filters by channel instead of returning global pinned messages.
+- **Channel URL Ergonomics**: Newly created channels no longer use timestamp-shaped IDs such as `ch-20260421062955.353728`.
+
+### Changed
+
+- newly created string primary keys now follow a consistent `prefix-uuid` contract instead of timestamp concatenation
+- storage paths for uploaded files continue to work with the new file IDs because filenames are derived from the normalized prefixed UUID
+- collaboration notes now warn frontend consumers not to make assumptions about timestamp-shaped channel IDs
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./internal/handlers -run 'Test(ExecuteAIStreamsSSE|CreateChannelCreatesChannelAndOwnerMembership|GetPinsReturnsPinnedMessagesWithChannelAndUser|WorkspaceListLifecycleEndpoints|ToolExecutionEndpoints|ArtifactLifecycleAndVersionHistory|FileUploadAndListing|CreateUserGroupLifecycleAndDeletion|WorkflowRunsCanBeCreatedAndListed)$'`
+- `cd apps/api && go test ./...`
+- `cd apps/api && go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+
+## [0.5.65] - 2026-04-21
+
+This release implements Phase 35: Structured Work Aggregation, connecting lists, tool runs, and files into the Slack-like home and activity surfaces.
+
+### Added
+
+- **Home Structured Work Aggregation**: `GET /api/v1/home` now includes:
+  - `recent_lists`
+  - `recent_tool_runs`
+  - `recent_files`
+- **Structured Activity Signals**: `GET /api/v1/activity` and `GET /api/v1/inbox` now include:
+  - `list_completed`
+  - `tool_run`
+  - `file_uploaded`
+- **Channel-Aware Home Hydration**: Home-level tool run and file summaries now respect current-user channel membership in addition to direct ownership.
+
+### Changed
+
+- checklist completion now surfaces in the shared activity model used by Activity and Inbox
+- tool execution completions now appear as first-class workspace events instead of only isolated detail records
+- channel file uploads now flow into notification-style feeds for members of that channel
+- collaboration docs now hand Gemini the next frontend integration pass for home/activity structured work widgets
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./...`
+- `cd apps/api && go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+
 ## [0.5.64] - 2026-04-21
 
 This release implements Phase 34: Structured Contract Alignment, cleaning up frontend-side fallbacks and hardening the integration with hardened backend aliases for lists, tools, and virtual artifacts.

@@ -13,6 +13,7 @@ import (
 
 	"github.com/nikkofu/relay-agent-workspace/api/internal/db"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/domain"
+	"github.com/nikkofu/relay-agent-workspace/api/internal/ids"
 )
 
 type fileAssetResponse struct {
@@ -63,7 +64,7 @@ func UploadFile(c *gin.Context) {
 	}
 	defer src.Close()
 
-	fileID := "file-" + time.Now().UTC().Format("20060102150405.000000")
+	fileID := ids.NewPrefixedUUID("file")
 	ext := filepath.Ext(fileHeader.Filename)
 	filename := fileID + ext
 	storageDir := filepath.Join("uploads")

@@ -11,6 +11,7 @@ import (
 
 	"github.com/nikkofu/relay-agent-workspace/api/internal/db"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/domain"
+	"github.com/nikkofu/relay-agent-workspace/api/internal/ids"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/realtime"
 )
 
@@ -443,6 +444,9 @@ func GetHome(c *gin.Context) {
 			"drafts":           drafts,
 			"tools":            tools,
 			"workflows":        workflows,
+			"recent_lists":     listRecentWorkspaceLists(currentUser.ID, 5),
+			"recent_tool_runs": listRecentToolRunsForHome(currentUser.ID, 5),
+			"recent_files":     listRecentFilesForHome(currentUser.ID, 5),
 		},
 	})
 }
@@ -503,7 +507,7 @@ func CreateUserGroup(c *gin.Context) {
 
 	now := time.Now().UTC()
 	group := domain.UserGroup{
-		ID:          "group-" + now.Format("20060102150405.000000"),
+		ID:          ids.NewPrefixedUUID("group"),
 		WorkspaceID: input.WorkspaceID,
 		Name:        input.Name,
 		Handle:      input.Handle,
@@ -658,7 +662,7 @@ func CreateWorkflowRun(c *gin.Context) {
 	}
 	now := time.Now().UTC()
 	run := domain.WorkflowRun{
-		ID:          "run-" + now.Format("20060102150405.000000"),
+		ID:          ids.NewPrefixedUUID("run"),
 		WorkflowID:  workflow.ID,
 		StartedBy:   currentUser.ID,
 		Status:      defaultString(strings.TrimSpace(input.Status), "queued"),
@@ -826,7 +830,7 @@ func RetryWorkflowRun(c *gin.Context) {
 
 	now := time.Now().UTC()
 	run := domain.WorkflowRun{
-		ID:           "run-" + now.Format("20060102150405.000000"),
+		ID:           ids.NewPrefixedUUID("run"),
 		WorkflowID:   previous.WorkflowID,
 		StartedBy:    currentUser.ID,
 		Status:       "queued",
@@ -1116,6 +1120,90 @@ func listEnabledTools() []domain.ToolDefinition {
 	var tools []domain.ToolDefinition
 	_ = db.DB.Where("is_enabled = ?", true).Order("category asc, name asc").Find(&tools).Error
 	return tools
+}
+
+func listRecentWorkspaceLists(userID string, limit int) []workspaceListResponse {
+	query := db.DB.Model(&domain.WorkspaceList{}).Order("updated_at desc")
+	query = query.Where(
+		"created_by = ? OR id IN (?)",
+		userID,
+		db.DB.Model(&domain.WorkspaceListItem{}).Select("list_id").Where("assigned_to = ?", userID),
+	)
+
+	var lists []domain.WorkspaceList
+	_ = query.Limit(limit).Find(&lists).Error
+
+	items := make([]workspaceListResponse, 0, len(lists))
+	for _, list := range lists {
+		items = append(items, hydrateWorkspaceList(list, false))
+	}
+	return items
+}
+
+func listRecentToolRunsForHome(userID string, limit int) []toolRunResponse {
+	channelIDs := loadCurrentUserChannelIDs(userID)
+	query := db.DB.Model(&domain.ToolRun{}).Order("started_at desc")
+	if len(channelIDs) == 0 {
+		query = query.Where("triggered_by = ?", userID)
+	}
+
+	var runs []domain.ToolRun
+	_ = query.Find(&runs).Error
+
+	items := make([]toolRunResponse, 0, len(runs))
+	for _, run := range runs {
+		response := hydrateToolRun(run, false)
+		if run.TriggeredBy != userID && (response.ChannelID == "" || !containsString(channelIDs, response.ChannelID)) {
+			continue
+		}
+		items = append(items, response)
+		if len(items) >= limit {
+			break
+		}
+	}
+	return items
+}
+
+func listRecentFilesForHome(userID string, limit int) []fileAssetResponse {
+	channelIDs := loadCurrentUserChannelIDs(userID)
+	query := db.DB.Model(&domain.FileAsset{}).Where("uploader_id = ?", userID)
+	if len(channelIDs) > 0 {
+		query = query.Or("channel_id IN ?", channelIDs)
+	}
+
+	var files []domain.FileAsset
+	_ = query.Order("created_at desc").Limit(limit).Find(&files).Error
+
+	items := make([]fileAssetResponse, 0, len(files))
+	for _, file := range files {
+		items = append(items, hydrateFileAssetResponse(file))
+	}
+	return items
+}
+
+func loadCurrentUserChannelIDs(userID string) []string {
+	var memberships []domain.ChannelMember
+	_ = db.DB.Where("user_id = ?", userID).Find(&memberships).Error
+
+	ids := make([]string, 0, len(memberships))
+	seen := make(map[string]struct{}, len(memberships))
+	for _, membership := range memberships {
+		if _, ok := seen[membership.ChannelID]; ok {
+			continue
+		}
+		seen[membership.ChannelID] = struct{}{}
+		ids = append(ids, membership.ChannelID)
+	}
+	return ids
+}
+
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }
 
 func loadNotificationPreferences(userID string) (domain.NotificationPreference, []domain.NotificationMuteRule) {

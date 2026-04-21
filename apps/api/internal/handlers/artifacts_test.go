@@ -68,6 +68,7 @@ func TestArtifactCRUDAndAI_generate(t *testing.T) {
 	if createPayload.Artifact.Source != "manual" || createPayload.Artifact.Type != "document" {
 		t.Fatalf("unexpected manual artifact payload: %#v", createPayload.Artifact)
 	}
+	assertPrefixedUUID(t, createPayload.Artifact.ID, "artifact")
 	if createPayload.Artifact.Version != 1 {
 		t.Fatalf("expected created artifact version 1, got %d", createPayload.Artifact.Version)
 	}
@@ -452,6 +453,7 @@ func TestFileUploadListAndDetail(t *testing.T) {
 	if uploadPayload.File.Uploader == nil || uploadPayload.File.Uploader.ID != "user-1" {
 		t.Fatalf("expected uploader hydration, got %#v", uploadPayload.File.Uploader)
 	}
+	assertPrefixedUUID(t, uploadPayload.File.ID, "file")
 	if uploadPayload.File.URL == "" {
 		t.Fatalf("expected file url in upload payload")
 	}

@@ -16,6 +16,7 @@ import (
 	"github.com/nikkofu/relay-agent-workspace/api/internal/agentcollab"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/db"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/domain"
+	"github.com/nikkofu/relay-agent-workspace/api/internal/ids"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/realtime"
 )
 
@@ -466,6 +467,10 @@ func buildActivityFeed(currentUser domain.User) []activityItem {
 		}
 	}
 
+	activities = append(activities, buildStructuredListActivities(currentUser)...)
+	activities = append(activities, buildStructuredToolRunActivities(currentUser)...)
+	activities = append(activities, buildStructuredFileActivities(currentUser)...)
+
 	sort.Slice(activities, func(i, j int) bool {
 		return activities[i].OccurredAt.After(activities[j].OccurredAt)
 	})
@@ -496,6 +501,140 @@ func buildActivityFeed(currentUser domain.User) []activityItem {
 	}
 
 	return activities
+}
+
+func buildStructuredListActivities(currentUser domain.User) []activityItem {
+	var rows []domain.WorkspaceListItem
+	_ = db.DB.Where("is_completed = ? AND assigned_to = ?", true, currentUser.ID).Order("coalesce(completed_at, updated_at) desc, id desc").Find(&rows).Error
+
+	items := make([]activityItem, 0, len(rows))
+	for _, row := range rows {
+		var list domain.WorkspaceList
+		if err := db.DB.First(&list, "id = ?", row.ListID).Error; err != nil {
+			continue
+		}
+		var actor domain.User
+		if err := db.DB.First(&actor, "id = ?", row.CreatedBy).Error; err != nil {
+			continue
+		}
+		var channel domain.Channel
+		_ = db.DB.First(&channel, "id = ?", list.ChannelID).Error
+
+		occurredAt := row.UpdatedAt
+		if row.CompletedAt != nil {
+			occurredAt = *row.CompletedAt
+		}
+
+		items = append(items, activityItem{
+			ID:      "activity-list-completed-" + strconv.FormatUint(uint64(row.ID), 10),
+			Type:    "list_completed",
+			User:    enrichUser(actor),
+			Channel: channel,
+			Message: gin.H{
+				"list_id":      list.ID,
+				"list_title":   list.Title,
+				"item_id":      row.ID,
+				"content":      row.Content,
+				"is_completed": row.IsCompleted,
+			},
+			Target:     list.Title,
+			Summary:    actor.Name + " completed a checklist item in " + list.Title,
+			OccurredAt: occurredAt,
+		})
+	}
+	return items
+}
+
+func buildStructuredToolRunActivities(currentUser domain.User) []activityItem {
+	channelIDs := loadCurrentUserChannelIDs(currentUser.ID)
+
+	var runs []domain.ToolRun
+	_ = db.DB.Order("started_at desc").Find(&runs).Error
+
+	items := make([]activityItem, 0, len(runs))
+	for _, run := range runs {
+		response := hydrateToolRun(run, false)
+		if run.TriggeredBy != currentUser.ID && (response.ChannelID == "" || !containsString(channelIDs, response.ChannelID)) {
+			continue
+		}
+
+		var actor domain.User
+		if err := db.DB.First(&actor, "id = ?", run.TriggeredBy).Error; err != nil {
+			continue
+		}
+
+		var channel domain.Channel
+		if response.ChannelID != "" {
+			_ = db.DB.First(&channel, "id = ?", response.ChannelID).Error
+		}
+
+		occurredAt := run.StartedAt
+		if run.CompletedAt != nil {
+			occurredAt = *run.CompletedAt
+		}
+
+		summary := actor.Name + " ran " + response.ToolName
+		if response.Status != "" {
+			summary = actor.Name + " completed " + response.ToolName
+		}
+
+		items = append(items, activityItem{
+			ID:      "activity-tool-run-" + run.ID,
+			Type:    "tool_run",
+			User:    enrichUser(actor),
+			Channel: channel,
+			Message: gin.H{
+				"id":          run.ID,
+				"tool_id":     run.ToolID,
+				"tool_name":   response.ToolName,
+				"channel_id":  response.ChannelID,
+				"status":      response.Status,
+				"duration_ms": response.DurationMS,
+			},
+			Target:     response.ToolName,
+			Summary:    summary,
+			OccurredAt: occurredAt,
+		})
+	}
+	return items
+}
+
+func buildStructuredFileActivities(currentUser domain.User) []activityItem {
+	channelIDs := loadCurrentUserChannelIDs(currentUser.ID)
+	if len(channelIDs) == 0 {
+		return nil
+	}
+
+	var files []domain.FileAsset
+	_ = db.DB.Where("channel_id IN ? AND uploader_id <> ?", channelIDs, currentUser.ID).Order("created_at desc").Find(&files).Error
+
+	items := make([]activityItem, 0, len(files))
+	for _, file := range files {
+		var actor domain.User
+		if err := db.DB.First(&actor, "id = ?", file.UploaderID).Error; err != nil {
+			continue
+		}
+		var channel domain.Channel
+		_ = db.DB.First(&channel, "id = ?", file.ChannelID).Error
+
+		items = append(items, activityItem{
+			ID:      "activity-file-uploaded-" + file.ID,
+			Type:    "file_uploaded",
+			User:    enrichUser(actor),
+			Channel: channel,
+			Message: gin.H{
+				"id":         file.ID,
+				"channel_id": file.ChannelID,
+				"name":       file.Name,
+				"type":       file.ContentType,
+				"size":       file.SizeBytes,
+			},
+			Target:     file.Name,
+			Summary:    actor.Name + " uploaded a file in #" + channel.Name,
+			OccurredAt: file.CreatedAt,
+		})
+	}
+	return items
 }
 
 func GetMe(c *gin.Context) {
@@ -677,7 +816,7 @@ func CreateChannel(c *gin.Context) {
 	}
 
 	channel := domain.Channel{
-		ID:          "ch-" + time.Now().UTC().Format("20060102150405.000000"),
+		ID:          ids.NewPrefixedUUID("ch"),
 		WorkspaceID: input.WorkspaceID,
 		Name:        input.Name,
 		Type:        channelType,
@@ -1540,8 +1679,13 @@ func GetPins(c *gin.Context) {
 		User    domain.User    `json:"user"`
 	}
 
+	query := db.DB.Where("is_pinned = ?", true)
+	if channelID := strings.TrimSpace(c.Query("channel_id")); channelID != "" {
+		query = query.Where("channel_id = ?", channelID)
+	}
+
 	var messages []domain.Message
-	if err := db.DB.Where("is_pinned = ?", true).Order("created_at desc").Find(&messages).Error; err != nil {
+	if err := query.Order("created_at desc").Find(&messages).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load pins"})
 		return
 	}
