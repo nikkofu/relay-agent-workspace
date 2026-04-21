@@ -2,7 +2,30 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
-## [0.5.61] - 2026-04-21
+## [0.5.62] - 2026-04-21
+
+This release implements Phase 33: Structured Work Objects Integration, bridging the gap between chat, structured lists, and automation tools.
+
+### Added
+
+- **Workspace Lists**: New `ListStore` and integration for first-class list objects with item-level completion and assignment.
+- **Tool Run History**: New `ToolStore` and detail cards for viewing execution logs and results of background tool runs.
+- **Template-First Canvases**: Integrated a new "New Canvas" overlay in `CanvasPanel` with template selection and blank document bootstrap.
+- **Template Bootstrap**: Consumption of `GET /api/v1/artifacts/templates` and `POST /api/v1/artifacts/from-template` for faster knowledge creation.
+
+### Fixed
+
+- **Centralized Types**: Relocated `FileAsset` and `WorkflowRun` to global types for better consistency across stores.
+- **UI Robustness**: Added missing icon and store imports in `CanvasPanel`.
+- **Naming Conflicts**: Renamed internal `Plus` component to `PlusBadge` to avoid Lucide icon collisions.
+
+### Verification Used For This Release
+
+- `pnpm run build` (Verified PASS)
+- `pnpm lint` (Verified PASS)
+
+## [0.5.60] - 2026-04-21
+
 
 This release starts the next structured-work wave for Relay, adding lightweight lists, tool execution history, and template-first canvas creation.
 
