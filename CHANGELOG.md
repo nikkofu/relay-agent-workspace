@@ -2,6 +2,19 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.71] - 2026-04-21
+
+This release fixes a critical runtime error and improves navigation reliability.
+
+### Fixed
+
+- **Home Dashboard Crash**: Fixed a `ReferenceError: Clock is not defined` in `HomeDashboard` by restoring the missing Lucide icon import.
+- **Navigation Sync**: Enhanced the `WorkspacePage` to automatically clear the active channel state when the `c` URL parameter is missing. This ensures the Home Dashboard correctly renders when navigating back from a specific channel.
+
+### Verification Used For This Release
+
+- `pnpm lint` (Verified PASS)
+
 ## [0.5.70] - 2026-04-21
 
 This release refines navigation persistence and AI context precision.

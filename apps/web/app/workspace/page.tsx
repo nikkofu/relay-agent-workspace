@@ -13,7 +13,7 @@ import { FileCode, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 function WorkspaceContent() {
-  const { currentChannel, setCurrentChannelById, channels } = useChannelStore()
+  const { currentChannel, setCurrentChannelById, setCurrentChannel, channels } = useChannelStore()
   const { messages } = useMessageStore()
   const { artifacts, fetchArtifacts } = useArtifactStore()
   const { openCanvas } = useUIStore()
@@ -21,10 +21,15 @@ function WorkspaceContent() {
   const channelIdFromUrl = searchParams.get("c")
 
   useEffect(() => {
-    if (channelIdFromUrl && channels.length > 0) {
-      setCurrentChannelById(channelIdFromUrl)
+    if (channelIdFromUrl) {
+      if (channels.length > 0) {
+        setCurrentChannelById(channelIdFromUrl)
+      }
+    } else {
+      // If no channel in URL, we should be on the home dashboard
+      setCurrentChannel(null)
     }
-  }, [channelIdFromUrl, channels, setCurrentChannelById])
+  }, [channelIdFromUrl, channels, setCurrentChannelById, setCurrentChannel])
 
   useEffect(() => {
     if (currentChannel) {

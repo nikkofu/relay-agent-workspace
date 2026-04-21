@@ -4,9 +4,11 @@ import { useEffect, useState } from "react"
 import { useDirectoryStore } from "@/stores/directory-store"
 import { 
   Layout, Users, Zap, Briefcase, ChevronRight, FileText, MessageSquare, 
-  Plus, UserPlus, Smile, ArrowRight, Sparkles, Hash
+  Plus, UserPlus, Smile, ArrowRight, Sparkles, Hash, Clock
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
+import { formatDistanceToNow } from "date-fns"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
