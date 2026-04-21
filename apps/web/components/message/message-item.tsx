@@ -9,10 +9,17 @@ import { EmojiReaction } from "./emoji-reaction"
 import { useUIStore } from "@/stores/ui-store"
 import { useUserStore } from "@/stores/user-store"
 import { useMessageStore } from "@/stores/message-store"
+import { useArtifactStore } from "@/stores/artifact-store"
 import { useState, useEffect } from "react"
 import { toast } from "sonner"
-import { Pin, Download, ExternalLink, FileCode, FileText } from "lucide-react"
+import { Pin, Download, ExternalLink, FileCode, FileText, MoreVertical, Copy } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import Image from "next/image"
 
 interface MessageItemProps {
@@ -26,6 +33,7 @@ export function MessageItem({ message, sender, isCompact, showActions = true }: 
   const { openThread, openCanvas } = useUIStore()
   const { currentUser } = useUserStore()
   const { addReaction, deleteMessage, pinMessage, saveForLater, markAsUnread } = useMessageStore()
+  const { duplicateArtifact } = useArtifactStore()
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -104,9 +112,24 @@ export function MessageItem({ message, sender, isCompact, showActions = true }: 
                 </div>
                 <div className="flex items-center gap-1 opacity-0 group-hover/attachment:opacity-100 transition-opacity">
                   {attachment.type === 'artifact' ? (
-                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openCanvas(attachment.id)}>
-                      <ExternalLink className="w-3 h-3" />
-                    </Button>
+                    <>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openCanvas(attachment.id)}>
+                        <ExternalLink className="w-3 h-3" />
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-6 w-6">
+                            <MoreVertical className="w-3 h-3" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => duplicateArtifact(attachment.id)}>
+                            <Copy className="w-3.5 h-3.5 mr-2" />
+                            Duplicate
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </>
                   ) : (
                     <Button variant="ghost" size="icon" className="h-6 w-6" asChild>
                       <a href={attachment.url} target="_blank" rel="noopener noreferrer" download={attachment.name}>

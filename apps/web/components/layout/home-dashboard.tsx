@@ -14,6 +14,14 @@ import { useWorkspaceStore } from "@/stores/workspace-store"
 import { useUserStore } from "@/stores/user-store"
 import { useChannelStore } from "@/stores/channel-store"
 import { useUIStore } from "@/stores/ui-store"
+import { useArtifactStore } from "@/stores/artifact-store"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Copy, ExternalLink, MoreVertical } from "lucide-react"
 
 export function HomeDashboard() {
   const { userGroups, workflows, tools, fetchUserGroups, fetchWorkflows, fetchTools } = useDirectoryStore()
@@ -21,6 +29,7 @@ export function HomeDashboard() {
   const { currentUser } = useUserStore()
   const { setCurrentChannelById } = useChannelStore()
   const { openCanvas } = useUIStore()
+  const { duplicateArtifact } = useArtifactStore()
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -166,19 +175,40 @@ export function HomeDashboard() {
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {(homeData?.recent_artifacts || []).slice(0, 4).map((art: any) => (
-                      <button
-                        key={art.id}
-                        onClick={() => openCanvas(art.id)}
-                        className="p-5 bg-blue-500/5 hover:bg-blue-500/10 border border-blue-500/10 hover:border-blue-500/30 rounded-2xl transition-all text-left group flex flex-col justify-between h-36"
-                      >
-                        <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600 mb-4 group-hover:bg-blue-600 group-hover:text-white transition-all">
-                          <FileText className="w-5 h-5" />
+                      <div key={art.id} className="relative group">
+                        <button
+                          onClick={() => openCanvas(art.id)}
+                          className="w-full p-5 bg-blue-500/5 hover:bg-blue-500/10 border border-blue-500/10 hover:border-blue-500/30 rounded-2xl transition-all text-left flex flex-col justify-between h-36"
+                        >
+                          <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600 mb-4 group-hover:bg-blue-600 group-hover:text-white transition-all">
+                            <FileText className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold truncate group-hover:text-blue-600 transition-colors">{art.title}</p>
+                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-tighter mt-1">v{art.version} • {art.type}</p>
+                          </div>
+                        </button>
+                        
+                        <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-blue-500/20 text-blue-600">
+                                <MoreVertical className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => openCanvas(art.id)}>
+                                <ExternalLink className="w-3.5 h-3.5 mr-2" />
+                                Open Canvas
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => duplicateArtifact(art.id)}>
+                                <Copy className="w-3.5 h-3.5 mr-2" />
+                                Duplicate
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
-                        <div>
-                          <p className="text-sm font-bold truncate group-hover:text-blue-600 transition-colors">{art.title}</p>
-                          <p className="text-[10px] text-muted-foreground uppercase font-black tracking-tighter mt-1">v{art.version} • {art.type}</p>
-                        </div>
-                      </button>
+                      </div>
                     ))}
                   </div>
                 </div>

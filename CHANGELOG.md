@@ -2,6 +2,25 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.75] - 2026-04-21
+
+This release implements Phase 38: Artifact Duplicate/Fork Integration, enabling users to copy knowledge objects across the workspace and fork specific history versions.
+
+### Added
+
+- **Artifact Duplication**: Integrated `POST /api/v1/artifacts/:id/duplicate` across multiple surfaces. Users can now copy canvases from the toolbar, header, and home dashboard.
+- **Canvas Forking**: Added a "Fork as new" action when viewing specific versions in the History panel, allowing users to bootstrap new canvases from any historical state.
+- **Contextual Actions**: Added DropdownMenus to artifact cards in the channel header and message attachments for quick duplication and discovery.
+
+### Fixed
+
+- **UI Robustness**: Improved button group layout in the Canvas panel header to accommodate multi-action version previews.
+
+### Verification Used For This Release
+
+- `pnpm run build` (Verified PASS)
+- `pnpm lint` (Verified PASS)
+
 ## [0.5.74] - 2026-04-21
 
 This release implements Phase 38: Artifact Duplicate/Fork APIs, closing a canvas workflow gap for copying an existing artifact into the same or another channel.

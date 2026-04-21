@@ -36,7 +36,8 @@ export function CanvasPanel() {
     isReferencesLoading,
     templates,
     fetchTemplates,
-    isTemplatesLoading
+    isTemplatesLoading,
+    duplicateArtifact
   } = useArtifactStore()
   const { currentChannel, setCurrentChannelById } = useChannelStore()
   const { currentUser } = useUserStore()
@@ -169,6 +170,27 @@ export function CanvasPanel() {
     }
   }
 
+  const handleFork = async () => {
+    if (selectedVersion && activeArtifact) {
+      const created = await createArtifact({
+        title: `${selectedVersion.title} (Fork)`,
+        content: selectedVersion.content,
+        type: activeArtifact.type,
+        channelId: currentChannel?.id || activeArtifact.channelId,
+      })
+      if (created) {
+        setSelectedVersion(null)
+        setShowHistory(false)
+      }
+    }
+  }
+
+  const handleDuplicate = async () => {
+    if (activeArtifact) {
+      await duplicateArtifact(activeArtifact.id)
+    }
+  }
+
   if (!isCanvasOpen || !activeArtifact) return null
 
   const displayArtifact = selectedVersion || activeArtifact
@@ -270,10 +292,16 @@ export function CanvasPanel() {
               Exit Compare
             </Button>
           ) : selectedVersion ? (
-            <Button size="sm" variant="default" className="h-8 bg-purple-600 hover:bg-purple-700 text-white font-bold" onClick={handleRestore}>
-              <RotateCcw className="w-3.5 h-3.5 mr-2" />
-              Restore this version
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" className="h-8 border-purple-200 dark:border-purple-800 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 font-bold" onClick={handleFork} disabled={isLoading}>
+                <PlusBadge className="w-3.5 h-3.5 mr-2" />
+                Fork as new
+              </Button>
+              <Button size="sm" variant="default" className="h-8 bg-purple-600 hover:bg-purple-700 text-white font-bold" onClick={handleRestore} disabled={isLoading}>
+                <RotateCcw className="w-3.5 h-3.5 mr-2" />
+                Restore this version
+              </Button>
+            </div>
           ) : isEditing ? (
             <Button size="sm" variant="default" className="h-8 bg-blue-600 hover:bg-blue-700 text-white" onClick={handleSave} disabled={isLoading}>
               <Save className="w-3.5 h-3.5 mr-2" />
@@ -321,9 +349,15 @@ export function CanvasPanel() {
               <Wand2 className="w-3 h-3 mr-1.5" />
               AI Fix
             </Button>
-            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs font-medium">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-7 px-2 text-xs font-medium"
+              onClick={handleDuplicate}
+              disabled={isLoading}
+            >
               <Copy className="w-3 h-3 mr-1.5" />
-              Copy
+              Duplicate
             </Button>
           </div>
         )}

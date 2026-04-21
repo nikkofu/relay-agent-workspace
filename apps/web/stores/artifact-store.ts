@@ -69,6 +69,7 @@ interface ArtifactState {
   createArtifactFromTemplate: (templateId: string, channelId: string, userId: string) => Promise<Artifact | null>
   updateArtifact: (id: string, updates: Partial<Artifact>) => Promise<void>
   generateAIArtifact: (prompt: string, channelId: string) => Promise<void>
+  duplicateArtifact: (id: string, channelId?: string, title?: string) => Promise<Artifact | null>
   setActiveArtifact: (artifact: Artifact | null) => void
   updateArtifactLocally: (artifact: Artifact) => void
   clearDiff: () => void
@@ -295,6 +296,37 @@ export const useArtifactStore = create<ArtifactState>((set, get) => ({
       console.error("Failed to generate AI artifact:", error)
       set({ isLoading: false })
       toast.error("Failed to generate AI artifact")
+    }
+  },
+
+  duplicateArtifact: async (id, channelId, title) => {
+    try {
+      set({ isLoading: true })
+      const response = await fetch(`${API_BASE_URL}/artifacts/${id}/duplicate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channel_id: channelId, title })
+      })
+      if (!response.ok) throw new Error("Duplicate failed")
+      
+      const data = await response.json()
+      const duplicated = mapArtifact(data.artifact)
+      if (duplicated) {
+        set((state) => ({
+          activeArtifact: duplicated,
+          artifacts: [duplicated, ...state.artifacts],
+          isLoading: false
+        }))
+        toast.success("Artifact duplicated")
+        return duplicated
+      }
+      set({ isLoading: false })
+      return null
+    } catch (error) {
+      console.error("Failed to duplicate artifact:", error)
+      set({ isLoading: false })
+      toast.error("Failed to duplicate artifact")
+      return null
     }
   },
 
