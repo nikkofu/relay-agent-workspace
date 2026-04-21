@@ -1,6 +1,6 @@
 "use client"
 
-import { AtSign, ThumbsUp, MessageSquare, UserPlus, Mail, CheckCheck } from "lucide-react"
+import { AtSign, ThumbsUp, MessageSquare, UserPlus, Mail, CheckCheck, ListTodo, Terminal, Paperclip, ArrowRight } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useActivityStore, ActivityItem } from "@/stores/activity-store"
@@ -18,7 +18,10 @@ const TYPE_ICONS = {
   reply: MessageSquare,
   thread_reply: MessageSquare,
   channel_join: UserPlus,
-  dm_message: Mail
+  dm_message: Mail,
+  list_completed: ListTodo,
+  tool_run: Terminal,
+  file_uploaded: Paperclip
 }
 
 export default function ActivityPage() {
@@ -40,6 +43,16 @@ export default function ActivityPage() {
   const handleItemClick = (item: ActivityItem) => {
     if (!item.isRead) {
       markAsRead([item.id])
+    }
+
+    if (item.type === 'tool_run') {
+      router.push('/workspace/workflows')
+      return
+    }
+
+    if (item.type === 'file_uploaded') {
+      router.push('/workspace/files')
+      return
     }
 
     if (item.channel?.id) {
@@ -79,30 +92,58 @@ export default function ActivityPage() {
       <div className="flex flex-col gap-1 p-4">
         {items.map((item) => {
           const Icon = TYPE_ICONS[item.type as keyof typeof TYPE_ICONS] || MessageSquare
+          const isSpecial = ['list_completed', 'tool_run', 'file_uploaded'].includes(item.type)
+          
           return (
             <div 
               key={item.id} 
               onClick={() => handleItemClick(item)}
               className={cn(
-                "flex items-start gap-4 p-3 rounded-lg cursor-pointer group transition-colors border border-transparent relative",
+                "flex items-start gap-4 p-3 rounded-xl cursor-pointer group transition-all border relative",
                 item.isRead 
-                  ? "hover:bg-muted/30" 
+                  ? "hover:bg-muted/30 border-transparent" 
                   : "bg-blue-50/50 dark:bg-blue-900/10 hover:bg-blue-50 dark:hover:bg-blue-900/20 border-blue-100/50 dark:border-blue-900/30"
               )}
             >
               {!item.isRead && (
-                <div className="absolute left-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-blue-500" />
+                <div className="absolute left-1 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-blue-500 rounded-r-full" />
               )}
-              <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
-                <Icon className={cn("w-4 h-4", !item.isRead ? "text-blue-500" : "text-foreground")} />
+              <div className={cn(
+                "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
+                item.type === 'tool_run' ? "bg-amber-500/10 text-amber-600" :
+                item.type === 'list_completed' ? "bg-purple-500/10 text-purple-600" :
+                item.type === 'file_uploaded' ? "bg-blue-500/10 text-blue-600" : "bg-muted text-foreground"
+              )}>
+                <Icon className="w-5 h-5" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className={cn("text-sm leading-tight", !item.isRead ? "text-foreground font-semibold" : "text-muted-foreground")}>
-                  <span className="font-bold text-foreground">{item.user?.name || "Someone"}</span> {item.summary} <span className="font-bold text-blue-500">{item.target}</span>
-                </p>
-                <span className="text-[10px] text-muted-foreground mt-1 block uppercase tracking-wider font-medium">
-                  {formatDistanceToNow(new Date(item.occurredAt), { addSuffix: true })}
-                </span>
+                <div className="flex items-center justify-between gap-2">
+                  <p className={cn("text-sm leading-tight", !item.isRead ? "text-foreground font-bold" : "text-muted-foreground font-medium")}>
+                    <span className="text-foreground">{item.user?.name || "Someone"}</span> {item.summary} 
+                    {item.target && <span className="text-blue-500 ml-1 font-bold">#{item.target}</span>}
+                  </p>
+                  {item.type === 'tool_run' && item.message?.status && (
+                    <span className={cn(
+                      "text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full border",
+                      item.message.status === 'success' ? "bg-green-500/10 text-green-600 border-green-500/20" : "bg-amber-500/10 text-amber-600 border-amber-500/20"
+                    )}>
+                      {item.message.status}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <span className="text-[9px] text-muted-foreground uppercase tracking-widest font-black opacity-60">
+                    {formatDistanceToNow(new Date(item.occurredAt), { addSuffix: true })}
+                  </span>
+                  {isSpecial && (
+                    <>
+                      <span className="text-muted-foreground opacity-30 text-[9px]">•</span>
+                      <span className="text-[9px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-tighter flex items-center gap-1 group-hover:underline">
+                        View Context <ArrowRight className="w-2.5 h-2.5" />
+                      </span>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           )

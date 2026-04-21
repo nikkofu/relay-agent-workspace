@@ -3,7 +3,7 @@ import { API_BASE_URL } from "@/lib/constants"
 
 export interface ActivityItem {
   id: string
-  type: 'mention' | 'reaction' | 'reply' | 'channel_join' | 'dm_message' | 'thread_reply'
+  type: 'mention' | 'reaction' | 'reply' | 'channel_join' | 'dm_message' | 'thread_reply' | 'list_completed' | 'tool_run' | 'file_uploaded'
   user: any
   channel?: any
   message?: any

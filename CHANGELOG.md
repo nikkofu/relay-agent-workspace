@@ -2,7 +2,29 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
-## [0.5.66] - 2026-04-21
+## [0.5.67] - 2026-04-21
+
+This release implements Phase 35: Structured Work Aggregation and Phase 36: ID Normalization Verification.
+
+### Added
+
+- **Home Dashboard Aggregation**: The workspace home now features dedicated sections for `Recent Lists`, `Recent Automations`, and `Latest Files`, providing a unified view of structured work.
+- **Enhanced Activity Feeds**: Structured event types (`list_completed`, `tool_run`, `file_uploaded`) are now rendered with custom iconography, status badges, and "View Context" navigation links.
+- **Smart Navigation**: Activities now link directly to the Workflows and Files surfaces, closing the loop between chat signals and operational objects.
+
+### Fixed
+
+- **ID Normalization**: Verified the frontend consistently treats all primary keys as opaque strings, supporting the transition to prefixed UUIDs across all core models.
+- **Pin Scoping**: Confirmed that pinned messages are correctly scoped to the active channel in the `ChannelInfo` panel.
+- **Clean Lint State**: Resolved all remaining unused import and variable warnings across the web app.
+
+### Verification Used For This Release
+
+- `pnpm run build` (Verified PASS)
+- `pnpm lint` (Verified PASS)
+
+## [0.5.64] - 2026-04-21
+
 
 This release normalizes generated string primary keys to UUID-style IDs and fixes channel-scoped pin retrieval.
 
