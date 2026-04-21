@@ -32,7 +32,7 @@ func TestWorkspaceListLifecycleEndpoints(t *testing.T) {
 	router.DELETE("/api/v1/lists/:id/items/:itemId", DeleteWorkspaceListItem)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/lists", bytes.NewBufferString(`{"workspace_id":"ws-1","channel_id":"ch-1","title":"Launch Checklist","description":"Critical preflight items"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/lists", bytes.NewBufferString(`{"channel_id":"ch-1","title":"Launch Checklist","description":"Critical preflight items","user_id":"user-1"}`))
 	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusCreated {
@@ -45,12 +45,14 @@ func TestWorkspaceListLifecycleEndpoints(t *testing.T) {
 			Title       string `json:"title"`
 			Description string `json:"description"`
 			ItemCount   int    `json:"item_count"`
+			WorkspaceID string `json:"workspace_id"`
+			UserID      string `json:"user_id"`
 		} `json:"list"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &createPayload); err != nil {
 		t.Fatalf("failed to decode list create payload: %v", err)
 	}
-	if createPayload.List.ID == "" || createPayload.List.Title != "Launch Checklist" || createPayload.List.ItemCount != 0 {
+	if createPayload.List.ID == "" || createPayload.List.Title != "Launch Checklist" || createPayload.List.ItemCount != 0 || createPayload.List.WorkspaceID != "ws-1" || createPayload.List.UserID != "user-1" {
 		t.Fatalf("unexpected list create payload: %#v", createPayload.List)
 	}
 
@@ -65,9 +67,11 @@ func TestWorkspaceListLifecycleEndpoints(t *testing.T) {
 	var createItemPayload struct {
 		Item struct {
 			ID           uint   `json:"id"`
+			ListID       string `json:"list_id"`
 			Content      string `json:"content"`
 			IsCompleted  bool   `json:"is_completed"`
 			AssignedTo   string `json:"assigned_to"`
+			UserID       string `json:"user_id"`
 			AssignedUser *struct {
 				ID string `json:"id"`
 			} `json:"assigned_user"`
@@ -76,7 +80,7 @@ func TestWorkspaceListLifecycleEndpoints(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &createItemPayload); err != nil {
 		t.Fatalf("failed to decode list item payload: %v", err)
 	}
-	if createItemPayload.Item.ID == 0 || createItemPayload.Item.Content != "Freeze release notes" || createItemPayload.Item.AssignedUser == nil || createItemPayload.Item.AssignedUser.ID != "user-1" {
+	if createItemPayload.Item.ID == 0 || createItemPayload.Item.Content != "Freeze release notes" || createItemPayload.Item.AssignedUser == nil || createItemPayload.Item.AssignedUser.ID != "user-1" || createItemPayload.Item.ListID != createPayload.List.ID || createItemPayload.Item.UserID != "user-1" {
 		t.Fatalf("unexpected list item payload: %#v", createItemPayload.Item)
 	}
 
@@ -100,12 +104,13 @@ func TestWorkspaceListLifecycleEndpoints(t *testing.T) {
 			ID             string `json:"id"`
 			ItemCount      int    `json:"item_count"`
 			CompletedCount int    `json:"completed_count"`
+			UserID         string `json:"user_id"`
 		} `json:"lists"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &listPayload); err != nil {
 		t.Fatalf("failed to decode list payload: %v", err)
 	}
-	if len(listPayload.Lists) != 1 || listPayload.Lists[0].CompletedCount != 1 || listPayload.Lists[0].ItemCount != 1 {
+	if len(listPayload.Lists) != 1 || listPayload.Lists[0].CompletedCount != 1 || listPayload.Lists[0].ItemCount != 1 || listPayload.Lists[0].UserID != "user-1" {
 		t.Fatalf("unexpected lists payload: %#v", listPayload.Lists)
 	}
 
@@ -121,15 +126,17 @@ func TestWorkspaceListLifecycleEndpoints(t *testing.T) {
 			ID    string `json:"id"`
 			Items []struct {
 				ID          uint   `json:"id"`
+				ListID      string `json:"list_id"`
 				Content     string `json:"content"`
 				IsCompleted bool   `json:"is_completed"`
+				UserID      string `json:"user_id"`
 			} `json:"items"`
 		} `json:"list"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &detailPayload); err != nil {
 		t.Fatalf("failed to decode list detail payload: %v", err)
 	}
-	if len(detailPayload.List.Items) != 1 || !detailPayload.List.Items[0].IsCompleted {
+	if len(detailPayload.List.Items) != 1 || !detailPayload.List.Items[0].IsCompleted || detailPayload.List.Items[0].ListID != createPayload.List.ID || detailPayload.List.Items[0].UserID != "user-1" {
 		t.Fatalf("unexpected list detail payload: %#v", detailPayload.List)
 	}
 
@@ -171,7 +178,7 @@ func TestToolExecutionEndpoints(t *testing.T) {
 	router.POST("/api/v1/tools/:id/execute", ExecuteTool)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/tools/tool-1/execute", bytes.NewBufferString(`{"input":{"channel_id":"ch-1","thread_id":"msg-9"}}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/tools/tool-1/execute", bytes.NewBufferString(`{"channel_id":"ch-1","input":{"channel_id":"ch-1","thread_id":"msg-9"}}`))
 	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusCreated {
@@ -185,6 +192,10 @@ func TestToolExecutionEndpoints(t *testing.T) {
 			Status   string `json:"status"`
 			Summary  string `json:"summary"`
 			ToolName string `json:"tool_name"`
+			UserID   string `json:"user_id"`
+			ChannelID string `json:"channel_id"`
+			FinishedAt string `json:"finished_at"`
+			DurationMS int `json:"duration_ms"`
 			Logs     []struct {
 				Level   string `json:"level"`
 				Message string `json:"message"`
@@ -194,12 +205,12 @@ func TestToolExecutionEndpoints(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &createPayload); err != nil {
 		t.Fatalf("failed to decode tool execute payload: %v", err)
 	}
-	if createPayload.Run.ID == "" || createPayload.Run.ToolID != "tool-1" || createPayload.Run.Status == "" || len(createPayload.Run.Logs) == 0 {
+	if createPayload.Run.ID == "" || createPayload.Run.ToolID != "tool-1" || createPayload.Run.Status == "" || len(createPayload.Run.Logs) == 0 || createPayload.Run.UserID != "user-1" || createPayload.Run.ChannelID != "ch-1" || createPayload.Run.FinishedAt == "" || createPayload.Run.DurationMS < 0 {
 		t.Fatalf("unexpected tool run create payload: %#v", createPayload.Run)
 	}
 
 	rec = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodGet, "/api/v1/tools/runs", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/tools/runs?channel_id=ch-1", nil)
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200 on tool runs list, got %d body=%s", rec.Code, rec.Body.String())
@@ -210,12 +221,14 @@ func TestToolExecutionEndpoints(t *testing.T) {
 			ID       string `json:"id"`
 			ToolName string `json:"tool_name"`
 			Status   string `json:"status"`
+			UserID   string `json:"user_id"`
+			ChannelID string `json:"channel_id"`
 		} `json:"runs"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &listPayload); err != nil {
 		t.Fatalf("failed to decode tool runs list: %v", err)
 	}
-	if len(listPayload.Runs) != 1 || listPayload.Runs[0].ToolName != "Summarize Thread" {
+	if len(listPayload.Runs) != 1 || listPayload.Runs[0].ToolName != "Summarize Thread" || listPayload.Runs[0].UserID != "user-1" || listPayload.Runs[0].ChannelID != "ch-1" {
 		t.Fatalf("unexpected tool runs list payload: %#v", listPayload.Runs)
 	}
 
@@ -231,6 +244,10 @@ func TestToolExecutionEndpoints(t *testing.T) {
 			ID       string `json:"id"`
 			ToolName string `json:"tool_name"`
 			Input    any    `json:"input"`
+			UserID   string `json:"user_id"`
+			ChannelID string `json:"channel_id"`
+			FinishedAt string `json:"finished_at"`
+			DurationMS int `json:"duration_ms"`
 			Logs     []struct {
 				Level string `json:"level"`
 			} `json:"logs"`
@@ -239,7 +256,7 @@ func TestToolExecutionEndpoints(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &detailPayload); err != nil {
 		t.Fatalf("failed to decode tool run detail payload: %v", err)
 	}
-	if detailPayload.Run.ID != createPayload.Run.ID || len(detailPayload.Run.Logs) == 0 || detailPayload.Run.ToolName != "Summarize Thread" {
+	if detailPayload.Run.ID != createPayload.Run.ID || len(detailPayload.Run.Logs) == 0 || detailPayload.Run.ToolName != "Summarize Thread" || detailPayload.Run.UserID != "user-1" || detailPayload.Run.ChannelID != "ch-1" || detailPayload.Run.FinishedAt == "" || detailPayload.Run.DurationMS < 0 {
 		t.Fatalf("unexpected tool run detail payload: %#v", detailPayload.Run)
 	}
 }
@@ -266,6 +283,7 @@ func TestArtifactTemplatesAndVirtualNewDoc(t *testing.T) {
 		Artifact struct {
 			ID         string `json:"id"`
 			ChannelID  string `json:"channel_id"`
+			UserID     string `json:"user_id"`
 			Type       string `json:"type"`
 			Title      string `json:"title"`
 			IsVirtual  bool   `json:"is_virtual"`
@@ -275,7 +293,7 @@ func TestArtifactTemplatesAndVirtualNewDoc(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &virtualPayload); err != nil {
 		t.Fatalf("failed to decode virtual artifact payload: %v", err)
 	}
-	if virtualPayload.Artifact.ID != "new-doc" || !virtualPayload.Artifact.IsVirtual || virtualPayload.Artifact.TemplateID == "" {
+	if virtualPayload.Artifact.ID != "new-doc" || !virtualPayload.Artifact.IsVirtual || virtualPayload.Artifact.TemplateID == "" || virtualPayload.Artifact.UserID != "user-1" {
 		t.Fatalf("unexpected virtual artifact payload: %#v", virtualPayload.Artifact)
 	}
 
@@ -314,6 +332,7 @@ func TestArtifactTemplatesAndVirtualNewDoc(t *testing.T) {
 			ID         string `json:"id"`
 			Title      string `json:"title"`
 			ChannelID  string `json:"channel_id"`
+			UserID     string `json:"user_id"`
 			Source     string `json:"source"`
 			TemplateID string `json:"template_id"`
 			Content    string `json:"content"`
@@ -322,7 +341,7 @@ func TestArtifactTemplatesAndVirtualNewDoc(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &createPayload); err != nil {
 		t.Fatalf("failed to decode create-from-template payload: %v", err)
 	}
-	if createPayload.Artifact.ID == "" || createPayload.Artifact.ChannelID != "ch-1" || createPayload.Artifact.Source != "template" || createPayload.Artifact.TemplateID != "launch-checklist" || createPayload.Artifact.Content == "" {
+	if createPayload.Artifact.ID == "" || createPayload.Artifact.ChannelID != "ch-1" || createPayload.Artifact.UserID != "user-1" || createPayload.Artifact.Source != "template" || createPayload.Artifact.TemplateID != "launch-checklist" || createPayload.Artifact.Content == "" {
 		t.Fatalf("unexpected create-from-template payload: %#v", createPayload.Artifact)
 	}
 }

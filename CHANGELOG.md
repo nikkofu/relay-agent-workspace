@@ -2,6 +2,28 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.63] - 2026-04-21
+
+This release hardens the Phase 33 contracts so Gemini's integrated list, tool-run, and canvas flows can consume the backend without frontend-side guesswork.
+
+### Added
+
+- **List Compatibility Aliases**: `lists` and list-item payloads now expose UI-friendly aliases including `user_id` and `list_id`, while list creation can derive `workspace_id` from `channel_id`.
+- **Tool Run Compatibility Aliases**: `tool runs` now expose `user_id`, `channel_id`, `finished_at`, and `duration_ms`, and the list endpoint now supports `channel_id` filtering.
+- **Canvas Bootstrap Compatibility**: virtual `new-doc` and template-derived artifact responses now include `user_id` aliases for the frontend artifact store.
+
+### Changed
+
+- `POST /api/v1/lists` now accepts channel-first creation flows from the UI without requiring explicit `workspace_id`.
+- `POST /api/v1/tools/:id/execute` now lifts top-level `channel_id` into stored execution input for downstream filtering and UI hydration.
+- `AGENT-COLLAB.md` now reflects that Phase 33 frontend integration is complete and records a Phase 34 contract-alignment handoff.
+
+### Verification Used For This Release
+
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+
 ## [0.5.62] - 2026-04-21
 
 This release implements Phase 33: Structured Work Objects Integration, bridging the gap between chat, structured lists, and automation tools.

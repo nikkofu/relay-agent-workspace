@@ -16,6 +16,7 @@ import (
 
 type workspaceListItemResponse struct {
 	ID           uint         `json:"id"`
+	ListID       string       `json:"list_id"`
 	Content      string       `json:"content"`
 	Position     int          `json:"position"`
 	IsCompleted  bool         `json:"is_completed"`
@@ -24,6 +25,7 @@ type workspaceListItemResponse struct {
 	CompletedAt  *time.Time   `json:"completed_at,omitempty"`
 	AssignedUser *domain.User `json:"assigned_user,omitempty"`
 	CreatedBy    string       `json:"created_by"`
+	UserID       string       `json:"user_id"`
 	CreatedAt    time.Time    `json:"created_at"`
 	UpdatedAt    time.Time    `json:"updated_at"`
 }
@@ -37,6 +39,7 @@ type workspaceListResponse struct {
 	ItemCount      int                         `json:"item_count"`
 	CompletedCount int                         `json:"completed_count"`
 	CreatedBy      string                      `json:"created_by"`
+	UserID         string                      `json:"user_id"`
 	CreatedByUser  *domain.User                `json:"created_by_user,omitempty"`
 	CreatedAt      time.Time                   `json:"created_at"`
 	UpdatedAt      time.Time                   `json:"updated_at"`
@@ -58,11 +61,15 @@ type toolRunResponse struct {
 	Summary         string               `json:"summary"`
 	Input           map[string]any       `json:"input"`
 	TriggeredBy     string               `json:"triggered_by"`
+	UserID          string               `json:"user_id"`
+	ChannelID       string               `json:"channel_id,omitempty"`
 	TriggeredByUser *domain.User         `json:"triggered_by_user,omitempty"`
 	StartedAt       time.Time            `json:"started_at"`
 	CompletedAt     *time.Time           `json:"completed_at,omitempty"`
+	FinishedAt      *time.Time           `json:"finished_at,omitempty"`
 	CreatedAt       time.Time            `json:"created_at"`
 	UpdatedAt       time.Time            `json:"updated_at"`
+	DurationMS      int                  `json:"duration_ms"`
 	Logs            []toolRunLogResponse `json:"logs,omitempty"`
 }
 
@@ -105,20 +112,32 @@ func CreateWorkspaceList(c *gin.Context) {
 	}
 
 	var input struct {
-		WorkspaceID string `json:"workspace_id" binding:"required"`
+		WorkspaceID string `json:"workspace_id"`
 		ChannelID   string `json:"channel_id"`
 		Title       string `json:"title" binding:"required"`
 		Description string `json:"description"`
+		UserID      string `json:"user_id"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	workspaceID := strings.TrimSpace(input.WorkspaceID)
+	if workspaceID == "" && strings.TrimSpace(input.ChannelID) != "" {
+		var channel domain.Channel
+		if err := db.DB.First(&channel, "id = ?", strings.TrimSpace(input.ChannelID)).Error; err == nil {
+			workspaceID = channel.WorkspaceID
+		}
+	}
+	if workspaceID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "workspace_id is required"})
 		return
 	}
 
 	now := time.Now().UTC()
 	list := domain.WorkspaceList{
 		ID:          "list-" + now.Format("20060102150405.000000"),
-		WorkspaceID: input.WorkspaceID,
+		WorkspaceID: workspaceID,
 		ChannelID:   strings.TrimSpace(input.ChannelID),
 		Title:       strings.TrimSpace(input.Title),
 		Description: strings.TrimSpace(input.Description),
@@ -323,6 +342,7 @@ func GetToolRuns(c *gin.Context) {
 	if toolID := strings.TrimSpace(c.Query("tool_id")); toolID != "" {
 		query = query.Where("tool_id = ?", toolID)
 	}
+	channelID := strings.TrimSpace(c.Query("channel_id"))
 
 	var runs []domain.ToolRun
 	if err := query.Find(&runs).Error; err != nil {
@@ -332,7 +352,11 @@ func GetToolRuns(c *gin.Context) {
 
 	items := make([]toolRunResponse, 0, len(runs))
 	for _, run := range runs {
-		items = append(items, hydrateToolRun(run, false))
+		response := hydrateToolRun(run, false)
+		if channelID != "" && response.ChannelID != channelID {
+			continue
+		}
+		items = append(items, response)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"runs": items})
@@ -362,7 +386,8 @@ func ExecuteTool(c *gin.Context) {
 	}
 
 	var input struct {
-		Input map[string]any `json:"input"`
+		ChannelID string         `json:"channel_id"`
+		Input     map[string]any `json:"input"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -377,6 +402,14 @@ func ExecuteTool(c *gin.Context) {
 	}
 
 	now := time.Now().UTC()
+	if strings.TrimSpace(input.ChannelID) != "" {
+		if input.Input == nil {
+			input.Input = map[string]any{}
+		}
+		if _, ok := input.Input["channel_id"]; !ok {
+			input.Input["channel_id"] = strings.TrimSpace(input.ChannelID)
+		}
+	}
 	run := domain.ToolRun{
 		ID:          "toolrun-" + now.Format("20060102150405.000000"),
 		ToolID:      tool.ID,
@@ -490,6 +523,7 @@ func buildVirtualArtifactResponse(channelID string) artifactResponse {
 		UpdatedByUser: optionalEnrichedUser(currentUser.ID),
 		IsVirtual:     true,
 		TemplateID:    "blank-document",
+		UserID:        currentUser.ID,
 	}
 }
 
@@ -504,6 +538,7 @@ func hydrateWorkspaceList(list domain.WorkspaceList, includeItems bool) workspac
 		ItemCount:      len(items),
 		CompletedCount: countCompletedListItems(items),
 		CreatedBy:      list.CreatedBy,
+		UserID:         list.CreatedBy,
 		CreatedByUser:  optionalEnrichedUser(list.CreatedBy),
 		CreatedAt:      list.CreatedAt,
 		UpdatedAt:      list.UpdatedAt,
@@ -528,6 +563,7 @@ func loadWorkspaceListItems(listID string) []workspaceListItemResponse {
 func hydrateWorkspaceListItem(item domain.WorkspaceListItem) workspaceListItemResponse {
 	return workspaceListItemResponse{
 		ID:           item.ID,
+		ListID:       item.ListID,
 		Content:      item.Content,
 		Position:     item.Position,
 		IsCompleted:  item.IsCompleted,
@@ -536,6 +572,7 @@ func hydrateWorkspaceListItem(item domain.WorkspaceListItem) workspaceListItemRe
 		CompletedAt:  item.CompletedAt,
 		AssignedUser: optionalEnrichedUser(item.AssignedTo),
 		CreatedBy:    item.CreatedBy,
+		UserID:       item.CreatedBy,
 		CreatedAt:    item.CreatedAt,
 		UpdatedAt:    item.UpdatedAt,
 	}
@@ -559,6 +596,14 @@ func hydrateToolRun(run domain.ToolRun, includeLogs bool) toolRunResponse {
 	if strings.TrimSpace(run.Input) != "" {
 		_ = json.Unmarshal([]byte(run.Input), &input)
 	}
+	channelID := ""
+	if raw, ok := input["channel_id"].(string); ok {
+		channelID = raw
+	}
+	durationMS := 0
+	if run.CompletedAt != nil {
+		durationMS = int(run.CompletedAt.Sub(run.StartedAt).Milliseconds())
+	}
 
 	response := toolRunResponse{
 		ID:              run.ID,
@@ -569,11 +614,15 @@ func hydrateToolRun(run domain.ToolRun, includeLogs bool) toolRunResponse {
 		Summary:         run.Summary,
 		Input:           input,
 		TriggeredBy:     run.TriggeredBy,
+		UserID:          run.TriggeredBy,
+		ChannelID:       channelID,
 		TriggeredByUser: optionalEnrichedUser(run.TriggeredBy),
 		StartedAt:       run.StartedAt,
 		CompletedAt:     run.CompletedAt,
+		FinishedAt:      run.CompletedAt,
 		CreatedAt:       run.CreatedAt,
 		UpdatedAt:       run.UpdatedAt,
+		DurationMS:      durationMS,
 	}
 	if includeLogs {
 		response.Logs = loadToolRunLogs(run.ID)

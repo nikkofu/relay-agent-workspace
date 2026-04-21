@@ -22,6 +22,7 @@ type artifactResponse struct {
 	UpdatedByUser *domain.User `json:"updated_by_user,omitempty"`
 	IsVirtual     bool         `json:"is_virtual,omitempty"`
 	TemplateID    string       `json:"template_id,omitempty"`
+	UserID        string       `json:"user_id,omitempty"`
 }
 
 type artifactVersionResponse struct {
@@ -453,6 +454,7 @@ func hydrateArtifactResponse(artifact domain.Artifact) artifactResponse {
 	response := artifactResponse{
 		Artifact:   artifact,
 		TemplateID: artifact.TemplateID,
+		UserID:     artifact.UpdatedBy,
 	}
 
 	if artifact.CreatedBy != "" {

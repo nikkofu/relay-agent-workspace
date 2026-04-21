@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.5.61` is the current release line and includes:
+`v0.5.63` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -94,6 +94,8 @@ For product, design, and marketing, the short version is:
 - Workflow run detail, cancel, and retry APIs
 - Workflow run execution log APIs and run deletion lifecycle
 - Tool execution history APIs and on-demand tool run execution
+- Phase 33 frontend integration for lists, tool history, and template-first canvases
+- Phase 34 contract-alignment aliases for structured lists, tool runs, and canvas bootstrap payloads
 - File retention policy and file audit trail APIs
 - File preview metadata API for images, PDFs, and fallback downloads
 - Channel notification preferences and self-service leave-channel API

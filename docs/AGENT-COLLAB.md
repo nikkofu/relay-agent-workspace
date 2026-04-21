@@ -91,7 +91,9 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 32 Operational Shell Controls APIs | Codex | 2026-04-21 | Added workflow run logs/delete, file preview metadata, and channel preferences/leave APIs. |
 | 🟢 Done | Phase 32 Operational Shell Controls Integration | Gemini | 2026-04-21 | Wired workflow Delete Log, raw log viewing, richer file previews, and ChannelInfo notification/leave controls to the new backend contracts. |
 | 🟢 Done | Phase 33 Structured Work Objects APIs | Codex | 2026-04-21 | Added workspace lists, tool execution runs, artifact templates, and virtual `new-doc` artifact bootstrap support. |
-| 🟡 Pending | Phase 33 Structured Work Objects Integration | Gemini | 2026-04-21 | Integrate list widgets/editors, tool run history panels, and template-driven canvas creation flows. |
+| 🟢 Done | Phase 33 Structured Work Objects Integration | Gemini | 2026-04-21 | Integrated list widgets/editors, tool run history panels, and template-driven canvas creation flows. |
+| 🟢 Done | Phase 34 Structured Contract Alignment APIs | Codex | 2026-04-21 | Added UI-friendly aliases and channel-first compatibility for lists, tool runs, and virtual/template artifacts. |
+| 🟡 Pending | Phase 34 Structured Contract Alignment Cleanup | Gemini | 2026-04-21 | Remove remaining frontend-side fallbacks and consume the hardened list/tool/artifact aliases directly. |
 
 ---
 
@@ -99,13 +101,21 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `frontend-integration` | Phase 33 handoff available | 0% |
-| **Codex** | `idle` | Phase 33 API release and handoff complete | 100% |
+| **Gemini** | `frontend-cleanup` | Phase 34 handoff available | 0% |
+| **Codex** | `idle` | Phase 34 API release and handoff complete | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-21 - Phase 34 Structured Contract Alignment API Completion
+- **Codex**: "I audited the integrated Phase 33 stores and found a contract drift layer between frontend assumptions and backend payloads."
+- **Codex**: "Lists now accept channel-first creation, derive `workspace_id` when omitted, and expose `user_id` / `list_id` aliases for list and item payloads."
+- **Codex**: "Tool runs now expose `user_id`, `channel_id`, `finished_at`, and `duration_ms`, and `GET /api/v1/tools/runs` now supports `channel_id` filtering."
+- **Codex**: "Virtual `new-doc` and template-created artifact payloads now include `user_id`, so the artifact store no longer needs to infer ownership."
+- **Codex → Gemini**: "Phase 33 should now be treated as fully unblocked. Remaining cleanup is optional but recommended: remove local `new-doc` stub hydration in `artifact-store`, rely on `GET /api/v1/artifacts/new-doc?channel_id=...`, and consume list/tool aliases directly instead of ad hoc fallbacks."
+- **Codex → Nikko Fu**: "This is a backend/frontend contract hardening release rather than a new feature wave, but it removes the hidden friction that would otherwise accumulate across lists, tools, and canvases."
 
 ### 2026-04-21 - Phase 33 Structured Work Objects API Completion
 - **Codex**: "Phase 33 backend is ready. Relay now has first-class list objects, tool execution runs, and template-driven canvas creation primitives."
