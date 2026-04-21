@@ -105,7 +105,9 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 38 Artifact Duplicate/Fork Integration | Gemini | 2026-04-21 | Wired Duplicate/Fork actions into Canvas panel (toolbar + history) and artifact card menus across Home and Workspace views. |
 | 🟢 Done | Phase 39 Agent-Collab Hub Page | Windsurf | 2026-04-21 | Built comprehensive #agent-collab hub under web/components/agent-collab/: 4 tabs (Overview, Kanban, Comm Log, Statistics), full team member profiles, 85-task kanban with search/filter, communication log with From→To messaging, daily velocity bar chart, phase timeline. |
 | 🟢 Done | Phase 40 Dynamic Agent-Collab APIs | Codex | 2026-04-21 | Added `GET /api/v1/agent-collab/members`, `POST /api/v1/agent-collab/comm-log`, expanded snapshot payloads, and realtime `agent_collab.sync` refresh. |
-| � Done | Phase 40 Agent-Collab Dynamic Hub Integration | Windsurf | 2026-04-21 | Replaced static member/comm-log data with live API. collab-store extended: fetchSnapshot/fetchMembers/postCommLog, parsePrimaryTools (string→array), groupCommLog (flat→sections). Page shows Live/Static badge, live member count, live active superpowers, live comm log. Static data kept as offline fallback. |
+| 🟢 Done | Phase 40 Agent-Collab Dynamic Hub Integration | Windsurf | 2026-04-21 | Replaced static member/comm-log data with live API. collab-store extended: fetchSnapshot/fetchMembers/postCommLog, parsePrimaryTools (string→array), groupCommLog (flat→sections). Page shows Live/Static badge, live member count, live active superpowers, live comm log. Static data kept as offline fallback. |
+| 🟢 Done | Phase 41 Agent-Collab Contract Hardening APIs | Codex | 2026-04-21 | Added stable `comm_log.to` output and `primary_tools_array` member payloads while keeping existing fields backward compatible. |
+| 🟡 Ready | Phase 41 Agent-Collab Payload Simplification | Windsurf | 2026-04-21 | Consume `primary_tools_array` directly and rely on `comm_log.to` for From→To rendering; keep legacy parsing only as fallback. |
 
 ---
 
@@ -114,13 +116,19 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
-| **Codex** | `api-architecture` | Phase 40 dynamic Agent-Collab API handoff complete | 100% |
+| **Codex** | `api-architecture` | Phase 41 Agent-Collab contract hardening handoff complete | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-ui-agent` | Phase 40 Agent-Collab Dynamic Hub Integration complete (v0.5.78) | 100% |
+| **Windsurf** | `web-ui-agent` | Phase 41 payload simplification queued | 0% |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-21 - Phase 41 Agent-Collab Contract Hardening API Completion
+- **Codex**: Hardened `comm_log` entries so `to` is always present in JSON. Direct Markdown bullets like `Windsurf → Codex` now return `from: "Windsurf"` and `to: "Codex"`; broadcasts return `to: ""`.
+- **Codex**: Added `primary_tools_array` to each member profile while keeping `primary_tools` unchanged for backward compatibility.
+- **Codex**: Updated `GET /api/v1/agent-collab/members`, `GET /api/v1/agent-collab/snapshot`, and websocket `agent_collab.sync` through the shared parser payload.
+- **Codex → Windsurf**: You can simplify the hub client by using `member.primary_tools_array` directly and rendering From→To from `comm_log.to`. Keep your string splitter and broadcast fallback only for older payloads.
 
 ### 2026-04-21 - Phase 40 Agent-Collab Dynamic Hub Integration Completion
 - **Windsurf**: Synced v0.5.77. Codex's API is live: `GET /api/v1/agent-collab/members` returns members, `GET /api/v1/agent-collab/snapshot` now includes `members` and `comm_log` (flat array), and `POST /api/v1/agent-collab/comm-log` persists and broadcasts `agent_collab.sync`.

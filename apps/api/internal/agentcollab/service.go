@@ -32,10 +32,11 @@ type ActiveSuperpowerItem struct {
 }
 
 type MemberProfile struct {
-	Name         string `json:"name"`
-	Role         string `json:"role"`
-	Specialty    string `json:"specialty"`
-	PrimaryTools string `json:"primary_tools"`
+	Name              string   `json:"name"`
+	Role              string   `json:"role"`
+	Specialty         string   `json:"specialty"`
+	PrimaryTools      string   `json:"primary_tools"`
+	PrimaryToolsArray []string `json:"primary_tools_array"`
 }
 
 type CommLogEntry struct {
@@ -43,7 +44,7 @@ type CommLogEntry struct {
 	Date      string `json:"date"`
 	Title     string `json:"title"`
 	From      string `json:"from"`
-	To        string `json:"to,omitempty"`
+	To        string `json:"to"`
 	Content   string `json:"content"`
 	CreatedAt string `json:"created_at"`
 }
@@ -303,10 +304,11 @@ func parseMembers(rows [][]string) ([]MemberProfile, error) {
 			return nil, fmt.Errorf("member profile row has %d columns, expected 4", len(row))
 		}
 		items = append(items, MemberProfile{
-			Name:         normalizeCell(row[0]),
-			Role:         normalizeCell(row[1]),
-			Specialty:    normalizeCell(row[2]),
-			PrimaryTools: normalizeCell(row[3]),
+			Name:              normalizeCell(row[0]),
+			Role:              normalizeCell(row[1]),
+			Specialty:         normalizeCell(row[2]),
+			PrimaryTools:      normalizeCell(row[3]),
+			PrimaryToolsArray: splitPrimaryTools(row[3]),
 		})
 	}
 	return items, nil
@@ -438,6 +440,21 @@ func parseMarkdownRow(line string) []string {
 func normalizeCell(value string) string {
 	replacer := strings.NewReplacer("**", "", "`", "", "\r", "")
 	return strings.TrimSpace(replacer.Replace(value))
+}
+
+func splitPrimaryTools(value string) []string {
+	normalized := normalizeCell(value)
+	if normalized == "" {
+		return []string{}
+	}
+	parts := strings.Split(normalized, ",")
+	items := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if item := strings.TrimSpace(part); item != "" {
+			items = append(items, item)
+		}
+	}
+	return items
 }
 
 func scanLines(content string) []string {

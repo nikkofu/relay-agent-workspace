@@ -55,6 +55,66 @@ func TestParseMarkdownExtractsTaskBoardAndActiveSuperpowers(t *testing.T) {
 	}
 }
 
+func TestParseMarkdownReturnsDirectCommTargetsAndToolArrays(t *testing.T) {
+	content := `# Relay Agent Workspace: Team Collaboration Hub
+
+## 👥 Member Profiles
+
+| Name | Role | Specialty | Primary Tools |
+| :--- | :--- | :--- | :--- |
+| **Codex** | API/Backend Agent | Go, Gin | ` + "`apps/api`" + `, ` + "`internal/`" + ` |
+| **Windsurf** | Web/UI Agent | TypeScript, UX | ` + "`apps/web`" + `, write_file, multi_edit |
+
+## 📋 Task Board
+
+| Status | Task | Assigned To | Deadline | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| 🟢 Done | Contract Hardening | Codex | 2026-04-21 | Normalize agent-collab payloads. |
+
+## ⚡️ Active Superpowers (Live State)
+
+| Agent | Current Skill | Active Task | Progress |
+| :--- | :--- | :--- | :--- |
+| **Codex** | api-architecture | Contract hardening | 100% |
+
+## 💬 Communication Log
+
+### 2026-04-21 - Direct Handoff
+- **Windsurf → Codex**: "Please add the to field."
+- **Codex**: "Broadcast note."
+`
+
+	snapshot, err := ParseMarkdown([]byte(content))
+	if err != nil {
+		t.Fatalf("ParseMarkdown returned error: %v", err)
+	}
+
+	if len(snapshot.Members) != 2 {
+		t.Fatalf("expected 2 members, got %#v", snapshot.Members)
+	}
+	if got := snapshot.Members[0].PrimaryToolsArray; len(got) != 2 || got[0] != "apps/api" || got[1] != "internal/" {
+		t.Fatalf("expected normalized primary tools array, got %#v", got)
+	}
+
+	if len(snapshot.CommLog) != 2 {
+		t.Fatalf("expected 2 comm log entries, got %#v", snapshot.CommLog)
+	}
+	if snapshot.CommLog[0].From != "Windsurf" || snapshot.CommLog[0].To != "Codex" {
+		t.Fatalf("expected direct comm target, got %#v", snapshot.CommLog[0])
+	}
+	if snapshot.CommLog[1].From != "Codex" || snapshot.CommLog[1].To != "" {
+		t.Fatalf("expected broadcast comm with empty to, got %#v", snapshot.CommLog[1])
+	}
+
+	raw, err := json.Marshal(snapshot.CommLog[1])
+	if err != nil {
+		t.Fatalf("failed to marshal comm log entry: %v", err)
+	}
+	if !strings.Contains(string(raw), `"to":""`) {
+		t.Fatalf("expected broadcast comm log JSON to include empty to field, got %s", raw)
+	}
+}
+
 func TestSyncFileBroadcastsAgentCollabEvent(t *testing.T) {
 	hub := realtime.NewHub()
 	go hub.Run()

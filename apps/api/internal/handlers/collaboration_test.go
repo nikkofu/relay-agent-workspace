@@ -1449,6 +1449,9 @@ func TestAgentCollabMembersAndCommLogEndpoints(t *testing.T) {
 	if membersPayload.Members[2]["name"] != "Windsurf" || membersPayload.Members[2]["role"] != "Web/UI Agent" {
 		t.Fatalf("expected Windsurf member row, got %#v", membersPayload.Members[2])
 	}
+	if tools, ok := membersPayload.Members[2]["primary_tools_array"].([]any); !ok || len(tools) != 3 || tools[0] != "apps/web" {
+		t.Fatalf("expected normalized primary tools array, got %#v", membersPayload.Members[2])
+	}
 
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/agent-collab/comm-log", bytes.NewBufferString(`{"from":"Codex","to":"Windsurf","title":"Phase 40 Dynamic Agent-Collab API","content":"GET members and POST comm-log are ready for frontend integration."}`))
@@ -1478,6 +1481,23 @@ func TestAgentCollabMembersAndCommLogEndpoints(t *testing.T) {
 	}
 
 	assertRealtimeEventType(t, client, "agent_collab.sync")
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/agent-collab/snapshot", nil)
+	router.GET("/api/v1/agent-collab/snapshot", GetAgentCollabSnapshot)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on snapshot, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var snapshotPayload struct {
+		CommLog []map[string]any `json:"comm_log"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &snapshotPayload); err != nil {
+		t.Fatalf("failed to decode snapshot payload: %v", err)
+	}
+	if len(snapshotPayload.CommLog) == 0 || snapshotPayload.CommLog[0]["to"] != "Windsurf" {
+		t.Fatalf("expected snapshot comm_log to include to field, got %#v", snapshotPayload.CommLog)
+	}
 }
 
 func TestDMEndpointsListCreateAndSendMessages(t *testing.T) {

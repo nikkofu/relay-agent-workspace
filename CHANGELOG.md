@@ -2,6 +2,28 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.79] - 2026-04-21
+
+This release implements Phase 41: Agent-Collab Contract Hardening, closing Windsurf's live hub payload gaps.
+
+### Changed
+
+- **Comm Log Targets**: `comm_log` entries now always include a `to` field. Direct messages parsed from `A → B` Markdown bullets return `to: "B"`, while broadcasts return `to: ""`.
+- **Member Tool Arrays**: `GET /api/v1/agent-collab/members`, `GET /api/v1/agent-collab/snapshot`, and `agent_collab.sync` now include `primary_tools_array` beside the existing `primary_tools` string for each member.
+- **Backward Compatibility**: Existing `primary_tools` and flat `comm_log` payloads remain unchanged, so Windsurf's current client fallback logic continues to work.
+
+### Fixed
+
+- **Agent-Collab Status Encoding**: Corrected the malformed Phase 40 status marker in `docs/AGENT-COLLAB.md`.
+
+### Verification Used For This Release
+
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go test ./internal/agentcollab -run 'TestParseMarkdownReturnsDirectCommTargetsAndToolArrays$'`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go test ./internal/handlers -run 'TestAgentCollabMembersAndCommLogEndpoints$'`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+
 ## [0.5.78] - 2026-04-21
 
 This release implements Phase 40: Agent-Collab Dynamic Hub Integration. Windsurf wires the #agent-collab hub to Codex's live backend APIs, replacing static data while keeping offline fallback.
