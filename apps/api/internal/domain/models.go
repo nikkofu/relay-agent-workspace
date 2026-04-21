@@ -474,6 +474,57 @@ type KnowledgeEvidenceEntityRef struct {
 	CreatedAt  time.Time `json:"created_at"`
 }
 
+type KnowledgeEntity struct {
+	ID          string    `gorm:"primaryKey" json:"id"`
+	WorkspaceID string    `gorm:"index" json:"workspace_id"`
+	Kind        string    `gorm:"index" json:"kind"`
+	Title       string    `json:"title"`
+	Summary     string    `json:"summary"`
+	Status      string    `gorm:"index" json:"status"`
+	OwnerUserID string    `gorm:"index" json:"owner_user_id"`
+	SourceKind  string    `gorm:"index" json:"source_kind"`
+	SourceRef   string    `gorm:"index" json:"source_ref"`
+	Metadata    string    `json:"metadata_json"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type KnowledgeEntityRef struct {
+	ID          string    `gorm:"primaryKey" json:"id"`
+	WorkspaceID string    `gorm:"index" json:"workspace_id"`
+	EntityID    string    `gorm:"index" json:"entity_id"`
+	RefKind     string    `gorm:"index" json:"ref_kind"`
+	RefID       string    `gorm:"index" json:"ref_id"`
+	Role        string    `gorm:"index" json:"role"`
+	Metadata    string    `json:"metadata_json"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+type KnowledgeEntityLink struct {
+	ID           string    `gorm:"primaryKey" json:"id"`
+	WorkspaceID  string    `gorm:"index" json:"workspace_id"`
+	FromEntityID string    `gorm:"index" json:"from_entity_id"`
+	ToEntityID   string    `gorm:"index" json:"to_entity_id"`
+	Relation     string    `gorm:"index" json:"relation"`
+	Weight       float64   `json:"weight"`
+	Metadata     string    `json:"metadata_json"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+type KnowledgeEvent struct {
+	ID          string    `gorm:"primaryKey" json:"id"`
+	WorkspaceID string    `gorm:"index" json:"workspace_id"`
+	EntityID    string    `gorm:"index" json:"entity_id"`
+	EventType   string    `gorm:"index" json:"event_type"`
+	Title       string    `json:"title"`
+	Body        string    `json:"body"`
+	ActorUserID string    `gorm:"index" json:"actor_user_id"`
+	SourceKind  string    `gorm:"index" json:"source_kind"`
+	SourceRef   string    `gorm:"index" json:"source_ref"`
+	OccurredAt  time.Time `json:"occurred_at"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
 type MessageArtifactReference struct {
 	ID         uint      `gorm:"primaryKey" json:"id"`
 	MessageID  string    `gorm:"index;uniqueIndex:idx_message_artifact_ref" json:"message_id"`

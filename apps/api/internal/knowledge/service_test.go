@@ -39,14 +39,71 @@ func TestLookupAttachesEntityFieldsWhenEvidenceIsLinked(t *testing.T) {
 	database.Create(&domain.FileExtractionChunk{ID: 1, ExtractionID: extractionID, FileID: "file-1", ChunkIndex: 0, Text: "Launch checklist and rollout plan", LocatorType: "document", LocatorValue: "root", Heading: "Launch", CreatedAt: now})
 	linkID := ids.NewPrefixedUUID("evidence")
 	database.Create(&domain.KnowledgeEvidenceLink{ID: linkID, WorkspaceID: "ws-1", EvidenceKind: "file_chunk", EvidenceRefID: "1", SourceKind: "file", SourceRef: "file-1", CreatedAt: now, UpdatedAt: now})
+	database.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Status: "active", CreatedAt: now, UpdatedAt: now})
 	database.Create(&domain.KnowledgeEvidenceEntityRef{ID: ids.NewPrefixedUUID("evidence-ref"), EvidenceID: linkID, EntityID: "entity-1", CreatedAt: now})
 
 	results, err := Lookup(database, LookupParams{Query: "launch"})
 	if err != nil {
 		t.Fatalf("lookup failed: %v", err)
 	}
-	if len(results) == 0 || results[0].EntityID != "entity-1" {
+	if len(results) == 0 || results[0].EntityID != "entity-1" || results[0].EntityTitle != "Launch Program" {
 		t.Fatalf("expected entity binding, got %#v", results)
+	}
+}
+
+func TestCreateKnowledgeEntityDefaults(t *testing.T) {
+	database := setupKnowledgeTestDB(t)
+
+	entity, err := CreateEntity(database, CreateEntityInput{
+		WorkspaceID: "ws-1",
+		Kind:        "project",
+		Title:       "Launch Program",
+	})
+	if err != nil {
+		t.Fatalf("create entity failed: %v", err)
+	}
+	if entity.ID == "" || entity.Status != "active" || entity.SourceKind != "manual" {
+		t.Fatalf("expected defaulted entity, got %#v", entity)
+	}
+}
+
+func TestAddEntityRefAppendsTimelineEvent(t *testing.T) {
+	database := setupKnowledgeTestDB(t)
+	now := time.Now().UTC()
+	entity := domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Status: "active", CreatedAt: now, UpdatedAt: now}
+	database.Create(&entity)
+
+	ref, err := AddEntityRef(database, "entity-1", AddEntityRefInput{RefKind: "file", RefID: "file-1", Role: "evidence"})
+	if err != nil {
+		t.Fatalf("add ref failed: %v", err)
+	}
+	if ref.ID == "" || ref.EntityID != "entity-1" || ref.Role != "evidence" {
+		t.Fatalf("unexpected ref: %#v", ref)
+	}
+
+	events, err := ListEntityTimeline(database, "entity-1")
+	if err != nil {
+		t.Fatalf("timeline failed: %v", err)
+	}
+	if len(events) != 1 || events[0].EventType != "file_linked" {
+		t.Fatalf("expected file_linked event, got %#v", events)
+	}
+}
+
+func TestEntityGraphPreviewIncludesRefsAndLinks(t *testing.T) {
+	database := setupKnowledgeTestDB(t)
+	now := time.Now().UTC()
+	database.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Status: "active", CreatedAt: now, UpdatedAt: now})
+	database.Create(&domain.KnowledgeEntity{ID: "entity-2", WorkspaceID: "ws-1", Kind: "service", Title: "Billing Service", Status: "active", CreatedAt: now, UpdatedAt: now})
+	database.Create(&domain.KnowledgeEntityRef{ID: "kref-1", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "file", RefID: "file-1", Role: "evidence", CreatedAt: now})
+	database.Create(&domain.KnowledgeEntityLink{ID: "klink-1", WorkspaceID: "ws-1", FromEntityID: "entity-1", ToEntityID: "entity-2", Relation: "depends_on", CreatedAt: now})
+
+	graph, err := BuildEntityGraph(database, "entity-1")
+	if err != nil {
+		t.Fatalf("graph failed: %v", err)
+	}
+	if len(graph.Nodes) < 3 || len(graph.Edges) < 2 {
+		t.Fatalf("expected entity/ref graph nodes and edges, got %#v", graph)
 	}
 }
 
@@ -65,6 +122,10 @@ func setupKnowledgeTestDB(t *testing.T) *gorm.DB {
 		&domain.Artifact{},
 		&domain.KnowledgeEvidenceLink{},
 		&domain.KnowledgeEvidenceEntityRef{},
+		&domain.KnowledgeEntity{},
+		&domain.KnowledgeEntityRef{},
+		&domain.KnowledgeEntityLink{},
+		&domain.KnowledgeEvent{},
 	); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}

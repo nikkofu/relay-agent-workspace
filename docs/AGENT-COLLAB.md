@@ -115,7 +115,9 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 44 File Extraction, Search, and Citation APIs | Codex | 2026-04-21 | Added extraction lifecycle, chunk indexing, Office/PDF extraction, file-content search, citations, and realtime extraction status events. |
 | 🟢 Done | Phase 44 File Extraction UI And Content Search | Windsurf | 2026-04-21 | Extraction badges in file list + `FileAttachmentCard`. Content Search panel. Indexing tab in preview dialog: status card + Rebuild + Extracted Text + Chunks + Citations. `file.extraction.updated` WS handler. `v0.5.84` published. |
 | 🟢 Done | Phase 45 AI Citation Lookup APIs | Codex | 2026-04-21 | Added unified citation lookup across file chunks, messages, threads, and artifact sections; reserved entity-aware evidence fields for later wiki/graph phases. |
-| � Done | Phase 45 Citation Lookup Integration | Windsurf | 2026-04-21 | `EvidenceKind` + `CitationEvidence` types. `citation-store` with `lookupCitations`. Shared `CitationCard` switching on `evidence_kind`. New `/workspace/search` page + `Quote` nav item. Files Indexing citations use `CitationCard`. `v0.5.85` published. |
+| 🟢 Done | Phase 45 Citation Lookup Integration | Windsurf | 2026-04-21 | `EvidenceKind` + `CitationEvidence` types. `citation-store` with `lookupCitations`. Shared `CitationCard` switching on `evidence_kind`. New `/workspace/search` page + `Quote` nav item. Files Indexing citations use `CitationCard`. `v0.5.85` published. |
+| 🟢 Done | Phase 46 Knowledge Entities And Wiki APIs | Codex | 2026-04-21 | Added first-class knowledge entities, refs, links, timeline, graph preview, and citation `entity_title` hydration. |
+| 🟡 Ready | Phase 46 Knowledge Entity Wiki Integration | Windsurf | 2026-04-21 | Build knowledge/entity list/detail pages, citation entity links, refs/timeline panels, and graph relationship preview UI. |
 
 ---
 
@@ -124,13 +126,32 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
-| **Codex** | `api-architecture` | Phase 45 AI citation lookup API handoff complete | 100% |
+| **Codex** | `api-architecture` | Phase 46 knowledge entity/wiki API handoff complete | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-ui-agent` | Phase 45 Citation Lookup Integration complete (v0.5.85) | 100% |
+| **Windsurf** | `web-ui-agent` | Awaiting Phase 46 knowledge entity wiki integration on top of v0.5.86 API handoff | 0% |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-21 - Phase 46 Knowledge Entities And Wiki API Completion
+- **Codex**: Added first-class knowledge entity persistence: `KnowledgeEntity`, `KnowledgeEntityRef`, `KnowledgeEntityLink`, and `KnowledgeEvent`.
+- **Codex**: Added entity/wiki APIs:
+  - `GET /api/v1/knowledge/entities`
+  - `POST /api/v1/knowledge/entities`
+  - `GET /api/v1/knowledge/entities/:id`
+  - `PATCH /api/v1/knowledge/entities/:id`
+  - `GET /api/v1/knowledge/entities/:id/refs`
+  - `POST /api/v1/knowledge/entities/:id/refs`
+  - `GET /api/v1/knowledge/entities/:id/timeline`
+  - `POST /api/v1/knowledge/entities/:id/events`
+  - `GET /api/v1/knowledge/entities/:id/links`
+  - `POST /api/v1/knowledge/links`
+  - `GET /api/v1/knowledge/entities/:id/graph`
+- **Codex**: Citation lookup now hydrates `entity_title` when a citation is linked to a `KnowledgeEntity`.
+- **Codex → Windsurf**: Please build `/workspace/knowledge` and `/workspace/knowledge/[id]` or equivalent surfaces. The entity detail page should consume entity detail, refs, timeline, and graph preview APIs. Citation cards can now link `entity_id` to the entity page and display `entity_title` when present.
+- **Codex → Windsurf**: Keep graph UI lightweight for now. The backend graph preview is generated from explicit refs/links; Phase 47 will add live event ingestion and richer graph relationships.
+- **Codex → Nikko Fu**: Relay now has the wiki substrate needed for entity-centric knowledge: durable entities, evidence refs, timeline, links, and graph preview. This is the foundation for static/dynamic business knowledge without splitting into two systems.
 
 ### 2026-04-21 - Phase 45 Citation Lookup Integration Completion
 - **Windsurf**: Phase 45 complete. (1) `EvidenceKind` + `CitationEvidence` interface in `types/index.ts`. (2) `citation-store`: `lookupCitations` (`GET /api/v1/citations/lookup`), `filterKind`, `clearResults`. (3) `CitationCard`: shared component switching on `evidence_kind` — sky/file_chunk, emerald/message, violet/thread, amber/artifact_section — with `title`, `snippet`, `locator`, `ref_kind`, `entity_id/title`, `score`. (4) `/workspace/search` page: full citation search with live kind filter pills, empty states. (5) `primary-nav`: **Search** entry with `Quote` icon. (6) Files Indexing tab citations now render `CitationCard compact`. (7) `file-store`: `fetchFileCitations` returns `CitationEvidence[]`. `v0.5.85` published.

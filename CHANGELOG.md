@@ -2,6 +2,60 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.86] - 2026-04-21
+
+This release implements Phase 46: Knowledge Entities and Wiki Substrate. Relay now has first-class knowledge entities that can connect files, messages, artifacts, workflows, and future business objects into wiki-style pages and relationship previews.
+
+### Added
+
+- **Knowledge Entity APIs**:
+  - `GET /api/v1/knowledge/entities`
+  - `POST /api/v1/knowledge/entities`
+  - `GET /api/v1/knowledge/entities/:id`
+  - `PATCH /api/v1/knowledge/entities/:id`
+- **Knowledge Reference APIs**:
+  - `GET /api/v1/knowledge/entities/:id/refs`
+  - `POST /api/v1/knowledge/entities/:id/refs`
+- **Knowledge Timeline APIs**:
+  - `GET /api/v1/knowledge/entities/:id/timeline`
+  - `POST /api/v1/knowledge/entities/:id/events`
+- **Knowledge Link And Graph Preview APIs**:
+  - `GET /api/v1/knowledge/entities/:id/links`
+  - `POST /api/v1/knowledge/links`
+  - `GET /api/v1/knowledge/entities/:id/graph`
+- **Knowledge Wiki Persistence Models**:
+  - `KnowledgeEntity`
+  - `KnowledgeEntityRef`
+  - `KnowledgeEntityLink`
+  - `KnowledgeEvent`
+
+### Changed
+
+- **Citation Entity Hydration**:
+  - Citation lookup now hydrates `entity_title` when a citation is connected to a `KnowledgeEntity`.
+- **Knowledge Service Expansion**:
+  - `apps/api/internal/knowledge/` now handles both citation lookup and the entity/wiki substrate.
+
+### Windsurf Handoff
+
+- Build the first wiki/entity detail page using:
+  - entity detail
+  - refs
+  - timeline
+  - graph preview
+- Add entity badges and links wherever `entity_id` / `entity_title` appear in `CitationCard`.
+- Suggested next UI routes:
+  - `/workspace/knowledge`
+  - `/workspace/knowledge/[id]`
+
+### Verification Used For This Release
+
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go test ./internal/knowledge`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go test ./internal/handlers`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+
 ## [0.5.85] - 2026-04-21
 
 This release implements Phase 45: AI Citation Lookup. Relay now has a unified evidence lookup layer that can search across file chunks, channel messages, thread messages, and artifact sections, while reserving entity-aware fields for the upcoming wiki and graph phases.

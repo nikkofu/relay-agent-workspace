@@ -1,14 +1,17 @@
 package knowledge
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"gorm.io/gorm"
 
 	"github.com/nikkofu/relay-agent-workspace/api/internal/domain"
+	"github.com/nikkofu/relay-agent-workspace/api/internal/ids"
 )
 
 func Lookup(database *gorm.DB, params LookupParams) ([]Citation, error) {
@@ -215,7 +218,270 @@ func attachEntity(database *gorm.DB, citation *Citation, evidenceKind, evidenceR
 	}
 
 	citation.EntityID = ref.EntityID
+	var entity domain.KnowledgeEntity
+	if err := database.First(&entity, "id = ?", ref.EntityID).Error; err == nil {
+		citation.EntityTitle = entity.Title
+	} else if err != gorm.ErrRecordNotFound {
+		return err
+	}
 	return nil
+}
+
+func CreateEntity(database *gorm.DB, input CreateEntityInput) (domain.KnowledgeEntity, error) {
+	now := time.Now().UTC()
+	entity := domain.KnowledgeEntity{
+		ID:          newKnowledgeID("entity"),
+		WorkspaceID: strings.TrimSpace(input.WorkspaceID),
+		Kind:        defaultString(strings.TrimSpace(input.Kind), "custom"),
+		Title:       strings.TrimSpace(input.Title),
+		Summary:     strings.TrimSpace(input.Summary),
+		Status:      defaultString(strings.TrimSpace(input.Status), "active"),
+		OwnerUserID: strings.TrimSpace(input.OwnerUserID),
+		SourceKind:  defaultString(strings.TrimSpace(input.SourceKind), "manual"),
+		SourceRef:   strings.TrimSpace(input.SourceRef),
+		Metadata:    strings.TrimSpace(input.Metadata),
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	if entity.WorkspaceID == "" || entity.Title == "" {
+		return entity, errors.New("workspace_id and title are required")
+	}
+	if err := database.Create(&entity).Error; err != nil {
+		return entity, err
+	}
+	_, _ = AppendEntityEvent(database, entity.ID, AddEntityEventInput{
+		EventType:  "created",
+		Title:      "Created " + entity.Title,
+		SourceKind: "system",
+	})
+	return entity, nil
+}
+
+func UpdateEntity(database *gorm.DB, id string, input UpdateEntityInput) (domain.KnowledgeEntity, error) {
+	var entity domain.KnowledgeEntity
+	if err := database.First(&entity, "id = ?", id).Error; err != nil {
+		return entity, err
+	}
+	if strings.TrimSpace(input.Kind) != "" {
+		entity.Kind = strings.TrimSpace(input.Kind)
+	}
+	if strings.TrimSpace(input.Title) != "" {
+		entity.Title = strings.TrimSpace(input.Title)
+	}
+	if input.Summary != "" {
+		entity.Summary = strings.TrimSpace(input.Summary)
+	}
+	if strings.TrimSpace(input.Status) != "" {
+		entity.Status = strings.TrimSpace(input.Status)
+	}
+	if input.OwnerUserID != "" {
+		entity.OwnerUserID = strings.TrimSpace(input.OwnerUserID)
+	}
+	if input.SourceKind != "" {
+		entity.SourceKind = strings.TrimSpace(input.SourceKind)
+	}
+	if input.SourceRef != "" {
+		entity.SourceRef = strings.TrimSpace(input.SourceRef)
+	}
+	if input.Metadata != "" {
+		entity.Metadata = strings.TrimSpace(input.Metadata)
+	}
+	entity.UpdatedAt = time.Now().UTC()
+	if err := database.Save(&entity).Error; err != nil {
+		return entity, err
+	}
+	_, _ = AppendEntityEvent(database, entity.ID, AddEntityEventInput{
+		EventType:  "updated",
+		Title:      "Updated " + entity.Title,
+		SourceKind: "system",
+	})
+	return entity, nil
+}
+
+func ListEntities(database *gorm.DB, workspaceID string) ([]domain.KnowledgeEntity, error) {
+	var entities []domain.KnowledgeEntity
+	query := database.Order("updated_at desc")
+	if strings.TrimSpace(workspaceID) != "" {
+		query = query.Where("workspace_id = ?", strings.TrimSpace(workspaceID))
+	}
+	if err := query.Find(&entities).Error; err != nil {
+		return nil, err
+	}
+	return entities, nil
+}
+
+func GetEntity(database *gorm.DB, id string) (domain.KnowledgeEntity, error) {
+	var entity domain.KnowledgeEntity
+	err := database.First(&entity, "id = ?", id).Error
+	return entity, err
+}
+
+func AddEntityRef(database *gorm.DB, entityID string, input AddEntityRefInput) (domain.KnowledgeEntityRef, error) {
+	entity, err := GetEntity(database, entityID)
+	if err != nil {
+		return domain.KnowledgeEntityRef{}, err
+	}
+	now := time.Now().UTC()
+	ref := domain.KnowledgeEntityRef{
+		ID:          newKnowledgeID("kref"),
+		WorkspaceID: entity.WorkspaceID,
+		EntityID:    entity.ID,
+		RefKind:     strings.TrimSpace(input.RefKind),
+		RefID:       strings.TrimSpace(input.RefID),
+		Role:        defaultString(strings.TrimSpace(input.Role), "evidence"),
+		Metadata:    strings.TrimSpace(input.Metadata),
+		CreatedAt:   now,
+	}
+	if ref.RefKind == "" || ref.RefID == "" {
+		return ref, errors.New("ref_kind and ref_id are required")
+	}
+	if err := database.Create(&ref).Error; err != nil {
+		return ref, err
+	}
+	_, _ = AppendEntityEvent(database, entity.ID, AddEntityEventInput{
+		EventType:  ref.RefKind + "_linked",
+		Title:      "Linked " + ref.RefKind,
+		SourceKind: "system",
+		SourceRef:  ref.RefID,
+	})
+	return ref, nil
+}
+
+func ListEntityRefs(database *gorm.DB, entityID string) ([]domain.KnowledgeEntityRef, error) {
+	var refs []domain.KnowledgeEntityRef
+	if err := database.Where("entity_id = ?", entityID).Order("created_at desc").Find(&refs).Error; err != nil {
+		return nil, err
+	}
+	return refs, nil
+}
+
+func AddEntityLink(database *gorm.DB, input AddEntityLinkInput) (domain.KnowledgeEntityLink, error) {
+	from, err := GetEntity(database, input.FromEntityID)
+	if err != nil {
+		return domain.KnowledgeEntityLink{}, err
+	}
+	if _, err := GetEntity(database, input.ToEntityID); err != nil {
+		return domain.KnowledgeEntityLink{}, err
+	}
+	link := domain.KnowledgeEntityLink{
+		ID:           newKnowledgeID("klink"),
+		WorkspaceID:  defaultString(strings.TrimSpace(input.WorkspaceID), from.WorkspaceID),
+		FromEntityID: strings.TrimSpace(input.FromEntityID),
+		ToEntityID:   strings.TrimSpace(input.ToEntityID),
+		Relation:     defaultString(strings.TrimSpace(input.Relation), "relates_to"),
+		Weight:       input.Weight,
+		Metadata:     strings.TrimSpace(input.Metadata),
+		CreatedAt:    time.Now().UTC(),
+	}
+	if link.Weight == 0 {
+		link.Weight = 1
+	}
+	if err := database.Create(&link).Error; err != nil {
+		return link, err
+	}
+	return link, nil
+}
+
+func ListEntityLinks(database *gorm.DB, entityID string) ([]domain.KnowledgeEntityLink, error) {
+	var links []domain.KnowledgeEntityLink
+	if err := database.Where("from_entity_id = ? OR to_entity_id = ?", entityID, entityID).Order("created_at desc").Find(&links).Error; err != nil {
+		return nil, err
+	}
+	return links, nil
+}
+
+func AppendEntityEvent(database *gorm.DB, entityID string, input AddEntityEventInput) (domain.KnowledgeEvent, error) {
+	entity, err := GetEntity(database, entityID)
+	if err != nil {
+		return domain.KnowledgeEvent{}, err
+	}
+	now := time.Now().UTC()
+	event := domain.KnowledgeEvent{
+		ID:          newKnowledgeID("kevent"),
+		WorkspaceID: entity.WorkspaceID,
+		EntityID:    entity.ID,
+		EventType:   defaultString(strings.TrimSpace(input.EventType), "updated"),
+		Title:       strings.TrimSpace(input.Title),
+		Body:        strings.TrimSpace(input.Body),
+		ActorUserID: strings.TrimSpace(input.ActorUserID),
+		SourceKind:  defaultString(strings.TrimSpace(input.SourceKind), "system"),
+		SourceRef:   strings.TrimSpace(input.SourceRef),
+		OccurredAt:  now,
+		CreatedAt:   now,
+	}
+	if event.Title == "" {
+		event.Title = event.EventType
+	}
+	if err := database.Create(&event).Error; err != nil {
+		return event, err
+	}
+	return event, nil
+}
+
+func ListEntityTimeline(database *gorm.DB, entityID string) ([]domain.KnowledgeEvent, error) {
+	var events []domain.KnowledgeEvent
+	if err := database.Where("entity_id = ?", entityID).Order("occurred_at desc, created_at desc").Find(&events).Error; err != nil {
+		return nil, err
+	}
+	return events, nil
+}
+
+func BuildEntityGraph(database *gorm.DB, entityID string) (EntityGraph, error) {
+	entity, err := GetEntity(database, entityID)
+	if err != nil {
+		return EntityGraph{}, err
+	}
+	graph := EntityGraph{
+		Nodes: []GraphNode{{ID: entity.ID, Kind: entity.Kind, Title: entity.Title}},
+		Edges: []GraphEdge{},
+	}
+	seen := map[string]bool{entity.ID: true}
+
+	refs, err := ListEntityRefs(database, entityID)
+	if err != nil {
+		return graph, err
+	}
+	for _, ref := range refs {
+		nodeID := ref.RefKind + ":" + ref.RefID
+		if !seen[nodeID] {
+			graph.Nodes = append(graph.Nodes, GraphNode{ID: nodeID, Kind: ref.RefKind, Title: ref.RefID})
+			seen[nodeID] = true
+		}
+		graph.Edges = append(graph.Edges, GraphEdge{ID: ref.ID, From: entity.ID, To: nodeID, Relation: ref.Role})
+	}
+
+	links, err := ListEntityLinks(database, entityID)
+	if err != nil {
+		return graph, err
+	}
+	for _, link := range links {
+		otherID := link.ToEntityID
+		if otherID == entityID {
+			otherID = link.FromEntityID
+		}
+		if !seen[otherID] {
+			if other, err := GetEntity(database, otherID); err == nil {
+				graph.Nodes = append(graph.Nodes, GraphNode{ID: other.ID, Kind: other.Kind, Title: other.Title})
+			} else {
+				graph.Nodes = append(graph.Nodes, GraphNode{ID: otherID, Kind: "entity", Title: otherID})
+			}
+			seen[otherID] = true
+		}
+		graph.Edges = append(graph.Edges, GraphEdge{ID: link.ID, From: link.FromEntityID, To: link.ToEntityID, Relation: link.Relation})
+	}
+
+	return graph, nil
+}
+
+func defaultString(value, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return value
+}
+
+func newKnowledgeID(prefix string) string {
+	return ids.NewPrefixedUUID(prefix)
 }
 
 func includeKind(params LookupParams, kind string) bool {

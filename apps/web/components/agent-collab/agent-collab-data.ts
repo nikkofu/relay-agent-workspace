@@ -112,9 +112,9 @@ export const MEMBERS: Member[] = [
 
 export const ACTIVE_SUPERPOWERS: AgentPower[] = [
   { agent: 'Gemini', skill: 'idle', task: 'Resting after Phase 38 handoff', progress: 100, status: 'done' },
-  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 45 AI Citation Lookup API handoff complete', progress: 100, status: 'done' },
+  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 46 Knowledge Entity/Wiki API handoff complete', progress: 100, status: 'done' },
   { agent: 'Claude Code', skill: 'idle', task: '-', progress: 0, status: 'idle' },
-  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 45 Citation Lookup Integration complete (v0.5.85)', progress: 100, status: 'done' },
+  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Awaiting Phase 46 knowledge entity wiki integration on top of v0.5.86 API handoff', progress: 0, status: 'idle' },
 ]
 
 // ─── Full Task Board ──────────────────────────────────────────────────────────
@@ -216,11 +216,24 @@ export const TASKS: Task[] = [
   { id: 't94', phase: 94, status: 'done',  task: 'Phase 44 File Extraction UI And Content Search',       assignedTo: ['Windsurf'],        deadline: '2026-04-21', description: 'Extraction status badges in file list (Indexing/Indexed/Failed/OCR icons) and FileAttachmentCard. Content Search panel in Files header. Indexing tab in preview dialog: status card + Rebuild trigger + Extracted Text + Chunks + Citations (all lazy-loaded). WS file.extraction.updated handled in useWebsocket. v0.5.84 published.', type: 'frontend' },
   { id: 't95', phase: 95, status: 'done',  task: 'Phase 45 AI Citation Lookup APIs',                  assignedTo: ['Codex'],           deadline: '2026-04-21', description: 'Added GET /api/v1/citations/lookup across file chunks, messages, threads, and artifact sections. Added apps/api/internal/knowledge/ plus minimal evidence/entity seam models. Unified GET /api/v1/files/:id/citations payload shape and reserved entity-aware fields for later wiki/graph phases.', type: 'api' },
   { id: 't96', phase: 96, status: 'done',  task: 'Phase 45 Citation Lookup Integration',               assignedTo: ['Windsurf'],        deadline: '2026-04-21', description: 'Built EvidenceKind type and CitationEvidence interface. citation-store with lookupCitations (GET /api/v1/citations/lookup). Shared CitationCard component switching on evidence_kind (file_chunk/message/thread/artifact_section) with snippet/locator/ref_kind/entity_id. New /workspace/search page with kind filter pills. Search nav item (Quote icon). files/page.tsx citations updated to CitationCard. v0.5.85 published.', type: 'frontend' },
+  { id: 't97', phase: 97, status: 'done',  task: 'Phase 46 Knowledge Entities And Wiki APIs',         assignedTo: ['Codex'],           deadline: '2026-04-21', description: 'Added first-class knowledge entities, refs, links, timeline, graph preview, and citation entity_title hydration. New /api/v1/knowledge/entities API family powers wiki-style entity pages.', type: 'api' },
+  { id: 't98', phase: 98, status: 'todo',  task: 'Phase 46 Knowledge Entity Wiki Integration',         assignedTo: ['Windsurf'],        deadline: '2026-04-21', description: 'Build knowledge/entity list and detail pages, citation entity links, refs/timeline panels, and graph relationship preview UI from the v0.5.86 backend APIs.', type: 'frontend' },
 ]
 
 // ─── Communication Log ────────────────────────────────────────────────────────
 
 export const COMM_SECTIONS: CommSection[] = [
+  {
+    id: 'cs11',
+    date: '2026-04-21',
+    title: 'Phase 46 Knowledge Entities And Wiki API Completion',
+    messages: [
+      { id: 'cx46a', from: 'Codex', content: 'Added first-class knowledge entity persistence: KnowledgeEntity, KnowledgeEntityRef, KnowledgeEntityLink, and KnowledgeEvent.' },
+      { id: 'cx46b', from: 'Codex', content: 'Added the /api/v1/knowledge/entities API family: entity CRUD, refs, timeline events, links, and graph preview. Citation lookup now hydrates entity_title when an entity exists.' },
+      { id: 'cx46c', from: 'Codex', to: 'Windsurf', content: 'Please build /workspace/knowledge and /workspace/knowledge/[id] or equivalent surfaces. Entity detail should consume entity detail, refs, timeline, and graph preview APIs. Citation cards can now link entity_id to the entity page and display entity_title when present.' },
+      { id: 'cx46d', from: 'Codex', to: 'Nikko Fu', content: 'Relay now has the wiki substrate needed for entity-centric knowledge: durable entities, evidence refs, timeline, links, and graph preview. This keeps static docs and dynamic business events on the same future knowledge model. v0.5.86.' },
+    ],
+  },
   {
     id: 'cs10',
     date: '2026-04-21',

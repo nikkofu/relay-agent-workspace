@@ -3602,6 +3602,124 @@ func TestCitationLookupIncludesOptionalEntityFields(t *testing.T) {
 	}
 }
 
+func TestKnowledgeEntityModelsPersist(t *testing.T) {
+	setupTestDB(t)
+
+	now := time.Now().UTC()
+	entity := domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Summary: "Q2 launch", Status: "active", SourceKind: "manual", CreatedAt: now, UpdatedAt: now}
+	if err := db.DB.Create(&entity).Error; err != nil {
+		t.Fatalf("failed to create entity: %v", err)
+	}
+	ref := domain.KnowledgeEntityRef{ID: "kref-1", WorkspaceID: "ws-1", EntityID: entity.ID, RefKind: "file", RefID: "file-1", Role: "evidence", CreatedAt: now}
+	if err := db.DB.Create(&ref).Error; err != nil {
+		t.Fatalf("failed to create entity ref: %v", err)
+	}
+	link := domain.KnowledgeEntityLink{ID: "klink-1", WorkspaceID: "ws-1", FromEntityID: entity.ID, ToEntityID: "entity-2", Relation: "depends_on", CreatedAt: now}
+	if err := db.DB.Create(&link).Error; err != nil {
+		t.Fatalf("failed to create entity link: %v", err)
+	}
+	event := domain.KnowledgeEvent{ID: "kevent-1", WorkspaceID: "ws-1", EntityID: entity.ID, EventType: "created", Title: "Created entity", SourceKind: "system", OccurredAt: now, CreatedAt: now}
+	if err := db.DB.Create(&event).Error; err != nil {
+		t.Fatalf("failed to create entity event: %v", err)
+	}
+}
+
+func TestKnowledgeEntityCRUDEndpoints(t *testing.T) {
+	setupTestDB(t)
+
+	router := gin.New()
+	router.GET("/api/v1/knowledge/entities", ListKnowledgeEntities)
+	router.POST("/api/v1/knowledge/entities", CreateKnowledgeEntity)
+	router.GET("/api/v1/knowledge/entities/:id", GetKnowledgeEntity)
+	router.PATCH("/api/v1/knowledge/entities/:id", UpdateKnowledgeEntity)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/entities", strings.NewReader(`{"workspace_id":"ws-1","kind":"project","title":"Launch Program","summary":"Q2 launch"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on create entity, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var createPayload struct {
+		Entity domain.KnowledgeEntity `json:"entity"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &createPayload); err != nil {
+		t.Fatalf("decode create entity: %v", err)
+	}
+	if createPayload.Entity.ID == "" || createPayload.Entity.Title != "Launch Program" {
+		t.Fatalf("unexpected create payload: %#v", createPayload)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPatch, "/api/v1/knowledge/entities/"+createPayload.Entity.ID, strings.NewReader(`{"status":"paused","summary":"Updated launch summary"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on update entity, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/knowledge/entities", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on list entities, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestKnowledgeEntityRefsAndTimelineEndpoints(t *testing.T) {
+	setupTestDB(t)
+	now := time.Now().UTC()
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Status: "active", SourceKind: "manual", CreatedAt: now, UpdatedAt: now})
+
+	router := gin.New()
+	router.GET("/api/v1/knowledge/entities/:id/refs", ListKnowledgeEntityRefs)
+	router.POST("/api/v1/knowledge/entities/:id/refs", AddKnowledgeEntityRef)
+	router.GET("/api/v1/knowledge/entities/:id/timeline", ListKnowledgeEntityTimeline)
+	router.POST("/api/v1/knowledge/entities/:id/events", AddKnowledgeEntityEvent)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/entities/entity-1/refs", strings.NewReader(`{"ref_kind":"file","ref_id":"file-1","role":"evidence"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on add ref, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/knowledge/entities/entity-1/timeline", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "file_linked") {
+		t.Fatalf("expected timeline with file_linked event, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestKnowledgeEntityGraphEndpoint(t *testing.T) {
+	setupTestDB(t)
+	now := time.Now().UTC()
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Status: "active", SourceKind: "manual", CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-2", WorkspaceID: "ws-1", Kind: "service", Title: "Billing Service", Status: "active", SourceKind: "manual", CreatedAt: now, UpdatedAt: now})
+
+	router := gin.New()
+	router.POST("/api/v1/knowledge/links", AddKnowledgeEntityLink)
+	router.GET("/api/v1/knowledge/entities/:id/graph", GetKnowledgeEntityGraph)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/links", strings.NewReader(`{"from_entity_id":"entity-1","to_entity_id":"entity-2","relation":"depends_on"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on add link, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/knowledge/entities/entity-1/graph", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "depends_on") {
+		t.Fatalf("expected graph with depends_on edge, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestFileExtractionBroadcastsRealtimeUpdate(t *testing.T) {
 	setupTestDB(t)
 
@@ -3672,7 +3790,7 @@ func setupTestDB(t *testing.T) {
 	if err := db.DB.AutoMigrate(&domain.Organization{}, &domain.Team{}, &domain.User{}, &domain.Agent{}, &domain.Workspace{}, &domain.WorkspaceInvite{}, &domain.UserGroup{}, &domain.UserGroupMember{}, &domain.WorkflowDefinition{}, &domain.WorkflowRunStep{}, &domain.WorkflowRunLog{}, &domain.ToolDefinition{}, &domain.ToolRun{}, &domain.ToolRunLog{}, &domain.Channel{}, &domain.ChannelMember{}, &domain.ChannelPreference{}, &domain.WorkspaceList{}, &domain.WorkspaceListItem{}, &domain.Message{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
-	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.NotificationPreference{}, &domain.NotificationMuteRule{}, &domain.AIFeedback{}, &domain.AIConversation{}, &domain.AIConversationMessage{}, &domain.AISummary{}, &domain.Artifact{}, &domain.ArtifactVersion{}, &domain.FileAsset{}, &domain.FileAssetEvent{}, &domain.FileExtraction{}, &domain.FileExtractionChunk{}, &domain.FileComment{}, &domain.FileShare{}, &domain.StarredFile{}, &domain.MessageArtifactReference{}, &domain.MessageFileAttachment{}, &domain.KnowledgeEvidenceLink{}, &domain.KnowledgeEvidenceEntityRef{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}, &domain.WorkflowRun{}); err != nil {
+	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.NotificationPreference{}, &domain.NotificationMuteRule{}, &domain.AIFeedback{}, &domain.AIConversation{}, &domain.AIConversationMessage{}, &domain.AISummary{}, &domain.Artifact{}, &domain.ArtifactVersion{}, &domain.FileAsset{}, &domain.FileAssetEvent{}, &domain.FileExtraction{}, &domain.FileExtractionChunk{}, &domain.FileComment{}, &domain.FileShare{}, &domain.StarredFile{}, &domain.MessageArtifactReference{}, &domain.MessageFileAttachment{}, &domain.KnowledgeEvidenceLink{}, &domain.KnowledgeEvidenceEntityRef{}, &domain.KnowledgeEntity{}, &domain.KnowledgeEntityRef{}, &domain.KnowledgeEntityLink{}, &domain.KnowledgeEvent{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}, &domain.WorkflowRun{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 }
