@@ -157,6 +157,7 @@ func main() {
 		v1.GET("/artifacts/:id/versions/:version", handlers.GetArtifactVersion)
 		v1.GET("/artifacts/:id/diff/:from/:to", handlers.GetArtifactDiff)
 		v1.GET("/artifacts/:id/references", handlers.GetArtifactReferences)
+		v1.POST("/artifacts/:id/duplicate", handlers.DuplicateArtifact)
 		v1.POST("/artifacts/:id/restore/:version", handlers.RestoreArtifactVersion)
 		v1.PATCH("/artifacts/:id", handlers.UpdateArtifact)
 		v1.GET("/files", handlers.ListFiles)

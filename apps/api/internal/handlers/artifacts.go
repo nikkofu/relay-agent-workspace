@@ -249,6 +249,59 @@ func CreateArtifact(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"artifact": hydrateArtifactResponse(artifact)})
 }
 
+func DuplicateArtifact(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var source domain.Artifact
+	if err := db.DB.First(&source, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "artifact not found"})
+		return
+	}
+
+	var input struct {
+		ChannelID string `json:"channel_id"`
+		Title     string `json:"title"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil && err.Error() != "EOF" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	now := time.Now().UTC()
+	artifact := domain.Artifact{
+		ID:         ids.NewPrefixedUUID("artifact"),
+		ChannelID:  defaultString(strings.TrimSpace(input.ChannelID), source.ChannelID),
+		Title:      defaultString(strings.TrimSpace(input.Title), source.Title+" copy"),
+		Version:    1,
+		Type:       source.Type,
+		Status:     "draft",
+		Content:    source.Content,
+		Source:     "duplicate",
+		TemplateID: source.TemplateID,
+		Provider:   source.Provider,
+		Model:      source.Model,
+		CreatedBy:  currentUser.ID,
+		UpdatedBy:  currentUser.ID,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+	if err := db.DB.Create(&artifact).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to duplicate artifact"})
+		return
+	}
+	if err := createArtifactVersionSnapshot(artifact); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to snapshot duplicated artifact"})
+		return
+	}
+
+	_ = broadcastArtifactRealtimeEvent("artifact.updated", artifact)
+	c.JSON(http.StatusCreated, gin.H{"artifact": hydrateArtifactResponse(artifact)})
+}
+
 func UpdateArtifact(c *gin.Context) {
 	currentUser, err := getCurrentUser()
 	if err != nil {

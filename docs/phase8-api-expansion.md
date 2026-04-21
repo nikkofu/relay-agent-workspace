@@ -198,6 +198,7 @@ Baseline support now exists for:
 - `GET /api/v1/artifacts/:id/versions/:version`
 - `GET /api/v1/artifacts/:id/diff/:from/:to`
 - `POST /api/v1/artifacts/:id/restore/:version`
+- `POST /api/v1/artifacts/:id/duplicate`
 - `POST /api/v1/ai/canvas/generate`
 
 Likely follow-ups:
@@ -208,7 +209,7 @@ Likely follow-ups:
 - deeper artifact backlinks such as thread-level and DM-level references
 - artifact templates and generation presets
 - richer template galleries grouped by workflow or team use case
-- dedicated canvas duplicate/fork APIs
+- richer fork lineage metadata and compare-original affordances
 
 ### 4.4 Files
 
@@ -344,6 +345,7 @@ Baseline support now exists for:
 - virtual `GET /api/v1/artifacts/new-doc`
 - `GET /api/v1/artifacts/templates`
 - `POST /api/v1/artifacts/from-template`
+- `POST /api/v1/artifacts/:id/duplicate`
 
 Likely follow-ups:
 
@@ -351,7 +353,7 @@ Likely follow-ups:
 - assignee filters and due-date reminder jobs for list items
 - richer workspace and channel home widgets backed by structured lists, tool runs, and files
 - richer template bundles for product, design, engineering, and incident response
-- canvas duplication/fork flows from templates or existing artifacts
+- fork lineage, ownership transfer, and review workflows for copied canvases
 
 ### 4.9 Notification Preferences And Mute Rules
 

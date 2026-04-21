@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.5.72` is the current release line and includes:
+`v0.5.74` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -110,6 +110,7 @@ For product, design, and marketing, the short version is:
 - Channel notification preferences and self-service leave-channel API
 - Structured workspace list APIs for shared checklists and operational tracking
 - Artifact template APIs and virtual `new-doc` bootstrap support for canvas-first creation
+- Artifact duplicate/fork API for copying an existing canvas into the same or another channel
 - Custom status emoji and status expiration support
 - Extended profile fields for pronouns, location, phone, and bio
 - Workflow run step history, flat compatibility fields, and richer run detail hydration

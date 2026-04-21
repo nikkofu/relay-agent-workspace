@@ -44,6 +44,7 @@ func TestArtifactCRUDAndAI_generate(t *testing.T) {
 	router.GET("/api/v1/artifacts/:id/diff/:from/:to", GetArtifactDiff)
 	router.GET("/api/v1/artifacts/:id/references", GetArtifactReferences)
 	router.PATCH("/api/v1/artifacts/:id", UpdateArtifact)
+	router.POST("/api/v1/artifacts/:id/duplicate", DuplicateArtifact)
 	router.POST("/api/v1/artifacts/:id/restore/:version", RestoreArtifactVersion)
 	router.POST("/api/v1/ai/canvas/generate", GenerateCanvasArtifact)
 
@@ -136,6 +137,49 @@ func TestArtifactCRUDAndAI_generate(t *testing.T) {
 	if listPayload.Artifacts[0].Version != 2 {
 		t.Fatalf("expected list artifact to include latest version 2, got %d", listPayload.Artifacts[0].Version)
 	}
+
+	db.DB.Create(&domain.Channel{ID: "ch-6", WorkspaceID: "ws-1", Name: "product", Type: "public"})
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/artifacts/"+createPayload.Artifact.ID+"/duplicate", bytes.NewBufferString(`{"channel_id":"ch-6","title":"Launch Notes Fork"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on artifact duplicate, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var duplicatePayload struct {
+		Artifact struct {
+			domain.Artifact
+			CreatedByUser *domain.User `json:"created_by_user"`
+			UpdatedByUser *domain.User `json:"updated_by_user"`
+			UserID        string       `json:"user_id"`
+		} `json:"artifact"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &duplicatePayload); err != nil {
+		t.Fatalf("failed to decode duplicate artifact payload: %v", err)
+	}
+	if duplicatePayload.Artifact.ID == createPayload.Artifact.ID {
+		t.Fatalf("expected duplicate to have a new id, got %q", duplicatePayload.Artifact.ID)
+	}
+	assertPrefixedUUID(t, duplicatePayload.Artifact.ID, "artifact")
+	if duplicatePayload.Artifact.ChannelID != "ch-6" || duplicatePayload.Artifact.Title != "Launch Notes Fork" {
+		t.Fatalf("unexpected duplicate target fields: %#v", duplicatePayload.Artifact)
+	}
+	if duplicatePayload.Artifact.Content != "Revised outline" || duplicatePayload.Artifact.Version != 1 || duplicatePayload.Artifact.Source != "duplicate" {
+		t.Fatalf("unexpected duplicate content/version/source: %#v", duplicatePayload.Artifact)
+	}
+	if duplicatePayload.Artifact.CreatedByUser == nil || duplicatePayload.Artifact.CreatedByUser.ID != "user-1" || duplicatePayload.Artifact.UpdatedByUser == nil || duplicatePayload.Artifact.UserID != "user-1" {
+		t.Fatalf("expected duplicate user hydration, got %#v", duplicatePayload.Artifact)
+	}
+
+	var duplicateVersions []domain.ArtifactVersion
+	if err := db.DB.Where("artifact_id = ?", duplicatePayload.Artifact.ID).Find(&duplicateVersions).Error; err != nil {
+		t.Fatalf("failed to load duplicate versions: %v", err)
+	}
+	if len(duplicateVersions) != 1 || duplicateVersions[0].Version != 1 || duplicateVersions[0].Content != "Revised outline" {
+		t.Fatalf("expected duplicate version snapshot, got %#v", duplicateVersions)
+	}
+	assertRealtimeEventType(t, client, "artifact.updated")
 
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/artifacts/"+createPayload.Artifact.ID+"/versions", nil)
@@ -362,8 +406,8 @@ func TestArtifactCRUDAndAI_generate(t *testing.T) {
 
 	var count int64
 	db.DB.Model(&domain.Artifact{}).Count(&count)
-	if count != 2 {
-		t.Fatalf("expected 2 persisted artifacts, got %d", count)
+	if count != 3 {
+		t.Fatalf("expected 3 persisted artifacts, got %d", count)
 	}
 }
 

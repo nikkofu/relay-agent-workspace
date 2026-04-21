@@ -2,6 +2,32 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.74] - 2026-04-21
+
+This release implements Phase 38: Artifact Duplicate/Fork APIs, closing a canvas workflow gap for copying an existing artifact into the same or another channel.
+
+### Added
+
+- **Artifact Duplicate API**: Added `POST /api/v1/artifacts/:id/duplicate` for canvas duplicate/fork flows.
+- **Target Channel Override**: The duplicate request accepts optional `channel_id` so a canvas can be copied into another channel.
+- **Title Override**: The duplicate request accepts optional `title`; otherwise the backend creates a copy title.
+- **Version Snapshot**: Duplicated artifacts start at `version: 1` and receive an initial persisted version snapshot.
+- **Realtime Sync**: Duplicate creation broadcasts `artifact.updated` so open canvas panels can refresh.
+
+### API Contract
+
+- Request: `POST /api/v1/artifacts/:id/duplicate`
+- Body: `{ "channel_id"?: string, "title"?: string }`
+- Response: `{ "artifact": Artifact }`
+- Behavior: preserves source type/content/template/provider/model, resets status to `draft`, sets `source` to `duplicate`, and uses a new prefixed UUID artifact ID.
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./internal/handlers -run 'TestArtifactCRUDAndAI_generate$'`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+
 ## [0.5.73] - 2026-04-21
 
 This release implements Phase 37: Home Contract and Draft Lifecycle integration, hardening the home data flow and enabling explicit draft cleanup.
