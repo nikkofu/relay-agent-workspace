@@ -337,7 +337,7 @@ export function AgentCollabPage() {
   const readyCount = TASKS.filter(t => t.status === 'ready').length
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-[#1a1d21] overflow-hidden">
+    <div className="flex-1 flex flex-col min-h-0 bg-white dark:bg-[#1a1d21] overflow-hidden">
       {/* Channel Header */}
       <header className="shrink-0 border-b bg-white/80 dark:bg-[#1a1d21]/80 backdrop-blur-md">
         <div className="h-14 px-5 flex items-center gap-3">

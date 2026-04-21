@@ -2,6 +2,28 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.76] - 2026-04-21
+
+This release implements Phase 39: Agent-Collab Hub Page, a comprehensive team collaboration dashboard built by Windsurf. Windsurf joins the team as Web/UI Agent.
+
+### Added
+
+- **Agent-Collab Hub Page**: New dedicated page at `#agent-collab` channel (`web/components/agent-collab/`) replacing the generic channel view with a rich team dashboard.
+- **Kanban Board**: Full task board with 85 tasks searchable and filterable by assignee and category (API/Frontend/Infra/UX), grouped by date within the Done column.
+- **Communication Log**: Chronological message log with `From` / `From → To` distinction, automatic `@mention` highlighting for all team members, HTTP method badges, and endpoint detection.
+- **Statistics Tab**: Daily velocity bar chart, per-category task breakdown, and per-contributor progress bars.
+- **Overview Tab**: Live stats bar, team member profile cards (tasks done/ready, active superpower, tools), phase timeline, and assignee breakdown.
+- **New Team Member — Windsurf**: Web/UI Agent specializing in Component Architecture, TypeScript, UX Flows, and Agent Collaboration UI. Takes over part of Gemini's frontend scope.
+
+### Fixed
+
+- **Scroll**: Fixed missing `flex-1 min-h-0` on the root div of `AgentCollabPage`, which caused content to overflow without a scrollbar.
+
+### Verification Used For This Release
+
+- `pnpm run build` (Verified PASS)
+- `pnpm lint` (Verified PASS)
+
 ## [0.5.75] - 2026-04-21
 
 This release implements Phase 38: Artifact Duplicate/Fork Integration, enabling users to copy knowledge objects across the workspace and fork specific history versions.

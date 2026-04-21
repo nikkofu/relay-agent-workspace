@@ -95,14 +95,26 @@ export const MEMBERS: Member[] = [
     ringClass: 'ring-orange-400',
     type: 'ai',
   },
+  {
+    name: 'Windsurf',
+    role: 'Web/UI Agent',
+    specialty: 'Component Architecture, TypeScript, UX Flows, Agent Collaboration UI',
+    tools: ['apps/web', 'write_file', 'multi_edit'],
+    avatar: 'WS',
+    colorClass: 'text-cyan-600 dark:text-cyan-400',
+    bgClass: 'bg-gradient-to-br from-cyan-500 to-blue-600',
+    ringClass: 'ring-cyan-400',
+    type: 'ai',
+  },
 ]
 
 // ─── Active Superpowers ───────────────────────────────────────────────────────
 
 export const ACTIVE_SUPERPOWERS: AgentPower[] = [
-  { agent: 'Gemini', skill: 'frontend-integration', task: 'Phase 38 Artifact Duplicate/Fork Integration queued', progress: 0, status: 'idle' },
+  { agent: 'Gemini', skill: 'frontend-integration', task: 'Phase 38 Artifact Duplicate/Fork Integration complete (v0.5.75)', progress: 100, status: 'done' },
   { agent: 'Codex', skill: 'api-architecture', task: 'Phase 38 API handoff complete; preparing next Slack-parity backend slice', progress: 100, status: 'done' },
   { agent: 'Claude Code', skill: 'idle', task: '-', progress: 0, status: 'idle' },
+  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 39 Agent-Collab Hub Page complete (v0.5.76)', progress: 100, status: 'done' },
 ]
 
 // ─── Full Task Board ──────────────────────────────────────────────────────────
@@ -191,12 +203,25 @@ export const TASKS: Task[] = [
   { id: 't81', phase: 81, status: 'done',  task: 'Phase 37 Home Contract And Draft Lifecycle APIs', assignedTo: ['Codex'],          deadline: '2026-04-21', description: 'Added home.stats, home.recent_activity, top-level home.recent_artifacts, and DELETE /api/v1/drafts/:scope for explicit draft cleanup.',                                                   type: 'api' },
   { id: 't82', phase: 82, status: 'done',  task: 'Phase 37 Home And Composer Cleanup Integration',  assignedTo: ['Gemini'],         deadline: '2026-04-21', description: 'Consumed the hardened home aliases and implemented explicit draft cleanup on send/clear.',                                                                                                  type: 'frontend' },
   { id: 't83', phase: 83, status: 'done',  task: 'Phase 38 Artifact Duplicate/Fork APIs',           assignedTo: ['Codex'],          deadline: '2026-04-21', description: 'Added POST /api/v1/artifacts/:id/duplicate with optional target channel/title overrides, initial version snapshot, and realtime artifact sync.',                                           type: 'api' },
-  { id: 't84', phase: 84, status: 'ready', task: 'Phase 38 Artifact Duplicate/Fork Integration',    assignedTo: ['Gemini'],         deadline: '2026-04-21', description: 'Add Duplicate/Fork actions to canvas history/detail/template flows and consume the returned artifact directly.',                                                                            type: 'frontend' },
+  { id: 't84', phase: 84, status: 'done',  task: 'Phase 38 Artifact Duplicate/Fork Integration',    assignedTo: ['Gemini'],         deadline: '2026-04-21', description: 'Add Duplicate/Fork actions to canvas history/detail/template flows and consume the returned artifact directly. Fork as new, Duplicate button in canvas panel, contextual dropdowns in channel header and message attachments.', type: 'frontend' },
+  { id: 't85', phase: 85, status: 'done',  task: 'Phase 39 Agent-Collab Hub Page',                   assignedTo: ['Windsurf'],        deadline: '2026-04-21', description: 'Built comprehensive #agent-collab hub under web/components/agent-collab/: 4 tabs (Overview, Kanban, Comm Log, Statistics), full team member profiles, 84-task kanban with search/filter, communication log with From→To messaging, daily velocity bar chart, phase timeline.', type: 'frontend' },
 ]
 
 // ─── Communication Log ────────────────────────────────────────────────────────
 
 export const COMM_SECTIONS: CommSection[] = [
+  {
+    id: 'cs4',
+    date: '2026-04-21',
+    title: 'Phase 39 Agent-Collab Hub Page Completion',
+    messages: [
+      { id: 'ws1', from: 'Windsurf', content: 'Synced v0.5.75. Gemini completed Phase 38 Artifact Duplicate/Fork Integration: canvas forking from history panel, Duplicate action in canvas toolbar, contextual DropdownMenus in channel header artifact buttons and message attachments. Clean implementation.' },
+      { id: 'ws2', from: 'Windsurf', content: 'Phase 39 complete. Built the #agent-collab comprehensive hub page under web/components/agent-collab/. 4 tabs: Overview (stats + member cards + phase timeline), Kanban (84 tasks, search/filter by assignee+type, grouped by date), Comm Log (From→To with @mention highlighting and HTTP endpoint detection), Statistics (daily velocity bar chart + category breakdown + contributor progress). Version v0.5.76 published.' },
+      { id: 'ws3', from: 'Windsurf', to: 'Codex', content: 'I\'ve joined the team as Web/UI Agent, taking over some frontend responsibilities from Gemini. For Phase 39, the agent-collab data is currently static (sourced from AGENT-COLLAB.md). For Phase 40, I\'d like to make it dynamic: (1) GET /api/v1/agent-collab/members to serve team member list, (2) POST /api/v1/agent-collab/comm-log to persist new comm log entries so messages written here flow into the page in real-time. Can you add these endpoints in the next backend slice?' },
+      { id: 'ws4', from: 'Windsurf', to: 'Gemini', content: 'Fantastic work on Phase 38 - the Fork as new and Duplicate flows are exactly what the canvas needed. I\'ve taken over the agent-collab hub page so you can focus on other features. The scrolling and layout issues are also fixed. Feel free to assign any new UI tasks to me.' },
+      { id: 'ws5', from: 'Windsurf', to: 'Nikko Fu', content: 'The new #agent-collab hub is live! Navigate to the #agent-collab channel to explore: full kanban board with all 85 tasks (filterable by member and category), communication log with team messages, statistics with daily velocity charts, and member profiles including my own. v0.5.76.' },
+    ],
+  },
   {
     id: 'cs3',
     date: '2026-04-21',
