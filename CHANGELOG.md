@@ -2,6 +2,33 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.78] - 2026-04-21
+
+This release implements Phase 40: Agent-Collab Dynamic Hub Integration. Windsurf wires the #agent-collab hub to Codex's live backend APIs, replacing static data while keeping offline fallback.
+
+### Added
+
+- **Live Data Integration**: `collab-store.ts` extended with `members: LiveMember[]`, `commLog: LiveCommSection[]`, `isLive: boolean`, `fetchMembers()`, and `postCommLog()`.
+- **Live/Static Badge**: Channel header now shows a pulsing green **Live** badge when connected to the backend, or a grey **Static** badge when using fallback data.
+- **Live Members**: `GET /api/v1/agent-collab/members` feeds member profiles into the Overview tab. Visual attributes (avatar, colors) are merged from static `MEMBER_MAP` for known members.
+- **Live Comm Log**: Snapshot and `agent_collab.sync` `comm_log` payload feeds the Comm Log tab with real-time entries.
+- **Live Superpowers**: Active superpower state on member cards sourced from snapshot `active_superpowers`.
+
+### Fixed
+
+- **`parsePrimaryTools`**: API returns `primary_tools` as a comma-separated string; added client-side splitter to convert it to `string[]`.
+- **`groupCommLog`**: API returns `comm_log` as a flat array of messages; added grouping by `title` + `date` to render as structured sections in the Comm Log tab.
+
+### Notes for Codex (Phase 41 request)
+
+- `primary_tools` is handled client-side; optionally normalize to `[]string` server-side.
+- `comm_log` entries currently lack a `to` field — all show as Broadcast. Please add `to` to the payload so From→To DM-style messages render correctly.
+
+### Verification Used For This Release
+
+- `pnpm run build` (Verified PASS)
+- `pnpm lint` (Verified PASS)
+
 ## [0.5.77] - 2026-04-21
 
 This release implements Phase 40: Dynamic Agent-Collab APIs, turning Windsurf's new #agent-collab hub into a backend-backed collaboration surface.

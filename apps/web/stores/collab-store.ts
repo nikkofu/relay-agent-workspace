@@ -17,11 +17,38 @@ export interface TaskItem {
   description: string
 }
 
+export interface LiveMember {
+  name: string
+  role: string
+  specialty: string
+  primary_tools: string[]
+}
+
+export interface LiveCommMessage {
+  id?: string
+  from: string
+  to?: string
+  content: string
+  isCode?: boolean
+}
+
+export interface LiveCommSection {
+  id?: string
+  title: string
+  date: string
+  messages: LiveCommMessage[]
+}
+
 interface CollabState {
   agents: AgentState[]
   tasks: TaskItem[]
-  setCollabData: (data: { active_superpowers: any[], task_board: any[] }) => void
+  members: LiveMember[]
+  commLog: LiveCommSection[]
+  isLive: boolean
+  setCollabData: (data: any) => void
   fetchSnapshot: () => Promise<void>
+  fetchMembers: () => Promise<void>
+  postCommLog: (entry: { from: string; to?: string; title: string; content: string }) => Promise<void>
 }
 
 const mapAgentRow = (row: any): AgentState => {
@@ -50,30 +77,126 @@ const mapTaskRow = (row: any): TaskItem => ({
   description: row.description || row.Description
 })
 
+const parsePrimaryTools = (tools: any): string[] => {
+  if (Array.isArray(tools)) return tools
+  if (typeof tools === 'string') return tools.split(',').map((s: string) => s.trim()).filter(Boolean)
+  return []
+}
+
+const groupCommLog = (flatMessages: any[]): LiveCommSection[] => {
+  const sectionMap = new Map<string, LiveCommSection>()
+  for (const m of flatMessages) {
+    const key = `${m.title}|${m.date}`
+    if (!sectionMap.has(key)) {
+      sectionMap.set(key, {
+        id: `cs-${(m.title || '').toLowerCase().replace(/\s+/g, '-')}-${m.date}`,
+        title: m.title || '',
+        date: m.date || '',
+        messages: [],
+      })
+    }
+    const to = m.to && m.to !== '' && m.to !== 'null' ? m.to : undefined
+    sectionMap.get(key)!.messages.push({
+      id: m.id,
+      from: m.from || '',
+      to,
+      content: m.content || '',
+      isCode: m.is_code || false,
+    })
+  }
+  return Array.from(sectionMap.values())
+}
+
 export const useCollabStore = create<CollabState>((set) => ({
   agents: [],
   tasks: [],
-  setCollabData: (data) => {
-    const mappedAgents: AgentState[] = data.active_superpowers.map(mapAgentRow)
-    const mappedTasks: TaskItem[] = data.task_board.map(mapTaskRow)
+  members: [],
+  commLog: [],
+  isLive: false,
 
-    set({ agents: mappedAgents, tasks: mappedTasks })
+  setCollabData: (data) => {
+    const mappedAgents: AgentState[] = (data.active_superpowers || []).map(mapAgentRow)
+    const mappedTasks: TaskItem[] = (data.task_board || []).map(mapTaskRow)
+    const mappedMembers: LiveMember[] = Array.isArray(data.members)
+      ? data.members.map((m: any) => ({
+          name: m.name || m.Name || "",
+          role: m.role || m.Role || "",
+          specialty: m.specialty || m.Specialty || "",
+          primary_tools: parsePrimaryTools(m.primary_tools || m.primaryTools),
+        }))
+      : []
+    const mappedCommLog: LiveCommSection[] = Array.isArray(data.comm_log)
+      ? groupCommLog(data.comm_log)
+      : []
+
+    set((state) => ({
+      agents: mappedAgents.length > 0 ? mappedAgents : state.agents,
+      tasks: mappedTasks.length > 0 ? mappedTasks : state.tasks,
+      members: mappedMembers.length > 0 ? mappedMembers : state.members,
+      commLog: mappedCommLog.length > 0 ? mappedCommLog : state.commLog,
+      isLive: true,
+    }))
   },
+
   fetchSnapshot: async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/agent-collab/snapshot`)
+      if (!response.ok) return
       const data = await response.json()
-      set((state) => {
-        const mappedAgents: AgentState[] = data.active_superpowers.map(mapAgentRow)
-        const mappedTasks: TaskItem[] = data.task_board.map(mapTaskRow)
+      const mappedAgents: AgentState[] = (data.active_superpowers || []).map(mapAgentRow)
+      const mappedTasks: TaskItem[] = (data.task_board || []).map(mapTaskRow)
+      const mappedMembers: LiveMember[] = Array.isArray(data.members)
+        ? data.members.map((m: any) => ({
+            name: m.name || m.Name || "",
+            role: m.role || m.Role || "",
+            specialty: m.specialty || m.Specialty || "",
+            primary_tools: parsePrimaryTools(m.primary_tools || m.primaryTools),
+          }))
+        : []
+      const mappedCommLog: LiveCommSection[] = Array.isArray(data.comm_log)
+        ? groupCommLog(data.comm_log)
+        : []
 
-        return {
-          agents: mappedAgents.length > 0 ? mappedAgents : state.agents,
-          tasks: mappedTasks.length > 0 ? mappedTasks : state.tasks
-        }
-      })
+      set((state) => ({
+        agents: mappedAgents.length > 0 ? mappedAgents : state.agents,
+        tasks: mappedTasks.length > 0 ? mappedTasks : state.tasks,
+        members: mappedMembers.length > 0 ? mappedMembers : state.members,
+        commLog: mappedCommLog.length > 0 ? mappedCommLog : state.commLog,
+        isLive: true,
+      }))
     } catch (error) {
       console.error("Failed to fetch agent collab snapshot:", error)
     }
-  }
+  },
+
+  fetchMembers: async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/agent-collab/members`)
+      if (!response.ok) return
+      const data = await response.json()
+      const mappedMembers: LiveMember[] = (data.members || []).map((m: any) => ({
+        name: m.name || m.Name || "",
+        role: m.role || m.Role || "",
+        specialty: m.specialty || m.Specialty || "",
+        primary_tools: m.primary_tools || m.primaryTools || [],
+      }))
+      if (mappedMembers.length > 0) {
+        set({ members: mappedMembers, isLive: true })
+      }
+    } catch (error) {
+      console.error("Failed to fetch agent-collab members:", error)
+    }
+  },
+
+  postCommLog: async (entry) => {
+    try {
+      await fetch(`${API_BASE_URL}/agent-collab/comm-log`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(entry),
+      })
+    } catch (error) {
+      console.error("Failed to post comm-log entry:", error)
+    }
+  },
 }))

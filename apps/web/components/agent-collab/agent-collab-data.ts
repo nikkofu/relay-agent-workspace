@@ -84,7 +84,7 @@ export const MEMBERS: Member[] = [
     ringClass: 'ring-emerald-400',
     type: 'ai',
   },
-  {
+  /*{
     name: 'Claude Code',
     role: 'Generalist Agent',
     specialty: 'Code Review, Analysis, Implementation',
@@ -94,7 +94,7 @@ export const MEMBERS: Member[] = [
     bgClass: 'bg-orange-500',
     ringClass: 'ring-orange-400',
     type: 'ai',
-  },
+  },*/
   {
     name: 'Windsurf',
     role: 'Web/UI Agent',

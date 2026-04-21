@@ -2,8 +2,9 @@
 
 import { useState } from "react"
 import { cn } from "@/lib/utils"
-import { ArrowRight, Hash } from "lucide-react"
+import { ArrowRight, Hash, Wifi, WifiOff } from "lucide-react"
 import { COMM_SECTIONS, MEMBER_MAP, type CommSection, type CommMessage } from "./agent-collab-data"
+import type { LiveCommSection } from "@/stores/collab-store"
 
 function highlightMentions(content: string): React.ReactNode {
   const namedMentions = MEMBER_MAP
@@ -153,13 +154,39 @@ function CommSection({ section }: { section: CommSection }) {
   )
 }
 
+// ─── Live → Static bridge ─────────────────────────────────────────────────────
+
+function bridgeToCommSection(live: LiveCommSection): CommSection {
+  return {
+    id: live.id ?? `live-${live.title}`,
+    date: live.date,
+    title: live.title,
+    messages: live.messages.map((m, i) => ({
+      id: m.id ?? `live-msg-${i}`,
+      from: m.from,
+      to: m.to,
+      content: m.content,
+      isCode: m.isCode,
+    })),
+  }
+}
+
 // ─── Main Comm Log ────────────────────────────────────────────────────────────
 
-export function AgentCollabCommLog() {
+interface AgentCollabCommLogProps {
+  liveSections?: LiveCommSection[]
+  isLive?: boolean
+}
+
+export function AgentCollabCommLog({ liveSections, isLive }: AgentCollabCommLogProps) {
+  const sections: CommSection[] = liveSections && liveSections.length > 0
+    ? liveSections.map(bridgeToCommSection)
+    : COMM_SECTIONS
+
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
-      {/* Legend */}
-      <div className="flex items-center gap-6 p-4 bg-muted/30 rounded-2xl border border-border/40">
+      {/* Legend + Live indicator */}
+      <div className="flex items-center gap-4 p-4 bg-muted/30 rounded-2xl border border-border/40 flex-wrap">
         <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Legend</span>
         <div className="flex items-center gap-2">
           <div className="w-8 h-4 rounded-sm bg-white dark:bg-[#222529] border border-border/50" />
@@ -178,10 +205,23 @@ export function AgentCollabCommLog() {
           <span className="text-[10px] font-mono text-blue-600 bg-blue-500/10 rounded px-1">/api/v1/...</span>
           <span className="text-[11px] font-semibold text-muted-foreground">Endpoint</span>
         </div>
+        <div className="ml-auto flex items-center gap-1.5">
+          {isLive ? (
+            <>
+              <Wifi className="w-3 h-3 text-emerald-500" />
+              <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400">Live data</span>
+            </>
+          ) : (
+            <>
+              <WifiOff className="w-3 h-3 text-muted-foreground" />
+              <span className="text-[10px] font-bold text-muted-foreground">Static fallback</span>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Sections */}
-      {COMM_SECTIONS.map(section => (
+      {sections.map(section => (
         <CommSection key={section.id} section={section} />
       ))}
     </div>

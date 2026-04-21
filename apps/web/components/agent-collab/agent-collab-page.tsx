@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
@@ -10,7 +10,8 @@ import {
   Columns, MessageSquare, BarChart3, UserCircle2,
   TrendingUp, Calendar, Star
 } from "lucide-react"
-import { TASKS, MEMBERS, ACTIVE_SUPERPOWERS, MEMBER_MAP, TASK_TYPE_META, type Task } from "./agent-collab-data"
+import { TASKS, MEMBERS, ACTIVE_SUPERPOWERS, MEMBER_MAP, TASK_TYPE_META, type Task, type Member, type AgentPower } from "./agent-collab-data"
+import { useCollabStore } from "@/stores/collab-store"
 import { AgentCollabKanban } from "./agent-collab-kanban"
 import { AgentCollabCommLog } from "./agent-collab-comm-log"
 
@@ -39,8 +40,7 @@ function MemberAvatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' 
 
 // ─── Sub-components for Overview ─────────────────────────────────────────────
 
-function MemberCard({ member }: { member: typeof MEMBERS[0] }) {
-  const power = ACTIVE_SUPERPOWERS.find(p => p.agent === member.name)
+function MemberCard({ member, power }: { member: Member; power?: AgentPower }) {
   const tasks = TASKS.filter(t => t.assignedTo.includes(member.name))
   const done = tasks.filter(t => t.status === 'done').length
   const ready = tasks.filter(t => t.status === 'ready').length
@@ -329,8 +329,42 @@ function StatsTab() {
 export function AgentCollabPage() {
   const [activeTab, setActiveTab] = useState<Tab>('overview')
   const [mounted, setMounted] = useState(false)
+  const { agents, members: liveMembers, commLog, isLive, fetchSnapshot, fetchMembers } = useCollabStore()
 
   useEffect(() => { setMounted(true) }, [])
+
+  useEffect(() => {
+    fetchSnapshot()
+    fetchMembers()
+  }, [fetchSnapshot, fetchMembers])
+
+  const displayMembers = useMemo<Member[]>(() => {
+    if (liveMembers.length === 0) return MEMBERS
+    return liveMembers.map(lm => {
+      const s = MEMBER_MAP[lm.name]
+      return {
+        name: lm.name,
+        role: lm.role || s?.role || 'Agent',
+        specialty: lm.specialty || s?.specialty || '',
+        tools: lm.primary_tools || s?.tools || [],
+        avatar: s?.avatar ?? lm.name.substring(0, 2).toUpperCase(),
+        colorClass: s?.colorClass ?? 'text-slate-600 dark:text-slate-400',
+        bgClass: s?.bgClass ?? 'bg-slate-500',
+        ringClass: s?.ringClass ?? 'ring-slate-400',
+        type: s?.type ?? 'ai',
+      }
+    })
+  }, [liveMembers])
+
+  const powerMap = useMemo<Record<string, AgentPower>>(() => {
+    const base = ACTIVE_SUPERPOWERS.reduce<Record<string, AgentPower>>((m, p) => { m[p.agent] = p; return m }, {})
+    if (agents.length === 0) return base
+    return agents.reduce<Record<string, AgentPower>>((m, a) => {
+      m[a.name] = { agent: a.name, skill: a.skill, task: a.task, progress: a.progress, status: a.status as AgentPower['status'] }
+      return m
+    }, { ...base })
+  }, [agents])
+
   if (!mounted) return null
 
   const doneCount = TASKS.filter(t => t.status === 'done').length
@@ -354,11 +388,11 @@ export function AgentCollabPage() {
           <div className="flex items-center gap-3 shrink-0">
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <div className="flex -space-x-1.5">
-                {MEMBERS.map(m => (
-                  <div key={m.name} className={cn('w-6 h-6 rounded-full border-2 border-white dark:border-[#1a1d21] flex items-center justify-center text-[9px] font-black text-white', m.bgClass)}>{m.avatar.substring(0,1)}</div>
+                {displayMembers.map(m => (
+                  <div key={m.name} className={cn('w-6 h-6 rounded-full border-2 border-white dark:border-[#1a1d21] flex items-center justify-center text-[9px] font-black text-white shrink-0', m.bgClass)}>{m.avatar.substring(0,1)}</div>
                 ))}
               </div>
-              <span className="font-semibold">{MEMBERS.length} members</span>
+              <span className="font-semibold">{displayMembers.length} members</span>
             </div>
             <div className="h-4 w-px bg-border" />
             <div className="flex items-center gap-1.5 text-xs">
@@ -366,10 +400,17 @@ export function AgentCollabPage() {
               <span className="text-muted-foreground">·</span>
               <span className="font-bold text-amber-500">{readyCount} ready</span>
             </div>
-            <div className="flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-2.5 py-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Live</span>
-            </div>
+            {isLive ? (
+              <div className="flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-2.5 py-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Live</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1 bg-muted/60 border border-border/40 rounded-full px-2.5 py-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Static</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -404,7 +445,7 @@ export function AgentCollabPage() {
                   <UserCircle2 className="w-4 h-4" /> Team Members
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                  {MEMBERS.map(m => <MemberCard key={m.name} member={m} />)}
+                  {displayMembers.map(m => <MemberCard key={m.name} member={m} power={powerMap[m.name]} />)}
                 </div>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -418,7 +459,7 @@ export function AgentCollabPage() {
             </div>
           )}
           {activeTab === 'kanban'  && <AgentCollabKanban />}
-          {activeTab === 'comms'   && <AgentCollabCommLog />}
+          {activeTab === 'comms'   && <AgentCollabCommLog liveSections={commLog.length > 0 ? commLog : undefined} isLive={isLive} />}
           {activeTab === 'stats'   && <StatsTab />}
         </div>
       </ScrollArea>
