@@ -2,6 +2,58 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.53] - 2026-04-21
+
+This release expands Relay's operational maturity with richer status controls, user-group membership APIs, file lifecycle governance, and workflow run control surfaces.
+
+### Added
+
+- `GET /api/v1/user-groups/mentions`
+- `GET /api/v1/user-groups/:id/members`
+- `POST /api/v1/user-groups/:id/members`
+- `DELETE /api/v1/user-groups/:id/members/:userId`
+- `GET /api/v1/workflows/runs/:id`
+- `POST /api/v1/workflows/runs/:id/cancel`
+- `POST /api/v1/workflows/runs/:id/retry`
+- `PATCH /api/v1/files/:id/retention`
+- `GET /api/v1/files/:id/audit`
+
+### Expanded
+
+- `PATCH /api/v1/users/:id/status` now supports:
+  - `status_emoji`
+  - `expires_in_minutes`
+- `GET /api/v1/files/:id` now returns:
+  - `preview_kind`
+  - `preview_url`
+  - `retention_days`
+  - `expires_at`
+- `workflow.run.updated` is now emitted for:
+  - run creation
+  - cancellation
+  - retry
+
+### Data Model
+
+- richer `users` status fields:
+  - `status_emoji`
+  - `status_expires_at`
+- richer `workflow_runs` field:
+  - `retry_of_run_id`
+- richer `file_assets` fields:
+  - `description`
+  - `retention_days`
+  - `expires_at`
+  - `updated_at`
+- new `file_asset_events`
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+- `pnpm build` still hangs after `Creating an optimized production build ...` in this environment and remains a frontend investigation item
+
 ## [0.5.52] - 2026-04-21
 
 This release implements Phase 29: Admin and Realtime Integration, enhancing user profiles, group management, and asset lifecycles.

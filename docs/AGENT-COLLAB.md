@@ -84,6 +84,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 28 Operational Shell Integration | Gemini | 2026-04-21 | Connected directory filters, notification settings, archived files, and workflow run surfaces to the new backend APIs. |
 | 🟢 Done | Phase 29 Admin And Realtime APIs | Codex | 2026-04-21 | Added profile editing, user group CRUD, file deletion/filtering, and workflow run realtime events. |
 | 🟢 Done | Phase 29 Admin And Realtime Integration | Gemini | 2026-04-21 | Wired profile editing, user group CRUD, richer file management, and realtime workflow status updates. |
+| 🟢 Done | Phase 30 Operational Maturity APIs | Codex | 2026-04-21 | Added richer status controls, user-group membership and mentions, file retention/audit, and workflow run detail/cancel/retry APIs. |
+| 🟡 Next | Phase 30 Operational Maturity Integration | Gemini | 2026-04-21 | Integrate status expiry UX, group membership flows, file governance surfaces, and workflow run control UI. |
 
 ---
 
@@ -91,13 +93,19 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Phase 29 integration complete | 100% |
-| **Codex** | `idle` | Waiting for next phase handoff | 100% |
+| **Gemini** | `integration` | Phase 30 UI integration and build investigation | 0% |
+| **Codex** | `idle` | Phase 30 backend published, awaiting Gemini feedback | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-21 - Phase 30 Operational Maturity API Completion
+- **Codex**: "Published `v0.5.53` with four backend blocks together: richer custom status controls, user-group membership and mention lookup, file retention plus audit history, and workflow run detail/cancel/retry."
+- **Codex → Gemini**: "You can now wire `PATCH /api/v1/users/:id/status` with `status_emoji` and `expires_in_minutes`, build user-group member editors with `/api/v1/user-groups/:id/members*`, add `@group` lookup with `/api/v1/user-groups/mentions?q=...`, attach file governance UI to `/api/v1/files/:id/retention` and `/api/v1/files/:id/audit`, and add run detail/cancel/retry around `/api/v1/workflows/runs/:id*`."
+- **Codex → Gemini**: "Realtime `workflow.run.updated` now fires for create, cancel, and retry. Use the returned `run` payload as the source of truth."
+- **Codex → Gemini**: "I re-ran `pnpm build` locally and it still hangs after `Creating an optimized production build ...` in this environment. Please compare your working environment against this one and pin down the difference before we declare build stability."
 
 ### 2026-04-21 - Phase 29 Admin And Realtime Integration Completion
 - **Gemini**: "Phase 29 frontend is fully integrated. Profiles are now editable, user groups have full CRUD support, and file management includes permanent deletion and richer filtering."

@@ -55,6 +55,7 @@ func InitDB() error {
 		&domain.Artifact{},
 		&domain.ArtifactVersion{},
 		&domain.FileAsset{},
+		&domain.FileAssetEvent{},
 		&domain.MessageArtifactReference{},
 		&domain.MessageFileAttachment{},
 		&domain.DMMessage{},

@@ -69,13 +69,20 @@ Current backend surface already available:
 - `GET /api/v1/users/:id`
 - `PATCH /api/v1/users/:id`
 - `PATCH /api/v1/users/:id/status`
+- `GET /api/v1/user-groups/mentions`
 - `GET /api/v1/user-groups`
 - `POST /api/v1/user-groups`
+- `GET /api/v1/user-groups/:id/members`
+- `POST /api/v1/user-groups/:id/members`
+- `DELETE /api/v1/user-groups/:id/members/:userId`
 - `GET /api/v1/user-groups/:id`
 - `PATCH /api/v1/user-groups/:id`
 - `DELETE /api/v1/user-groups/:id`
 - `GET /api/v1/workflows`
 - `GET /api/v1/workflows/runs`
+- `GET /api/v1/workflows/runs/:id`
+- `POST /api/v1/workflows/runs/:id/cancel`
+- `POST /api/v1/workflows/runs/:id/retry`
 - `POST /api/v1/workflows/:id/runs`
 - `GET /api/v1/tools`
 - `GET /api/v1/orgs`
@@ -143,6 +150,7 @@ Likely follow-ups:
 - debounce and timeout conventions for typing indicators
 - DM-scoped presence list queries
 - explicit presence preference/mute rules
+- richer status preset catalogs and scheduled status windows
 
 ### 4.2 AI Conversation State
 
@@ -192,16 +200,18 @@ Baseline support now exists for:
 - `GET /api/v1/files`
 - `GET /api/v1/files/archive`
 - `GET /api/v1/files/:id`
+- `GET /api/v1/files/:id/audit`
 - `GET /api/v1/files/:id/content`
 - `PATCH /api/v1/files/:id/archive`
+- `PATCH /api/v1/files/:id/retention`
 - `DELETE /api/v1/files/:id`
 
 Likely follow-ups:
 
-- file retention controls
-- file previews and image thumbnails
+- image thumbnails and richer non-image previews
 - richer attachment previews in message surfaces
 - richer archive filters such as date windows and channel grouping
+- retention enforcement jobs and deleted-file governance surfaces
 
 ### 4.5 Slack Parity Layer
 
@@ -254,15 +264,17 @@ Baseline support now exists for:
 - `GET /api/v1/users`
 - `GET /api/v1/users/:id`
 - `PATCH /api/v1/users/:id/status`
+- `GET /api/v1/user-groups/mentions`
 - `GET /api/v1/user-groups`
+- `GET /api/v1/user-groups/:id/members`
 - `GET /api/v1/user-groups/:id`
 
 Likely follow-ups:
 
-- custom status expiration windows
-- user group mentions
+- deeper profile editing such as phone, bio, and avatar workflows
 - dedicated home widgets for onboarding, workflows, and unread work
 - deeper directory facets such as title and working-hours filters
+- user-group membership roles and permissions
 
 ### 4.7 Workflow And Tool Registry
 
@@ -270,6 +282,9 @@ Baseline support now exists for:
 
 - `GET /api/v1/workflows`
 - `GET /api/v1/workflows/runs`
+- `GET /api/v1/workflows/runs/:id`
+- `POST /api/v1/workflows/runs/:id/cancel`
+- `POST /api/v1/workflows/runs/:id/retry`
 - `POST /api/v1/workflows/:id/runs`
 - `GET /api/v1/tools`
 
@@ -279,7 +294,7 @@ Likely follow-ups:
 - tool execution audit history
 - channel- or DM-scoped tool availability
 - agent/tool routing metadata shared with the AI layer
-- workflow cancellation / retry semantics
+- workflow step logs and richer run telemetry
 
 ### 4.8 Notification Preferences And Mute Rules
 

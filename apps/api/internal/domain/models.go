@@ -26,6 +26,8 @@ type User struct {
 	WorkingHours      string     `json:"working_hours"`
 	Status            string     `json:"status"`
 	StatusText        string     `json:"status_text"`
+	StatusEmoji       string     `json:"status_emoji"`
+	StatusExpiresAt   *time.Time `json:"status_expires_at,omitempty"`
 	LastSeenAt        *time.Time `json:"last_seen_at,omitempty"`
 	PresenceExpiresAt *time.Time `json:"-"`
 	AIProvider        string     `json:"ai_provider"`
@@ -88,16 +90,17 @@ type WorkflowDefinition struct {
 }
 
 type WorkflowRun struct {
-	ID          string     `gorm:"primaryKey" json:"id"`
-	WorkflowID  string     `gorm:"index" json:"workflow_id"`
-	StartedBy   string     `gorm:"index" json:"started_by"`
-	Status      string     `json:"status"`
-	Input       string     `json:"input"`
-	Summary     string     `json:"summary"`
-	StartedAt   time.Time  `json:"started_at"`
-	CompletedAt *time.Time `json:"completed_at,omitempty"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
+	ID           string     `gorm:"primaryKey" json:"id"`
+	WorkflowID   string     `gorm:"index" json:"workflow_id"`
+	StartedBy    string     `gorm:"index" json:"started_by"`
+	Status       string     `json:"status"`
+	Input        string     `json:"input"`
+	Summary      string     `json:"summary"`
+	RetryOfRunID string     `gorm:"index" json:"retry_of_run_id,omitempty"`
+	StartedAt    time.Time  `json:"started_at"`
+	CompletedAt  *time.Time `json:"completed_at,omitempty"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
 }
 
 type ToolDefinition struct {
@@ -302,16 +305,29 @@ type ArtifactVersion struct {
 }
 
 type FileAsset struct {
-	ID          string     `gorm:"primaryKey" json:"id"`
-	ChannelID   string     `gorm:"index" json:"channel_id,omitempty"`
-	UploaderID  string     `gorm:"index" json:"uploader_id"`
-	Name        string     `json:"name"`
-	StoragePath string     `json:"storage_path"`
-	ContentType string     `json:"content_type"`
-	SizeBytes   int64      `json:"size_bytes"`
-	IsArchived  bool       `json:"is_archived"`
-	ArchivedAt  *time.Time `json:"archived_at,omitempty"`
-	CreatedAt   time.Time  `json:"created_at"`
+	ID            string     `gorm:"primaryKey" json:"id"`
+	ChannelID     string     `gorm:"index" json:"channel_id,omitempty"`
+	UploaderID    string     `gorm:"index" json:"uploader_id"`
+	Name          string     `json:"name"`
+	StoragePath   string     `json:"storage_path"`
+	ContentType   string     `json:"content_type"`
+	SizeBytes     int64      `json:"size_bytes"`
+	Description   string     `json:"description"`
+	RetentionDays int        `json:"retention_days"`
+	ExpiresAt     *time.Time `json:"expires_at,omitempty"`
+	IsArchived    bool       `json:"is_archived"`
+	ArchivedAt    *time.Time `json:"archived_at,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
+}
+
+type FileAssetEvent struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	FileID    string    `gorm:"index" json:"file_id"`
+	ActorID   string    `gorm:"index" json:"actor_id"`
+	Action    string    `json:"action"`
+	Detail    string    `json:"detail"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type MessageArtifactReference struct {

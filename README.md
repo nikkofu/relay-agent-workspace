@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.5.51` is the current release line and includes:
+`v0.5.53` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -90,6 +90,10 @@ For product, design, and marketing, the short version is:
 - Workflow run history and manual run trigger APIs
 - User profile editing and user group CRUD APIs
 - Workflow run realtime events
+- User group membership and mention lookup APIs
+- Workflow run detail, cancel, and retry APIs
+- File retention policy and file audit trail APIs
+- Custom status emoji and status expiration support
 - explicit AI command forwarding and stable new-canvas creation flow
 - File asset upload and retrieval APIs for future attachment flows
 - Presence heartbeat, status text, and last-seen metadata
@@ -103,6 +107,8 @@ For product, design, and marketing, the short version is:
 - Inbox and mentions APIs for notification-oriented workspace surfaces
 
 See [CHANGELOG.md](./CHANGELOG.md) for shipped API details, and [docs/phase8-api-expansion.md](./docs/phase8-api-expansion.md) for the broader backend target.
+
+Local verification note: in this environment, `pnpm build` still reaches `Creating an optimized production build ...` and does not exit. API verification and frontend lint continue to pass; production build investigation remains an active frontend follow-up.
 
 ## Tech Stack
 

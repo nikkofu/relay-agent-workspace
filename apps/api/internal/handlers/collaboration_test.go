@@ -187,6 +187,41 @@ func TestPatchUserStatusUpdatesPresenceFields(t *testing.T) {
 	}
 }
 
+func TestPatchUserStatusSupportsEmojiAndExpiration(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.User{
+		ID:             "user-1",
+		OrganizationID: "org-1",
+		Name:           "Nikko Fu",
+		Email:          "nikko@example.com",
+		Status:         "online",
+	})
+
+	router := gin.New()
+	router.PATCH("/api/v1/users/:id/status", PatchUserStatus)
+
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/users/user-1/status", bytes.NewBufferString(`{"status":"busy","status_text":"Heads down","status_emoji":"🧠","expires_in_minutes":30}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var refreshed domain.User
+	if err := db.DB.First(&refreshed, "id = ?", "user-1").Error; err != nil {
+		t.Fatalf("failed to reload user: %v", err)
+	}
+	if refreshed.StatusEmoji != "🧠" {
+		t.Fatalf("expected status emoji to persist, got %#v", refreshed)
+	}
+	if refreshed.StatusExpiresAt == nil {
+		t.Fatal("expected status_expires_at to be set")
+	}
+}
+
 func TestPatchUserProfileUpdatesWorkspaceIdentityFields(t *testing.T) {
 	setupTestDB(t)
 
@@ -411,6 +446,92 @@ func TestUserGroupCrudLifecycle(t *testing.T) {
 	}
 }
 
+func TestUserGroupMembersAndMentionsEndpoints(t *testing.T) {
+	setupTestDB(t)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.User{ID: "user-1", OrganizationID: "org-1", Name: "Nikko Fu", Email: "nikko@example.com", Status: "online"})
+	db.DB.Create(&domain.User{ID: "user-2", OrganizationID: "org-1", Name: "Jane Smith", Email: "jane@example.com", Status: "online"})
+	db.DB.Create(&domain.User{ID: "user-3", OrganizationID: "org-1", Name: "John Doe", Email: "john@example.com", Status: "away"})
+	db.DB.Create(&domain.UserGroup{ID: "group-1", WorkspaceID: "ws-1", Name: "Design Guild", Handle: "design-guild", Description: "Guild", CreatedBy: "user-1", CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.UserGroupMember{UserGroupID: "group-1", UserID: "user-1", Role: "owner", CreatedAt: now})
+	db.DB.Create(&domain.UserGroupMember{UserGroupID: "group-1", UserID: "user-2", Role: "member", CreatedAt: now})
+
+	router := gin.New()
+	router.GET("/api/v1/user-groups/:id/members", GetUserGroupMembers)
+	router.POST("/api/v1/user-groups/:id/members", AddUserGroupMember)
+	router.DELETE("/api/v1/user-groups/:id/members/:userId", RemoveUserGroupMember)
+	router.GET("/api/v1/user-groups/mentions", SearchUserGroupMentions)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/user-groups/group-1/members", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on members list, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var listPayload struct {
+		Members []struct {
+			User struct {
+				ID string `json:"id"`
+			} `json:"user"`
+		} `json:"members"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &listPayload); err != nil {
+		t.Fatalf("failed to decode user group members: %v", err)
+	}
+	if len(listPayload.Members) != 2 {
+		t.Fatalf("expected 2 group members, got %d", len(listPayload.Members))
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/user-groups/group-1/members", bytes.NewBufferString(`{"user_id":"user-3","role":"member"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on group member add, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var memberCount int64
+	db.DB.Model(&domain.UserGroupMember{}).Where("user_group_id = ?", "group-1").Count(&memberCount)
+	if memberCount != 3 {
+		t.Fatalf("expected 3 group members after add, got %d", memberCount)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/user-groups/mentions?q=design", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on mentions lookup, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var mentionsPayload struct {
+		Groups []struct {
+			ID          string `json:"id"`
+			Handle      string `json:"handle"`
+			MemberCount int    `json:"member_count"`
+		} `json:"groups"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &mentionsPayload); err != nil {
+		t.Fatalf("failed to decode mentions payload: %v", err)
+	}
+	if len(mentionsPayload.Groups) != 1 || mentionsPayload.Groups[0].MemberCount != 3 {
+		t.Fatalf("unexpected mentions payload: %#v", mentionsPayload.Groups)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodDelete, "/api/v1/user-groups/group-1/members/user-2", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on group member delete, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	db.DB.Model(&domain.UserGroupMember{}).Where("user_group_id = ?", "group-1").Count(&memberCount)
+	if memberCount != 2 {
+		t.Fatalf("expected 2 group members after delete, got %d", memberCount)
+	}
+}
+
 func TestGetWorkflowsAndTools(t *testing.T) {
 	setupTestDB(t)
 
@@ -528,6 +649,79 @@ func TestWorkflowRunCreateBroadcastsRealtimeEvent(t *testing.T) {
 		t.Fatalf("expected 201 on workflow run create, got %d body=%s", rec.Code, rec.Body.String())
 	}
 	assertRealtimeEventType(t, client, "workflow.run.updated")
+}
+
+func TestWorkflowRunDetailCancelAndRetry(t *testing.T) {
+	setupTestDB(t)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.User{ID: "user-1", OrganizationID: "org-1", Name: "Nikko Fu", Email: "nikko@example.com", Status: "online"})
+	db.DB.Create(&domain.Workspace{ID: "ws-1", OrganizationID: "org-1", Name: "Relay"})
+	db.DB.Create(&domain.WorkflowDefinition{ID: "wf-1", Name: "Incident Review", Category: "operations", Description: "Run post-incident review", Trigger: "manual", IsActive: true, CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.WorkflowRun{
+		ID:         "run-1",
+		WorkflowID: "wf-1",
+		StartedBy:  "user-1",
+		Status:     "running",
+		Input:      `{"channel_id":"ch-incident"}`,
+		Summary:    "Initial run",
+		StartedAt:  now,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	})
+
+	hub := realtime.NewHub()
+	go hub.Run()
+	SetRealtimeHub(hub)
+	defer SetRealtimeHub(nil)
+
+	client := realtime.NewTestClient(8)
+	hub.RegisterTestClient(client)
+	defer hub.UnregisterTestClient(client)
+
+	router := gin.New()
+	router.GET("/api/v1/workflows/runs/:id", GetWorkflowRun)
+	router.POST("/api/v1/workflows/runs/:id/cancel", CancelWorkflowRun)
+	router.POST("/api/v1/workflows/runs/:id/retry", RetryWorkflowRun)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/workflows/runs/run-1", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on workflow run detail, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/workflows/runs/run-1/cancel", bytes.NewBufferString(`{"summary":"Stopped by operator"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on workflow cancel, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	assertRealtimeEventType(t, client, "workflow.run.updated")
+
+	var cancelled domain.WorkflowRun
+	if err := db.DB.First(&cancelled, "id = ?", "run-1").Error; err != nil {
+		t.Fatalf("failed to reload cancelled run: %v", err)
+	}
+	if cancelled.Status != "cancelled" || cancelled.CompletedAt == nil {
+		t.Fatalf("expected cancelled workflow run, got %#v", cancelled)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/workflows/runs/run-1/retry", bytes.NewBufferString(`{"summary":"Retrying after fix"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on workflow retry, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	assertRealtimeEventType(t, client, "workflow.run.updated")
+
+	var count int64
+	db.DB.Model(&domain.WorkflowRun{}).Where("workflow_id = ?", "wf-1").Count(&count)
+	if count != 2 {
+		t.Fatalf("expected retry to create second workflow run, got %d", count)
+	}
 }
 
 func TestNotificationPreferencesCanBeUpdated(t *testing.T) {
@@ -2244,7 +2438,7 @@ func setupTestDB(t *testing.T) {
 	if err := db.DB.AutoMigrate(&domain.Organization{}, &domain.Team{}, &domain.User{}, &domain.Agent{}, &domain.Workspace{}, &domain.WorkspaceInvite{}, &domain.UserGroup{}, &domain.UserGroupMember{}, &domain.WorkflowDefinition{}, &domain.ToolDefinition{}, &domain.Channel{}, &domain.ChannelMember{}, &domain.Message{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
-	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.NotificationPreference{}, &domain.NotificationMuteRule{}, &domain.AIFeedback{}, &domain.AIConversation{}, &domain.AIConversationMessage{}, &domain.AISummary{}, &domain.Artifact{}, &domain.ArtifactVersion{}, &domain.FileAsset{}, &domain.MessageArtifactReference{}, &domain.MessageFileAttachment{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}, &domain.WorkflowRun{}); err != nil {
+	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.NotificationPreference{}, &domain.NotificationMuteRule{}, &domain.AIFeedback{}, &domain.AIConversation{}, &domain.AIConversationMessage{}, &domain.AISummary{}, &domain.Artifact{}, &domain.ArtifactVersion{}, &domain.FileAsset{}, &domain.FileAssetEvent{}, &domain.MessageArtifactReference{}, &domain.MessageFileAttachment{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}, &domain.WorkflowRun{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 }

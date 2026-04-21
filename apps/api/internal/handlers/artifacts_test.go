@@ -599,3 +599,85 @@ func TestListFilesSupportsArchiveAndUploaderFiltersAndDelete(t *testing.T) {
 		t.Fatalf("expected file deletion, got count=%d", count)
 	}
 }
+
+func TestFileRetentionAndAuditEndpoints(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.FileAsset{
+		ID:            "file-1",
+		ChannelID:     "ch-5",
+		UploaderID:    "user-1",
+		Name:          "launch-plan.png",
+		StoragePath:   "launch-plan.png",
+		ContentType:   "image/png",
+		SizeBytes:     4096,
+		RetentionDays: 30,
+		CreatedAt:     now.Add(-time.Hour),
+		UpdatedAt:     now.Add(-time.Hour),
+	})
+	db.DB.Create(&domain.FileAssetEvent{FileID: "file-1", ActorID: "user-1", Action: "uploaded", Detail: "Initial upload", CreatedAt: now.Add(-time.Hour)})
+
+	router := gin.New()
+	router.PATCH("/api/v1/files/:id/retention", UpdateFileRetention)
+	router.GET("/api/v1/files/:id/audit", GetFileAudit)
+	router.GET("/api/v1/files/:id", GetFile)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/files/file-1/retention", bytes.NewBufferString(`{"retention_days":90}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on retention patch, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var refreshed domain.FileAsset
+	if err := db.DB.First(&refreshed, "id = ?", "file-1").Error; err != nil {
+		t.Fatalf("failed to reload file asset: %v", err)
+	}
+	if refreshed.RetentionDays != 90 || refreshed.ExpiresAt == nil {
+		t.Fatalf("expected retention fields to persist, got %#v", refreshed)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/files/file-1", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on file detail, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var filePayload struct {
+		File struct {
+			PreviewKind   string `json:"preview_kind"`
+			PreviewURL    string `json:"preview_url"`
+			RetentionDays int    `json:"retention_days"`
+		} `json:"file"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &filePayload); err != nil {
+		t.Fatalf("failed to decode file payload: %v", err)
+	}
+	if filePayload.File.PreviewKind != "image" || filePayload.File.PreviewURL == "" || filePayload.File.RetentionDays != 90 {
+		t.Fatalf("unexpected hydrated file payload: %#v", filePayload.File)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/files/file-1/audit", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on file audit, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var auditPayload struct {
+		Events []struct {
+			Action string `json:"action"`
+		} `json:"events"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &auditPayload); err != nil {
+		t.Fatalf("failed to decode file audit payload: %v", err)
+	}
+	if len(auditPayload.Events) != 2 || auditPayload.Events[0].Action != "retention.updated" {
+		t.Fatalf("unexpected file audit payload: %#v", auditPayload.Events)
+	}
+}

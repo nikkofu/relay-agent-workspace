@@ -100,14 +100,15 @@ type notificationPreferenceResponse struct {
 }
 
 type workflowRunResponse struct {
-	ID          string                    `json:"id"`
-	Status      string                    `json:"status"`
-	Summary     string                    `json:"summary"`
-	Input       map[string]any            `json:"input,omitempty"`
-	StartedAt   time.Time                 `json:"started_at"`
-	CompletedAt *time.Time                `json:"completed_at,omitempty"`
-	Workflow    domain.WorkflowDefinition `json:"workflow"`
-	StartedBy   domain.User               `json:"started_by"`
+	ID           string                    `json:"id"`
+	Status       string                    `json:"status"`
+	Summary      string                    `json:"summary"`
+	Input        map[string]any            `json:"input,omitempty"`
+	RetryOfRunID string                    `json:"retry_of_run_id,omitempty"`
+	StartedAt    time.Time                 `json:"started_at"`
+	CompletedAt  *time.Time                `json:"completed_at,omitempty"`
+	Workflow     domain.WorkflowDefinition `json:"workflow"`
+	StartedBy    domain.User               `json:"started_by"`
 }
 
 func GetUserProfile(c *gin.Context) {
@@ -120,23 +121,25 @@ func GetUserProfile(c *gin.Context) {
 	enriched := enrichUser(user)
 	c.JSON(http.StatusOK, gin.H{
 		"user": gin.H{
-			"id":            enriched.ID,
-			"org_id":        enriched.OrganizationID,
-			"name":          enriched.Name,
-			"email":         enriched.Email,
-			"avatar":        enriched.Avatar,
-			"title":         enriched.Title,
-			"department":    enriched.Department,
-			"timezone":      defaultString(enriched.Timezone, "UTC"),
-			"working_hours": defaultString(enriched.WorkingHours, "Mon - Fri"),
-			"status":        enriched.Status,
-			"status_text":   enriched.StatusText,
-			"last_seen_at":  enriched.LastSeenAt,
-			"ai_provider":   enriched.AIProvider,
-			"ai_model":      enriched.AIModel,
-			"ai_mode":       enriched.AIMode,
-			"ai_insight":    enriched.AIInsight,
-			"profile":       buildUserProfileSummary(enriched),
+			"id":                enriched.ID,
+			"org_id":            enriched.OrganizationID,
+			"name":              enriched.Name,
+			"email":             enriched.Email,
+			"avatar":            enriched.Avatar,
+			"title":             enriched.Title,
+			"department":        enriched.Department,
+			"timezone":          defaultString(enriched.Timezone, "UTC"),
+			"working_hours":     defaultString(enriched.WorkingHours, "Mon - Fri"),
+			"status":            enriched.Status,
+			"status_text":       enriched.StatusText,
+			"status_emoji":      enriched.StatusEmoji,
+			"status_expires_at": enriched.StatusExpiresAt,
+			"last_seen_at":      enriched.LastSeenAt,
+			"ai_provider":       enriched.AIProvider,
+			"ai_model":          enriched.AIModel,
+			"ai_mode":           enriched.AIMode,
+			"ai_insight":        enriched.AIInsight,
+			"profile":           buildUserProfileSummary(enriched),
 		},
 	})
 }
@@ -188,8 +191,10 @@ func PatchUserStatus(c *gin.Context) {
 	}
 
 	var input struct {
-		Status     string `json:"status"`
-		StatusText string `json:"status_text"`
+		Status           string `json:"status"`
+		StatusText       string `json:"status_text"`
+		StatusEmoji      string `json:"status_emoji"`
+		ExpiresInMinutes int    `json:"expires_in_minutes"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -204,8 +209,15 @@ func PatchUserStatus(c *gin.Context) {
 	expiresAt := now.Add(5 * time.Minute)
 	user.Status = input.Status
 	user.StatusText = input.StatusText
+	user.StatusEmoji = strings.TrimSpace(input.StatusEmoji)
 	user.LastSeenAt = &now
 	user.PresenceExpiresAt = &expiresAt
+	if input.ExpiresInMinutes > 0 {
+		statusExpiresAt := now.Add(time.Duration(input.ExpiresInMinutes) * time.Minute)
+		user.StatusExpiresAt = &statusExpiresAt
+	} else {
+		user.StatusExpiresAt = nil
+	}
 	if err := db.DB.Save(&user).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update user status"})
 		return
@@ -220,15 +232,137 @@ func PatchUserStatus(c *gin.Context) {
 			EntityID:    enriched.ID,
 			TS:          time.Now().UTC().Format(time.RFC3339Nano),
 			Payload: gin.H{
-				"user_id":      enriched.ID,
-				"status":       enriched.Status,
-				"status_text":  enriched.StatusText,
-				"last_seen_at": enriched.LastSeenAt,
+				"user_id":           enriched.ID,
+				"status":            enriched.Status,
+				"status_text":       enriched.StatusText,
+				"status_emoji":      enriched.StatusEmoji,
+				"status_expires_at": enriched.StatusExpiresAt,
+				"last_seen_at":      enriched.LastSeenAt,
 			},
 		})
 	}
 
 	c.JSON(http.StatusOK, gin.H{"user": enriched})
+}
+
+func GetUserGroupMembers(c *gin.Context) {
+	var group domain.UserGroup
+	if err := db.DB.First(&group, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user group not found"})
+		return
+	}
+
+	var memberships []domain.UserGroupMember
+	if err := db.DB.Where("user_group_id = ?", group.ID).Order("role asc, created_at asc").Find(&memberships).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load user group members"})
+		return
+	}
+
+	members := make([]userGroupMemberResponse, 0, len(memberships))
+	for _, membership := range memberships {
+		var user domain.User
+		if err := db.DB.First(&user, "id = ?", membership.UserID).Error; err != nil {
+			continue
+		}
+		members = append(members, userGroupMemberResponse{
+			Role:      membership.Role,
+			CreatedAt: membership.CreatedAt,
+			User:      enrichUser(user),
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"members": members})
+}
+
+func AddUserGroupMember(c *gin.Context) {
+	var group domain.UserGroup
+	if err := db.DB.First(&group, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user group not found"})
+		return
+	}
+
+	var input struct {
+		UserID string `json:"user_id"`
+		Role   string `json:"role"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if strings.TrimSpace(input.UserID) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id is required"})
+		return
+	}
+
+	role := defaultString(strings.TrimSpace(input.Role), "member")
+	member := domain.UserGroupMember{
+		UserGroupID: group.ID,
+		UserID:      strings.TrimSpace(input.UserID),
+		Role:        role,
+		CreatedAt:   time.Now().UTC(),
+	}
+	if err := db.DB.Where("user_group_id = ? AND user_id = ?", group.ID, member.UserID).Delete(&domain.UserGroupMember{}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to replace user group member"})
+		return
+	}
+	if err := db.DB.Create(&member).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add user group member"})
+		return
+	}
+
+	var user domain.User
+	if err := db.DB.First(&user, "id = ?", member.UserID).Error; err != nil {
+		c.JSON(http.StatusCreated, gin.H{"member": gin.H{"role": member.Role, "created_at": member.CreatedAt}})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"member": userGroupMemberResponse{
+		Role:      member.Role,
+		CreatedAt: member.CreatedAt,
+		User:      enrichUser(user),
+	}})
+}
+
+func RemoveUserGroupMember(c *gin.Context) {
+	groupID := c.Param("id")
+	userID := c.Param("userId")
+	if err := db.DB.Where("user_group_id = ? AND user_id = ?", groupID, userID).Delete(&domain.UserGroupMember{}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to remove user group member"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"deleted": true, "group_id": groupID, "user_id": userID})
+}
+
+func SearchUserGroupMentions(c *gin.Context) {
+	queryText := strings.TrimSpace(strings.ToLower(c.Query("q")))
+	query := db.DB.Model(&domain.UserGroup{}).Order("updated_at desc, handle asc")
+	if queryText != "" {
+		like := "%" + queryText + "%"
+		query = query.Where("LOWER(name) LIKE ? OR LOWER(handle) LIKE ? OR LOWER(description) LIKE ?", like, like, like)
+	}
+
+	var groups []domain.UserGroup
+	if err := query.Find(&groups).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to search user groups"})
+		return
+	}
+
+	items := make([]userGroupListResponse, 0, len(groups))
+	for _, group := range groups {
+		var memberCount int64
+		db.DB.Model(&domain.UserGroupMember{}).Where("user_group_id = ?", group.ID).Count(&memberCount)
+		items = append(items, userGroupListResponse{
+			ID:          group.ID,
+			WorkspaceID: group.WorkspaceID,
+			Name:        group.Name,
+			Handle:      group.Handle,
+			Description: group.Description,
+			MemberCount: int(memberCount),
+			CreatedBy:   group.CreatedBy,
+			UpdatedAt:   group.UpdatedAt,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"groups": items})
 }
 
 func GetHome(c *gin.Context) {
@@ -509,6 +643,109 @@ func CreateWorkflowRun(c *gin.Context) {
 		})
 	}
 
+	c.JSON(http.StatusCreated, gin.H{"run": response})
+}
+
+func GetWorkflowRun(c *gin.Context) {
+	var run domain.WorkflowRun
+	if err := db.DB.First(&run, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "workflow run not found"})
+		return
+	}
+
+	workflow, starter, err := loadWorkflowRunContext(run)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hydrate workflow run"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"run": hydrateWorkflowRun(run, workflow, starter)})
+}
+
+func CancelWorkflowRun(c *gin.Context) {
+	var run domain.WorkflowRun
+	if err := db.DB.First(&run, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "workflow run not found"})
+		return
+	}
+
+	var input struct {
+		Summary string `json:"summary"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil && err.Error() != "EOF" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	now := time.Now().UTC()
+	run.Status = "cancelled"
+	if strings.TrimSpace(input.Summary) != "" {
+		run.Summary = strings.TrimSpace(input.Summary)
+	}
+	run.CompletedAt = &now
+	run.UpdatedAt = now
+	if err := db.DB.Save(&run).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to cancel workflow run"})
+		return
+	}
+
+	workflow, starter, err := loadWorkflowRunContext(run)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hydrate workflow run"})
+		return
+	}
+	response := hydrateWorkflowRun(run, workflow, starter)
+	broadcastWorkflowRun(response, now)
+	c.JSON(http.StatusOK, gin.H{"run": response})
+}
+
+func RetryWorkflowRun(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var previous domain.WorkflowRun
+	if err := db.DB.First(&previous, "id = ?", c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "workflow run not found"})
+		return
+	}
+
+	var workflow domain.WorkflowDefinition
+	if err := db.DB.First(&workflow, "id = ?", previous.WorkflowID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "workflow not found"})
+		return
+	}
+
+	var input struct {
+		Summary string `json:"summary"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil && err.Error() != "EOF" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	now := time.Now().UTC()
+	run := domain.WorkflowRun{
+		ID:           "run-" + now.Format("20060102150405.000000"),
+		WorkflowID:   previous.WorkflowID,
+		StartedBy:    currentUser.ID,
+		Status:       "queued",
+		Input:        previous.Input,
+		Summary:      defaultString(strings.TrimSpace(input.Summary), "Retry of "+previous.ID),
+		RetryOfRunID: previous.ID,
+		StartedAt:    now,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	if err := db.DB.Create(&run).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to retry workflow run"})
+		return
+	}
+
+	response := hydrateWorkflowRun(run, workflow, enrichUser(currentUser))
+	broadcastWorkflowRun(response, now)
 	c.JSON(http.StatusCreated, gin.H{"run": response})
 }
 
@@ -800,15 +1037,44 @@ func hydrateWorkflowRun(run domain.WorkflowRun, workflow domain.WorkflowDefiniti
 		_ = json.Unmarshal([]byte(run.Input), &input)
 	}
 	return workflowRunResponse{
-		ID:          run.ID,
-		Status:      run.Status,
-		Summary:     run.Summary,
-		Input:       input,
-		StartedAt:   run.StartedAt,
-		CompletedAt: run.CompletedAt,
-		Workflow:    workflow,
-		StartedBy:   starter,
+		ID:           run.ID,
+		Status:       run.Status,
+		Summary:      run.Summary,
+		Input:        input,
+		RetryOfRunID: run.RetryOfRunID,
+		StartedAt:    run.StartedAt,
+		CompletedAt:  run.CompletedAt,
+		Workflow:     workflow,
+		StartedBy:    starter,
 	}
+}
+
+func loadWorkflowRunContext(run domain.WorkflowRun) (domain.WorkflowDefinition, domain.User, error) {
+	var workflow domain.WorkflowDefinition
+	if err := db.DB.First(&workflow, "id = ?", run.WorkflowID).Error; err != nil {
+		return domain.WorkflowDefinition{}, domain.User{}, err
+	}
+
+	var starter domain.User
+	if err := db.DB.First(&starter, "id = ?", run.StartedBy).Error; err != nil {
+		return domain.WorkflowDefinition{}, domain.User{}, err
+	}
+
+	return workflow, enrichUser(starter), nil
+}
+
+func broadcastWorkflowRun(run workflowRunResponse, now time.Time) {
+	if RealtimeHub == nil {
+		return
+	}
+	_ = RealtimeHub.Broadcast(realtime.Event{
+		ID:          "evt_" + now.Format("20060102150405.000000"),
+		Type:        "workflow.run.updated",
+		WorkspaceID: primaryWorkspaceID(),
+		EntityID:    run.ID,
+		TS:          now.Format(time.RFC3339Nano),
+		Payload:     gin.H{"run": run},
+	})
 }
 
 func normalizeMemberIDs(memberIDs []string, ownerID string) []string {

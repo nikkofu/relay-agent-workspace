@@ -88,6 +88,12 @@ func enrichUser(user domain.User) domain.User {
 func derivePresence(user domain.User) domain.User {
 	now := time.Now().UTC()
 
+	if user.StatusExpiresAt != nil && now.After(*user.StatusExpiresAt) {
+		user.StatusText = ""
+		user.StatusEmoji = ""
+		user.StatusExpiresAt = nil
+	}
+
 	if user.PresenceExpiresAt != nil && now.After(*user.PresenceExpiresAt) {
 		if user.LastSeenAt != nil && now.Sub(*user.LastSeenAt) > 10*time.Minute {
 			user.Status = "offline"
