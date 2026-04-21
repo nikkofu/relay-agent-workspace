@@ -5,30 +5,6 @@ import { cn } from "@/lib/utils"
 import { ArrowRight, Hash } from "lucide-react"
 import { COMM_SECTIONS, MEMBER_MAP, type CommSection, type CommMessage } from "./agent-collab-data"
 
-// ─── Utility ──────────────────────────────────────────────────────────────────
-
-function renderWithMentions(text: string) {
-  const parts = text.split(/(@\w[\w\s]*\w|@\w+)/g)
-  return parts.map((part, i) => {
-    if (part.startsWith('@')) {
-      const name = part.slice(1)
-      const member = MEMBER_MAP[name] || MEMBER_MAP[name.replace(/ /g, ' ')]
-      return (
-        <span
-          key={i}
-          className={cn(
-            'inline-flex items-center font-bold rounded px-1 py-0.5 text-[11px]',
-            member ? `${member.colorClass} bg-current/10` : 'text-purple-600 dark:text-purple-400 bg-purple-500/10'
-          )}
-        >
-          {part}
-        </span>
-      )
-    }
-    return <span key={i}>{part}</span>
-  })
-}
-
 function highlightMentions(content: string): React.ReactNode {
   const namedMentions = MEMBER_MAP
   const pattern = new RegExp(

@@ -2,6 +2,31 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.77] - 2026-04-21
+
+This release implements Phase 40: Dynamic Agent-Collab APIs, turning Windsurf's new #agent-collab hub into a backend-backed collaboration surface.
+
+### Added
+
+- **Agent-Collab Members API**: Added `GET /api/v1/agent-collab/members`, parsed from the `Member Profiles` table in `docs/AGENT-COLLAB.md`.
+- **Agent-Collab Comm Log API**: Added `POST /api/v1/agent-collab/comm-log` to persist new communication log entries back into `docs/AGENT-COLLAB.md`.
+- **Expanded Snapshot Payload**: `GET /api/v1/agent-collab/snapshot` and `agent_collab.sync` now include `members` and `comm_log` in addition to `active_superpowers` and `task_board`.
+- **Realtime Hub Refresh**: Creating a comm-log entry broadcasts `agent_collab.sync` on `ch-collab`, allowing Windsurf's hub to update without a manual refresh.
+
+### API Contract
+
+- `GET /api/v1/agent-collab/members` returns `{ "members": MemberProfile[] }`.
+- `POST /api/v1/agent-collab/comm-log` accepts `{ "from": string, "to"?: string, "title": string, "content": string }`.
+- `POST /api/v1/agent-collab/comm-log` returns `{ "entry": CommLogEntry }`.
+
+### Verification Used For This Release
+
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go test ./internal/agentcollab`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go test ./internal/handlers -run 'TestAgentCollabMembersAndCommLogEndpoints$'`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+
 ## [0.5.76] - 2026-04-21
 
 This release implements Phase 39: Agent-Collab Hub Page, a comprehensive team collaboration dashboard built by Windsurf. Windsurf joins the team as Web/UI Agent.

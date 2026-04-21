@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.5.74` is the current release line and includes:
+`v0.5.77` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -35,6 +35,7 @@ For product, design, and marketing, the short version is:
 - realtime websocket endpoint for workspace event fanout
 - REST endpoints for org, team, agent, workspace, channel, and message flows
 - `AGENT-COLLAB.md` watcher and `agent_collab.sync` websocket broadcast for the `#agent-collab` dashboard
+- dynamic Agent-Collab Hub APIs for members, comm-log persistence, and realtime hub refresh
 - provider-based LLM gateway with OpenAI, OpenAI-compatible, OpenRouter, and Gemini configuration
 - `GET /api/v1/users`, thread-aware messages, and `POST /api/v1/ai/execute` SSE streaming
 - local LLM config merge fixes and real provider validation
@@ -52,6 +53,7 @@ For product, design, and marketing, the short version is:
 - websocket sync for message reactions, pin updates, and deletions
 - backend-generated `ai_insight` for user profile hover cards
 - `GET /api/v1/agent-collab/snapshot` so `#agent-collab` renders on first load
+- `GET /api/v1/agent-collab/members` and `POST /api/v1/agent-collab/comm-log` for Windsurf's dynamic collaboration hub
 - DM APIs for:
   - listing conversations
   - creating/opening a DM

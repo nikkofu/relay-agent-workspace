@@ -99,6 +99,8 @@ func main() {
 		v1.GET("/tools/runs/:id", handlers.GetToolRun)
 		v1.POST("/tools/:id/execute", handlers.ExecuteTool)
 		v1.GET("/agent-collab/snapshot", handlers.GetAgentCollabSnapshot)
+		v1.GET("/agent-collab/members", handlers.GetAgentCollabMembers)
+		v1.POST("/agent-collab/comm-log", handlers.CreateAgentCollabCommLog)
 		v1.GET("/orgs", handlers.GetOrganizations)
 		v1.GET("/orgs/:id/teams", handlers.GetTeams)
 		v1.POST("/orgs/:id/agents", handlers.CreateAgent)

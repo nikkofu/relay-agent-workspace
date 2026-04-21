@@ -1378,6 +1378,108 @@ func TestGetAgentCollabSnapshotReturnsParsedMarkdown(t *testing.T) {
 	}
 }
 
+func TestAgentCollabMembersAndCommLogEndpoints(t *testing.T) {
+	setupTestDB(t)
+
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "AGENT-COLLAB.md")
+	content := `# Relay Agent Workspace: Team Collaboration Hub
+
+## 👥 Member Profiles
+
+| Name | Role | Specialty | Primary Tools |
+| :--- | :--- | :--- | :--- |
+| **Nikko Fu** | Human Owner | Product Strategy, Design, Final Review | Brainstorming, PR Review |
+| **Codex** | API/Backend Agent | Go, Gin, GORM, SQLite, WebSockets, AI Orchestration | apps/api, internal/ |
+| **Windsurf** | Web/UI Agent | Component Architecture, TypeScript, UX Flows, Agent Collaboration UI | apps/web, write_file, multi_edit |
+
+## 📋 Task Board
+
+| Status | Task | Assigned To | Deadline | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| 🟢 Done | Snapshot API | Codex | 2026-04-18 | Confirm agent-collab snapshot loads. |
+
+## ⚡️ Active Superpowers (Live State)
+
+| Agent | Current Skill | Active Task | Progress |
+| :--- | :--- | :--- | :--- |
+| **Codex** | verification | Snapshot sync | 100% |
+
+## 💬 Communication Log
+
+### 2026-04-21 - Existing Note
+- **Windsurf → Codex**: "Please make the hub dynamic."
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("failed to write temp collab doc: %v", err)
+	}
+
+	prevPath := CollabSnapshotPath
+	CollabSnapshotPath = path
+	defer func() { CollabSnapshotPath = prevPath }()
+
+	hub := realtime.NewHub()
+	go hub.Run()
+	SetRealtimeHub(hub)
+	defer SetRealtimeHub(nil)
+	client := realtime.NewTestClient(4)
+	hub.RegisterTestClient(client)
+	defer hub.UnregisterTestClient(client)
+
+	router := gin.New()
+	router.GET("/api/v1/agent-collab/members", GetAgentCollabMembers)
+	router.POST("/api/v1/agent-collab/comm-log", CreateAgentCollabCommLog)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/agent-collab/members", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on members, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var membersPayload struct {
+		Members []map[string]any `json:"members"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &membersPayload); err != nil {
+		t.Fatalf("failed to decode members payload: %v", err)
+	}
+	if len(membersPayload.Members) != 3 {
+		t.Fatalf("expected 3 members, got %#v", membersPayload.Members)
+	}
+	if membersPayload.Members[2]["name"] != "Windsurf" || membersPayload.Members[2]["role"] != "Web/UI Agent" {
+		t.Fatalf("expected Windsurf member row, got %#v", membersPayload.Members[2])
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/agent-collab/comm-log", bytes.NewBufferString(`{"from":"Codex","to":"Windsurf","title":"Phase 40 Dynamic Agent-Collab API","content":"GET members and POST comm-log are ready for frontend integration."}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on comm log create, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var logPayload struct {
+		Entry map[string]any `json:"entry"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &logPayload); err != nil {
+		t.Fatalf("failed to decode comm log payload: %v", err)
+	}
+	if logPayload.Entry["from"] != "Codex" || logPayload.Entry["to"] != "Windsurf" {
+		t.Fatalf("unexpected comm log entry: %#v", logPayload.Entry)
+	}
+
+	updated, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read updated collab doc: %v", err)
+	}
+	updatedContent := string(updated)
+	if !strings.Contains(updatedContent, "Phase 40 Dynamic Agent-Collab API") || !strings.Contains(updatedContent, "**Codex → Windsurf**") {
+		t.Fatalf("expected comm log to be appended, got:\n%s", updatedContent)
+	}
+
+	assertRealtimeEventType(t, client, "agent_collab.sync")
+}
+
 func TestDMEndpointsListCreateAndSendMessages(t *testing.T) {
 	setupTestDB(t)
 

@@ -732,8 +732,61 @@ func GetAgentCollabSnapshot(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"active_superpowers": snapshot.ActiveSuperpowers,
+		"comm_log":           snapshot.CommLog,
+		"members":            snapshot.Members,
 		"task_board":         snapshot.TaskBoard,
 	})
+}
+
+func GetAgentCollabMembers(c *gin.Context) {
+	snapshot, err := agentcollab.ReadSnapshot(CollabSnapshotPath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read agent collab members"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"members": snapshot.Members})
+}
+
+func CreateAgentCollabCommLog(c *gin.Context) {
+	var input struct {
+		From    string `json:"from" binding:"required"`
+		To      string `json:"to"`
+		Title   string `json:"title" binding:"required"`
+		Content string `json:"content" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	entry, err := agentcollab.AppendCommLogEntry(CollabSnapshotPath, input.From, input.To, input.Title, input.Content, time.Now())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to append agent collab comm log"})
+		return
+	}
+
+	if RealtimeHub != nil {
+		snapshot, err := agentcollab.ReadSnapshot(CollabSnapshotPath)
+		if err == nil {
+			_ = RealtimeHub.Broadcast(realtime.Event{
+				ID:        "evt_" + time.Now().Format("20060102150405.000000"),
+				Type:      "agent_collab.sync",
+				ChannelID: "ch-collab",
+				EntityID:  entry.ID,
+				TS:        time.Now().UTC().Format(time.RFC3339Nano),
+				Payload: gin.H{
+					"active_superpowers": snapshot.ActiveSuperpowers,
+					"comm_log":           snapshot.CommLog,
+					"entry":              entry,
+					"members":            snapshot.Members,
+					"task_board":         snapshot.TaskBoard,
+				},
+			})
+		}
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"entry": entry})
 }
 
 func GetTeams(c *gin.Context) {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -30,8 +31,27 @@ type ActiveSuperpowerItem struct {
 	Progress     string `json:"progress"`
 }
 
+type MemberProfile struct {
+	Name         string `json:"name"`
+	Role         string `json:"role"`
+	Specialty    string `json:"specialty"`
+	PrimaryTools string `json:"primary_tools"`
+}
+
+type CommLogEntry struct {
+	ID        string `json:"id"`
+	Date      string `json:"date"`
+	Title     string `json:"title"`
+	From      string `json:"from"`
+	To        string `json:"to,omitempty"`
+	Content   string `json:"content"`
+	CreatedAt string `json:"created_at"`
+}
+
 type Snapshot struct {
 	ActiveSuperpowers []ActiveSuperpowerItem `json:"active_superpowers"`
+	CommLog           []CommLogEntry         `json:"comm_log"`
+	Members           []MemberProfile        `json:"members"`
 	TaskBoard         []TaskBoardItem        `json:"task_board"`
 }
 
@@ -90,6 +110,8 @@ func (s *Service) SyncFile() error {
 		TS:        time.Now().UTC().Format(time.RFC3339Nano),
 		Payload: map[string]any{
 			"active_superpowers": snapshot.ActiveSuperpowers,
+			"comm_log":           snapshot.CommLog,
+			"members":            snapshot.Members,
 			"task_board":         snapshot.TaskBoard,
 		},
 	})
@@ -134,6 +156,7 @@ func ParseMarkdown(content []byte) (Snapshot, error) {
 	if err != nil {
 		return Snapshot{}, err
 	}
+	memberRows := extractOptionalSectionTable(lines, "Member Profiles")
 
 	taskBoard, err := parseTaskBoard(taskRows)
 	if err != nil {
@@ -144,11 +167,56 @@ func ParseMarkdown(content []byte) (Snapshot, error) {
 	if err != nil {
 		return Snapshot{}, err
 	}
+	members, err := parseMembers(memberRows)
+	if err != nil {
+		return Snapshot{}, err
+	}
 
 	return Snapshot{
 		ActiveSuperpowers: activeSuperpowers,
+		CommLog:           parseCommLog(lines),
+		Members:           members,
 		TaskBoard:         taskBoard,
 	}, nil
+}
+
+func AppendCommLogEntry(path string, from, to, title, content string, now time.Time) (CommLogEntry, error) {
+	from = strings.TrimSpace(from)
+	to = strings.TrimSpace(to)
+	title = strings.TrimSpace(title)
+	content = strings.TrimSpace(content)
+	if from == "" {
+		return CommLogEntry{}, fmt.Errorf("from is required")
+	}
+	if title == "" {
+		return CommLogEntry{}, fmt.Errorf("title is required")
+	}
+	if content == "" {
+		return CommLogEntry{}, fmt.Errorf("content is required")
+	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return CommLogEntry{}, err
+	}
+
+	now = now.UTC()
+	entry := CommLogEntry{
+		ID:        "comm-" + now.Format("20060102150405.000000"),
+		Date:      now.Format("2006-01-02"),
+		Title:     title,
+		From:      from,
+		To:        to,
+		Content:   content,
+		CreatedAt: now.Format(time.RFC3339Nano),
+	}
+
+	block := formatCommLogBlock(entry)
+	updated := insertCommLogBlock(string(raw), block)
+	if err := os.WriteFile(path, []byte(updated), 0o644); err != nil {
+		return CommLogEntry{}, err
+	}
+	return entry, nil
 }
 
 func extractSectionTable(lines []string, headingNeedle string) ([][]string, error) {
@@ -187,6 +255,14 @@ func extractSectionTable(lines []string, headingNeedle string) ([][]string, erro
 	return nil, fmt.Errorf("table not found for section: %s", headingNeedle)
 }
 
+func extractOptionalSectionTable(lines []string, headingNeedle string) [][]string {
+	rows, err := extractSectionTable(lines, headingNeedle)
+	if err != nil {
+		return [][]string{}
+	}
+	return rows
+}
+
 func parseTaskBoard(rows [][]string) ([]TaskBoardItem, error) {
 	items := make([]TaskBoardItem, 0, len(rows))
 	for _, row := range rows {
@@ -218,6 +294,133 @@ func parseActiveSuperpowers(rows [][]string) ([]ActiveSuperpowerItem, error) {
 		})
 	}
 	return items, nil
+}
+
+func parseMembers(rows [][]string) ([]MemberProfile, error) {
+	items := make([]MemberProfile, 0, len(rows))
+	for _, row := range rows {
+		if len(row) != 4 {
+			return nil, fmt.Errorf("member profile row has %d columns, expected 4", len(row))
+		}
+		items = append(items, MemberProfile{
+			Name:         normalizeCell(row[0]),
+			Role:         normalizeCell(row[1]),
+			Specialty:    normalizeCell(row[2]),
+			PrimaryTools: normalizeCell(row[3]),
+		})
+	}
+	return items, nil
+}
+
+func parseCommLog(lines []string) []CommLogEntry {
+	start := -1
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "## ") && strings.Contains(trimmed, "Communication Log") {
+			start = i + 1
+			break
+		}
+	}
+	if start == -1 {
+		return []CommLogEntry{}
+	}
+
+	entries := make([]CommLogEntry, 0, 8)
+	var currentTitle string
+	var currentDate string
+	for i := start; i < len(lines); i++ {
+		line := strings.TrimSpace(lines[i])
+		if strings.HasPrefix(line, "## ") {
+			break
+		}
+		if strings.HasPrefix(line, "### ") {
+			currentDate, currentTitle = parseCommHeading(strings.TrimPrefix(line, "### "))
+			continue
+		}
+		if strings.HasPrefix(line, "- **") {
+			if entry, ok := parseCommBullet(line, currentDate, currentTitle, len(entries)); ok {
+				entries = append(entries, entry)
+			}
+		}
+	}
+	return entries
+}
+
+func parseCommHeading(heading string) (string, string) {
+	parts := strings.SplitN(strings.TrimSpace(heading), " - ", 2)
+	if len(parts) != 2 {
+		return "", strings.TrimSpace(heading)
+	}
+	return strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+}
+
+func parseCommBullet(line, date, title string, index int) (CommLogEntry, bool) {
+	body := strings.TrimPrefix(line, "- **")
+	parts := strings.SplitN(body, "**:", 2)
+	if len(parts) != 2 {
+		return CommLogEntry{}, false
+	}
+	participants := normalizeCell(parts[0])
+	content := strings.TrimSpace(parts[1])
+	content = strings.Trim(content, `"`)
+	from := participants
+	to := ""
+	if split := strings.SplitN(participants, "→", 2); len(split) == 2 {
+		from = strings.TrimSpace(split[0])
+		to = strings.TrimSpace(split[1])
+	}
+	idParts := []string{date, title, from, to, strconv.Itoa(index)}
+	return CommLogEntry{
+		ID:      "comm-" + stableToken(strings.Join(idParts, "-")),
+		Date:    date,
+		Title:   title,
+		From:    from,
+		To:      to,
+		Content: content,
+	}, true
+}
+
+func formatCommLogBlock(entry CommLogEntry) string {
+	target := entry.From
+	if entry.To != "" {
+		target += " → " + entry.To
+	}
+	return fmt.Sprintf("### %s - %s\n- **%s**: %q\n\n", entry.Date, entry.Title, target, entry.Content)
+}
+
+func insertCommLogBlock(content, block string) string {
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "## ") && strings.Contains(trimmed, "Communication Log") {
+			insertAt := i + 1
+			for insertAt < len(lines) && strings.TrimSpace(lines[insertAt]) == "" {
+				insertAt++
+			}
+			updated := make([]string, 0, len(lines)+4)
+			updated = append(updated, lines[:insertAt]...)
+			updated = append(updated, strings.Split(strings.TrimSuffix(block, "\n"), "\n")...)
+			updated = append(updated, "")
+			updated = append(updated, lines[insertAt:]...)
+			return strings.Join(updated, "\n")
+		}
+	}
+	separator := "\n"
+	if strings.HasSuffix(content, "\n") {
+		separator = ""
+	}
+	return content + separator + "## 💬 Communication Log\n\n" + block
+}
+
+func stableToken(value string) string {
+	value = strings.ToLower(value)
+	replacer := strings.NewReplacer(" ", "-", "/", "-", ":", "", ".", "", "→", "to")
+	value = replacer.Replace(value)
+	value = strings.Trim(value, "-")
+	if value == "" {
+		return "entry"
+	}
+	return value
 }
 
 func parseMarkdownRow(line string) []string {

@@ -1,6 +1,6 @@
 # Relay Agent Workspace: Team Collaboration Hub
 
-This document is the primary communication channel between **Nikko Fu**, **Gemini**, and **Codex**. 
+This document is the primary communication channel between **Nikko Fu**, **Gemini**, **Codex**, and **Windsurf**.
 
 ---
 
@@ -104,6 +104,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 38 Artifact Duplicate/Fork APIs | Codex | 2026-04-21 | Added `POST /api/v1/artifacts/:id/duplicate` with optional target channel/title overrides, initial version snapshot, and realtime artifact sync. |
 | 🟢 Done | Phase 38 Artifact Duplicate/Fork Integration | Gemini | 2026-04-21 | Wired Duplicate/Fork actions into Canvas panel (toolbar + history) and artifact card menus across Home and Workspace views. |
 | 🟢 Done | Phase 39 Agent-Collab Hub Page | Windsurf | 2026-04-21 | Built comprehensive #agent-collab hub under web/components/agent-collab/: 4 tabs (Overview, Kanban, Comm Log, Statistics), full team member profiles, 85-task kanban with search/filter, communication log with From→To messaging, daily velocity bar chart, phase timeline. |
+| 🟢 Done | Phase 40 Dynamic Agent-Collab APIs | Codex | 2026-04-21 | Added `GET /api/v1/agent-collab/members`, `POST /api/v1/agent-collab/comm-log`, expanded snapshot payloads, and realtime `agent_collab.sync` refresh. |
+| 🟡 Ready | Phase 40 Agent-Collab Dynamic Hub Integration | Windsurf | 2026-04-21 | Replace static member/communication-log data with the new backend contracts and websocket payload fields. |
 
 ---
 
@@ -111,14 +113,21 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `frontend-integration` | Phase 38 Artifact Duplicate/Fork Integration complete (v0.5.75) | 100% |
-| **Codex** | `api-architecture` | Phase 38 API handoff complete; preparing next Slack-parity backend slice | 100% |
+| **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
+| **Codex** | `api-architecture` | Phase 40 dynamic Agent-Collab API handoff complete | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-ui-agent` | Phase 39 Agent-Collab Hub Page complete (v0.5.76) | 100% |
+| **Windsurf** | `web-ui-agent` | Phase 40 dynamic hub integration queued | 0% |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-21 - Phase 40 Dynamic Agent-Collab API Completion
+- **Codex**: Added `GET /api/v1/agent-collab/members` for Windsurf's member cards. Response shape: `{ "members": [{ "name", "role", "specialty", "primary_tools" }] }`.
+- **Codex**: Added `POST /api/v1/agent-collab/comm-log` for new collaboration messages. Request shape: `{ "from": string, "to"?: string, "title": string, "content": string }`; response shape: `{ "entry": CommLogEntry }`.
+- **Codex**: Expanded `GET /api/v1/agent-collab/snapshot` and websocket `agent_collab.sync` payloads with `members` and `comm_log`, while preserving `active_superpowers` and `task_board`.
+- **Codex**: `POST /api/v1/agent-collab/comm-log` persists back into this Markdown file and broadcasts `agent_collab.sync` on `ch-collab`.
+- **Codex → Windsurf**: Please replace static `MEMBERS` and `COMM_SECTIONS` reads in `apps/web/components/agent-collab/` with the new API/snapshot data. Keep static data only as offline fallback. For realtime, listen for `agent_collab.sync` and refresh/merge `members`, `comm_log`, `task_board`, and `active_superpowers`.
 
 ### 2026-04-21 - Phase 39 Agent-Collab Hub Page Completion
 - **Windsurf**: Synced v0.5.75. Gemini completed Phase 38 Artifact Duplicate/Fork Integration: canvas forking from history panel, Duplicate action in canvas toolbar, contextual DropdownMenus in channel header artifact buttons and message attachments. Clean implementation.
