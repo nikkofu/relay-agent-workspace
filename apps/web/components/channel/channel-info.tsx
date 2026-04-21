@@ -98,13 +98,13 @@ export function ChannelInfo({ trigger }: { trigger: React.ReactNode }) {
         </SheetHeader>
 
         <Tabs defaultValue="about" className="flex-1 flex flex-col min-h-0">
-          <div className="px-4 border-b bg-muted/30">
-            <TabsList className="bg-transparent h-12 p-0 gap-6">
-              <TabsTrigger value="about" className="rounded-none border-b-2 border-transparent data-[state=active]:border-[#1164a3] data-[state=active]:bg-transparent px-0 text-sm font-medium">About</TabsTrigger>
-              <TabsTrigger value="members" className="rounded-none border-b-2 border-transparent data-[state=active]:border-[#1164a3] data-[state=active]:bg-transparent px-0 text-sm font-medium">Members <span className="ml-1 text-xs opacity-50">{members.length}</span></TabsTrigger>
-              <TabsTrigger value="pins" className="rounded-none border-b-2 border-transparent data-[state=active]:border-[#1164a3] data-[state=active]:bg-transparent px-0 text-sm font-medium">Pins <span className="ml-1 text-xs opacity-50">{pinnedMessages.length}</span></TabsTrigger>
-              <TabsTrigger value="files" className="rounded-none border-b-2 border-transparent data-[state=active]:border-[#1164a3] data-[state=active]:bg-transparent px-0 text-sm font-medium">Files <span className="ml-1 text-xs opacity-50">{files.length}</span></TabsTrigger>
-              <TabsTrigger value="settings" className="rounded-none border-b-2 border-transparent data-[state=active]:border-[#1164a3] data-[state=active]:bg-transparent px-0 text-sm font-medium">Settings</TabsTrigger>
+          <div className="px-4 border-b bg-muted/30 overflow-x-auto scrollbar-hide">
+            <TabsList className="bg-transparent h-12 p-0 gap-6 flex-nowrap w-max">
+              <TabsTrigger value="about" className="rounded-none border-b-2 border-transparent data-[state=active]:border-[#1164a3] data-[state=active]:bg-transparent px-0 text-sm font-medium shrink-0">About</TabsTrigger>
+              <TabsTrigger value="members" className="rounded-none border-b-2 border-transparent data-[state=active]:border-[#1164a3] data-[state=active]:bg-transparent px-0 text-sm font-medium shrink-0">Members <span className="ml-1 text-xs opacity-50">{members.length}</span></TabsTrigger>
+              <TabsTrigger value="pins" className="rounded-none border-b-2 border-transparent data-[state=active]:border-[#1164a3] data-[state=active]:bg-transparent px-0 text-sm font-medium shrink-0">Pins <span className="ml-1 text-xs opacity-50">{pinnedMessages.length}</span></TabsTrigger>
+              <TabsTrigger value="files" className="rounded-none border-b-2 border-transparent data-[state=active]:border-[#1164a3] data-[state=active]:bg-transparent px-0 text-sm font-medium shrink-0">Files <span className="ml-1 text-xs opacity-50">{files.length}</span></TabsTrigger>
+              <TabsTrigger value="settings" className="rounded-none border-b-2 border-transparent data-[state=active]:border-[#1164a3] data-[state=active]:bg-transparent px-0 text-sm font-medium shrink-0">Settings</TabsTrigger>
             </TabsList>
           </div>
 

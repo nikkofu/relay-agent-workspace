@@ -2,6 +2,18 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.68] - 2026-04-21
+
+This release improves the responsiveness of the channel information sidebar.
+
+### Fixed
+
+- **Scrollable Channel Tabs**: Updated the `TabsList` in `ChannelInfo` to support horizontal scrolling when multiple tabs (About, Members, Pins, Files, Settings) overflow the container width, ensuring all actions remain accessible.
+
+### Verification Used For This Release
+
+- `pnpm lint` (Verified PASS)
+
 ## [0.5.67] - 2026-04-21
 
 This release implements Phase 35: Structured Work Aggregation and Phase 36: ID Normalization Verification.
