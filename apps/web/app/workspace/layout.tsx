@@ -13,7 +13,7 @@ import { useWorkspaceStore } from "@/stores/workspace-store"
 import { useChannelStore } from "@/stores/channel-store"
 import { useUserStore } from "@/stores/user-store"
 import { usePresenceStore } from "@/stores/presence-store"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, Suspense } from "react"
 import { useWebsocket } from "@/hooks/use-websocket"
 
 export default function WorkspaceLayout({
@@ -79,9 +79,13 @@ export default function WorkspaceLayout({
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[#3f0e40] dark:bg-[#1a1d21]">
-      <PrimaryNav />
+      <Suspense fallback={<aside className="w-[60px] bg-[#3f0e40] dark:bg-[#1a1d21] shrink-0" />}>
+        <PrimaryNav />
+      </Suspense>
       <div className="flex-1 flex overflow-hidden rounded-tl-lg bg-white dark:bg-[#1a1d21]">
-        <ChannelSidebar />
+        <Suspense fallback={<nav className="w-[260px] bg-[#3f0e40] dark:bg-[#19171d] shrink-0" />}>
+          <ChannelSidebar />
+        </Suspense>
         {mounted ? (
           <ResizablePanelGroup direction="horizontal" className="flex-1">
             <ResizablePanel defaultSize={showRightPanel ? (isCanvasOpen ? 50 : 65) : 100} minSize={30}>

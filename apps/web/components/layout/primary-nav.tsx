@@ -1,6 +1,6 @@
 "use client"
 
-import { Home, MessageSquare, Bell, Bookmark, Plus, Sparkles, Users, Folder, Zap, Settings, Quote } from "lucide-react"
+import { Home, MessageSquare, Bell, Bookmark, Plus, Sparkles, Users, Folder, Zap, Settings, Quote, Globe } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -22,6 +22,7 @@ const NAV_ITEMS = [
   { icon: Zap, label: "Workflows", href: "/workspace/workflows" },
   { icon: Bookmark, label: "Later", href: "/workspace/later" },
   { icon: Quote, label: "Search", href: "/workspace/search" },
+  { icon: Globe, label: "Knowledge", href: "/workspace/knowledge" },
   { icon: Settings, label: "Settings", href: "/workspace/settings" },
 ]
 

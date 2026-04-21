@@ -117,7 +117,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 45 AI Citation Lookup APIs | Codex | 2026-04-21 | Added unified citation lookup across file chunks, messages, threads, and artifact sections; reserved entity-aware evidence fields for later wiki/graph phases. |
 | 🟢 Done | Phase 45 Citation Lookup Integration | Windsurf | 2026-04-21 | `EvidenceKind` + `CitationEvidence` types. `citation-store` with `lookupCitations`. Shared `CitationCard` switching on `evidence_kind`. New `/workspace/search` page + `Quote` nav item. Files Indexing citations use `CitationCard`. `v0.5.85` published. |
 | 🟢 Done | Phase 46 Knowledge Entities And Wiki APIs | Codex | 2026-04-21 | Added first-class knowledge entities, refs, links, timeline, graph preview, and citation `entity_title` hydration. |
-| 🟡 Ready | Phase 46 Knowledge Entity Wiki Integration | Windsurf | 2026-04-21 | Build knowledge/entity list/detail pages, citation entity links, refs/timeline panels, and graph relationship preview UI. |
+| � Done | Phase 46 Knowledge Entity Wiki Integration | Windsurf | 2026-04-21 | `/workspace/knowledge` entity list (search, kind filters, create dialog). `/workspace/knowledge/[id]` detail (Overview/Refs/Timeline/Graph, inline edit). `knowledge-store` full CRUD. `KnowledgeEntity/Ref/Link/Event/Graph` types. `CitationCard` entity badge → entity detail link. `Knowledge` nav item (Globe). `layout.tsx` Suspense wrappers for `cacheComponents` dynamic route. `v0.5.86` published. |
 
 ---
 
@@ -128,11 +128,15 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
 | **Codex** | `api-architecture` | Phase 46 knowledge entity/wiki API handoff complete | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-ui-agent` | Awaiting Phase 46 knowledge entity wiki integration on top of v0.5.86 API handoff | 0% |
+| **Windsurf** | `web-ui-agent` | Phase 46 Knowledge Entity Wiki Integration complete (v0.5.86) | 100% |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-21 - Phase 46 Knowledge Entity Wiki Integration Completion
+- **Windsurf**: Phase 46 complete. (1) `KnowledgeEntity`, `KnowledgeEntityRef`, `KnowledgeEntityLink`, `KnowledgeEvent`, `KnowledgeGraph`/`KnowledgeGraphNode` types. (2) `knowledge-store`: `fetchEntities`, `createEntity`, `fetchEntity`, `updateEntity`, `fetchEntityRefs`, `addEntityRef`, `fetchEntityTimeline`, `addEntityEvent`, `fetchEntityLinks`, `createLink`, `fetchEntityGraph`. (3) `/workspace/knowledge`: entity list — search bar, kind filter pills, entity cards (kind icon/badge, summary, tags, ref count), create dialog. (4) `/workspace/knowledge/[id]`: entity detail — tinted header (kind-aware bg), `Overview` (summary + inline edit, metadata grid) / `Refs` (source_kind badge + snippet) / `Timeline` (colored dot timeline) / `Graph` (center entity pill, outgoing/incoming links, related entity cards). (5) `CitationCard` `entity_id` badge → `Link` to `/workspace/knowledge/[entity_id]`, shows `entity_title` when hydrated, `ExternalLink` icon. (6) `primary-nav`: `Knowledge` item (`Globe` icon). (7) `layout.tsx`: `Suspense` wrappers on `PrimaryNav` and `ChannelSidebar` — required for `cacheComponents: true` + dynamic route partial prerender. `v0.5.86` published.
+- **Windsurf → Codex**: Knowledge wiki live at `/workspace/knowledge`. For Phase 47: (a) WS events — `knowledge.entity.updated`, `knowledge.event.created`; (b) edge weights / typed refs for richer graph; (c) AI entity auto-detection from new messages and files.
 
 ### 2026-04-21 - Phase 46 Knowledge Entities And Wiki API Completion
 - **Codex**: Added first-class knowledge entity persistence: `KnowledgeEntity`, `KnowledgeEntityRef`, `KnowledgeEntityLink`, and `KnowledgeEvent`.

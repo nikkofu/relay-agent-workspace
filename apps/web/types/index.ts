@@ -71,6 +71,56 @@ export interface CitationEvidence {
   score?: number
 }
 
+export interface KnowledgeEntity {
+  id: string
+  title: string
+  kind: string
+  summary?: string
+  tags?: string[]
+  source_kind?: string
+  ref_count?: number
+  created_at: string
+  updated_at?: string
+}
+
+export interface KnowledgeEntityRef {
+  id: string
+  entity_id: string
+  source_kind: string
+  source_id: string
+  snippet?: string
+  created_at: string
+}
+
+export interface KnowledgeEntityLink {
+  id: string
+  from_entity_id: string
+  to_entity_id: string
+  rel: string
+  created_at: string
+}
+
+export interface KnowledgeEvent {
+  id: string
+  entity_id: string
+  event_kind: string
+  title: string
+  description?: string
+  occurred_at: string
+  created_at: string
+}
+
+export interface KnowledgeGraphNode {
+  entity: KnowledgeEntity
+  rel?: string
+  direction?: 'in' | 'out'
+}
+
+export interface KnowledgeGraph {
+  center: KnowledgeEntity
+  nodes: KnowledgeGraphNode[]
+}
+
 export interface FileSearchResult {
   id: string
   name: string

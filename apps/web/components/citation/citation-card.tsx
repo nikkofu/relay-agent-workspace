@@ -1,6 +1,7 @@
 "use client"
 
-import { FileText, MessageSquare, MessageCircle, Layout, Quote, MapPin, Tag, User2 } from "lucide-react"
+import Link from "next/link"
+import { FileText, MessageSquare, MessageCircle, Layout, Quote, MapPin, Tag, User2, ExternalLink } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import type { CitationEvidence, EvidenceKind } from "@/types"
@@ -112,10 +113,17 @@ export function CitationCard({ citation, compact = false, onClick }: CitationCar
           </span>
         )}
         {citation.entity_id && (
-          <Badge variant="secondary" className="text-[9px] h-4 px-1.5 gap-1 ml-auto">
-            <User2 className="w-2.5 h-2.5" />
-            {citation.entity_title || citation.entity_id}
-          </Badge>
+          <Link
+            href={`/workspace/knowledge/${citation.entity_id}`}
+            onClick={e => e.stopPropagation()}
+            className="ml-auto"
+          >
+            <Badge variant="secondary" className="text-[9px] h-4 px-1.5 gap-1 hover:bg-violet-500/10 hover:text-violet-700 transition-colors cursor-pointer">
+              <User2 className="w-2.5 h-2.5" />
+              {citation.entity_title || citation.entity_id}
+              <ExternalLink className="w-2 h-2 opacity-50" />
+            </Badge>
+          </Link>
         )}
       </div>
     </div>
