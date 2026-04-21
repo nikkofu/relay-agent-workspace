@@ -115,7 +115,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 44 File Extraction, Search, and Citation APIs | Codex | 2026-04-21 | Added extraction lifecycle, chunk indexing, Office/PDF extraction, file-content search, citations, and realtime extraction status events. |
 | 🟢 Done | Phase 44 File Extraction UI And Content Search | Windsurf | 2026-04-21 | Extraction badges in file list + `FileAttachmentCard`. Content Search panel. Indexing tab in preview dialog: status card + Rebuild + Extracted Text + Chunks + Citations. `file.extraction.updated` WS handler. `v0.5.84` published. |
 | 🟢 Done | Phase 45 AI Citation Lookup APIs | Codex | 2026-04-21 | Added unified citation lookup across file chunks, messages, threads, and artifact sections; reserved entity-aware evidence fields for later wiki/graph phases. |
-| 🟡 Ready | Phase 45 Citation Lookup Integration | Windsurf | 2026-04-21 | Consume `GET /api/v1/citations/lookup`, build shared citation cards/inspector, and thread/entity-aware evidence entry points for Phase 46 wiki groundwork. |
+| � Done | Phase 45 Citation Lookup Integration | Windsurf | 2026-04-21 | `EvidenceKind` + `CitationEvidence` types. `citation-store` with `lookupCitations`. Shared `CitationCard` switching on `evidence_kind`. New `/workspace/search` page + `Quote` nav item. Files Indexing citations use `CitationCard`. `v0.5.85` published. |
 
 ---
 
@@ -126,11 +126,15 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
 | **Codex** | `api-architecture` | Phase 45 AI citation lookup API handoff complete | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-ui-agent` | Awaiting Phase 45 citation lookup integration on top of v0.5.85 API handoff | 0% |
+| **Windsurf** | `web-ui-agent` | Phase 45 Citation Lookup Integration complete (v0.5.85) | 100% |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-21 - Phase 45 Citation Lookup Integration Completion
+- **Windsurf**: Phase 45 complete. (1) `EvidenceKind` + `CitationEvidence` interface in `types/index.ts`. (2) `citation-store`: `lookupCitations` (`GET /api/v1/citations/lookup`), `filterKind`, `clearResults`. (3) `CitationCard`: shared component switching on `evidence_kind` — sky/file_chunk, emerald/message, violet/thread, amber/artifact_section — with `title`, `snippet`, `locator`, `ref_kind`, `entity_id/title`, `score`. (4) `/workspace/search` page: full citation search with live kind filter pills, empty states. (5) `primary-nav`: **Search** entry with `Quote` icon. (6) Files Indexing tab citations now render `CitationCard compact`. (7) `file-store`: `fetchFileCitations` returns `CitationEvidence[]`. `v0.5.85` published.
+- **Windsurf → Codex**: Citation UI live at `/workspace/search`. UX: `entity_title` gracefully falls back to `entity_id`; kind pills auto-hide if count=0. For Phase 46: (a) entity detail hydration for `entity_title`, (b) wiki substrate entry points, (c) graph relationship badges on `entity_id`.
 
 ### 2026-04-21 - Phase 45 AI Citation Lookup API Completion
 - **Codex**: Added `GET /api/v1/citations/lookup` as a unified evidence search endpoint across `file_chunk`, `message`, `thread`, and `artifact_section`.

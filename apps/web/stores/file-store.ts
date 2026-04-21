@@ -1,7 +1,7 @@
 import { create } from "zustand"
 import { API_BASE_URL } from "@/lib/constants"
 import { toast } from "sonner"
-import { FileAudit, FileAsset, FileComment, FileShare, FileChunk, FileCitation, FileSearchResult } from "@/types"
+import { FileAudit, FileAsset, FileComment, FileShare, FileChunk, FileSearchResult, CitationEvidence } from "@/types"
 
 interface FileState {
   files: FileAsset[]
@@ -29,7 +29,7 @@ interface FileState {
   rebuildFileExtraction: (id: string) => Promise<void>
   fetchFileExtractedContent: (id: string) => Promise<{ text?: string; summary?: string } | null>
   fetchFileChunks: (id: string) => Promise<FileChunk[]>
-  fetchFileCitations: (id: string) => Promise<FileCitation[]>
+  fetchFileCitations: (id: string) => Promise<CitationEvidence[]>
   searchFiles: (q: string) => Promise<FileSearchResult[]>
   updateFileLocally: (id: string, updates: Partial<FileAsset>) => void
 }
@@ -339,7 +339,7 @@ export const useFileStore = create<FileState>((set) => ({
       const res = await fetch(`${API_BASE_URL}/files/${id}/citations`)
       if (!res.ok) return []
       const data = await res.json()
-      return data.citations || []
+      return (data.citations || []) as CitationEvidence[]
     } catch (error) {
       console.error("Failed to fetch file citations:", error)
       return []

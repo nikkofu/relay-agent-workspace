@@ -36,7 +36,8 @@ import {
 } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import { Label } from "@/components/ui/label"
-import type { FileComment, FileShare, FileChunk, FileCitation, FileSearchResult } from "@/types"
+import type { FileComment, FileShare, FileChunk, FileSearchResult, CitationEvidence } from "@/types"
+import { CitationCard } from "@/components/citation/citation-card"
 
 export default function FilesPage() {
   const { 
@@ -90,7 +91,7 @@ export default function FilesPage() {
   const [extraction, setExtraction] = useState<any>(null)
   const [extractedText, setExtractedText] = useState<string | null>(null)
   const [chunks, setChunks] = useState<FileChunk[]>([])
-  const [citations, setCitations] = useState<FileCitation[]>([])
+  const [citations, setCitations] = useState<CitationEvidence[]>([])
   const [isLoadingExtraction, setIsLoadingExtraction] = useState(false)
   const [isRebuildingExtraction, setIsRebuildingExtraction] = useState(false)
   const [showExtractedText, setShowExtractedText] = useState(false)
@@ -957,13 +958,10 @@ export default function FilesPage() {
                         {showCitations ? 'Hide' : 'Show'} Citations {citations.length > 0 && `(${citations.length})`}
                       </Button>
                       {showCitations && (
-                        <div className="space-y-2 max-h-40 overflow-y-auto">
+                        <div className="space-y-2 max-h-52 overflow-y-auto">
                           {citations.length === 0 && <p className="text-xs text-muted-foreground italic">No citations yet.</p>}
                           {citations.map((cit, i) => (
-                            <div key={cit.id || i} className="bg-violet-500/5 border border-violet-500/20 rounded-lg p-2 text-[11px]">
-                              <p className="text-foreground/80 leading-relaxed italic">&ldquo;{cit.snippet}&rdquo;</p>
-                              <p className="text-[9px] text-muted-foreground mt-1">{format(new Date(cit.created_at), 'PPp')}</p>
-                            </div>
+                            <CitationCard key={cit.id || i} citation={cit} compact />
                           ))}
                         </div>
                       )}

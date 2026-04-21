@@ -55,6 +55,22 @@ export interface FileCitation {
   created_at: string
 }
 
+export type EvidenceKind = 'file_chunk' | 'message' | 'thread' | 'artifact_section'
+
+export interface CitationEvidence {
+  id: string
+  evidence_kind: EvidenceKind
+  title?: string
+  snippet: string
+  locator?: string
+  source_kind?: string
+  source_ref?: string
+  ref_kind?: string
+  entity_id?: string
+  entity_title?: string
+  score?: number
+}
+
 export interface FileSearchResult {
   id: string
   name: string
