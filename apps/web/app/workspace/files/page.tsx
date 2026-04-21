@@ -29,6 +29,7 @@ import {
   DialogContent, 
   DialogHeader, 
   DialogTitle, 
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog"
 
@@ -262,6 +263,9 @@ export default function FilesPage() {
               <History className="w-5 h-5 text-purple-600" />
               Audit Log: {selectedFile?.name}
             </DialogTitle>
+            <DialogDescription className="text-xs">
+              View the complete history of actions performed on this file.
+            </DialogDescription>
           </DialogHeader>
           <ScrollArea className="max-h-[400px] mt-4 pr-4">
             <div className="space-y-4">
@@ -294,6 +298,9 @@ export default function FilesPage() {
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle className="text-xl font-black">Retention Policy</DialogTitle>
+            <DialogDescription className="text-xs">
+              Configure how long this file will be retained in the workspace.
+            </DialogDescription>
           </DialogHeader>
           <div className="py-6 space-y-4">
             <p className="text-xs text-muted-foreground leading-relaxed">
@@ -324,6 +331,10 @@ export default function FilesPage() {
       {/* File Preview Dialog */}
       <Dialog open={isViewingPreview} onOpenChange={setIsViewingPreview}>
         <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden bg-white dark:bg-[#1a1d21]">
+          <DialogHeader className="sr-only">
+            <DialogTitle>File Preview</DialogTitle>
+            <DialogDescription>Viewing file content and metadata.</DialogDescription>
+          </DialogHeader>
           <div className="aspect-video bg-muted flex items-center justify-center relative group">
             {isPreviewLoading ? (
               <div className="flex flex-col items-center gap-2">

@@ -15,6 +15,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog"
@@ -112,6 +113,9 @@ export default function PeopleDirectoryPage() {
             <DialogContent>
               <DialogHeader>
                 <DialogTitle className="text-xl font-black">Create User Group</DialogTitle>
+                <DialogDescription className="text-xs">
+                  Groups allow you to mention multiple people at once and manage team access.
+                </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
@@ -331,7 +335,6 @@ export default function PeopleDirectoryPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Member Management Dialog */}
       <Dialog open={isManagingMembers} onOpenChange={setIsManagingMembers}>
         <DialogContent className="sm:max-w-[500px] p-0 flex flex-col max-h-[85vh]">
           <DialogHeader className="p-6 pb-2">
@@ -339,6 +342,9 @@ export default function PeopleDirectoryPage() {
               <Shield className="w-5 h-5 text-purple-600" />
               {activeGroup?.name} Members
             </DialogTitle>
+            <DialogDescription className="text-xs ml-7">
+              Manage who is in this group and their assigned roles.
+            </DialogDescription>
           </DialogHeader>
           
           <div className="px-6 pb-4">

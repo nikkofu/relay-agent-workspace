@@ -2,6 +2,19 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.69] - 2026-04-21
+
+This release addresses accessibility warnings and improves external asset reliability.
+
+### Fixed
+
+- **Dialog Accessibility**: Added missing `DialogDescription` components to `UserProfile`, `FilesPage`, `PeopleDirectoryPage`, `WorkflowsPage`, and `ChannelInfo`. This resolves the browser warning "Missing Description for DialogContent".
+- **External Asset Reliability**: Configured `unoptimized: true` for GitHub and Avatar domains in `next.config.mjs` to resolve the "resolved to private ip" error, ensuring avatars load correctly in all environments.
+
+### Verification Used For This Release
+
+- `pnpm lint` (Verified PASS)
+
 ## [0.5.68] - 2026-04-21
 
 This release improves the responsiveness of the channel information sidebar.

@@ -16,6 +16,7 @@ import {
   DialogContent, 
   DialogHeader, 
   DialogTitle, 
+  DialogDescription,
   DialogTrigger,
   DialogFooter
 } from "@/components/ui/dialog"
@@ -194,6 +195,9 @@ export function UserProfile({ user }: UserProfileProps) {
               <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
                   <DialogTitle className="text-xl font-black">Edit your profile</DialogTitle>
+                  <DialogDescription className="text-xs">
+                    Make changes to your public profile here. Click save when you're done.
+                  </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto px-1 custom-scrollbar">
                   <div className="grid gap-2">

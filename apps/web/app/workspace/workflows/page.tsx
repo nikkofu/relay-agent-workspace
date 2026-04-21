@@ -20,6 +20,7 @@ import {
   DialogContent, 
   DialogHeader, 
   DialogTitle, 
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog"
 import { 
@@ -238,11 +239,13 @@ export default function WorkflowsPage() {
         </div>
       </Tabs>
 
-      {/* Run Detail Dialog */}
       <Dialog open={isViewingRun} onOpenChange={setIsViewingRun}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle className="text-xl font-black">Workflow Run Details</DialogTitle>
+            <DialogDescription className="text-xs">
+              Overview of the execution steps and current status for this workflow run.
+            </DialogDescription>
           </DialogHeader>
           {selectedRun && (
             <div className="py-4 space-y-6">
@@ -309,7 +312,6 @@ export default function WorkflowsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Raw Logs Dialog */}
       <Dialog open={isViewingLogs} onOpenChange={setIsViewingLogs}>
         <DialogContent className="sm:max-w-[700px] p-0 flex flex-col max-h-[85vh]">
           <DialogHeader className="p-6 pb-2">
@@ -317,6 +319,9 @@ export default function WorkflowsPage() {
               <FileText className="w-5 h-5 text-purple-600" />
               Raw Execution Logs
             </DialogTitle>
+            <DialogDescription className="text-xs ml-7">
+              Detailed system-level logs captured during the automation sequence.
+            </DialogDescription>
           </DialogHeader>
           <div className="flex-1 min-h-0 bg-[#0d0f12] text-green-500 font-mono text-[11px] p-4 overflow-hidden border-y border-white/5">
             <ScrollArea className="h-full">

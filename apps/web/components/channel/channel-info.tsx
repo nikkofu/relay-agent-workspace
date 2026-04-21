@@ -27,6 +27,7 @@ import {
   DialogContent, 
   DialogHeader, 
   DialogTitle, 
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog"
 import { Switch } from "@/components/ui/switch"
@@ -97,9 +98,9 @@ export function ChannelInfo({ trigger }: { trigger: React.ReactNode }) {
           </div>
         </SheetHeader>
 
-        <Tabs defaultValue="about" className="flex-1 flex flex-col min-h-0">
-          <div className="px-4 border-b bg-muted/30 overflow-x-auto scrollbar-hide">
-            <TabsList className="bg-transparent h-12 p-0 gap-6 flex-nowrap w-max">
+        <Tabs defaultValue="about" className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="px-4 border-b bg-muted/30 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:display-none">
+            <TabsList className="bg-transparent h-12 p-0 gap-6 flex-nowrap w-max flex">
               <TabsTrigger value="about" className="rounded-none border-b-2 border-transparent data-[state=active]:border-[#1164a3] data-[state=active]:bg-transparent px-0 text-sm font-medium shrink-0">About</TabsTrigger>
               <TabsTrigger value="members" className="rounded-none border-b-2 border-transparent data-[state=active]:border-[#1164a3] data-[state=active]:bg-transparent px-0 text-sm font-medium shrink-0">Members <span className="ml-1 text-xs opacity-50">{members.length}</span></TabsTrigger>
               <TabsTrigger value="pins" className="rounded-none border-b-2 border-transparent data-[state=active]:border-[#1164a3] data-[state=active]:bg-transparent px-0 text-sm font-medium shrink-0">Pins <span className="ml-1 text-xs opacity-50">{pinnedMessages.length}</span></TabsTrigger>
@@ -108,7 +109,7 @@ export function ChannelInfo({ trigger }: { trigger: React.ReactNode }) {
             </TabsList>
           </div>
 
-          <ScrollArea className="flex-1">
+          <ScrollArea className="flex-1 min-h-0">
             <TabsContent value="about" className="p-4 m-0 flex flex-col gap-6">
               {/* Topic Section */}
               <div className="space-y-2 group">
@@ -431,10 +432,13 @@ export function ChannelInfo({ trigger }: { trigger: React.ReactNode }) {
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle className="text-xl font-black">Leave #{currentChannel.name}?</DialogTitle>
+            <DialogDescription className="text-sm">
+              Are you sure you want to leave this channel? You can always join back later if the channel is public.
+            </DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              Are you sure you want to leave this channel? You can always join back later if the channel is public.
+            <p className="text-sm text-muted-foreground leading-relaxed italic">
+              Leaving will stop you from seeing new messages in this channel.
             </p>
           </div>
           <DialogFooter>
