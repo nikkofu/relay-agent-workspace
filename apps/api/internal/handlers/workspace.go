@@ -105,10 +105,24 @@ type workflowRunResponse struct {
 	Summary      string                    `json:"summary"`
 	Input        map[string]any            `json:"input,omitempty"`
 	RetryOfRunID string                    `json:"retry_of_run_id,omitempty"`
+	WorkflowID   string                    `json:"workflow_id"`
+	WorkflowName string                    `json:"workflow_name"`
+	TriggeredBy  string                    `json:"triggered_by"`
+	FinishedAt   *time.Time                `json:"finished_at,omitempty"`
+	DurationMS   int                       `json:"duration_ms"`
+	Error        string                    `json:"error,omitempty"`
+	Steps        []workflowRunStepResponse `json:"steps,omitempty"`
 	StartedAt    time.Time                 `json:"started_at"`
 	CompletedAt  *time.Time                `json:"completed_at,omitempty"`
 	Workflow     domain.WorkflowDefinition `json:"workflow"`
 	StartedBy    domain.User               `json:"started_by"`
+}
+
+type workflowRunStepResponse struct {
+	Name       string `json:"name"`
+	Status     string `json:"status"`
+	DurationMS int    `json:"duration_ms"`
+	Detail     string `json:"detail,omitempty"`
 }
 
 func GetUserProfile(c *gin.Context) {
@@ -130,6 +144,10 @@ func GetUserProfile(c *gin.Context) {
 			"department":        enriched.Department,
 			"timezone":          defaultString(enriched.Timezone, "UTC"),
 			"working_hours":     defaultString(enriched.WorkingHours, "Mon - Fri"),
+			"pronouns":          enriched.Pronouns,
+			"location":          enriched.Location,
+			"phone":             enriched.Phone,
+			"bio":               enriched.Bio,
 			"status":            enriched.Status,
 			"status_text":       enriched.StatusText,
 			"status_emoji":      enriched.StatusEmoji,
@@ -156,6 +174,10 @@ func PatchUserProfile(c *gin.Context) {
 		Department   *string `json:"department"`
 		Timezone     *string `json:"timezone"`
 		WorkingHours *string `json:"working_hours"`
+		Pronouns     *string `json:"pronouns"`
+		Location     *string `json:"location"`
+		Phone        *string `json:"phone"`
+		Bio          *string `json:"bio"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -173,6 +195,18 @@ func PatchUserProfile(c *gin.Context) {
 	}
 	if input.WorkingHours != nil {
 		user.WorkingHours = strings.TrimSpace(*input.WorkingHours)
+	}
+	if input.Pronouns != nil {
+		user.Pronouns = strings.TrimSpace(*input.Pronouns)
+	}
+	if input.Location != nil {
+		user.Location = strings.TrimSpace(*input.Location)
+	}
+	if input.Phone != nil {
+		user.Phone = strings.TrimSpace(*input.Phone)
+	}
+	if input.Bio != nil {
+		user.Bio = strings.TrimSpace(*input.Bio)
 	}
 
 	if err := db.DB.Save(&user).Error; err != nil {
@@ -631,6 +665,9 @@ func CreateWorkflowRun(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create workflow run"})
 		return
 	}
+	createWorkflowRunSteps(run.ID, []workflowRunStepResponse{
+		{Name: "Queued", Status: "queued", DurationMS: 0, Detail: "Run accepted by workflow engine"},
+	})
 	response := hydrateWorkflowRun(run, workflow, enrichUser(currentUser))
 	if RealtimeHub != nil {
 		_ = RealtimeHub.Broadcast(realtime.Event{
@@ -688,6 +725,12 @@ func CancelWorkflowRun(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to cancel workflow run"})
 		return
 	}
+	appendWorkflowRunStep(run.ID, workflowRunStepResponse{
+		Name:       "Cancelled",
+		Status:     "cancelled",
+		DurationMS: 0,
+		Detail:     defaultString(strings.TrimSpace(input.Summary), "Run cancelled by operator"),
+	})
 
 	workflow, starter, err := loadWorkflowRunContext(run)
 	if err != nil {
@@ -743,6 +786,9 @@ func RetryWorkflowRun(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to retry workflow run"})
 		return
 	}
+	createWorkflowRunSteps(run.ID, []workflowRunStepResponse{
+		{Name: "Retry queued", Status: "queued", DurationMS: 0, Detail: "Retry created from " + previous.ID},
+	})
 
 	response := hydrateWorkflowRun(run, workflow, enrichUser(currentUser))
 	broadcastWorkflowRun(response, now)
@@ -1036,17 +1082,68 @@ func hydrateWorkflowRun(run domain.WorkflowRun, workflow domain.WorkflowDefiniti
 	if strings.TrimSpace(run.Input) != "" {
 		_ = json.Unmarshal([]byte(run.Input), &input)
 	}
+	steps := loadWorkflowRunSteps(run.ID)
+	durationMS := 0
+	if run.CompletedAt != nil {
+		durationMS = int(run.CompletedAt.Sub(run.StartedAt).Milliseconds())
+	} else {
+		for _, step := range steps {
+			durationMS += step.DurationMS
+		}
+	}
 	return workflowRunResponse{
 		ID:           run.ID,
 		Status:       run.Status,
 		Summary:      run.Summary,
 		Input:        input,
 		RetryOfRunID: run.RetryOfRunID,
+		WorkflowID:   workflow.ID,
+		WorkflowName: workflow.Name,
+		TriggeredBy:  starter.Name,
+		FinishedAt:   run.CompletedAt,
+		DurationMS:   durationMS,
+		Error:        run.Error,
+		Steps:        steps,
 		StartedAt:    run.StartedAt,
 		CompletedAt:  run.CompletedAt,
 		Workflow:     workflow,
 		StartedBy:    starter,
 	}
+}
+
+func loadWorkflowRunSteps(runID string) []workflowRunStepResponse {
+	var rows []domain.WorkflowRunStep
+	_ = db.DB.Where("workflow_run_id = ?", runID).Order("created_at asc, id asc").Find(&rows).Error
+	items := make([]workflowRunStepResponse, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, workflowRunStepResponse{
+			Name:       row.Name,
+			Status:     row.Status,
+			DurationMS: row.DurationMS,
+			Detail:     row.Detail,
+		})
+	}
+	return items
+}
+
+func createWorkflowRunSteps(runID string, steps []workflowRunStepResponse) {
+	for _, step := range steps {
+		appendWorkflowRunStep(runID, step)
+	}
+}
+
+func appendWorkflowRunStep(runID string, step workflowRunStepResponse) {
+	if runID == "" || strings.TrimSpace(step.Name) == "" {
+		return
+	}
+	_ = db.DB.Create(&domain.WorkflowRunStep{
+		WorkflowRunID: runID,
+		Name:          step.Name,
+		Status:        step.Status,
+		DurationMS:    step.DurationMS,
+		Detail:        step.Detail,
+		CreatedAt:     time.Now().UTC(),
+	}).Error
 }
 
 func loadWorkflowRunContext(run domain.WorkflowRun) (domain.WorkflowDefinition, domain.User, error) {

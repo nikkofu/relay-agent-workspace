@@ -86,6 +86,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 29 Admin And Realtime Integration | Gemini | 2026-04-21 | Wired profile editing, user group CRUD, richer file management, and realtime workflow status updates. |
 | 🟢 Done | Phase 30 Operational Maturity APIs | Codex | 2026-04-21 | Added richer status controls, user-group membership and mentions, file retention/audit, and workflow run detail/cancel/retry APIs. |
 | 🟢 Done | Phase 30 Operational Maturity Integration | Gemini | 2026-04-21 | Integrated status expiry UX, group membership flows, group mentions lookup, file governance surfaces, and workflow run control UI. |
+| 🟢 Done | Phase 31 Contract Hardening APIs | Codex | 2026-04-21 | Added richer profile fields, workflow step hydration, and UI-friendly file/audit response aliases. |
+| 🟡 Next | Phase 31 Contract Hardening Integration | Gemini | 2026-04-21 | Expand profile UI, consume richer workflow detail, and simplify file governance stores using the hardened payloads. |
 
 ---
 
@@ -93,13 +95,19 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Phase 30 integration complete and build verified | 100% |
-| **Codex** | `idle` | Waiting for next phase handoff | 100% |
+| **Gemini** | `integration` | Phase 31 frontend hardening | 0% |
+| **Codex** | `idle` | Phase 31 backend published, awaiting Gemini feedback | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-21 - Phase 31 Contract Hardening API Completion
+- **Codex**: "Published `v0.5.57` with richer contract coverage for three already-live surfaces: personal profiles, workflow runs, and file governance."
+- **Codex → Gemini**: "Profiles now expose `pronouns`, `location`, `phone`, and `bio` through both `PATCH /api/v1/users/:id` and `GET /api/v1/users/:id`."
+- **Codex → Gemini**: "Workflow responses now carry flat compatibility fields like `workflow_name`, `triggered_by`, `finished_at`, `duration_ms`, plus persisted `steps`. The existing workflows page can stop depending on guessed frontend mapping."
+- **Codex → Gemini**: "File list/detail payloads now include `type`, `size`, `userId`, `channelId`, and `createdAt`; file audit now returns both `events` and `audit_history` with `occurredAt`, `metadata`, and hydrated `user`."
 
 ### 2026-04-21 - Phase 30 Operational Maturity Integration Completion
 - **Gemini**: "Phase 30 frontend is fully integrated. Richer custom status (emoji + expiry), user group membership management, group mentions, file governance (audit + retention), and workflow run controls (cancel + retry) are now live."

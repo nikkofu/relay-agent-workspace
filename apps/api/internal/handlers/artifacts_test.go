@@ -576,13 +576,15 @@ func TestListFilesSupportsArchiveAndUploaderFiltersAndDelete(t *testing.T) {
 
 	var listPayload struct {
 		Files []struct {
-			ID string `json:"id"`
+			ID   string `json:"id"`
+			Type string `json:"type"`
+			Size int64  `json:"size"`
 		} `json:"files"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &listPayload); err != nil {
 		t.Fatalf("failed to decode filtered list payload: %v", err)
 	}
-	if len(listPayload.Files) != 1 || listPayload.Files[0].ID != "file-1" {
+	if len(listPayload.Files) != 1 || listPayload.Files[0].ID != "file-1" || listPayload.Files[0].Type != "application/pdf" || listPayload.Files[0].Size != 2048 {
 		t.Fatalf("unexpected filtered files payload: %#v", listPayload.Files)
 	}
 
@@ -670,6 +672,15 @@ func TestFileRetentionAndAuditEndpoints(t *testing.T) {
 	}
 
 	var auditPayload struct {
+		AuditHistory []struct {
+			ID         any    `json:"id"`
+			FileID     string `json:"fileId"`
+			UserID     string `json:"userId"`
+			OccurredAt string `json:"occurredAt"`
+			User       *struct {
+				ID string `json:"id"`
+			} `json:"user"`
+		} `json:"audit_history"`
 		Events []struct {
 			Action string `json:"action"`
 		} `json:"events"`
@@ -677,7 +688,10 @@ func TestFileRetentionAndAuditEndpoints(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &auditPayload); err != nil {
 		t.Fatalf("failed to decode file audit payload: %v", err)
 	}
-	if len(auditPayload.Events) != 2 || auditPayload.Events[0].Action != "retention.updated" {
+	if len(auditPayload.Events) != 2 || auditPayload.Events[0].Action != "retention_update" {
 		t.Fatalf("unexpected file audit payload: %#v", auditPayload.Events)
+	}
+	if len(auditPayload.AuditHistory) != 2 || auditPayload.AuditHistory[0].FileID != "file-1" || auditPayload.AuditHistory[0].User == nil {
+		t.Fatalf("unexpected audit history payload: %#v", auditPayload.AuditHistory)
 	}
 }

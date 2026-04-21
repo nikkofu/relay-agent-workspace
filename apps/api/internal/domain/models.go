@@ -24,6 +24,10 @@ type User struct {
 	Department        string     `json:"department"`
 	Timezone          string     `json:"timezone"`
 	WorkingHours      string     `json:"working_hours"`
+	Pronouns          string     `json:"pronouns"`
+	Location          string     `json:"location"`
+	Phone             string     `json:"phone"`
+	Bio               string     `json:"bio"`
 	Status            string     `json:"status"`
 	StatusText        string     `json:"status_text"`
 	StatusEmoji       string     `json:"status_emoji"`
@@ -97,10 +101,21 @@ type WorkflowRun struct {
 	Input        string     `json:"input"`
 	Summary      string     `json:"summary"`
 	RetryOfRunID string     `gorm:"index" json:"retry_of_run_id,omitempty"`
+	Error        string     `json:"error,omitempty"`
 	StartedAt    time.Time  `json:"started_at"`
 	CompletedAt  *time.Time `json:"completed_at,omitempty"`
 	CreatedAt    time.Time  `json:"created_at"`
 	UpdatedAt    time.Time  `json:"updated_at"`
+}
+
+type WorkflowRunStep struct {
+	ID            uint      `gorm:"primaryKey" json:"id"`
+	WorkflowRunID string    `gorm:"index" json:"workflow_run_id"`
+	Name          string    `json:"name"`
+	Status        string    `json:"status"`
+	DurationMS    int       `json:"duration_ms"`
+	Detail        string    `json:"detail"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 type ToolDefinition struct {

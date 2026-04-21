@@ -257,6 +257,51 @@ func TestPatchUserProfileUpdatesWorkspaceIdentityFields(t *testing.T) {
 	}
 }
 
+func TestPatchUserProfileSupportsExtendedFields(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.User{
+		ID:             "user-1",
+		OrganizationID: "org-1",
+		Name:           "Nikko Fu",
+		Email:          "nikko@example.com",
+	})
+
+	router := gin.New()
+	router.PATCH("/api/v1/users/:id", PatchUserProfile)
+	router.GET("/api/v1/users/:id", GetUserProfile)
+
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/users/user-1", bytes.NewBufferString(`{"pronouns":"he/him","location":"Shanghai","phone":"+86 13800000000","bio":"Building Relay with humans and agents."}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on extended profile patch, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/users/user-1", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on user detail, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		User struct {
+			Pronouns string `json:"pronouns"`
+			Location string `json:"location"`
+			Phone    string `json:"phone"`
+			Bio      string `json:"bio"`
+		} `json:"user"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode extended user payload: %v", err)
+	}
+	if payload.User.Pronouns != "he/him" || payload.User.Location != "Shanghai" || payload.User.Phone == "" || payload.User.Bio == "" {
+		t.Fatalf("unexpected extended user payload: %#v", payload.User)
+	}
+}
+
 func TestGetHomeReturnsWorkspaceSummary(t *testing.T) {
 	setupTestDB(t)
 
@@ -665,10 +710,13 @@ func TestWorkflowRunDetailCancelAndRetry(t *testing.T) {
 		Status:     "running",
 		Input:      `{"channel_id":"ch-incident"}`,
 		Summary:    "Initial run",
+		Error:      "",
 		StartedAt:  now,
 		CreatedAt:  now,
 		UpdatedAt:  now,
 	})
+	db.DB.Create(&domain.WorkflowRunStep{WorkflowRunID: "run-1", Name: "Collect input", Status: "completed", DurationMS: 120, Detail: "Loaded trigger context", CreatedAt: now})
+	db.DB.Create(&domain.WorkflowRunStep{WorkflowRunID: "run-1", Name: "Call agent", Status: "running", DurationMS: 0, Detail: "Executing handoff", CreatedAt: now.Add(time.Second)})
 
 	hub := realtime.NewHub()
 	go hub.Run()
@@ -689,6 +737,23 @@ func TestWorkflowRunDetailCancelAndRetry(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200 on workflow run detail, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var detailPayload struct {
+		Run struct {
+			WorkflowName string `json:"workflow_name"`
+			TriggeredBy  string `json:"triggered_by"`
+			DurationMS   int    `json:"duration_ms"`
+			Steps        []struct {
+				Name string `json:"name"`
+			} `json:"steps"`
+		} `json:"run"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &detailPayload); err != nil {
+		t.Fatalf("failed to decode workflow detail payload: %v", err)
+	}
+	if detailPayload.Run.WorkflowName != "Incident Review" || detailPayload.Run.TriggeredBy != "Nikko Fu" || len(detailPayload.Run.Steps) != 2 {
+		t.Fatalf("unexpected workflow detail payload: %#v", detailPayload.Run)
 	}
 
 	rec = httptest.NewRecorder()
@@ -2435,7 +2500,7 @@ func setupTestDB(t *testing.T) {
 		t.Fatalf("failed to open sqlite test db: %v", err)
 	}
 	db.DB = testDB
-	if err := db.DB.AutoMigrate(&domain.Organization{}, &domain.Team{}, &domain.User{}, &domain.Agent{}, &domain.Workspace{}, &domain.WorkspaceInvite{}, &domain.UserGroup{}, &domain.UserGroupMember{}, &domain.WorkflowDefinition{}, &domain.ToolDefinition{}, &domain.Channel{}, &domain.ChannelMember{}, &domain.Message{}); err != nil {
+	if err := db.DB.AutoMigrate(&domain.Organization{}, &domain.Team{}, &domain.User{}, &domain.Agent{}, &domain.Workspace{}, &domain.WorkspaceInvite{}, &domain.UserGroup{}, &domain.UserGroupMember{}, &domain.WorkflowDefinition{}, &domain.WorkflowRunStep{}, &domain.ToolDefinition{}, &domain.Channel{}, &domain.ChannelMember{}, &domain.Message{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.NotificationPreference{}, &domain.NotificationMuteRule{}, &domain.AIFeedback{}, &domain.AIConversation{}, &domain.AIConversationMessage{}, &domain.AISummary{}, &domain.Artifact{}, &domain.ArtifactVersion{}, &domain.FileAsset{}, &domain.FileAssetEvent{}, &domain.MessageArtifactReference{}, &domain.MessageFileAttachment{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}, &domain.WorkflowRun{}); err != nil {

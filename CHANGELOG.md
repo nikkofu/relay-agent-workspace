@@ -2,6 +2,55 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.57] - 2026-04-21
+
+This release hardens the operational shell contracts behind profiles, workflows, and files so the current UI can consume richer data without store-side guesswork.
+
+### Added
+
+- extended user profile fields:
+  - `pronouns`
+  - `location`
+  - `phone`
+  - `bio`
+- `workflow_run_steps`
+- richer workflow run detail hydration with:
+  - `workflow_name`
+  - `triggered_by`
+  - `finished_at`
+  - `duration_ms`
+  - `error`
+  - `steps`
+
+### Expanded
+
+- `PATCH /api/v1/users/:id` now supports:
+  - `pronouns`
+  - `location`
+  - `phone`
+  - `bio`
+- `GET /api/v1/users/:id` now returns the same extended identity fields
+- `GET /api/v1/workflows/runs`
+- `GET /api/v1/workflows/runs/:id`
+  now include flat compatibility fields alongside nested workflow data
+- `GET /api/v1/files`
+- `GET /api/v1/files/:id`
+  now include UI-friendly aliases:
+  - `type`
+  - `size`
+  - `userId`
+  - `channelId`
+  - `createdAt`
+- `GET /api/v1/files/:id/audit` now returns both:
+  - `events`
+  - `audit_history`
+
+### Verification Used For This Release
+
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+
 ## [0.5.56] - 2026-04-21
 
 This release implements Phase 30: Operational Maturity, adding governance, automation control, and richer presence features.

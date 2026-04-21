@@ -35,6 +35,7 @@ func InitDB() error {
 		&domain.UserGroupMember{},
 		&domain.WorkflowDefinition{},
 		&domain.WorkflowRun{},
+		&domain.WorkflowRunStep{},
 		&domain.ToolDefinition{},
 		&domain.DMConversation{},
 		&domain.DMMember{},

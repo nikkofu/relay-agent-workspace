@@ -17,10 +17,15 @@ import (
 
 type fileAssetResponse struct {
 	domain.FileAsset
-	Uploader    *domain.User `json:"uploader,omitempty"`
-	URL         string       `json:"url"`
-	PreviewURL  string       `json:"preview_url,omitempty"`
-	PreviewKind string       `json:"preview_kind,omitempty"`
+	Uploader       *domain.User `json:"uploader,omitempty"`
+	URL            string       `json:"url"`
+	PreviewURL     string       `json:"preview_url,omitempty"`
+	PreviewKind    string       `json:"preview_kind,omitempty"`
+	Type           string       `json:"type"`
+	Size           int64        `json:"size"`
+	UserID         string       `json:"userId"`
+	ChannelIDAlias string       `json:"channelId,omitempty"`
+	CreatedAtAlias time.Time    `json:"createdAt"`
 }
 
 func UploadFile(c *gin.Context) {
@@ -284,16 +289,29 @@ func GetFileAudit(c *gin.Context) {
 	}
 
 	type fileAuditEventResponse struct {
-		Action    string       `json:"action"`
-		Detail    string       `json:"detail"`
-		CreatedAt time.Time    `json:"created_at"`
-		Actor     *domain.User `json:"actor,omitempty"`
+		ID         uint         `json:"id"`
+		FileID     string       `json:"fileId"`
+		UserID     string       `json:"userId"`
+		Action     string       `json:"action"`
+		OccurredAt time.Time    `json:"occurredAt"`
+		Metadata   any          `json:"metadata,omitempty"`
+		User       *domain.User `json:"user,omitempty"`
+		Detail     string       `json:"detail"`
+		CreatedAt  time.Time    `json:"created_at"`
+		Actor      *domain.User `json:"actor,omitempty"`
 	}
 
 	items := make([]fileAuditEventResponse, 0, len(events))
 	for _, event := range events {
 		item := fileAuditEventResponse{
-			Action:    event.Action,
+			ID:         event.ID,
+			FileID:     event.FileID,
+			UserID:     event.ActorID,
+			Action:     normalizeAuditAction(event.Action),
+			OccurredAt: event.CreatedAt,
+			Metadata: gin.H{
+				"detail": event.Detail,
+			},
 			Detail:    event.Detail,
 			CreatedAt: event.CreatedAt,
 		}
@@ -302,18 +320,24 @@ func GetFileAudit(c *gin.Context) {
 			if err := db.DB.First(&actor, "id = ?", event.ActorID).Error; err == nil {
 				enriched := enrichUser(actor)
 				item.Actor = &enriched
+				item.User = &enriched
 			}
 		}
 		items = append(items, item)
 	}
 
-	c.JSON(http.StatusOK, gin.H{"events": items})
+	c.JSON(http.StatusOK, gin.H{"events": items, "audit_history": items})
 }
 
 func hydrateFileAssetResponse(asset domain.FileAsset) fileAssetResponse {
 	response := fileAssetResponse{
-		FileAsset: asset,
-		URL:       "/api/v1/files/" + asset.ID + "/content",
+		FileAsset:      asset,
+		URL:            "/api/v1/files/" + asset.ID + "/content",
+		Type:           asset.ContentType,
+		Size:           asset.SizeBytes,
+		UserID:         asset.UploaderID,
+		ChannelIDAlias: asset.ChannelID,
+		CreatedAtAlias: asset.CreatedAt,
 	}
 
 	var uploader domain.User
@@ -336,6 +360,23 @@ func hydrateFileAssetResponse(asset domain.FileAsset) fileAssetResponse {
 	}
 
 	return response
+}
+
+func normalizeAuditAction(action string) string {
+	switch action {
+	case "uploaded":
+		return "upload"
+	case "archived":
+		return "archive"
+	case "restored":
+		return "restore"
+	case "deleted":
+		return "delete"
+	case "retention.updated":
+		return "retention_update"
+	default:
+		return action
+	}
 }
 
 func recordFileEvent(fileID, actorID, action, detail string) {

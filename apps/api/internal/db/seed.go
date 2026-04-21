@@ -27,6 +27,10 @@ func SeedData() {
 			Department:     "Product",
 			Timezone:       "Asia/Shanghai",
 			WorkingHours:   "Mon - Fri, 10:00 - 19:00",
+			Pronouns:       "he/him",
+			Location:       "Shanghai",
+			Phone:          "+86 13800000000",
+			Bio:            "Designing Relay as an AI-native workspace for humans and agents.",
 			Status:         "online",
 			AIProvider:     "gemini",
 			AIModel:        "gemini-3-flash-preview",
@@ -218,6 +222,31 @@ func SeedData() {
 	}
 	for _, run := range workflowRuns {
 		DB.FirstOrCreate(&run, domain.WorkflowRun{ID: run.ID})
+	}
+
+	workflowRunSteps := []domain.WorkflowRunStep{
+		{
+			WorkflowRunID: "run-1",
+			Name:          "Collect updates",
+			Status:        "completed",
+			DurationMS:    210,
+			Detail:        "Read the latest standup messages from #general.",
+			CreatedAt:     time.Date(2026, 4, 20, 1, 1, 0, 0, time.UTC),
+		},
+		{
+			WorkflowRunID: "run-1",
+			Name:          "Summarize blockers",
+			Status:        "completed",
+			DurationMS:    340,
+			Detail:        "Grouped progress and blockers into a concise update.",
+			CreatedAt:     time.Date(2026, 4, 20, 1, 2, 0, 0, time.UTC),
+		},
+	}
+	for _, step := range workflowRunSteps {
+		DB.FirstOrCreate(&step, domain.WorkflowRunStep{
+			WorkflowRunID: step.WorkflowRunID,
+			Name:          step.Name,
+		})
 	}
 
 	tools := []domain.ToolDefinition{

@@ -212,6 +212,7 @@ Likely follow-ups:
 - richer attachment previews in message surfaces
 - richer archive filters such as date windows and channel grouping
 - retention enforcement jobs and deleted-file governance surfaces
+- file preview transforms and document snapshot generation
 
 ### 4.5 Slack Parity Layer
 
@@ -275,6 +276,7 @@ Likely follow-ups:
 - dedicated home widgets for onboarding, workflows, and unread work
 - deeper directory facets such as title and working-hours filters
 - user-group membership roles and permissions
+- profile visibility/privacy controls
 
 ### 4.7 Workflow And Tool Registry
 
@@ -295,6 +297,7 @@ Likely follow-ups:
 - channel- or DM-scoped tool availability
 - agent/tool routing metadata shared with the AI layer
 - workflow step logs and richer run telemetry
+- workflow deletion and retention controls for automation history
 
 ### 4.8 Notification Preferences And Mute Rules
 
