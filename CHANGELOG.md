@@ -2,7 +2,7 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
-## [0.5.63] - 2026-04-21
+## [0.5.64] - 2026-04-21
 
 This release implements Phase 34: Structured Contract Alignment, cleaning up frontend-side fallbacks and hardening the integration with hardened backend aliases for lists, tools, and virtual artifacts.
 
