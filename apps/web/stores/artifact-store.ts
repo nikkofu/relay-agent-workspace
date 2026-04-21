@@ -121,29 +121,17 @@ export const useArtifactStore = create<ArtifactState>((set, get) => ({
   },
 
   fetchArtifactDetail: async (id) => {
-    if (id === "new-doc") {
-      const now = new Date().toISOString()
-      set({
-        activeArtifact: {
-          id: "new-doc",
-          title: "Untitled Canvas",
-          content: "",
-          type: "document",
-          channelId: "",
-          userId: "user-1",
-          version: 0,
-          createdAt: now,
-          updatedAt: now,
-        },
-        versions: [],
-      })
-      return
-    }
     try {
-      const response = await fetch(`${API_BASE_URL}/artifacts/${id}`)
+      const channelId = get().activeArtifact?.channelId
+      const url = id === "new-doc" 
+        ? `${API_BASE_URL}/artifacts/new-doc${channelId ? `?channel_id=${channelId}` : ''}`
+        : `${API_BASE_URL}/artifacts/${id}`
+        
+      const response = await fetch(url)
       const data = await response.json()
       const artifact = mapArtifact(data.artifact)
       if (artifact) set({ activeArtifact: artifact })
+      if (id === "new-doc") set({ versions: [] })
     } catch (error) {
       console.error("Failed to fetch artifact detail:", error)
     }

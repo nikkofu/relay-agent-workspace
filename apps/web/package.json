@@ -5,6 +5,7 @@
 
 
 
+
   "private": true,
   "description": "AI-native collaboration workspace for humans and agents, combining messaging, artifacts, and orchestration.",
   "homepage": "https://github.com/nikkofu/relay-agent-workspace",

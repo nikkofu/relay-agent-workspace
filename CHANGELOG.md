@@ -4,6 +4,22 @@ All notable changes to Relay Agent Workspace are documented in this file.
 
 ## [0.5.63] - 2026-04-21
 
+This release implements Phase 34: Structured Contract Alignment, cleaning up frontend-side fallbacks and hardening the integration with hardened backend aliases for lists, tools, and virtual artifacts.
+
+### Added
+
+- **Virtual Artifact Bootstrap**: Removed local `new-doc` stub hydration in favor of the hardened `GET /api/v1/artifacts/new-doc` backend endpoint, ensuring consistent ownership and template metadata.
+- **Contract Hardening**: Stores now consume camelCase aliases (`userId`, `channelId`, `finishedAt`, `durationMs`) directly from hardened backend payloads.
+- **Harden Home Mapping**: Updated `WorkspaceStore` to support the new `home` response structure while maintaining backward compatibility.
+
+### Verification Used For This Release
+
+- `pnpm run build` (Verified PASS)
+- `pnpm lint` (Verified PASS)
+
+## [0.5.62] - 2026-04-21
+
+
 This release hardens the Phase 33 contracts so Gemini's integrated list, tool-run, and canvas flows can consume the backend without frontend-side guesswork.
 
 ### Added
