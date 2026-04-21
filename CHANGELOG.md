@@ -2,6 +2,31 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.72] - 2026-04-21
+
+This release hardens the home payload for the current dashboard UI and adds explicit draft deletion.
+
+### Added
+
+- **Home Dashboard Compatibility Fields**: `GET /api/v1/home` now returns:
+  - `stats`
+  - `recent_activity`
+  - top-level `recent_artifacts`
+- **Explicit Draft Cleanup**: Added `DELETE /api/v1/drafts/:scope` so channel, DM, and thread draft state can be cleared instead of only overwritten.
+
+### Changed
+
+- home payload now exposes dashboard-oriented aliases without removing the existing `activity`, `profile`, `recent_lists`, `recent_tool_runs`, or `recent_files` contracts
+- `stats.pending_actions` is aligned with unread work, while `stats.active_threads` summarizes current thread activity across the user’s channels
+- `recent_activity` now gives the Home UI channel-aware recent conversation cards with `channel_id`, `channel_name`, and `last_message`
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./internal/handlers -run 'Test(DeleteDraftRemovesScopedDraft|GetHomeReturnsWorkspaceSummary)$'`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+
 ## [0.5.71] - 2026-04-21
 
 This release fixes a critical runtime error and improves navigation reliability.

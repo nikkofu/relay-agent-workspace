@@ -49,6 +49,19 @@ type homeActivitySummary struct {
 	WorkflowCount int `json:"workflow_count"`
 }
 
+type homeStatsResponse struct {
+	PendingActions int `json:"pending_actions"`
+	ActiveThreads  int `json:"active_threads"`
+}
+
+type homeRecentActivityResponse struct {
+	ID          string    `json:"id"`
+	ChannelID   string    `json:"channel_id"`
+	ChannelName string    `json:"channel_name"`
+	LastMessage string    `json:"last_message"`
+	OccurredAt  time.Time `json:"occurred_at"`
+}
+
 type homeDraftResponse struct {
 	Scope     string    `json:"scope"`
 	Content   string    `json:"content"`
@@ -433,17 +446,25 @@ func GetHome(c *gin.Context) {
 		GroupCount:    int(groupCount),
 		WorkflowCount: len(workflows),
 	}
+	stats := homeStatsResponse{
+		PendingActions: activity.UnreadCount,
+		ActiveThreads:  countActiveThreadsForHome(currentUser.ID),
+	}
+	recentArtifacts := buildUserProfileSummary(currentUser).RecentArtifacts
 
 	c.JSON(http.StatusOK, gin.H{
 		"home": gin.H{
 			"user":             currentUser,
 			"profile":          buildUserProfileSummary(currentUser),
 			"activity":         activity,
+			"stats":            stats,
 			"starred_channels": starredChannels,
 			"recent_dms":       recentDMs,
 			"drafts":           drafts,
 			"tools":            tools,
 			"workflows":        workflows,
+			"recent_activity":  listRecentChannelActivity(currentUser.ID, 6),
+			"recent_artifacts": recentArtifacts,
 			"recent_lists":     listRecentWorkspaceLists(currentUser.ID, 5),
 			"recent_tool_runs": listRecentToolRunsForHome(currentUser.ID, 5),
 			"recent_files":     listRecentFilesForHome(currentUser.ID, 5),
@@ -1108,6 +1129,53 @@ func listRecentDrafts(userID string, limit int) []homeDraftResponse {
 		})
 	}
 	return items
+}
+
+func listRecentChannelActivity(userID string, limit int) []homeRecentActivityResponse {
+	channelIDs := loadCurrentUserChannelIDs(userID)
+	if len(channelIDs) == 0 {
+		return nil
+	}
+
+	var messages []domain.Message
+	_ = db.DB.Where("channel_id IN ? AND thread_id = ''", channelIDs).Order("created_at desc").Find(&messages).Error
+
+	items := make([]homeRecentActivityResponse, 0, len(messages))
+	seen := make(map[string]struct{}, len(channelIDs))
+	for _, message := range messages {
+		if _, ok := seen[message.ChannelID]; ok {
+			continue
+		}
+
+		var channel domain.Channel
+		if err := db.DB.First(&channel, "id = ?", message.ChannelID).Error; err != nil {
+			continue
+		}
+
+		seen[message.ChannelID] = struct{}{}
+		items = append(items, homeRecentActivityResponse{
+			ID:          "home-activity-" + message.ID,
+			ChannelID:   channel.ID,
+			ChannelName: channel.Name,
+			LastMessage: message.Content,
+			OccurredAt:  message.CreatedAt,
+		})
+		if len(items) >= limit {
+			break
+		}
+	}
+	return items
+}
+
+func countActiveThreadsForHome(userID string) int {
+	channelIDs := loadCurrentUserChannelIDs(userID)
+	if len(channelIDs) == 0 {
+		return 0
+	}
+
+	var count int64
+	_ = db.DB.Model(&domain.Message{}).Where("channel_id IN ? AND thread_id <> ''", channelIDs).Count(&count).Error
+	return int(count)
 }
 
 func listActiveWorkflows() []domain.WorkflowDefinition {

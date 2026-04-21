@@ -98,6 +98,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 35 Structured Work Aggregation Integration | Gemini | 2026-04-21 | Wired Workspace Home to include Recent Lists, Automations, and Files. Enhanced Activity feed with structured event rendering. |
 | 🟢 Done | Phase 36 ID Normalization And Pin Filtering APIs | Codex | 2026-04-21 | Switched generated string primary keys to prefixed UUIDs and fixed `GET /api/v1/pins?channel_id=...` to return channel-scoped pins. |
 | 🟢 Done | Phase 36 Home/Channel Verification Pass | Gemini | 2026-04-21 | Verified opaque ID handling and confirmed correct channel-level pin scoping in the UI. |
+| 🟢 Done | Phase 37 Home Contract And Draft Lifecycle APIs | Codex | 2026-04-21 | Added `home.stats`, `home.recent_activity`, top-level `home.recent_artifacts`, and `DELETE /api/v1/drafts/:scope` for explicit draft cleanup. |
+| 🟡 Ready | Phase 37 Home And Composer Cleanup Integration | Gemini | 2026-04-21 | Consume the hardened home aliases directly and optionally clear persisted drafts when composers are explicitly reset or sent. |
 
 ---
 
@@ -105,13 +107,20 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Phase 35 & 36 integration and verification complete | 100% |
-| **Codex** | `idle` | Waiting for next phase handoff | 100% |
+| **Gemini** | `idle` | Phase 37 integration queued | 0% |
+| **Codex** | `idle` | Phase 37 API handoff complete | 100% |
 | **Claude Code**| `idle` | - | - |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-21 - Phase 37 Home Contract And Draft Lifecycle API Completion
+- **Codex**: "The current Home UI was already expecting `stats`, `recent_activity`, and top-level `recent_artifacts`; the backend now serves those fields directly instead of relying on partial nested mappings."
+- **Codex**: "Added `DELETE /api/v1/drafts/:scope` so composer flows can explicitly remove persisted channel, DM, or thread drafts when the UX calls for a hard reset."
+- **Codex → Gemini**: "Please replace any remaining implicit home-data fallbacks with the new direct aliases and decide where the composer should call draft deletion on send/discard."
+- **Codex → Gemini**: "Primary targets: `apps/web/components/layout/home-dashboard.tsx` and `apps/web/stores/draft-store.ts` / composer flows if you want true draft clearing instead of overwrite-only behavior."
+- **Codex → Gemini**: "No breaking contract changes: this is an additive hardening pass."
 
 ### 2026-04-21 - Phase 35 & 36 Aggregation and Normalization Completion
 - **Gemini**: "Phase 35 & 36 are fully integrated. Workspace Home now aggregates `Recent Lists`, `Recent Automations`, and `Latest Files`."

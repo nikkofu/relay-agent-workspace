@@ -322,6 +322,7 @@ func TestGetHomeReturnsWorkspaceSummary(t *testing.T) {
 	db.DB.Create(&domain.DMMessage{ID: "dm-msg-1", DMConversationID: "dm-1", UserID: "user-2", Content: "Quick sync?", CreatedAt: now.Add(-20 * time.Minute)})
 	db.DB.Create(&domain.WorkflowDefinition{ID: "wf-1", Name: "Daily Standup", Category: "communication", Description: "Collect quick progress updates", Trigger: "manual", IsActive: true, CreatedAt: now.Add(-time.Hour), UpdatedAt: now})
 	db.DB.Create(&domain.ToolDefinition{ID: "tool-1", Name: "Web Search", Key: "web-search", Category: "research", Description: "Search current information", Icon: "search", IsEnabled: true, CreatedAt: now.Add(-time.Hour), UpdatedAt: now})
+	db.DB.Create(&domain.Artifact{ID: "artifact-1", ChannelID: "ch-1", Title: "Launch Brief", Version: 1, Type: "document", Status: "live", Content: "hello", Source: "manual", CreatedBy: "user-1", UpdatedBy: "user-1", CreatedAt: now.Add(-25 * time.Minute), UpdatedAt: now.Add(-5 * time.Minute)})
 	db.DB.Create(&domain.WorkspaceList{ID: "list-1", WorkspaceID: "ws-1", ChannelID: "ch-1", Title: "Launch Checklist", Description: "Critical preflight items", CreatedBy: "user-2", CreatedAt: now.Add(-12 * time.Minute), UpdatedAt: now.Add(-10 * time.Minute)})
 	db.DB.Create(&domain.WorkspaceListItem{ID: 1, ListID: "list-1", Content: "Review API contract", Position: 1, IsCompleted: true, AssignedTo: "user-1", CompletedAt: ptrTime(now.Add(-9 * time.Minute)), CreatedBy: "user-2", CreatedAt: now.Add(-12 * time.Minute), UpdatedAt: now.Add(-9 * time.Minute)})
 	toolInput := `{"channel_id":"ch-1","thread_id":"msg-1"}`
@@ -355,7 +356,20 @@ func TestGetHomeReturnsWorkspaceSummary(t *testing.T) {
 			Drafts          []any `json:"drafts"`
 			Tools           []any `json:"tools"`
 			Workflows       []any `json:"workflows"`
-			RecentLists     []struct {
+			Stats           struct {
+				PendingActions int `json:"pending_actions"`
+				ActiveThreads  int `json:"active_threads"`
+			} `json:"stats"`
+			RecentActivity []struct {
+				ID          string `json:"id"`
+				ChannelID   string `json:"channel_id"`
+				ChannelName string `json:"channel_name"`
+				LastMessage string `json:"last_message"`
+			} `json:"recent_activity"`
+			RecentArtifacts []struct {
+				ID string `json:"id"`
+			} `json:"recent_artifacts"`
+			RecentLists []struct {
 				ID             string `json:"id"`
 				CompletedCount int    `json:"completed_count"`
 			} `json:"recent_lists"`
@@ -379,8 +393,17 @@ func TestGetHomeReturnsWorkspaceSummary(t *testing.T) {
 	if payload.Home.Activity.DraftCount != 1 || payload.Home.Activity.DMCount != 1 {
 		t.Fatalf("unexpected home activity summary: %#v", payload.Home.Activity)
 	}
+	if payload.Home.Stats.PendingActions != payload.Home.Activity.UnreadCount || payload.Home.Stats.ActiveThreads < 0 {
+		t.Fatalf("unexpected home stats payload: %#v", payload.Home.Stats)
+	}
 	if len(payload.Home.StarredChannels) != 1 || len(payload.Home.RecentDMs) != 1 || len(payload.Home.Tools) != 1 || len(payload.Home.Workflows) != 1 {
 		t.Fatalf("expected populated home sections, got %#v", payload.Home)
+	}
+	if len(payload.Home.RecentActivity) == 0 || payload.Home.RecentActivity[0].ChannelID == "" || payload.Home.RecentActivity[0].ChannelName == "" || payload.Home.RecentActivity[0].LastMessage == "" {
+		t.Fatalf("expected recent activity aliases for home dashboard, got %#v", payload.Home.RecentActivity)
+	}
+	if len(payload.Home.RecentArtifacts) == 0 || payload.Home.RecentArtifacts[0].ID == "" {
+		t.Fatalf("expected top-level recent artifacts alias, got %#v", payload.Home.RecentArtifacts)
 	}
 	if len(payload.Home.RecentLists) != 1 || payload.Home.RecentLists[0].CompletedCount != 1 {
 		t.Fatalf("expected recent list summary, got %#v", payload.Home.RecentLists)
@@ -1805,6 +1828,40 @@ func TestPutDraftCreatesAndUpdatesByScope(t *testing.T) {
 	}
 	if draft.Content != "Updated draft" {
 		t.Fatalf("expected updated content, got %#v", draft)
+	}
+}
+
+func TestDeleteDraftRemovesScopedDraft(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Draft{UserID: "user-1", Scope: "channel:ch-1", Content: "Disposable draft", CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()})
+
+	router := gin.New()
+	router.DELETE("/api/v1/drafts/:scope", DeleteDraft)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/drafts/channel:ch-1", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on draft delete, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Deleted bool   `json:"deleted"`
+		Scope   string `json:"scope"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode delete draft response: %v", err)
+	}
+	if !payload.Deleted || payload.Scope != "channel:ch-1" {
+		t.Fatalf("unexpected delete draft payload: %#v", payload)
+	}
+
+	var count int64
+	db.DB.Model(&domain.Draft{}).Where("user_id = ? AND scope = ?", "user-1", "channel:ch-1").Count(&count)
+	if count != 0 {
+		t.Fatalf("expected draft deletion, got count=%d", count)
 	}
 }
 

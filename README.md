@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.5.66` is the current release line and includes:
+`v0.5.72` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -100,6 +100,11 @@ For product, design, and marketing, the short version is:
 - Activity and inbox feeds that include structured list completion, tool execution, and file upload signals
 - UUID-style prefixed string primary keys for newly created channels, lists, tool runs, workflow runs, files, artifacts, user groups, and AI conversations/messages
 - Channel-scoped pin retrieval for `GET /api/v1/pins?channel_id=...`
+- Home dashboard compatibility fields:
+  - `stats`
+  - `recent_activity`
+  - top-level `recent_artifacts`
+- `DELETE /api/v1/drafts/:scope` for explicit draft cleanup flows
 - File retention policy and file audit trail APIs
 - File preview metadata API for images, PDFs, and fallback downloads
 - Channel notification preferences and self-service leave-channel API

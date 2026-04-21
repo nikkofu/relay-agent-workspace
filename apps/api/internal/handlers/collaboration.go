@@ -1781,6 +1781,27 @@ func PutDraft(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"draft": draft})
 }
 
+func DeleteDraft(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	scope := c.Param("scope")
+	if scope == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "scope is required"})
+		return
+	}
+
+	if err := db.DB.Where("user_id = ? AND scope = ?", currentUser.ID, scope).Delete(&domain.Draft{}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete draft"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"deleted": true, "scope": scope})
+}
+
 func SearchWorkspace(c *gin.Context) {
 	query := strings.TrimSpace(c.Query("q"))
 	if query == "" {

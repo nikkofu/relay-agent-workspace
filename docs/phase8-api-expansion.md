@@ -276,8 +276,9 @@ Recommended additions:
   - shipped baseline:
     - `GET /api/v1/drafts`
     - `PUT /api/v1/drafts/:scope`
-  - likely follow-up:
     - `DELETE /api/v1/drafts/:scope`
+  - likely follow-up:
+    - draft cleanup triggers tied to send/discard flows
 
 ### 4.6 Home, Directory, And Profile Layer
 
@@ -296,6 +297,7 @@ Likely follow-ups:
 
 - deeper profile editing such as phone, bio, and avatar workflows
 - dedicated home widgets for onboarding, workflows, unread work, and structured work summaries
+- direct dashboard aliases such as `stats`, `recent_activity`, and top-level `recent_artifacts` for UI-oriented home hydration
 - deeper directory facets such as title and working-hours filters
 - user-group membership roles and permissions
 - profile visibility/privacy controls
