@@ -1,6 +1,6 @@
 {
   "name": "relay-agent-workspace",
-  "version": "0.5.54",
+  "version": "0.5.55",
 
   "private": true,
   "description": "AI-native collaboration workspace for humans and agents, combining messaging, artifacts, and orchestration.",
@@ -46,6 +46,8 @@
   },
   "devDependencies": {
     "@next/eslint-plugin-next": "16.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.46.2",
+    "@typescript-eslint/parser": "^8.46.2",
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4.2.2",
     "@types/node": "^20",

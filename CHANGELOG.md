@@ -2,6 +2,23 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.55] - 2026-04-21
+
+This release finishes the CI packaging repair for the Phase 30 operational maturity wave.
+
+### Fixed
+
+- declared `@typescript-eslint/eslint-plugin` directly in `apps/web/package.json`
+- declared `@typescript-eslint/parser` directly in `apps/web/package.json`
+- aligned workspace package versions to the new release line
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+- `pnpm build` still hangs after `Creating an optimized production build ...` in this environment and remains a frontend investigation item
+
 ## [0.5.54] - 2026-04-21
 
 This release republishes the Phase 30 operational maturity work with a packaging fix for GitHub Actions.
