@@ -251,6 +251,16 @@ type SharedEntityLink struct {
 	RelativePath string `json:"relative_path"`
 }
 
+type SharedWeeklyBriefLink struct {
+	ID           string `json:"id"`
+	UserID       string `json:"user_id"`
+	WorkspaceID  string `json:"workspace_id"`
+	Title        string `json:"title"`
+	URL          string `json:"url"`
+	ShortURL     string `json:"short_url"`
+	RelativePath string `json:"relative_path"`
+}
+
 type EntityBrief struct {
 	EntityID    string     `json:"entity_id"`
 	WorkspaceID string     `json:"workspace_id"`
@@ -266,7 +276,19 @@ type EntityBrief struct {
 	Cached      bool       `json:"cached"`
 }
 
+type EntityAnswer struct {
+	Entity     domain.KnowledgeEntity `json:"entity"`
+	Question   string                 `json:"question"`
+	Answer     string                 `json:"answer"`
+	Reasoning  string                 `json:"reasoning,omitempty"`
+	Provider   string                 `json:"provider"`
+	Model      string                 `json:"model"`
+	AnsweredAt time.Time              `json:"answered_at"`
+	Citations  []Citation             `json:"citations"`
+}
+
 type WeeklyBrief struct {
+	ID          string              `json:"id"`
 	UserID      string              `json:"user_id"`
 	WorkspaceID string              `json:"workspace_id"`
 	Content     string              `json:"content"`

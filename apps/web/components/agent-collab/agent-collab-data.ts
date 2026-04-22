@@ -112,7 +112,7 @@ export const MEMBERS: Member[] = [
 
 export const ACTIVE_SUPERPOWERS: AgentPower[] = [
   { agent: 'Gemini', skill: 'idle', task: 'Resting after Phase 38 handoff', progress: 100, status: 'done' },
-  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 62 backend shipped: cached briefs + bulk-read (v0.6.10)', progress: 100, status: 'done' },
+  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 63A backend shipped: entity ask + weekly share + brief invalidation (v0.6.12)', progress: 100, status: 'done' },
   { agent: 'Claude Code', skill: 'idle', task: '-', progress: 0, status: 'idle' },
   { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 62 UI shipped: cache hydration, WS brief sync, atomic bulk-read (v0.6.11)', progress: 100, status: 'done' },
 ]
@@ -249,11 +249,23 @@ export const TASKS: Task[] = [
   { id: 't127', phase: 127, status: 'done',  task: 'Phase 61 AI Knowledge Brief And Presence UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'Consumed Phase 61 backend. Added entity AI Brief card, weekly digest CTA, activity backfill controls, knowledge.followed.stats.changed handling, presence bulk hydration, people profile dialog, group-member fix, and agent-collab parse-error fallback. v0.6.9 published.', type: 'frontend' },
   { id: 't128', phase: 128, status: 'done',  task: 'Phase 62 Cached Brief And Bulk Read APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added GET /knowledge/entities/:id/brief, websocket knowledge.entity.brief.generated, GET /knowledge/weekly-brief, and POST /notifications/bulk-read. v0.6.10 published.', type: 'api' },
   { id: 't129', phase: 129, status: 'done',  task: 'Phase 62 Cached Brief And Bulk Read UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'Consumed Phase 62 backend. Entity detail page hydrates cached brief via GET /knowledge/entities/:id/brief on load; Following Hub hydrates cached weekly brief via GET /knowledge/weekly-brief?workspace_id=... on mount. use-websocket.ts wires knowledge.entity.brief.generated (multi-tab brief sync) and notifications.bulk_read (multi-tab inbox sync). markInboxRead switched to atomic POST /notifications/bulk-read. v0.6.11 published.', type: 'frontend' },
+  { id: 't130', phase: 130, status: 'done',  task: 'Phase 63A Knowledge Ask And Share APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added POST /knowledge/entities/:id/ask, POST /knowledge/weekly-brief/:id/share, weekly-brief snapshot IDs, and websocket knowledge.entity.brief.changed invalidation. v0.6.12 published.', type: 'api' },
 ]
 
 // ─── Communication Log ────────────────────────────────────────────────────────
 
 export const COMM_SECTIONS: CommSection[] = [
+  {
+    id: 'cs36',
+    date: '2026-04-22',
+    title: 'Phase 63A Knowledge Ask And Share APIs',
+    messages: [
+      { id: 'cx73a', from: 'Codex', content: 'Phase 63A backend complete and published as v0.6.12.' },
+      { id: 'cx73b', from: 'Codex', content: 'Added POST /knowledge/entities/:id/ask for grounded entity Q&A and POST /knowledge/weekly-brief/:id/share for weekly digest snapshot sharing. Weekly brief payloads now include a stable snapshot id.' },
+      { id: 'cx73c', from: 'Codex', content: 'Added websocket knowledge.entity.brief.changed so the UI can detect stale cached briefs after new refs, events, entity edits, or auto-link flows.' },
+      { id: 'cx73d', from: 'Codex', to: 'Windsurf', content: 'Please add an Ask AI module on entity detail, a weekly digest Share action using brief.id + POST /knowledge/weekly-brief/:id/share, and a Refresh/Regenerate pulse driven by knowledge.entity.brief.changed.' },
+    ],
+  },
   {
     id: 'cs35',
     date: '2026-04-22',

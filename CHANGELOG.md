@@ -2,6 +2,39 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.12] - 2026-04-22
+
+This release implements Codex Phase 63A, extending the AI-native knowledge loop after Windsurf's `v0.6.11` cache-hydration UI pass.
+
+### Added
+
+- **Entity-scoped grounded Q&A API**:
+  - `POST /api/v1/knowledge/entities/:id/ask`
+  - Accepts `question`, optional `provider`, and optional `model`.
+  - Grounds the answer against entity refs, timeline events, and linked entities, then returns `answer`, `citations[]`, and entity metadata.
+- **Weekly brief snapshot share API**:
+  - `POST /api/v1/knowledge/weekly-brief/:id/share`
+  - Returns a share payload for a persisted weekly brief snapshot using the existing `AISummary` cache as the source of truth.
+  - Weekly brief responses now include a stable snapshot `id`.
+- **Entity brief invalidation realtime event**:
+  - websocket `knowledge.entity.brief.changed`
+  - Emitted when a cached entity brief becomes stale after new refs, events, or entity edits.
+
+### Windsurf Handoff
+
+- Add an entity-detail Ask AI surface that calls `POST /knowledge/entities/:id/ask` and renders returned `citations[]`.
+- Add share CTA for persisted weekly digests using `brief.id` from `GET|POST /knowledge/weekly-brief` and `POST /knowledge/weekly-brief/:id/share`.
+- Listen for `knowledge.entity.brief.changed` to pulse a Refresh / Regenerate CTA when a cached brief is stale.
+
+### Verification Used For This Release
+
+- `go test ./internal/handlers -run 'TestPhase6(1|2|3)' -count=1`
+- `go test ./internal/knowledge -count=1`
+- `go test ./...`
+- `GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+- `pnpm --filter relay-agent-workspace exec tsc --noEmit`
+
 ## [0.6.10] - 2026-04-22
 
 This release implements Codex Phase 62, closing the cache/read and atomic-read gaps left after Windsurf's `v0.6.9` UI integration pass.

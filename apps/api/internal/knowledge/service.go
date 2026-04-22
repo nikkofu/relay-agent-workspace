@@ -1027,6 +1027,44 @@ func BuildSharedEntityLink(database *gorm.DB, entityID, baseURL string) (SharedE
 	}, nil
 }
 
+func BuildSharedWeeklyBriefLink(database *gorm.DB, summaryID, baseURL string) (SharedWeeklyBriefLink, error) {
+	summaryID = strings.TrimSpace(summaryID)
+	if summaryID == "" {
+		return SharedWeeklyBriefLink{}, errors.New("summary_id is required")
+	}
+
+	var summary domain.AISummary
+	if err := database.Where("id = ? AND scope_type = ?", summaryID, "knowledge_weekly").First(&summary).Error; err != nil {
+		return SharedWeeklyBriefLink{}, err
+	}
+
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if baseURL == "" {
+		baseURL = "http://localhost:3000"
+	}
+
+	userID := ""
+	workspaceID := summary.ChannelID
+	parts := strings.Split(summary.ScopeID, ":")
+	if len(parts) >= 3 {
+		userID = strings.TrimSpace(parts[0])
+		if strings.TrimSpace(parts[1]) != "" {
+			workspaceID = strings.TrimSpace(parts[1])
+		}
+	}
+
+	relativePath := "/workspace/knowledge/following?brief=" + summaryID
+	return SharedWeeklyBriefLink{
+		ID:           summaryID,
+		UserID:       userID,
+		WorkspaceID:  workspaceID,
+		Title:        "Weekly Knowledge Digest",
+		URL:          baseURL + relativePath,
+		ShortURL:     baseURL + "/kb/" + summaryID,
+		RelativePath: relativePath,
+	}, nil
+}
+
 func BuildEntityBriefPrompt(database *gorm.DB, entityID string) (domain.KnowledgeEntity, []ChannelKnowledgeRef, []domain.KnowledgeEvent, string, error) {
 	entity, err := GetEntity(database, entityID)
 	if err != nil {
@@ -1084,6 +1122,70 @@ func BuildEntityBriefPrompt(database *gorm.DB, entityID string) (domain.Knowledg
 		prompt.WriteString("\n")
 	}
 	return entity, hydratedRefs, events, prompt.String(), nil
+}
+
+func BuildEntityAskPrompt(database *gorm.DB, entityID, question string) (domain.KnowledgeEntity, []Citation, string, error) {
+	entity, refs, events, prompt, err := BuildEntityBriefPrompt(database, entityID)
+	if err != nil {
+		return domain.KnowledgeEntity{}, nil, "", err
+	}
+
+	links, err := ListEntityLinks(database, entity.ID)
+	if err != nil {
+		return entity, nil, "", err
+	}
+
+	citations := make([]Citation, 0, len(refs))
+	for idx, ref := range refs {
+		if idx >= 5 {
+			break
+		}
+		citation := Citation{
+			ID:           ref.ID,
+			EvidenceKind: ref.RefKind,
+			SourceKind:   ref.RefKind,
+			SourceRef:    ref.RefID,
+			RefKind:      ref.RefKind,
+			Snippet:      ref.SourceSnippet,
+			Title:        ref.SourceTitle,
+			Score:        float64(len(refs) - idx),
+			EntityID:     ref.EntityID,
+			EntityTitle:  ref.EntityTitle,
+		}
+		if citation.Snippet == "" {
+			citation.Snippet = ref.SourceTitle
+		}
+		citations = append(citations, citation)
+	}
+
+	var builder strings.Builder
+	builder.WriteString("Answer the user's question using only the grounded workspace knowledge below. If evidence is thin, say so clearly. Return concise markdown.\n\n")
+	builder.WriteString("Question: ")
+	builder.WriteString(strings.TrimSpace(question))
+	builder.WriteString("\n\n")
+	builder.WriteString(prompt)
+	if len(links) > 0 {
+		builder.WriteString("\nRelated linked entities:\n")
+		for idx, link := range links {
+			if idx >= 8 {
+				break
+			}
+			builder.WriteString("- ")
+			builder.WriteString(link.Relation)
+			builder.WriteString(": ")
+			if link.FromEntityID == entity.ID {
+				builder.WriteString(link.ToEntityID)
+			} else {
+				builder.WriteString(link.FromEntityID)
+			}
+			builder.WriteString("\n")
+		}
+	}
+	if len(events) == 0 && len(citations) == 0 {
+		builder.WriteString("\nThere is limited evidence for this entity.\n")
+	}
+
+	return entity, citations, builder.String(), nil
 }
 
 func BuildWeeklyBriefPrompt(database *gorm.DB, userID, workspaceID string, now time.Time) (FollowedEntityStats, []FollowedEntity, []TrendingEntity, string, error) {

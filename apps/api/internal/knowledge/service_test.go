@@ -1,6 +1,7 @@
 package knowledge
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -464,6 +465,28 @@ func TestFollowedStatsAndSharedEntityLink(t *testing.T) {
 	if !strings.Contains(share.URL, "/workspace/knowledge/entity-1") || !strings.Contains(share.ShortURL, "/k/entity-1") {
 		t.Fatalf("unexpected share urls: %#v", share)
 	}
+
+	summary := domain.AISummary{
+		ScopeType: "knowledge_weekly",
+		ScopeID:   "user-1:ws-1:weekly",
+		ChannelID: "ws-1",
+		Content:   "Weekly digest",
+		UpdatedAt: now,
+	}
+	if err := database.Create(&summary).Error; err != nil {
+		t.Fatalf("create weekly summary: %v", err)
+	}
+
+	weeklyShare, err := BuildSharedWeeklyBriefLink(database, strconv.FormatUint(uint64(summary.ID), 10), "http://localhost:3000")
+	if err != nil {
+		t.Fatalf("build shared weekly brief link: %v", err)
+	}
+	if weeklyShare.ID != strconv.FormatUint(uint64(summary.ID), 10) || weeklyShare.WorkspaceID != "ws-1" || weeklyShare.UserID != "user-1" {
+		t.Fatalf("unexpected weekly share payload: %#v", weeklyShare)
+	}
+	if !strings.Contains(weeklyShare.URL, "/workspace/knowledge/following?brief=") || !strings.Contains(weeklyShare.ShortURL, "/kb/") {
+		t.Fatalf("unexpected weekly share urls: %#v", weeklyShare)
+	}
 }
 
 func TestMatchEntitiesInTextReturnsLongestNonOverlappingSpans(t *testing.T) {
@@ -719,6 +742,7 @@ func setupKnowledgeTestDB(t *testing.T) *gorm.DB {
 		&domain.KnowledgeEvent{},
 		&domain.KnowledgeEntityFollow{},
 		&domain.KnowledgeDigestSchedule{},
+		&domain.AISummary{},
 		&domain.NotificationRead{},
 		&domain.User{},
 		&domain.ChannelMember{},

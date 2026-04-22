@@ -71,6 +71,7 @@ func UpdateKnowledgeEntity(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to broadcast knowledge entity event"})
 		return
 	}
+	_ = emitKnowledgeBriefChanged(entity.ID, "entity_updated")
 	c.JSON(http.StatusOK, gin.H{"entity": entity})
 }
 
@@ -104,6 +105,7 @@ func AddKnowledgeEntityRef(c *gin.Context) {
 	}
 	_ = emitKnowledgeEntitySpikeAlerts(ref.EntityID, "")
 	_ = emitKnowledgeTrendingChanged(ref.WorkspaceID)
+	_ = emitKnowledgeBriefChanged(ref.EntityID, "ref_created")
 	c.JSON(http.StatusCreated, gin.H{"ref": ref})
 }
 
@@ -138,6 +140,7 @@ func AddKnowledgeEntityEvent(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to broadcast knowledge event"})
 		return
 	}
+	_ = emitKnowledgeBriefChanged(event.EntityID, "event_created")
 	c.JSON(http.StatusCreated, gin.H{"event": event})
 }
 
@@ -159,6 +162,7 @@ func IngestKnowledgeEvent(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to broadcast knowledge event"})
 		return
 	}
+	_ = emitKnowledgeBriefChanged(event.EntityID, "event_created")
 	c.JSON(http.StatusCreated, gin.H{"event": event})
 }
 
@@ -410,6 +414,60 @@ func ShareKnowledgeEntity(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"share": share})
 }
 
+func AskKnowledgeEntity(c *gin.Context) {
+	if AIGateway == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ai gateway is not configured"})
+		return
+	}
+	var input struct {
+		Question string `json:"question"`
+		Provider string `json:"provider"`
+		Model    string `json:"model"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	input.Question = strings.TrimSpace(input.Question)
+	if input.Question == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "question is required"})
+		return
+	}
+
+	entity, citations, prompt, err := knowledge.BuildEntityAskPrompt(db.DB, c.Param("id"), input.Question)
+	if err != nil {
+		handleKnowledgeNotFound(c, err, "knowledge entity not found")
+		return
+	}
+
+	session, err := AIGateway.Stream(c.Request.Context(), llm.Request{
+		Prompt:    prompt,
+		ChannelID: entity.WorkspaceID,
+		Provider:  input.Provider,
+		Model:     input.Model,
+	})
+	if err != nil {
+		handleSummaryGenerationError(c, err)
+		return
+	}
+	content, reasoning, err := collectStreamOutput(c.Request.Context(), session)
+	if err != nil {
+		handleSummaryGenerationError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"answer": knowledge.EntityAnswer{
+		Entity:     entity,
+		Question:   input.Question,
+		Answer:     strings.TrimSpace(content),
+		Reasoning:  strings.TrimSpace(reasoning),
+		Provider:   session.Provider,
+		Model:      session.Model,
+		AnsweredAt: time.Now().UTC(),
+		Citations:  citations,
+	}})
+}
+
 func GetKnowledgeEntityBrief(c *gin.Context) {
 	entity, err := knowledge.GetEntity(db.DB, c.Param("id"))
 	if err != nil {
@@ -555,6 +613,7 @@ func GetMyKnowledgeWeeklyBrief(c *gin.Context) {
 	followed, _ := knowledge.ListFollowedEntities(db.DB, currentUser.ID)
 	trending, _ := knowledge.GetTrendingEntities(db.DB, knowledge.TrendingEntitiesParams{WorkspaceID: workspaceID, Days: 7, Limit: 10})
 	c.JSON(http.StatusOK, gin.H{"brief": knowledge.WeeklyBrief{
+		ID:          strconv.FormatUint(uint64(summary.ID), 10),
 		UserID:      currentUser.ID,
 		WorkspaceID: workspaceID,
 		Content:     summary.Content,
@@ -646,6 +705,7 @@ func GenerateMyKnowledgeWeeklyBrief(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"brief": knowledge.WeeklyBrief{
+		ID:          strconv.FormatUint(uint64(summary.ID), 10),
 		UserID:      currentUser.ID,
 		WorkspaceID: workspaceID,
 		Content:     summary.Content,
@@ -658,6 +718,15 @@ func GenerateMyKnowledgeWeeklyBrief(c *gin.Context) {
 		Followed:    followed,
 		Cached:      false,
 	}})
+}
+
+func ShareMyKnowledgeWeeklyBrief(c *gin.Context) {
+	share, err := knowledge.BuildSharedWeeklyBriefLink(db.DB, c.Param("id"), strings.TrimSpace(os.Getenv("RELAY_APP_BASE_URL")))
+	if err != nil {
+		handleKnowledgeNotFound(c, err, "weekly brief snapshot not found")
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"share": share})
 }
 
 func GetKnowledgeEntityActivityBackfillStatus(c *gin.Context) {
@@ -1172,6 +1241,7 @@ func autoLinkKnowledgeForMessage(message domain.Message) {
 	for _, ref := range refs {
 		_ = broadcastKnowledgeEvent("knowledge.entity.ref.created", ref.WorkspaceID, channel.ID, ref.EntityID, gin.H{"ref": ref})
 		_ = emitKnowledgeEntitySpikeAlerts(ref.EntityID, channel.ID)
+		_ = emitKnowledgeBriefChanged(ref.EntityID, "message_autolink")
 	}
 	if len(refs) > 0 {
 		_ = emitKnowledgeTrendingChanged(channel.WorkspaceID)
@@ -1191,6 +1261,7 @@ func autoLinkKnowledgeForFile(asset domain.FileAsset, content string) {
 	for _, ref := range refs {
 		_ = broadcastKnowledgeEvent("knowledge.entity.ref.created", ref.WorkspaceID, channel.ID, ref.EntityID, gin.H{"ref": ref})
 		_ = emitKnowledgeEntitySpikeAlerts(ref.EntityID, channel.ID)
+		_ = emitKnowledgeBriefChanged(ref.EntityID, "file_autolink")
 	}
 	if len(refs) > 0 {
 		_ = emitKnowledgeTrendingChanged(channel.WorkspaceID)
@@ -1254,6 +1325,36 @@ func emitFollowedStatsChanged(userID, workspaceID string) error {
 			"user_id":      userID,
 			"workspace_id": workspaceID,
 			"stats":        stats,
+		},
+	})
+}
+
+func emitKnowledgeBriefChanged(entityID, reason string) error {
+	entityID = strings.TrimSpace(entityID)
+	if entityID == "" {
+		return nil
+	}
+	summary, err := getStoredSummary("knowledge_entity", entityID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+	entity, err := knowledge.GetEntity(db.DB, entityID)
+	if err != nil {
+		return err
+	}
+	return broadcastKnowledgeEvent("knowledge.entity.brief.changed", entity.WorkspaceID, "", entity.ID, gin.H{
+		"brief": gin.H{
+			"entity_id":    entity.ID,
+			"workspace_id": entity.WorkspaceID,
+			"title":        entity.Title,
+			"generated_at": summary.UpdatedAt,
+			"cached":       true,
+			"stale":        true,
+			"reason":       strings.TrimSpace(reason),
+			"changed_at":   time.Now().UTC(),
 		},
 	})
 }

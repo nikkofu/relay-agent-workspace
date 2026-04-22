@@ -147,6 +147,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 61 AI Knowledge Brief And Presence UI | Windsurf | 2026-04-22 | Consumed all Phase 61 backend contracts. Entity detail Overview tab gains an AI Brief card (Generate/Regenerate, summary, key discussions, next actions). Timeline tab header shows backfill completeness badge and one-click Backfill trigger for incomplete entities. Following Hub gains a Weekly Knowledge Digest CTA strip (Generate/Regenerate, expandable sections). `knowledge.followed.stats.changed` WS event routes to `applyFollowedStatsChanged`. `bulkHydratePresence` added to presence store, called on WS connect. People directory cards are now clickable (profile dialog with email, dept, location, phone, bio). `fetchGroupMembers` store fix: now falls back to `userGroups` list when `activeGroup` is not yet set, fixing the Add Member to Group flow. Agent-collab 500s resolved: handlers return empty snapshot on parse error with server-side log. Published `v0.6.9`. |
 | 🟢 Done | Phase 62 Cached Brief And Bulk Read APIs | Codex | 2026-04-22 | Added `GET /api/v1/knowledge/entities/:id/brief`, websocket `knowledge.entity.brief.generated`, `GET /api/v1/knowledge/weekly-brief`, and `POST /api/v1/notifications/bulk-read`. Released in `v0.6.10`. |
 | 🟢 Done | Phase 62 Cached Brief And Bulk Read UI | Windsurf | 2026-04-22 | Consumed all Phase 62 backend contracts. Entity detail page hydrates cached brief via `GET /knowledge/entities/:id/brief` on load (zero LLM cost). Following Hub hydrates cached weekly brief via `GET /knowledge/weekly-brief?workspace_id=...` on workspace switch. `use-websocket.ts` wires `knowledge.entity.brief.generated` → `applyEntityBriefGenerated` (multi-tab brief sync) and `notifications.bulk_read` → `applyNotificationsBulkRead` (multi-tab inbox read-state sync). `markInboxRead` store action switched from `POST /notifications/read` to atomic `POST /notifications/bulk-read` (de-duplicated, single transaction). Published `v0.6.11`. |
+| 🟢 Done | Phase 63A Knowledge Ask And Share APIs | Codex | 2026-04-22 | Added `POST /api/v1/knowledge/entities/:id/ask`, `POST /api/v1/knowledge/weekly-brief/:id/share`, weekly-brief snapshot IDs, and websocket `knowledge.entity.brief.changed` invalidation. Released in `v0.6.12`. |
 
 ---
 
@@ -155,9 +156,20 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
-| **Codex** | `api-architecture` | Phase 62 backend shipped: cached briefs + bulk-read (v0.6.10) | 100% |
+| **Codex** | `api-architecture` | Phase 63A backend shipped: entity ask + weekly share + brief invalidation (v0.6.12) | 100% |
 | **Claude Code**| `idle` | - | - |
 | **Windsurf** | `web-ui-agent` | Phase 62 UI shipped: cache hydration, WS brief sync, atomic bulk-read (v0.6.11) | 100% |
+
+### 2026-04-22 - Phase 63A Knowledge Ask And Share APIs (v0.6.12)
+- **Codex**: Phase 63A backend is complete and published as `v0.6.12`.
+- **Codex**: Added `POST /api/v1/knowledge/entities/:id/ask`. It builds a grounded prompt from the entity, recent refs, timeline events, and linked entities, then returns `{ answer, citations[] }` plus entity metadata from the configured LLM gateway.
+- **Codex**: Added `POST /api/v1/knowledge/weekly-brief/:id/share`, returning a share payload for a persisted weekly brief snapshot. Weekly brief payloads from both `GET` and `POST /knowledge/weekly-brief` now include a stable snapshot `id`.
+- **Codex**: Added websocket `knowledge.entity.brief.changed`, emitted when a cached entity brief becomes stale after direct refs, timeline events, entity edits, or message/file auto-link flows.
+- **Codex → Windsurf**: Please consume these contracts next:
+  - add an entity-detail Ask AI surface using `POST /knowledge/entities/:id/ask`
+  - add weekly digest share CTA using `brief.id` from `GET|POST /knowledge/weekly-brief` and `POST /knowledge/weekly-brief/:id/share`
+  - listen for `knowledge.entity.brief.changed` and show a Refresh / Regenerate pulse when a cached brief is stale
+- **Codex → Nikko Fu**: This phase shifts the knowledge layer from cached reading into interactive ask/share/refresh workflows. It is the right substrate for later business-domain realtime data flowing into entities and channels.
 
 ### 2026-04-22 - Phase 62 Cached Brief And Bulk Read UI (v0.6.11)
 - **Windsurf**: Phase 62 UI complete and published as `v0.6.11`. Full consumer for Codex `v0.6.10` backend — all four new surfaces wired.
@@ -381,6 +393,15 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-22 - Phase 63A Knowledge Ask And Share APIs
+- **Codex**: Phase 63A backend complete and published as `v0.6.12`.
+- **Codex**: Added `POST /knowledge/entities/:id/ask` for grounded entity Q&A and `POST /knowledge/weekly-brief/:id/share` for digest snapshot sharing. Weekly brief payloads now include a stable snapshot `id`.
+- **Codex**: Added websocket `knowledge.entity.brief.changed` so the UI can detect stale cached briefs after new refs/events or entity edits.
+- **Codex → Windsurf**: Please build the UI consumer pass:
+  - Ask AI module on entity detail using `POST /knowledge/entities/:id/ask`
+  - Weekly digest share action using `brief.id` from current weekly brief state and `POST /knowledge/weekly-brief/:id/share`
+  - Refresh / Regenerate prompt tied to `knowledge.entity.brief.changed`
 
 ### 2026-04-22 - Phase 62 Cached Brief And Bulk Read APIs
 - **Codex**: Phase 62 backend complete and published as `v0.6.10`.
