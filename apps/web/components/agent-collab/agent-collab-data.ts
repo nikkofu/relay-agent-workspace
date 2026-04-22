@@ -112,9 +112,9 @@ export const MEMBERS: Member[] = [
 
 export const ACTIVE_SUPERPOWERS: AgentPower[] = [
   { agent: 'Gemini', skill: 'idle', task: 'Resting after Phase 38 handoff', progress: 100, status: 'done' },
-  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 49 knowledge summary and entity autocomplete API handoff complete', progress: 100, status: 'done' },
+  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 50 message mention and knowledge velocity API handoff complete', progress: 100, status: 'done' },
   { agent: 'Claude Code', skill: 'idle', task: '-', progress: 0, status: 'idle' },
-  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 49 Knowledge Summary And Composer Mention Integration complete (v0.5.89)', progress: 100, status: 'done' },
+  { agent: 'Windsurf', skill: 'idle', task: 'Phase 50 UI integration queued from Codex handoff', progress: 0, status: 'idle' },
 ]
 
 // ─── Full Task Board ──────────────────────────────────────────────────────────
@@ -224,11 +224,26 @@ export const TASKS: Task[] = [
   { id: 't102', phase: 102, status: 'done',  task: 'Phase 48 Channel Knowledge Context UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'ChannelKnowledgeRef type. knowledge-store: fetchChannelKnowledge (GET /api/v1/channels/:id/knowledge), channelKnowledge/channelKnowledgeId/isLoadingChannelKnowledge state. ChannelKnowledgePanel: collapsible 288px right sidebar, refs grouped by entity_id, entity kind icon/badge, source_snippet/ref_kind/role per ref, direct entity links. Channel page: Knowledge toggle button with ref count badge; panel auto-fetches on channel change; WS knowledge.entity.ref.created refreshes panel. CitationCard already trusts hydrated entity_id/entity_title. v0.5.88 published.', type: 'frontend' },
   { id: 't103', phase: 103, status: 'done',  task: 'Phase 49 Channel Knowledge Summary And Entity Mention APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added GET /api/v1/channels/:id/knowledge/summary and GET /api/v1/knowledge/entities/suggest for channel-level entity trends and @entity: autocomplete. v0.5.89 published.', type: 'api' },
   { id: 't104', phase: 104, status: 'done',   task: 'Phase 49 Knowledge Summary And Composer Mention Integration', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'ChannelKnowledgeSummary/ChannelKnowledgeTopEntity/EntitySuggestResult types. knowledge-store: fetchChannelKnowledgeSummary (GET /channels/:id/knowledge/summary) + suggestEntities (GET /knowledge/entities/suggest). ChannelKnowledgePanel: 7-day snapshot card (top entities with ref bar + 5-day trend sparkbar). MessageComposer: @entity: autocomplete (180ms debounce, Globe popover, insert @title with range delete). use-websocket: knowledge.entity.ref.created refreshes summary + shows auto-link toast with View action. workspace/page.tsx prefetches summary on channel change. v0.5.89 published.', type: 'frontend' },
+  { id: 't105', phase: 105, status: 'done',  task: 'Phase 50 Message Entity Mentions And Knowledge Velocity APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added message.metadata.entity_mentions for explicit @Entity Title references and summary.velocity on GET /api/v1/channels/:id/knowledge/summary for anomaly badges. v0.5.90 published.', type: 'api' },
+  { id: 't106', phase: 106, status: 'ready', task: 'Phase 50 Entity Mention Rendering And Knowledge Alert UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'Render entity_mentions in the feed/thread as linked hover-card mentions and use summary.velocity for channel-header anomaly badges.', type: 'frontend' },
 ]
 
 // ─── Communication Log ────────────────────────────────────────────────────────
 
 export const COMM_SECTIONS: CommSection[] = [
+  {
+    id: 'cs15',
+    date: '2026-04-22',
+    title: 'Phase 50 Message Entity Mentions And Knowledge Velocity API Completion',
+    messages: [
+      { id: 'cx50a', from: 'Codex', content: 'Phase 50 backend is complete and published as v0.5.90. Channel messages now return structured message.metadata.entity_mentions for explicit @Entity Title references.' },
+      { id: 'cx50b', from: 'Codex', content: 'Each entity mention includes entity_id, entity_title, entity_kind, source_kind, and mention_text. Matching is longest-title-first, so @Launch Program does not double-match @Launch.' },
+      { id: 'cx50c', from: 'Codex', content: 'GET /api/v1/channels/:id/knowledge/summary now also returns summary.velocity with recent_window_days, previous_ref_count, recent_ref_count, delta, and is_spiking.' },
+      { id: 'cx50d', from: 'Codex', to: 'Windsurf', content: 'Please implement the Phase 50 UI slice next: render message.metadata.entity_mentions in the feed/thread as linked knowledge mentions with hover cards to /workspace/knowledge/[entity_id], and use summary.velocity.is_spiking + delta for a small anomaly badge in the channel header.' },
+      { id: 'cx50e', from: 'Codex', to: 'Windsurf', content: 'Keep the bulk file entity-link confirmation card out of scope for now. I will add a dedicated review contract for that instead of overloading the current auto-link path.' },
+      { id: 'cx50f', from: 'Codex', to: 'Nikko Fu', content: 'Entity mentions are now persistent message data, not just composer sugar. This lets Relay render, search, and evolve them into deeper AI-native knowledge workflows.' },
+    ],
+  },
   {
     id: 'cs14',
     date: '2026-04-22',

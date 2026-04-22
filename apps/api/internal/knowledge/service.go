@@ -3,6 +3,8 @@ package knowledge
 import (
 	"errors"
 	"fmt"
+	"html"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -589,10 +591,16 @@ func GetChannelKnowledgeSummary(database *gorm.DB, channelID string, limit int, 
 	}
 	summary.TotalRefs = len(refs)
 	if len(refs) == 0 {
+		summary.Velocity = buildChannelKnowledgeVelocity(minInt(3, windowDays), 0, 0)
 		return summary, nil
 	}
 
 	windowStart := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -(windowDays - 1))
+	recentWindowDays := minInt(3, windowDays)
+	recentWindowStart := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -(recentWindowDays - 1))
+	previousWindowStart := recentWindowStart.AddDate(0, 0, -recentWindowDays)
+	recentVelocityCount := 0
+	previousVelocityCount := 0
 	type aggregate struct {
 		EntityID        string
 		RefCount        int
@@ -624,11 +632,17 @@ func GetChannelKnowledgeSummary(database *gorm.DB, channelID string, limit int, 
 		if ref.CreatedAt.After(item.LastRefAt) {
 			item.LastRefAt = ref.CreatedAt
 		}
+		if !ref.CreatedAt.Before(recentWindowStart) {
+			recentVelocityCount++
+		} else if !ref.CreatedAt.Before(previousWindowStart) {
+			previousVelocityCount++
+		}
 		if !ref.CreatedAt.Before(windowStart) {
 			summary.RecentRefCount++
 			item.TrendCounts[ref.CreatedAt.UTC().Format("2006-01-02")]++
 		}
 	}
+	summary.Velocity = buildChannelKnowledgeVelocity(recentWindowDays, recentVelocityCount, previousVelocityCount)
 
 	entityMap, err := loadKnowledgeEntityMap(database, entityIDs)
 	if err != nil {
@@ -786,6 +800,64 @@ func SuggestEntities(database *gorm.DB, params SuggestEntitiesParams) ([]Knowled
 		suggestions = append(suggestions, item.KnowledgeEntitySuggestion)
 	}
 	return suggestions, nil
+}
+
+func FindMentionedEntities(database *gorm.DB, workspaceID string, content string) ([]MentionedEntity, error) {
+	workspaceID = strings.TrimSpace(workspaceID)
+	if workspaceID == "" {
+		return []MentionedEntity{}, nil
+	}
+
+	entities, err := ListEntities(database, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	if len(entities) == 0 {
+		return []MentionedEntity{}, nil
+	}
+
+	plain := normalizeMentionContent(content)
+	if plain == "" || !strings.Contains(plain, "@") {
+		return []MentionedEntity{}, nil
+	}
+	lowerContent := strings.ToLower(plain)
+
+	sort.SliceStable(entities, func(i, j int) bool {
+		if len(entities[i].Title) == len(entities[j].Title) {
+			return entities[i].Title < entities[j].Title
+		}
+		return len(entities[i].Title) > len(entities[j].Title)
+	})
+
+	mentions := make([]MentionedEntity, 0)
+	seen := map[string]struct{}{}
+	occupied := map[int]struct{}{}
+	for _, entity := range entities {
+		title := strings.TrimSpace(entity.Title)
+		if title == "" {
+			continue
+		}
+		mentionText := "@" + title
+		start, end, ok := findExplicitMentionRange(lowerContent, strings.ToLower(mentionText), occupied)
+		if !ok {
+			continue
+		}
+		if _, exists := seen[entity.ID]; exists {
+			continue
+		}
+		for idx := start; idx < end; idx++ {
+			occupied[idx] = struct{}{}
+		}
+		seen[entity.ID] = struct{}{}
+		mentions = append(mentions, MentionedEntity{
+			EntityID:    entity.ID,
+			EntityTitle: entity.Title,
+			EntityKind:  entity.Kind,
+			SourceKind:  entity.SourceKind,
+			MentionText: mentionText,
+		})
+	}
+	return mentions, nil
 }
 
 func listChannelKnowledgeEntityRefs(database *gorm.DB, channelID string) ([]domain.KnowledgeEntityRef, error) {
@@ -966,6 +1038,82 @@ func knowledgeEntityMatchScore(entity domain.KnowledgeEntity, lowerQuery string)
 	default:
 		return 0
 	}
+}
+
+func buildChannelKnowledgeVelocity(recentWindowDays, recentCount, previousCount int) ChannelKnowledgeVelocity {
+	velocity := ChannelKnowledgeVelocity{
+		RecentWindowDays: recentWindowDays,
+		PreviousRefCount: previousCount,
+		RecentRefCount:   recentCount,
+		Delta:            recentCount - previousCount,
+	}
+	switch {
+	case recentCount >= 2 && previousCount == 0:
+		velocity.IsSpiking = true
+	case previousCount > 0 && recentCount >= previousCount*2:
+		velocity.IsSpiking = true
+	}
+	return velocity
+}
+
+func normalizeMentionContent(content string) string {
+	plain := strings.TrimSpace(content)
+	if plain == "" {
+		return ""
+	}
+	tagPattern := regexp.MustCompile(`<[^>]+>`)
+	plain = tagPattern.ReplaceAllString(plain, " ")
+	plain = html.UnescapeString(plain)
+	return strings.Join(strings.Fields(plain), " ")
+}
+
+func findExplicitMentionRange(lowerContent, lowerMention string, occupied map[int]struct{}) (int, int, bool) {
+	contentRunes := []rune(lowerContent)
+	mentionRunes := []rune(lowerMention)
+	if len(mentionRunes) == 0 || len(contentRunes) < len(mentionRunes) {
+		return 0, 0, false
+	}
+
+	for idx := 0; idx <= len(contentRunes)-len(mentionRunes); idx++ {
+		if string(contentRunes[idx:idx+len(mentionRunes)]) != lowerMention {
+			continue
+		}
+		if hasOccupiedRange(idx, idx+len(mentionRunes), occupied) {
+			continue
+		}
+		if idx > 0 {
+			prev := contentRunes[idx-1]
+			if unicode.IsLetter(prev) || unicode.IsDigit(prev) {
+				continue
+			}
+		}
+		end := idx + len(mentionRunes)
+		if end < len(contentRunes) {
+			next := contentRunes[end]
+			if unicode.IsLetter(next) || unicode.IsDigit(next) {
+				continue
+			}
+		}
+		return idx, end, true
+	}
+
+	return 0, 0, false
+}
+
+func hasOccupiedRange(start, end int, occupied map[int]struct{}) bool {
+	for idx := start; idx < end; idx++ {
+		if _, exists := occupied[idx]; exists {
+			return true
+		}
+	}
+	return false
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func BuildEntityGraph(database *gorm.DB, entityID string) (EntityGraph, error) {

@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.5.89` is the current release line and includes:
+`v0.5.90` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -47,9 +47,11 @@ For product, design, and marketing, the short version is:
 - realtime knowledge entity/wiki websocket events for live entity, ref, event, and link refresh
 - live knowledge event ingestion via `POST /api/v1/knowledge/events/ingest`
 - deterministic knowledge entity auto-linking from newly created messages and uploaded files
+- structured message `entity_mentions` metadata for explicit `@Entity Title` references
 - channel-scoped knowledge context via `GET /api/v1/channels/:id/knowledge`
 - channel-scoped knowledge summary via `GET /api/v1/channels/:id/knowledge/summary`
 - scoped knowledge entity autocomplete via `GET /api/v1/knowledge/entities/suggest`
+- knowledge summary velocity/anomaly fields for channel-header trend badges
 - citation lookup entity hydration from canonical `KnowledgeEntityRef` message/file associations
 - channel-aware entity ranking for `@entity:` composer autocomplete and knowledge side-panel summary cards
 - richer knowledge graph payloads with edge weight, direction, role, and typed reference-node metadata
@@ -153,6 +155,8 @@ For product, design, and marketing, the short version is:
   - `POST /api/v1/knowledge/links`
   - `POST /api/v1/knowledge/events/ingest`
   - `GET /api/v1/knowledge/entities/:id/graph`
+- Message metadata enrichment:
+  - `message.metadata.entity_mentions`
 - Knowledge realtime websocket events:
   - `knowledge.entity.created`
   - `knowledge.entity.updated`

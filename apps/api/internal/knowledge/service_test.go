@@ -145,6 +145,9 @@ func TestGetChannelKnowledgeSummaryAggregatesTopEntitiesAndTrend(t *testing.T) {
 	if summary.ChannelID != "ch-1" || summary.TotalRefs != 3 || summary.RecentRefCount != 3 {
 		t.Fatalf("unexpected summary envelope: %#v", summary)
 	}
+	if summary.Velocity.RecentWindowDays == 0 || summary.Velocity.RecentRefCount == 0 || summary.Velocity.Delta == 0 {
+		t.Fatalf("expected summary velocity to be populated, got %#v", summary.Velocity)
+	}
 	if len(summary.TopEntities) != 2 {
 		t.Fatalf("expected two top entities, got %#v", summary.TopEntities)
 	}
@@ -153,6 +156,25 @@ func TestGetChannelKnowledgeSummaryAggregatesTopEntitiesAndTrend(t *testing.T) {
 	}
 	if len(summary.TopEntities[0].Trend) != 7 {
 		t.Fatalf("expected seven daily trend points, got %#v", summary.TopEntities[0].Trend)
+	}
+}
+
+func TestFindMentionedEntitiesResolvesExplicitEntityMentions(t *testing.T) {
+	database := setupKnowledgeTestDB(t)
+	now := time.Now().UTC()
+
+	database.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Status: "active", SourceKind: "manual", CreatedAt: now, UpdatedAt: now})
+	database.Create(&domain.KnowledgeEntity{ID: "entity-2", WorkspaceID: "ws-1", Kind: "doc", Title: "Launch", Status: "active", SourceKind: "manual", CreatedAt: now, UpdatedAt: now})
+
+	mentions, err := FindMentionedEntities(database, "ws-1", "<p>@Launch Program is ready, but Launch without @ should not count.</p>")
+	if err != nil {
+		t.Fatalf("find mentioned entities failed: %v", err)
+	}
+	if len(mentions) != 1 {
+		t.Fatalf("expected one explicit mention, got %#v", mentions)
+	}
+	if mentions[0].EntityID != "entity-1" || mentions[0].MentionText != "@Launch Program" {
+		t.Fatalf("expected longest explicit title match, got %#v", mentions[0])
 	}
 }
 

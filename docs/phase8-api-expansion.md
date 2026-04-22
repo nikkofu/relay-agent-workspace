@@ -150,6 +150,8 @@ Current backend surface already available:
 - `GET /api/v1/messages`
 - `GET /api/v1/messages/:id/thread`
 - `POST /api/v1/messages`
+- message metadata enrichment:
+  - `message.metadata.entity_mentions`
 - `DELETE /api/v1/messages/:id`
 - `POST /api/v1/messages/:id/reactions`
 - `POST /api/v1/messages/:id/pin`
@@ -405,6 +407,14 @@ Baseline support now exists for:
 - `POST /api/v1/knowledge/links`
 - `POST /api/v1/knowledge/events/ingest`
 - `GET /api/v1/knowledge/entities/:id/graph`
+- message metadata enrichment:
+  - `message.metadata.entity_mentions`
+- channel summary alert metadata:
+  - `summary.velocity.recent_window_days`
+  - `summary.velocity.previous_ref_count`
+  - `summary.velocity.recent_ref_count`
+  - `summary.velocity.delta`
+  - `summary.velocity.is_spiking`
 - realtime events:
   - `knowledge.entity.created`
   - `knowledge.entity.updated`
@@ -420,6 +430,7 @@ Likely follow-ups:
 - knowledge summaries that merge static wiki state with external live business signals
 - deeper graph traversal, filtering, and graph-to-message/file backreferences
 - explicit knowledge permissions and workspace-wide curation workflows
+- file extraction review/confirmation flow before bulk entity auto-linking
 
 ## 5. Realtime Target State
 

@@ -119,7 +119,16 @@ type ChannelKnowledgeSummary struct {
 	WindowDays     int                             `json:"window_days"`
 	TotalRefs      int                             `json:"total_refs"`
 	RecentRefCount int                             `json:"recent_ref_count"`
+	Velocity       ChannelKnowledgeVelocity        `json:"velocity"`
 	TopEntities    []ChannelKnowledgeSummaryEntity `json:"top_entities"`
+}
+
+type ChannelKnowledgeVelocity struct {
+	RecentWindowDays int  `json:"recent_window_days"`
+	PreviousRefCount int  `json:"previous_ref_count"`
+	RecentRefCount   int  `json:"recent_ref_count"`
+	Delta            int  `json:"delta"`
+	IsSpiking        bool `json:"is_spiking"`
 }
 
 type ChannelKnowledgeSummaryEntity struct {
@@ -166,4 +175,12 @@ type KnowledgeEntitySuggestion struct {
 	SourceKind      string `json:"source_kind"`
 	RefCount        int    `json:"ref_count"`
 	ChannelRefCount int    `json:"channel_ref_count"`
+}
+
+type MentionedEntity struct {
+	EntityID    string `json:"entity_id"`
+	EntityTitle string `json:"entity_title"`
+	EntityKind  string `json:"entity_kind"`
+	SourceKind  string `json:"source_kind,omitempty"`
+	MentionText string `json:"mention_text"`
 }

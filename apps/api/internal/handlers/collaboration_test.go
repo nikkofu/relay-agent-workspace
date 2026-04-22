@@ -1243,6 +1243,78 @@ func TestCreateMessageHydratesArtifactAndFileAttachments(t *testing.T) {
 	}
 }
 
+func TestCreateMessageHydratesExplicitKnowledgeEntityMentions(t *testing.T) {
+	setupTestDB(t)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Status: "active", SourceKind: "manual", CreatedAt: now, UpdatedAt: now})
+
+	router := gin.New()
+	router.POST("/api/v1/messages", CreateMessage)
+	router.GET("/api/v1/messages", GetMessages)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/messages", bytes.NewBufferString(`{"channel_id":"ch-1","content":"<p>@Launch Program is ready for review</p>","user_id":"user-1"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var createPayload struct {
+		Message struct {
+			ID       string `json:"id"`
+			Metadata string `json:"metadata"`
+		} `json:"message"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &createPayload); err != nil {
+		t.Fatalf("decode create payload: %v", err)
+	}
+
+	var meta struct {
+		EntityMentions []struct {
+			EntityID    string `json:"entity_id"`
+			EntityTitle string `json:"entity_title"`
+			EntityKind  string `json:"entity_kind"`
+			MentionText string `json:"mention_text"`
+		} `json:"entity_mentions"`
+	}
+	if err := json.Unmarshal([]byte(createPayload.Message.Metadata), &meta); err != nil {
+		t.Fatalf("decode metadata: %v", err)
+	}
+	if len(meta.EntityMentions) != 1 {
+		t.Fatalf("expected one entity mention, got %#v", meta.EntityMentions)
+	}
+	if meta.EntityMentions[0].EntityID != "entity-1" || meta.EntityMentions[0].EntityTitle != "Launch Program" || meta.EntityMentions[0].MentionText != "@Launch Program" {
+		t.Fatalf("expected hydrated entity mention payload, got %#v", meta.EntityMentions[0])
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/messages?channel_id=ch-1", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on get messages, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var listPayload struct {
+		Messages []domain.Message `json:"messages"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &listPayload); err != nil {
+		t.Fatalf("decode list payload: %v", err)
+	}
+	if len(listPayload.Messages) != 1 {
+		t.Fatalf("expected one message in list, got %#v", listPayload.Messages)
+	}
+	if err := json.Unmarshal([]byte(listPayload.Messages[0].Metadata), &meta); err != nil {
+		t.Fatalf("decode list metadata: %v", err)
+	}
+	if len(meta.EntityMentions) != 1 || meta.EntityMentions[0].MentionText != "@Launch Program" {
+		t.Fatalf("expected message list to include hydrated entity mentions, got %#v", meta.EntityMentions)
+	}
+}
+
 func TestToggleReactionUpdatesMetadata(t *testing.T) {
 	setupTestDB(t)
 
@@ -3816,7 +3888,14 @@ func TestGetChannelKnowledgeSummaryReturnsTopEntitiesAndTrend(t *testing.T) {
 			WindowDays     int    `json:"window_days"`
 			TotalRefs      int    `json:"total_refs"`
 			RecentRefCount int    `json:"recent_ref_count"`
-			TopEntities    []struct {
+			Velocity       struct {
+				RecentWindowDays int  `json:"recent_window_days"`
+				PreviousRefCount int  `json:"previous_ref_count"`
+				RecentRefCount   int  `json:"recent_ref_count"`
+				Delta            int  `json:"delta"`
+				IsSpiking        bool `json:"is_spiking"`
+			} `json:"velocity"`
+			TopEntities []struct {
 				EntityID        string `json:"entity_id"`
 				EntityTitle     string `json:"entity_title"`
 				RefCount        int    `json:"ref_count"`
@@ -3834,6 +3913,9 @@ func TestGetChannelKnowledgeSummaryReturnsTopEntitiesAndTrend(t *testing.T) {
 	}
 	if payload.Summary.ChannelID != "ch-1" || payload.Summary.TotalRefs != 3 || payload.Summary.WindowDays != 7 {
 		t.Fatalf("unexpected summary payload: %#v", payload.Summary)
+	}
+	if payload.Summary.Velocity.RecentWindowDays == 0 || payload.Summary.Velocity.RecentRefCount == 0 || payload.Summary.Velocity.Delta == 0 {
+		t.Fatalf("expected summary velocity payload, got %#v", payload.Summary.Velocity)
 	}
 	if len(payload.Summary.TopEntities) != 2 || payload.Summary.TopEntities[0].EntityID != "entity-1" {
 		t.Fatalf("expected ranked entities in summary payload, got %#v", payload.Summary.TopEntities)

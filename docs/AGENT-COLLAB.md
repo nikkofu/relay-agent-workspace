@@ -123,7 +123,9 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 48 Channel Knowledge Context APIs | Codex | 2026-04-22 | Added `GET /api/v1/channels/:id/knowledge` and citation hydration from canonical `KnowledgeEntityRef` message/file associations. `v0.5.88` published. |
 | 🟢 Done | Phase 48 Channel Knowledge Context UI | Windsurf | 2026-04-22 | `ChannelKnowledgeRef` type. `knowledge-store`: `fetchChannelKnowledge` + `channelKnowledge/channelKnowledgeId/isLoadingChannelKnowledge`. `ChannelKnowledgePanel`: collapsible 288px right sidebar, refs grouped by `entity_id`, kind icon/badge, `source_snippet`/`ref_kind`/`role` per ref, entity links. Channel header: Knowledge toggle button with ref-count pill. Auto-fetches on channel change. `knowledge.entity.ref.created` WS refreshes panel. `CitationCard` trusts hydrated `entity_id/entity_title`. `v0.5.88` published. |
 | 🟢 Done | Phase 49 Channel Knowledge Summary And Entity Mention APIs | Codex | 2026-04-22 | Added `GET /api/v1/channels/:id/knowledge/summary` and `GET /api/v1/knowledge/entities/suggest` for channel-level entity trends and `@entity:` autocomplete. `v0.5.89` published. |
-| � Done | Phase 49 Knowledge Summary And Composer Mention Integration | Windsurf | 2026-04-22 | `ChannelKnowledgeSummary/ChannelKnowledgeTopEntity/EntitySuggestResult` types. `fetchChannelKnowledgeSummary` + `suggestEntities` in store. `ChannelKnowledgePanel`: 7-day snapshot card with ref-frequency bar + 5-day trend sparkbar. `MessageComposer`: `@entity:` autocomplete popover (180ms debounce, `deleteRange` + `insertContent`). `knowledge.entity.ref.created` WS: refreshes summary + Sonner auto-link toast. `v0.5.89` published. |
+| 🟢 Done | Phase 49 Knowledge Summary And Composer Mention Integration | Windsurf | 2026-04-22 | `ChannelKnowledgeSummary/ChannelKnowledgeTopEntity/EntitySuggestResult` types. `fetchChannelKnowledgeSummary` + `suggestEntities` in store. `ChannelKnowledgePanel`: 7-day snapshot card with ref-frequency bar + 5-day trend sparkbar. `MessageComposer`: `@entity:` autocomplete popover (180ms debounce, `deleteRange` + `insertContent`). `knowledge.entity.ref.created` WS: refreshes summary + Sonner auto-link toast. `v0.5.89` published. |
+| 🟢 Done | Phase 50 Message Entity Mentions And Knowledge Velocity APIs | Codex | 2026-04-22 | Added `message.metadata.entity_mentions` for explicit `@Entity Title` references and `summary.velocity` on `GET /api/v1/channels/:id/knowledge/summary` for anomaly badges. `v0.5.90` published. |
+| 🟡 Ready | Phase 50 Entity Mention Rendering And Knowledge Alert UI | Windsurf | 2026-04-22 | Render `entity_mentions` in the feed/thread as linked hover-card mentions and use `summary.velocity` for channel-header anomaly badges. |
 
 ---
 
@@ -132,13 +134,24 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
-| **Codex** | `api-architecture` | Phase 49 knowledge summary and entity autocomplete API handoff complete | 100% |
+| **Codex** | `api-architecture` | Phase 50 message mention and knowledge velocity API handoff complete | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-ui-agent` | Phase 49 Knowledge Summary And Composer Mention Integration complete (v0.5.89) | 100% |
+| **Windsurf** | `idle` | Phase 50 UI integration queued from Codex handoff | 0% |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-22 - Phase 50 Message Entity Mentions And Knowledge Velocity API Completion
+- **Codex**: Phase 50 backend is complete and published as `v0.5.90`.
+- **Codex**: Channel messages now return structured `message.metadata.entity_mentions` for explicit `@Entity Title` references. Each mention includes `entity_id`, `entity_title`, `entity_kind`, `source_kind`, and `mention_text`.
+- **Codex**: `GET /api/v1/channels/:id/knowledge/summary` now also returns `summary.velocity` with `recent_window_days`, `previous_ref_count`, `recent_ref_count`, `delta`, and `is_spiking`.
+- **Codex**: Explicit mention parsing is longest-title-first, so `@Launch Program` does not double-match a shorter entity such as `@Launch`.
+- **Codex → Windsurf**: Please implement the Phase 50 UI slice next:
+  - render `message.metadata.entity_mentions` in the feed/thread as linked knowledge mentions with hover cards to `/workspace/knowledge/[entity_id]`
+  - use `summary.velocity.is_spiking` and `summary.velocity.delta` for a small anomaly badge in the channel header
+  - keep the bulk file entity-link confirmation card out of scope for now; I will add a dedicated review contract for that instead of overloading current auto-link behavior
+- **Codex → Nikko Fu**: This moves Relay one step closer to AI-native Slack parity. Entity mentions are no longer just composer sugar; they now survive as structured message data that the UI can render, search, and eventually route into richer knowledge workflows.
 
 ### 2026-04-22 - Phase 49 Knowledge Summary And Composer Mention Integration Completion
 - **Windsurf**: Phase 49 complete. (1) Types: `ChannelKnowledgeSummary`, `ChannelKnowledgeTopEntity`, `EntitySuggestResult`. (2) `knowledge-store`: `fetchChannelKnowledgeSummary` (`GET /channels/:id/knowledge/summary?days=7&limit=5`), `suggestEntities` (`GET /knowledge/entities/suggest?q=...&channel_id=...&limit=8`), state: `channelSummary/isLoadingChannelSummary/entitySuggestions/isLoadingSuggestions`. (3) `ChannelKnowledgePanel`: 7-day snapshot card at top — `total_refs/recent_ref_count` header; top entities with kind icon, title, ref count, horizontal ref-frequency bar (relative to max), and 5-day trend sparkbar. (4) `MessageComposer`: `@entity:` autocomplete — case-insensitive regex `/@entity:([^\s]*)$/`, 180ms debounce, Sonner-style `Globe` header popover with entity title/kind/ref_count rows, `onMouseDown` selects and calls `deleteRange({from, to})` + `insertContent(@Title\u00a0)`. (5) `use-websocket`: `knowledge.entity.ref.created` now refreshes both channel knowledge refs AND summary, plus shows a Sonner toast “📋 [Entity] auto-linked” with snippet + **View** action. (6) `workspace/page.tsx` prefetches summary on channel change. `v0.5.89` published.

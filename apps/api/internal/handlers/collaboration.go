@@ -17,6 +17,7 @@ import (
 	"github.com/nikkofu/relay-agent-workspace/api/internal/db"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/domain"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/ids"
+	"github.com/nikkofu/relay-agent-workspace/api/internal/knowledge"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/realtime"
 )
 
@@ -61,8 +62,9 @@ type messageAttachment struct {
 var CollabSnapshotPath = agentcollab.DefaultPath()
 
 type messageMetadata struct {
-	Reactions   []reactionSummary   `json:"reactions,omitempty"`
-	Attachments []messageAttachment `json:"attachments,omitempty"`
+	Reactions      []reactionSummary           `json:"reactions,omitempty"`
+	Attachments    []messageAttachment         `json:"attachments,omitempty"`
+	EntityMentions []knowledge.MentionedEntity `json:"entity_mentions,omitempty"`
 }
 
 func getCurrentUser() (domain.User, error) {
@@ -277,6 +279,17 @@ func refreshMessageMetadata(messageID string) (*domain.Message, error) {
 		return nil, err
 	}
 	meta.Attachments = attachments
+
+	var channel domain.Channel
+	if err := db.DB.Select("id, workspace_id").First(&channel, "id = ?", message.ChannelID).Error; err == nil {
+		entityMentions, err := knowledge.FindMentionedEntities(db.DB, channel.WorkspaceID, message.Content)
+		if err != nil {
+			return nil, err
+		}
+		meta.EntityMentions = entityMentions
+	} else if err != gorm.ErrRecordNotFound {
+		return nil, err
+	}
 
 	metadataJSON, err := json.Marshal(meta)
 	if err != nil {

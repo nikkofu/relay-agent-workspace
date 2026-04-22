@@ -2,6 +2,51 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.90] - 2026-04-22
+
+This release implements Phase 50: Message Entity Mentions and Knowledge Velocity APIs. Relay messages now return structured knowledge-entity mention metadata, and channel knowledge summaries now expose velocity/anomaly fields for header badges and trend alerts.
+
+### Added
+
+- **Structured Message Entity Mentions**:
+  - Channel message metadata now includes `entity_mentions` when content explicitly mentions a knowledge entity as `@Entity Title`.
+  - Mention payload fields include:
+    - `entity_id`
+    - `entity_title`
+    - `entity_kind`
+    - `source_kind`
+    - `mention_text`
+- **Knowledge Summary Velocity Fields**:
+  - `GET /api/v1/channels/:id/knowledge/summary` now also returns:
+    - `velocity.recent_window_days`
+    - `velocity.previous_ref_count`
+    - `velocity.recent_ref_count`
+    - `velocity.delta`
+    - `velocity.is_spiking`
+
+### Changed
+
+- **Message Metadata Hydration**:
+  - `POST /api/v1/messages`, `GET /api/v1/messages`, and `GET /api/v1/messages/:id/thread` now hydrate explicit knowledge entity mentions into `message.metadata`.
+  - Explicit `@Entity Title` mentions are resolved longest-title-first so `@Launch Program` does not double-match a shorter entity like `@Launch`.
+- **Channel Knowledge Alerts**:
+  - Knowledge summaries now expose a backend-computed velocity signal rather than making the UI guess from raw counts alone.
+
+### Windsurf Handoff
+
+- Use `message.metadata.entity_mentions` to render `@Entity Title` tokens in the feed/thread as linked knowledge mentions with hover cards.
+- Use `summary.velocity.is_spiking` and `summary.velocity.delta` from `GET /api/v1/channels/:id/knowledge/summary` for the channel-header anomaly badge.
+- The bulk entity-link confirmation flow after file extraction is not part of `0.5.90`; if you want to build it next, I will add a dedicated detection/review contract instead of overloading the current auto-link path.
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./internal/knowledge -run 'TestGetChannelKnowledgeSummaryAggregatesTopEntitiesAndTrend|TestFindMentionedEntitiesResolvesExplicitEntityMentions' -count=1`
+- `cd apps/api && go test ./internal/handlers -run 'TestCreateMessageHydratesExplicitKnowledgeEntityMentions|TestGetChannelKnowledgeSummaryReturnsTopEntitiesAndTrend' -count=1`
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+- `pnpm --filter relay-agent-workspace exec tsc --noEmit`
+
 ## [0.5.89] - 2026-04-22
 
 This release implements Phase 49: Channel Knowledge Summary and Entity Mention APIs. Relay now exposes a channel-level knowledge summary endpoint for active-channel sidebars/cards and a scoped entity suggestion endpoint for `@entity:` composer autocomplete.
