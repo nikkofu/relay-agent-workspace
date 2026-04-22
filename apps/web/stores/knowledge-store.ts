@@ -19,6 +19,8 @@ import type {
   DigestScheduleInput,
   KnowledgeInboxItem,
   KnowledgeInboxScope,
+  FollowedEntity,
+  EntityTextMatch,
 } from "@/types"
 
 interface KnowledgeState {
@@ -37,6 +39,9 @@ interface KnowledgeState {
   knowledgeInboxScope: KnowledgeInboxScope
   knowledgeInboxUnreadCount: number
   isLoadingInbox: boolean
+  followedEntities: FollowedEntity[]
+  followedEntityIds: Record<string, boolean>
+  isLoadingFollowed: boolean
 
   pushLiveUpdate: (update: KnowledgeUpdate) => void
   handleEntityCreated: (entity: KnowledgeEntity) => void
@@ -74,6 +79,10 @@ interface KnowledgeState {
   fetchEntityLinks: (id: string) => Promise<KnowledgeEntityLink[]>
   createLink: (data: { from_entity_id: string; to_entity_id: string; rel: string }) => Promise<KnowledgeEntityLink | null>
   fetchEntityGraph: (id: string) => Promise<KnowledgeGraph | null>
+  fetchFollowedEntities: () => Promise<FollowedEntity[]>
+  followEntity: (entityId: string) => Promise<boolean>
+  unfollowEntity: (entityId: string) => Promise<boolean>
+  matchEntitiesInText: (workspaceId: string, text: string, limit?: number) => Promise<EntityTextMatch[]>
 }
 
 export const useKnowledgeStore = create<KnowledgeState>((set) => ({
@@ -92,6 +101,9 @@ export const useKnowledgeStore = create<KnowledgeState>((set) => ({
   knowledgeInboxScope: 'all' as KnowledgeInboxScope,
   knowledgeInboxUnreadCount: 0,
   isLoadingInbox: false,
+  followedEntities: [],
+  followedEntityIds: {},
+  isLoadingFollowed: false,
 
   pushLiveUpdate: (update) => set({ liveUpdate: update }),
 
@@ -515,6 +527,96 @@ export const useKnowledgeStore = create<KnowledgeState>((set) => ({
     } catch (error) {
       console.error("Failed to fetch entity graph:", error)
       return null
+    }
+  },
+
+  // ── Phase 55: Knowledge Entity Follow + Composer Reverse Lookup ───────────
+  fetchFollowedEntities: async () => {
+    set({ isLoadingFollowed: true })
+    try {
+      const res = await fetch(`${API_BASE_URL}/users/me/knowledge/followed`)
+      if (!res.ok) { set({ isLoadingFollowed: false }); return [] }
+      const data = await res.json()
+      const items: FollowedEntity[] = data.items || []
+      const ids: Record<string, boolean> = {}
+      items.forEach(i => { ids[i.entity.id] = true })
+      set({ followedEntities: items, followedEntityIds: ids, isLoadingFollowed: false })
+      return items
+    } catch (error) {
+      console.error("Failed to fetch followed entities:", error)
+      set({ isLoadingFollowed: false })
+      return []
+    }
+  },
+
+  followEntity: async (entityId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/knowledge/entities/${entityId}/follow`, {
+        method: 'POST',
+      })
+      if (!res.ok) { toast.error("Failed to follow entity"); return false }
+      // Optimistically mark followed locally; refresh list
+      set(state => ({
+        followedEntityIds: { ...state.followedEntityIds, [entityId]: true },
+      }))
+      // Refresh the full list so the new follow appears in the Following tab
+      try {
+        const listRes = await fetch(`${API_BASE_URL}/users/me/knowledge/followed`)
+        if (listRes.ok) {
+          const data = await listRes.json()
+          const items: FollowedEntity[] = data.items || []
+          const ids: Record<string, boolean> = {}
+          items.forEach(i => { ids[i.entity.id] = true })
+          set({ followedEntities: items, followedEntityIds: ids })
+        }
+      } catch { /* non-fatal */ }
+      toast.success("Following entity")
+      return true
+    } catch (error) {
+      console.error("Failed to follow entity:", error)
+      toast.error("Failed to follow entity")
+      return false
+    }
+  },
+
+  unfollowEntity: async (entityId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/knowledge/entities/${entityId}/follow`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) { toast.error("Failed to unfollow entity"); return false }
+      set(state => {
+        const nextIds = { ...state.followedEntityIds }
+        delete nextIds[entityId]
+        return {
+          followedEntityIds: nextIds,
+          followedEntities: state.followedEntities.filter(f => f.entity.id !== entityId),
+        }
+      })
+      toast.success("Unfollowed entity")
+      return true
+    } catch (error) {
+      console.error("Failed to unfollow entity:", error)
+      toast.error("Failed to unfollow entity")
+      return false
+    }
+  },
+
+  matchEntitiesInText: async (workspaceId, text, limit = 10) => {
+    const trimmed = text.trim()
+    if (!trimmed) return []
+    try {
+      const res = await fetch(`${API_BASE_URL}/knowledge/entities/match-text`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspace_id: workspaceId, text: trimmed, limit }),
+      })
+      if (!res.ok) return []
+      const data = await res.json()
+      return (data.matches || []) as EntityTextMatch[]
+    } catch (error) {
+      console.error("Failed to match entities in text:", error)
+      return []
     }
   },
 }))

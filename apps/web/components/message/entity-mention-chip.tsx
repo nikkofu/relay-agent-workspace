@@ -17,6 +17,7 @@ import { formatDistanceToNow } from "date-fns"
 import { useKnowledgeStore } from "@/stores/knowledge-store"
 import { useChannelStore } from "@/stores/channel-store"
 import { EntityMessagesSheet } from "@/components/knowledge/entity-messages-sheet"
+import { EntityFollowButton } from "@/components/knowledge/entity-follow-button"
 import type { MessageEntityMention, EntityHoverCard } from "@/types"
 
 const KIND_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string; bg: string }> = {
@@ -161,20 +162,23 @@ export function EntityMentionChip({ mention }: EntityMentionChipProps) {
 
           {/* Footer actions */}
           <div className="border-t pt-2 flex items-center justify-between gap-2">
-            <button
-              className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 hover:text-emerald-600 transition-colors"
-              onClick={() => router.push(`/workspace/knowledge/${mention.entity_id}`)}
-            >
-              <Globe className="w-3 h-3" />
-              Open Wiki
-            </button>
-            <button
-              className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-500 transition-colors"
-              onClick={() => { setOpen(false); setDrilldownOpen(true) }}
-            >
-              <MessageSquare className="w-3 h-3" />
-              View messages
-            </button>
+            <EntityFollowButton entityId={mention.entity_id} variant="chip" />
+            <div className="flex items-center gap-3">
+              <button
+                className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 hover:text-emerald-600 transition-colors"
+                onClick={() => router.push(`/workspace/knowledge/${mention.entity_id}`)}
+              >
+                <Globe className="w-3 h-3" />
+                Wiki
+              </button>
+              <button
+                className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-500 transition-colors"
+                onClick={() => { setOpen(false); setDrilldownOpen(true) }}
+              >
+                <MessageSquare className="w-3 h-3" />
+                Messages
+              </button>
+            </div>
           </div>
         </HoverCardContent>
       </HoverCard>

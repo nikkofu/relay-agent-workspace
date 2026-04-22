@@ -12,10 +12,11 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Globe, Search, Plus, Loader2, User2, Briefcase, Lightbulb, Building2,
-  FileText, Layout, Tag, Hash, ChevronRight, BookOpen, Zap,
+  FileText, Layout, Tag, Hash, ChevronRight, BookOpen, Zap, Bell,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
+import { EntityFollowButton } from "@/components/knowledge/entity-follow-button"
 
 const KIND_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string; badgeClass: string }> = {
   person:       { label: 'Person',       icon: User2,       color: 'text-sky-600',    badgeClass: 'bg-sky-500/10 text-sky-700 border-sky-300 dark:border-sky-700' },
@@ -33,9 +34,10 @@ const KIND_OPTIONS = ['person', 'project', 'concept', 'organization', 'file', 'a
 
 export default function KnowledgePage() {
   const router = useRouter()
-  const { entities, isLoading, fetchEntities, createEntity, liveUpdate } = useKnowledgeStore()
+  const { entities, isLoading, fetchEntities, createEntity, liveUpdate, fetchFollowedEntities, followedEntityIds, followedEntities } = useKnowledgeStore()
   const [q, setQ] = useState("")
   const [filterKind, setFilterKind] = useState("all")
+  const [onlyFollowed, setOnlyFollowed] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const [newTitle, setNewTitle] = useState("")
   const [newKind, setNewKind] = useState("concept")
@@ -46,6 +48,7 @@ export default function KnowledgePage() {
   const prevLiveUpdate = useRef<number>(0)
 
   useEffect(() => { fetchEntities() }, [fetchEntities])
+  useEffect(() => { fetchFollowedEntities() }, [fetchFollowedEntities])
 
   useEffect(() => {
     if (!liveUpdate) return
@@ -60,7 +63,8 @@ export default function KnowledgePage() {
   const filtered = entities.filter(e => {
     const matchesQ = !q || e.title.toLowerCase().includes(q.toLowerCase()) || e.summary?.toLowerCase().includes(q.toLowerCase())
     const matchesKind = filterKind === 'all' || e.kind === filterKind
-    return matchesQ && matchesKind
+    const matchesFollowed = !onlyFollowed || !!followedEntityIds[e.id]
+    return matchesQ && matchesKind && matchesFollowed
   })
 
   const kindCounts = entities.reduce<Record<string, number>>((acc, e) => {
@@ -118,6 +122,18 @@ export default function KnowledgePage() {
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
           <Button
+            variant={onlyFollowed ? "secondary" : "ghost"}
+            size="sm"
+            className={cn(
+              "h-7 text-xs gap-1 font-bold",
+              onlyFollowed && "ring-1 ring-purple-400 bg-purple-500/10 text-purple-700 dark:text-purple-400"
+            )}
+            onClick={() => setOnlyFollowed(!onlyFollowed)}
+          >
+            <Bell className="w-3 h-3" /> Following ({followedEntities.length})
+          </Button>
+          <div className="h-5 w-px bg-border mx-0.5" />
+          <Button
             variant={filterKind === 'all' ? "secondary" : "ghost"}
             size="sm" className="h-7 text-xs gap-1 font-bold"
             onClick={() => setFilterKind('all')}
@@ -156,12 +172,14 @@ export default function KnowledgePage() {
             <div className="space-y-1 max-w-xs">
               <p className="font-black uppercase text-xs tracking-widest text-muted-foreground">Knowledge Base</p>
               <p className="text-[11px] text-muted-foreground italic leading-relaxed">
-                {q || filterKind !== 'all'
-                  ? "No entities match your filters."
-                  : "No entities yet. Create the first one to start building your knowledge graph."}
+                {onlyFollowed && followedEntities.length === 0
+                  ? "You aren't following any entities yet. Click the Follow button on any entity to subscribe to its updates."
+                  : q || filterKind !== 'all' || onlyFollowed
+                    ? "No entities match your filters."
+                    : "No entities yet. Create the first one to start building your knowledge graph."}
               </p>
             </div>
-            {!q && filterKind === 'all' && (
+            {!q && filterKind === 'all' && !onlyFollowed && (
               <Button size="sm" className="text-xs font-bold gap-1.5" onClick={() => setShowCreate(true)}>
                 <Plus className="w-3.5 h-3.5" /> New Entity
               </Button>
@@ -189,7 +207,10 @@ export default function KnowledgePage() {
                         <Badge className={cn("text-[9px] h-4 px-1.5 mt-0.5", cfg.badgeClass)}>{cfg.label}</Badge>
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-1" />
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <EntityFollowButton entityId={entity.id} variant="chip" />
+                      <ChevronRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
                   </div>
 
                   {entity.summary && (

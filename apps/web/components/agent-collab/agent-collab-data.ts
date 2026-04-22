@@ -114,7 +114,7 @@ export const ACTIVE_SUPERPOWERS: AgentPower[] = [
   { agent: 'Gemini', skill: 'idle', task: 'Resting after Phase 38 handoff', progress: 100, status: 'done' },
   { agent: 'Codex', skill: 'api-architecture', task: 'Phase 55 knowledge follow + composer match APIs complete (v0.5.97)', progress: 100, status: 'done' },
   { agent: 'Claude Code', skill: 'idle', task: '-', progress: 0, status: 'idle' },
-  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Ready for Phase 55 UI integration: entity follow surfaces + composer reverse lookup', progress: 100, status: 'done' },
+  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 55 UI shipped: follow toggle everywhere + composer reverse-lookup hint (v0.5.98)', progress: 100, status: 'done' },
 ]
 
 // ─── Full Task Board ──────────────────────────────────────────────────────────
@@ -235,11 +235,26 @@ export const TASKS: Task[] = [
   { id: 't113', phase: 113, status: 'done',  task: 'v0.5.95 Composer Lint Hotfix', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Removed stale react-hooks/exhaustive-deps disable directive from message-composer.tsx because the current ESLint flat config does not register react-hooks. Lint is clean again. v0.5.95 published.', type: 'frontend' },
   { id: 't114', phase: 114, status: 'done',  task: 'Phase 54 Settings & Appearance', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'ThemeProvider wired into layout.tsx (defaultTheme=dark, enableSystem). /workspace/settings redesigned: 4-tab sidebar (Profile/Appearance/Notifications/Privacy). Profile tab: avatar display + editable title/dept/timezone/pronouns/location/phone/bio via updateProfile API. Appearance tab: Light/Dark/System theme picker (3 visual tiles, useTheme) + Comfortable/Compact density selector (localStorage). Nav theme toggle verified clean. v0.5.96 published.', type: 'frontend' },
   { id: 't115', phase: 115, status: 'done',  task: 'Phase 55 Knowledge Follow And Composer Match APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added GET /api/v1/users/me/knowledge/followed, POST|DELETE /api/v1/knowledge/entities/:id/follow, POST /api/v1/knowledge/entities/match-text, and persistent KnowledgeEntityFollow storage. Matching is deterministic, workspace-scoped, and longest-title-first. v0.5.97 published.', type: 'api' },
+  { id: 't116', phase: 116, status: 'done',  task: 'Phase 55 Knowledge Follow And Composer Match UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'KnowledgeEntityFollow/FollowedEntity/EntityTextMatch types + store actions (fetchFollowedEntities/followEntity/unfollowEntity/matchEntitiesInText). EntityFollowButton reusable chip+default variants. Wired into EntityMentionChip hover card, entity detail header, and every card on /workspace/knowledge. Following (N) filter pill on knowledge listing. MessageComposer passive reverse-lookup: 500ms debounce, Knowledge detected hint row with purple chips, one-click convert to @Entity mention via tiptap deleteRange+insertContent, per-match dismiss, auto-clear on send, suppressed during @/@entity:/slash. v0.5.98 published.', type: 'frontend' },
 ]
 
 // ─── Communication Log ────────────────────────────────────────────────────────
 
 export const COMM_SECTIONS: CommSection[] = [
+  {
+    id: 'cs22',
+    date: '2026-04-22',
+    title: 'Phase 55 Knowledge Follow And Composer Match UI',
+    messages: [
+      { id: 'ws58a', from: 'Windsurf', content: 'Phase 55 UI complete and published as v0.5.98. Full consumer for Codex v0.5.97 backend.' },
+      { id: 'ws58b', from: 'Windsurf', content: 'Store layer: fetchFollowedEntities hydrates followedEntities[] + followedEntityIds record; follow/unfollow optimistic + full re-hydrate; matchEntitiesInText with workspace scope + trim guard.' },
+      { id: 'ws58c', from: 'Windsurf', content: 'Built reusable EntityFollowButton (chip + default variants, Bell icons, purple theme). Wired into entity detail header, EntityMentionChip hover card footer, and every card on the knowledge listing.' },
+      { id: 'ws58d', from: 'Windsurf', content: 'Knowledge listing gained a Following (N) filter pill and a not-following-yet empty state.' },
+      { id: 'ws58e', from: 'Windsurf', content: 'MessageComposer passive reverse-lookup: 500ms debounce → matchEntitiesInText(workspace.id, text, 10) → purple Knowledge detected hint row above editor. Clicking a chip converts the span to @Entity via tiptap deleteRange+insertContent (doc.textContent.indexOf for safe offset). X dismisses individual matches; clears on send. Skipped while mid @/@entity:/slash or when match sits right after an existing @.' },
+      { id: 'ws58f', from: 'Windsurf', to: 'Codex', content: 'For Phase 56 I recommend in order: (1) GET /api/v1/knowledge/inbox/:id for full digest drill-down (channel, entity deltas, paginated source messages). (2) WS knowledge.entity.activity.spiked so the Follow button can pulse and toast when a followed entity spikes — turns follow into proactive alerting. (3) POST /api/v1/channels/:id/knowledge/digest/preview-schedule for a dry-run showing the next N scheduled publications. (4) PATCH /api/v1/users/me/knowledge/followed/:id accepting notification_level (all|digest_only|silent) so the composer can suppress the passive hint for silent follows. (5) Carry-over: PATCH /api/v1/me/settings for message_density persistence.' },
+      { id: 'ws58g', from: 'Windsurf', to: 'Nikko Fu', content: 'Try: (a) hover any entity mention → Follow in footer. (b) /workspace/knowledge → toggle Following pill. (c) type "Launch Program" in any composer → purple Knowledge detected chip appears in ~500ms — click to auto-convert to @mention.' },
+    ],
+  },
   {
     id: 'cs21',
     date: '2026-04-22',

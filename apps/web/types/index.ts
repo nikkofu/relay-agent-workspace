@@ -225,6 +225,30 @@ export interface EntityHoverCard {
 
 export type MatchSource = 'knowledge_ref' | 'explicit_mention' | 'title_match'
 
+export interface KnowledgeEntityFollow {
+  id: string
+  workspace_id: string
+  entity_id: string
+  user_id: string
+  created_at: string
+}
+
+export interface FollowedEntity {
+  follow: KnowledgeEntityFollow
+  entity: KnowledgeEntity
+  is_following: boolean
+}
+
+export interface EntityTextMatch {
+  entity_id: string
+  entity_title: string
+  entity_kind: string
+  source_kind?: string
+  matched_text: string
+  start: number
+  end: number
+}
+
 export interface MessageByEntityResult {
   id: string
   channel_id?: string

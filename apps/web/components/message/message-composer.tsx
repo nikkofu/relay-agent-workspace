@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useMemo, useEffect, useLayoutEffect } from "react"
 import { 
   Bold, Italic, Strikethrough, Link as LinkIcon, List, ListOrdered, 
-  Quote, Code, FileCode, Type, Smile, Globe, Loader2, Paperclip, Send, Mic, Sparkles 
+  Quote, Code, FileCode, Type, Smile, Globe, Loader2, Paperclip, Send, Mic, Sparkles, X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -30,7 +30,8 @@ import { useDraftStore } from "@/stores/draft-store"
 import { usePresenceStore } from "@/stores/presence-store"
 import { useFileStore } from "@/stores/file-store"
 import { useKnowledgeStore } from "@/stores/knowledge-store"
-import type { EntitySuggestResult } from "@/types"
+import { useWorkspaceStore } from "@/stores/workspace-store"
+import type { EntitySuggestResult, EntityTextMatch } from "@/types"
 
 interface MessageComposerProps {
   placeholder?: string
@@ -60,10 +61,17 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
   const { saveDraft, deleteDraft, drafts, fetchDrafts } = useDraftStore()
   const { sendTyping } = usePresenceStore()
   const { uploadFile } = useFileStore()
-  const { suggestEntities } = useKnowledgeStore()
+  const { suggestEntities, matchEntitiesInText } = useKnowledgeStore()
+  const { currentWorkspace } = useWorkspaceStore()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const draftsRef = useRef(drafts)
+
+  // Phase 55: passive entity reverse-lookup from the composer text
+  const [detectedMatches, setDetectedMatches] = useState<EntityTextMatch[]>([])
+  const [dismissedMatchKeys, setDismissedMatchKeys] = useState<Set<string>>(new Set())
+  const matchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const lastMatchedTextRef = useRef<string>("")
 
   const broadcastTyping = useCallback((isTyping: boolean) => {
     if (!scope) return
@@ -192,6 +200,28 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
         }
       }
 
+      // Phase 55: passive entity reverse-lookup (match-text)
+      // Skip while the user is mid-@mention / @entity: / slash command
+      if (matchTimeoutRef.current) clearTimeout(matchTimeoutRef.current)
+      const trimmed = text.trim()
+      const isMidMention = /@entity:[^\s]*$/i.test(text) || lastChar === "@" || slashIndex !== -1
+      if (!trimmed || editor.isEmpty) {
+        setDetectedMatches([])
+        lastMatchedTextRef.current = ""
+      } else if (!isMidMention && currentWorkspace?.id) {
+        matchTimeoutRef.current = setTimeout(async () => {
+          if (trimmed === lastMatchedTextRef.current) return
+          lastMatchedTextRef.current = trimmed
+          const matches = await matchEntitiesInText(currentWorkspace.id, trimmed, 10)
+          // Hide matches that fall immediately after a leading `@` (already an explicit mention)
+          const filtered = matches.filter(m => {
+            const charBefore = m.start > 0 ? trimmed[m.start - 1] : ""
+            return charBefore !== "@"
+          })
+          setDetectedMatches(filtered)
+        }, 500)
+      }
+
       // Broadcast typing
       handleTyping()
     },
@@ -243,8 +273,49 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
       if (scope) deleteDraft(scope) // Clear draft on send
       setShowSlashCommands(false)
       setShowMentions(false)
+      setDetectedMatches([])
+      setDismissedMatchKeys(new Set())
+      lastMatchedTextRef.current = ""
     }
   }
+
+  // Phase 55: convert a detected entity text span into an explicit @mention.
+  // Finds the match text inside the live editor doc (safer than trusting
+  // plain-text offsets across HTML) and replaces it with "@<title> ".
+  const convertMatchToMention = useCallback((match: EntityTextMatch) => {
+    if (!editor) return
+    const docText = editor.state.doc.textContent
+    const idx = docText.indexOf(match.matched_text)
+    if (idx < 0) {
+      // Text no longer present (user likely edited it away); just drop it
+      setDetectedMatches(prev => prev.filter(m => m.entity_id !== match.entity_id))
+      return
+    }
+    // For typical single-paragraph drafts ProseMirror adds +1 for the opening
+    // paragraph node boundary; this mapping is correct for the common case
+    // and safely no-ops via the indexOf check above otherwise.
+    const from = idx + 1
+    const to = from + match.matched_text.length
+    editor.chain().focus().deleteRange({ from, to }).insertContent(`@${match.entity_title} `).run()
+    setDetectedMatches(prev => prev.filter(m => m.entity_id !== match.entity_id))
+    // Ensure the next onUpdate re-evaluates against the new text
+    lastMatchedTextRef.current = ""
+  }, [editor])
+
+  const dismissMatch = useCallback((match: EntityTextMatch) => {
+    const key = `${match.entity_id}:${match.matched_text}`
+    setDismissedMatchKeys(prev => {
+      const next = new Set(prev)
+      next.add(key)
+      return next
+    })
+    setDetectedMatches(prev => prev.filter(m => `${m.entity_id}:${m.matched_text}` !== key))
+  }, [])
+
+  const visibleDetectedMatches = useMemo(
+    () => detectedMatches.filter(m => !dismissedMatchKeys.has(`${m.entity_id}:${m.matched_text}`)),
+    [detectedMatches, dismissedMatchKeys]
+  )
 
   const handleSlashCommandSelect = (cmd: string) => {
     if (cmd === "/canvas") {
@@ -362,7 +433,45 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
           </div>
         )}
       </div>
-      
+
+      {/* Phase 55: passive entity detection hint row */}
+      {visibleDetectedMatches.length > 0 && !showEntityMentions && !showSlashCommands && !showMentions && (
+        <div className="mb-1.5 flex items-center gap-1.5 flex-wrap px-1">
+          <div className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-purple-700 dark:text-purple-400 shrink-0">
+            <Sparkles className="w-2.5 h-2.5" />
+            Knowledge detected
+          </div>
+          {visibleDetectedMatches.slice(0, 5).map((m) => (
+            <div
+              key={`${m.entity_id}:${m.start}`}
+              className="inline-flex items-center gap-0.5 text-[10px] rounded-md border bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-300 dark:border-purple-700 pl-1.5 pr-0.5 py-0.5"
+            >
+              <button
+                onClick={() => convertMatchToMention(m)}
+                className="inline-flex items-center gap-1 font-bold hover:underline"
+                title={`Convert "${m.matched_text}" into @${m.entity_title} mention`}
+              >
+                <Globe className="w-2.5 h-2.5" />
+                <span className="truncate max-w-[140px]">{m.entity_title}</span>
+                <span className="text-[8px] uppercase text-purple-600/70 dark:text-purple-300/70 ml-0.5">
+                  {m.entity_kind}
+                </span>
+              </button>
+              <button
+                onClick={() => dismissMatch(m)}
+                className="ml-0.5 h-3.5 w-3.5 rounded hover:bg-purple-500/20 inline-flex items-center justify-center text-purple-700/70 dark:text-purple-300/70"
+                title="Dismiss"
+              >
+                <X className="w-2 h-2" />
+              </button>
+            </div>
+          ))}
+          {visibleDetectedMatches.length > 5 && (
+            <span className="text-[9px] text-muted-foreground">+{visibleDetectedMatches.length - 5} more</span>
+          )}
+        </div>
+      )}
+
       <div className="border rounded-lg bg-white dark:bg-[#1a1d21] focus-within:ring-1 focus-within:ring-ring transition-shadow group shrink-0">
         {/* Toolbar */}
         {showFormatting && (

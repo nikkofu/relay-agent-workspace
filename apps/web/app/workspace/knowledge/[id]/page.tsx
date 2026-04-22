@@ -21,6 +21,7 @@ import {
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 import type { KnowledgeEntity, KnowledgeEntityRef, KnowledgeEntityLink, KnowledgeEvent, KnowledgeGraph, KnowledgeGraphEdge } from "@/types"
+import { EntityFollowButton } from "@/components/knowledge/entity-follow-button"
 
 const KIND_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string; badgeClass: string; bgClass: string }> = {
   person:       { label: "Person",       icon: User2,       color: "text-sky-600",    badgeClass: "bg-sky-500/10 text-sky-700 border-sky-300 dark:border-sky-700",         bgClass: "bg-sky-500/5" },
@@ -181,10 +182,13 @@ function EntityDetailContent({ id }: { id: string }) {
               </div>
             </div>
           </div>
-          <Button variant="outline" size="sm" className="text-xs gap-1.5 shrink-0" onClick={() => setIsEditing(!isEditing)}>
-            {isEditing ? <X className="w-3.5 h-3.5" /> : <Edit2 className="w-3.5 h-3.5" />}
-            {isEditing ? "Cancel" : "Edit"}
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <EntityFollowButton entityId={entity.id} />
+            <Button variant="outline" size="sm" className="text-xs gap-1.5" onClick={() => setIsEditing(!isEditing)}>
+              {isEditing ? <X className="w-3.5 h-3.5" /> : <Edit2 className="w-3.5 h-3.5" />}
+              {isEditing ? "Cancel" : "Edit"}
+            </Button>
+          </div>
         </div>
         {!isEditing && (entity.tags || []).length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-3">
