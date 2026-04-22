@@ -14,6 +14,7 @@ interface PresenceState {
   typingIndicators: Record<string, TypingState[]> // key is channelId, dmId, or threadId
   fetchPresence: () => Promise<void>
   fetchScopedPresence: (channelId: string) => Promise<void>
+  bulkHydratePresence: (channelId?: string) => Promise<void>
   updatePresence: (user: any) => void
   setTyping: (data: TypingState) => void
   sendTyping: (scope: { channelId?: string, dmId?: string, threadId?: string }, isTyping: boolean) => Promise<void>
@@ -71,6 +72,37 @@ export const usePresenceStore = create<PresenceState>((set, get) => ({
       }
     } catch (error) {
       console.error("Failed to fetch scoped presence:", error)
+    }
+  },
+
+  // Phase 61: bulk presence hydration on reconnect or channel-switch
+  bulkHydratePresence: async (channelId?: string) => {
+    try {
+      const url = channelId
+        ? `${API_BASE_URL}/presence/bulk?channel_id=${channelId}`
+        : `${API_BASE_URL}/presence/bulk`
+      const response = await fetch(url)
+      if (!response.ok) return
+      const data = await response.json()
+      if (data.users && Array.isArray(data.users)) {
+        const { users: existingUsers } = useUserStore.getState()
+        const presenceMap = new Map<string, any>(data.users.map((u: any) => [u.id, u]))
+        const updatedUsers = existingUsers.map(u => {
+          const presence = presenceMap.get(u.id)
+          if (presence) {
+            return {
+              ...u,
+              status: presence.status,
+              statusText: presence.status_text,
+              lastSeen: presence.last_seen_at,
+            }
+          }
+          return u
+        })
+        useUserStore.setState({ users: updatedUsers })
+      }
+    } catch (error) {
+      console.error("Failed to bulk hydrate presence:", error)
     }
   },
 

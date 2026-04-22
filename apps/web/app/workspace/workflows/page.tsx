@@ -131,7 +131,7 @@ export default function WorkflowsPage() {
                     <CardContent className="pt-0 flex items-center justify-between">
                       <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground font-bold uppercase tracking-tighter">
                         <Clock className="w-3 h-3" />
-                        Updated {formatDistanceToNow(new Date(wf.updatedAt), { addSuffix: true })}
+                        Updated {wf.updatedAt && !isNaN(new Date(wf.updatedAt).getTime()) ? formatDistanceToNow(new Date(wf.updatedAt), { addSuffix: true }) : '—'}
                       </div>
                       <Button 
                         size="sm" 
@@ -172,7 +172,7 @@ export default function WorkflowsPage() {
                             <p className="text-sm font-bold">{run.workflowName}</p>
                             <div className="flex items-center gap-2 mt-0.5">
                               <Badge variant="outline" className="text-[8px] h-4 font-black uppercase tracking-tighter border-muted-foreground/20">#{run.id.slice(0, 8)}</Badge>
-                              <span className="text-[10px] text-muted-foreground">{formatDistanceToNow(new Date(run.startedAt), { addSuffix: true })}</span>
+                              <span className="text-[10px] text-muted-foreground">{run.startedAt && !isNaN(new Date(run.startedAt).getTime()) ? formatDistanceToNow(new Date(run.startedAt), { addSuffix: true }) : '—'}</span>
                             </div>
                           </div>
                         </div>

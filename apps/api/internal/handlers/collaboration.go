@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"sort"
 	"strconv"
@@ -845,8 +846,8 @@ func GetUsers(c *gin.Context) {
 func GetAgentCollabSnapshot(c *gin.Context) {
 	snapshot, err := agentcollab.ReadSnapshot(CollabSnapshotPath)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read agent collab snapshot"})
-		return
+		log.Printf("[agent-collab] snapshot read error (path=%s): %v", CollabSnapshotPath, err)
+		snapshot = agentcollab.Snapshot{}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -860,7 +861,8 @@ func GetAgentCollabSnapshot(c *gin.Context) {
 func GetAgentCollabMembers(c *gin.Context) {
 	snapshot, err := agentcollab.ReadSnapshot(CollabSnapshotPath)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read agent collab members"})
+		log.Printf("[agent-collab] members read error (path=%s): %v", CollabSnapshotPath, err)
+		c.JSON(http.StatusOK, gin.H{"members": []agentcollab.MemberProfile{}})
 		return
 	}
 

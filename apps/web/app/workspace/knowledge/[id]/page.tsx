@@ -17,6 +17,7 @@ import {
   BookOpen, Clock, Network, FileText, MessageSquare,
   Layout, Tag, ArrowRight, ArrowLeft, User2, Briefcase,
   Lightbulb, Building2, AlertCircle, Zap, Send, Plus, Share2,
+  Sparkles, RefreshCw, DatabaseZap, CheckCheck,
 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
@@ -46,7 +47,12 @@ const EVENT_KIND_COLOR: Record<string, string> = {
 
 function EntityDetailContent({ id }: { id: string }) {
   const router = useRouter()
-  const { fetchEntity, updateEntity, fetchEntityRefs, fetchEntityTimeline, fetchEntityLinks, fetchEntityGraph, ingestEvent, liveUpdate, spikingEntityIds, shareEntity } = useKnowledgeStore()
+  const {
+    fetchEntity, updateEntity, fetchEntityRefs, fetchEntityTimeline, fetchEntityLinks, fetchEntityGraph,
+    ingestEvent, liveUpdate, spikingEntityIds, shareEntity,
+    entityBriefs, isGeneratingBrief, generateEntityBrief,
+    backfillStatuses, isBackfilling, fetchBackfillStatus, triggerBackfill,
+  } = useKnowledgeStore()
   const [sharing, setSharing] = useState(false)
 
   const handleShare = async () => {
@@ -95,7 +101,8 @@ function EntityDetailContent({ id }: { id: string }) {
       setEntity(e); setIsLoading(false)
       if (e) { setEditTitle(e.title); setEditSummary(e.summary || ""); setEditTags((e.tags || []).join(", ")) }
     })
-  }, [id, fetchEntity])
+    fetchBackfillStatus(id).catch(() => {})
+  }, [id, fetchEntity, fetchBackfillStatus])
 
   useEffect(() => {
     if (!liveUpdate || liveUpdate.ts === prevLiveTs.current) return
@@ -255,6 +262,64 @@ function EntityDetailContent({ id }: { id: string }) {
                   {entity.ref_count !== undefined && <div className="space-y-1"><p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Evidence Refs</p><p className="text-sm font-bold">{entity.ref_count}</p></div>}
                   {entity.updated_at && <div className="space-y-1"><p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Last Updated</p><p className="text-sm font-bold">{format(new Date(entity.updated_at), "PPp")}</p></div>}
                 </div>
+
+                {/* Phase 61: AI Brief Card */}
+                {(() => {
+                  const brief = entityBriefs[id]
+                  const generating = !!isGeneratingBrief[id]
+                  return (
+                    <div className="rounded-xl border bg-gradient-to-br from-violet-500/5 to-indigo-500/5 p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="w-3.5 h-3.5 text-violet-500" />
+                          <p className="text-[10px] font-black uppercase tracking-widest text-violet-600 dark:text-violet-400">AI Brief</p>
+                          {brief && <span className="text-[9px] text-muted-foreground">{format(new Date(brief.generated_at), "MMM d")}</span>}
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-6 text-[10px] gap-1 px-2 border-violet-400/40 text-violet-700 dark:text-violet-400 hover:bg-violet-500/10"
+                          disabled={generating}
+                          onClick={() => generateEntityBrief(id, !!brief)}
+                        >
+                          {generating ? <Loader2 className="w-3 h-3 animate-spin" /> : brief ? <RefreshCw className="w-3 h-3" /> : <Sparkles className="w-3 h-3" />}
+                          {generating ? 'Generating…' : brief ? 'Regenerate' : 'Generate'}
+                        </Button>
+                      </div>
+                      {brief ? (
+                        <div className="space-y-2.5">
+                          <p className="text-xs text-foreground/90 leading-relaxed">{brief.summary}</p>
+                          {brief.key_discussions.length > 0 && (
+                            <div>
+                              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-1.5">Key Discussions</p>
+                              <ul className="space-y-1">
+                                {brief.key_discussions.map((d, i) => (
+                                  <li key={i} className="flex items-start gap-1.5 text-[11px] text-foreground/80">
+                                    <span className="text-violet-500 mt-0.5 shrink-0">•</span>{d}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {brief.next_actions.length > 0 && (
+                            <div>
+                              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-1.5">Next Actions</p>
+                              <ul className="space-y-1">
+                                {brief.next_actions.map((a, i) => (
+                                  <li key={i} className="flex items-start gap-1.5 text-[11px] text-foreground/80">
+                                    <span className="text-emerald-500 mt-0.5 shrink-0">→</span>{a}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">Generate an AI-powered brief that summarises key discussions and next actions for this entity.</p>
+                      )}
+                    </div>
+                  )
+                })()}
               </>
             )}
           </TabsContent>
@@ -280,9 +345,33 @@ function EntityDetailContent({ id }: { id: string }) {
           <TabsContent value="timeline" className="p-6 m-0">
             <div className="flex items-center justify-between mb-4">
               <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Event Log</p>
-              <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5 font-bold" onClick={() => setShowIngest(true)}>
-                <Plus className="w-3 h-3" /> Log Event
-              </Button>
+              <div className="flex items-center gap-2">
+                {/* Phase 61: Backfill status + trigger */}
+                {(() => {
+                  const bs = backfillStatuses[id]
+                  const backfilling = !!isBackfilling[id]
+                  if (!bs) return null
+                  return bs.is_complete ? (
+                    <div className="flex items-center gap-1 text-[9px] text-emerald-600 font-bold">
+                      <CheckCheck className="w-3 h-3" /> Backfill complete
+                    </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-[10px] gap-1.5 border-amber-400/40 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10"
+                      disabled={backfilling}
+                      onClick={() => triggerBackfill(id)}
+                    >
+                      {backfilling ? <Loader2 className="w-3 h-3 animate-spin" /> : <DatabaseZap className="w-3 h-3" />}
+                      {backfilling ? 'Backfilling…' : `Backfill (${bs.missing_refs} missing)`}
+                    </Button>
+                  )
+                })()}
+                <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5 font-bold" onClick={() => setShowIngest(true)}>
+                  <Plus className="w-3 h-3" /> Log Event
+                </Button>
+              </div>
             </div>
             {isLoadingTimeline && <div className="flex items-center gap-2 text-xs text-muted-foreground py-4"><Loader2 className="w-4 h-4 animate-spin" />Loading...</div>}
             {!isLoadingTimeline && timeline.length === 0 && <div className="py-12 text-center space-y-2"><Clock className="w-8 h-8 text-muted-foreground/20 mx-auto" /><p className="text-xs text-muted-foreground italic">No timeline events yet.</p></div>}

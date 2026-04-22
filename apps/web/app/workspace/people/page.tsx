@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useUserStore } from "@/stores/user-store"
 import { useDirectoryStore } from "@/stores/directory-store"
-import { Search, Filter, Users, Building, Clock, ChevronRight, Plus, Trash2, Shield, MoreVertical } from "lucide-react"
+import { Search, Filter, Users, Building, Clock, ChevronRight, Plus, Trash2, Shield, MoreVertical, Mail, MapPin, Phone, X } from "lucide-react"
 import { 
   Tabs, 
   TabsContent, 
@@ -61,6 +61,9 @@ export default function PeopleDirectoryPage() {
   const [isManagingMembers, setIsManagingMembers] = useState(false)
   const [showAddMember, setShowAddMember] = useState(false)
 
+  // Person Profile State
+  const [selectedPerson, setSelectedPerson] = useState<typeof users[0] | null>(null)
+
 
   useEffect(() => {
     fetchUserGroups()
@@ -85,6 +88,7 @@ export default function PeopleDirectoryPage() {
   const handleViewMembers = (groupId: string) => {
     fetchGroupMembers(groupId)
     setIsManagingMembers(true)
+    setShowAddMember(false)
   }
 
   const handleAddMember = async (userId: string) => {
@@ -234,6 +238,7 @@ export default function PeopleDirectoryPage() {
                   <div 
                     key={user.id}
                     className="p-4 rounded-xl border bg-white dark:bg-card/50 hover:shadow-md transition-all group cursor-pointer"
+                    onClick={() => setSelectedPerson(user)}
                   >
                     <div className="flex items-start gap-4">
                       <UserAvatar src={user.avatar} name={user.name} status={user.status} className="w-12 h-12" />
@@ -251,7 +256,7 @@ export default function PeopleDirectoryPage() {
                           </div>
                         </div>
                       </div>
-                      <ChevronRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity self-center" />
+                      <ChevronRight className="w-4 h-4 text-purple-500 opacity-0 group-hover:opacity-100 transition-opacity self-center" />
                     </div>
                     {user.statusText && (
                       <div className="mt-3 pt-3 border-t border-dashed">
@@ -393,7 +398,7 @@ export default function PeopleDirectoryPage() {
                         <span className="text-sm font-bold">{user.name}</span>
                         {role === 'admin' && <Badge variant="outline" className="text-[8px] bg-blue-500/5 text-blue-500 border-blue-500/20 px-1 py-0 h-3.5 uppercase font-black">Admin</Badge>}
                       </div>
-                      <p className="text-[10px] text-muted-foreground">Joined {formatDistanceToNow(new Date(joinedAt), { addSuffix: true })}</p>
+                      <p className="text-[10px] text-muted-foreground">Joined {joinedAt && !isNaN(new Date(joinedAt).getTime()) ? formatDistanceToNow(new Date(joinedAt), { addSuffix: true }) : '—'}</p>
                     </div>
                   </div>
                   {activeGroup.memberCount > 1 && (
@@ -412,6 +417,82 @@ export default function PeopleDirectoryPage() {
           </ScrollArea>
         </DialogContent>
       </Dialog>
+
+      {/* Person Profile Dialog */}
+      {selectedPerson && (() => {
+        const p = selectedPerson
+        return (
+          <Dialog open onOpenChange={() => setSelectedPerson(null)}>
+            <DialogContent className="sm:max-w-[420px]">
+              <DialogHeader>
+                <div className="flex items-start gap-4">
+                  <UserAvatar src={p.avatar} name={p.name} status={p.status} className="w-16 h-16 shrink-0" />
+                  <div className="min-w-0 flex-1 pt-1">
+                    <DialogTitle className="text-xl font-black truncate">{p.name}</DialogTitle>
+                    <p className="text-sm text-muted-foreground">{p.title || 'No title set'}</p>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${
+                        p.status === 'online' ? 'bg-green-500' :
+                        p.status === 'away' ? 'bg-amber-500' :
+                        p.status === 'busy' ? 'bg-red-500' : 'bg-slate-400'
+                      }`} />
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{p.status || 'offline'}</span>
+                      {p.statusText && (
+                        <span className="text-[10px] text-muted-foreground italic truncate">&ldquo;{p.statusText}&rdquo;</span>
+                      )}
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 -mt-1 -mr-1" onClick={() => setSelectedPerson(null)}>
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </DialogHeader>
+              <div className="space-y-3 py-2">
+                <div className="grid grid-cols-1 gap-2">
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
+                    <Mail className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Email</p>
+                      <p className="text-sm font-medium">{p.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
+                    <Building className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Department</p>
+                      <p className="text-sm font-medium">{p.department || '\u2014'}</p>
+                    </div>
+                  </div>
+                  {p.location && (
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
+                      <MapPin className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Location</p>
+                        <p className="text-sm font-medium">{p.location}</p>
+                      </div>
+                    </div>
+                  )}
+                  {p.phone && (
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
+                      <Phone className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Phone</p>
+                        <p className="text-sm font-medium">{p.phone}</p>
+                      </div>
+                    </div>
+                  )}
+                  {p.bio && (
+                    <div className="p-3 rounded-lg bg-muted/30">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Bio</p>
+                      <p className="text-sm text-muted-foreground">{p.bio}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )
+      })()}
     </div>
   )
 }

@@ -302,6 +302,41 @@ export interface SharedEntityLink {
   relative_path: string
 }
 
+// ── Phase 61 ─────────────────────────────────────────────────────────────────
+
+export interface EntityBrief {
+  entity_id: string
+  summary: string
+  key_discussions: string[]
+  next_actions: string[]
+  generated_at: string
+  provider?: string
+  model?: string
+}
+
+export interface WeeklyBriefSection {
+  title: string
+  body: string
+}
+
+export interface WeeklyBrief {
+  user_id: string
+  workspace_id: string
+  headline: string
+  sections: WeeklyBriefSection[]
+  generated_at: string
+  provider?: string
+  model?: string
+}
+
+export interface ActivityBackfillStatus {
+  entity_id: string
+  total_refs: number
+  missing_refs: number
+  is_complete: boolean
+  last_backfill_at?: string
+}
+
 export interface EntityTextMatch {
   entity_id: string
   entity_title: string

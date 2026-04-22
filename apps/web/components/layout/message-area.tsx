@@ -82,7 +82,7 @@ export function MessageArea({ children }: { children?: React.ReactNode }) {
       {/* Messages List Area */}
       <div className="flex-1 overflow-hidden relative flex flex-col">
         {currentChannel.name === "agent-collab" && <AgentCollabDashboard />}
-        <div className="flex-1 overflow-hidden relative">
+        <div className="flex-1 overflow-hidden relative flex flex-col">
           {children}
         </div>
       </div>

@@ -29,6 +29,9 @@ import type {
   TrendingEntity,
   FollowedEntityStats,
   SharedEntityLink,
+  EntityBrief,
+  WeeklyBrief,
+  ActivityBackfillStatus,
 } from "@/types"
 
 interface KnowledgeState {
@@ -60,6 +63,13 @@ interface KnowledgeState {
   entityActivity: Record<string, EntityActivity>
   // ── Phase 60 ─────────────────────────────────────────────────────────────
   followedStats: FollowedEntityStats | null
+  // ── Phase 61 ─────────────────────────────────────────────────────────────
+  entityBriefs: Record<string, EntityBrief>
+  isGeneratingBrief: Record<string, boolean>
+  weeklyBrief: WeeklyBrief | null
+  isGeneratingWeeklyBrief: boolean
+  backfillStatuses: Record<string, ActivityBackfillStatus>
+  isBackfilling: Record<string, boolean>
 
   pushLiveUpdate: (update: KnowledgeUpdate) => void
   handleEntityCreated: (entity: KnowledgeEntity) => void
@@ -115,6 +125,12 @@ interface KnowledgeState {
   fetchFollowedStats: () => Promise<FollowedEntityStats | null>
   shareEntity: (entityId: string) => Promise<SharedEntityLink | null>
   applyTrendingChanged: (payload: { workspace_id: string; days: number; items: TrendingEntity[] }) => void
+  // ── Phase 61 ─────────────────────────────────────────────────────────────
+  generateEntityBrief: (entityId: string, force?: boolean) => Promise<EntityBrief | null>
+  generateWeeklyBrief: (workspaceId: string, force?: boolean) => Promise<WeeklyBrief | null>
+  fetchBackfillStatus: (entityId: string) => Promise<ActivityBackfillStatus | null>
+  triggerBackfill: (entityId: string) => Promise<{ refs_created: number; duration_ms: number } | null>
+  applyFollowedStatsChanged: (stats: FollowedEntityStats) => void
 }
 
 export const useKnowledgeStore = create<KnowledgeState>((set) => ({
@@ -144,6 +160,12 @@ export const useKnowledgeStore = create<KnowledgeState>((set) => ({
   isLoadingTrending: false,
   entityActivity: {},
   followedStats: null,
+  entityBriefs: {},
+  isGeneratingBrief: {},
+  weeklyBrief: null,
+  isGeneratingWeeklyBrief: false,
+  backfillStatuses: {},
+  isBackfilling: {},
 
   pushLiveUpdate: (update) => set({ liveUpdate: update }),
 
@@ -885,4 +907,105 @@ export const useKnowledgeStore = create<KnowledgeState>((set) => ({
       return []
     }
   },
+
+  // ── Phase 61: Entity AI brief ────────────────────────────────────────────
+  generateEntityBrief: async (entityId, force = false) => {
+    set(state => ({ isGeneratingBrief: { ...state.isGeneratingBrief, [entityId]: true } }))
+    try {
+      const res = await fetch(`${API_BASE_URL}/knowledge/entities/${entityId}/brief`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force }),
+      })
+      if (!res.ok) { toast.error("Failed to generate brief"); return null }
+      const data = await res.json()
+      const brief: EntityBrief = data.brief
+      if (brief) {
+        set(state => ({ entityBriefs: { ...state.entityBriefs, [entityId]: brief } }))
+        toast.success(force ? "Brief regenerated" : "Brief generated")
+      }
+      return brief || null
+    } catch (error) {
+      console.error("Failed to generate entity brief:", error)
+      toast.error("Failed to generate brief")
+      return null
+    } finally {
+      set(state => ({ isGeneratingBrief: { ...state.isGeneratingBrief, [entityId]: false } }))
+    }
+  },
+
+  // ── Phase 61: Weekly brief ────────────────────────────────────────────────
+  generateWeeklyBrief: async (workspaceId, force = false) => {
+    set({ isGeneratingWeeklyBrief: true })
+    try {
+      const res = await fetch(`${API_BASE_URL}/knowledge/weekly-brief`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspace_id: workspaceId, force }),
+      })
+      if (!res.ok) { toast.error("Failed to generate weekly brief"); return null }
+      const data = await res.json()
+      const brief: WeeklyBrief = data.brief
+      if (brief) {
+        set({ weeklyBrief: brief })
+        toast.success("Weekly knowledge brief ready")
+      }
+      return brief || null
+    } catch (error) {
+      console.error("Failed to generate weekly brief:", error)
+      toast.error("Failed to generate weekly brief")
+      return null
+    } finally {
+      set({ isGeneratingWeeklyBrief: false })
+    }
+  },
+
+  // ── Phase 61: Activity backfill ───────────────────────────────────────────
+  fetchBackfillStatus: async (entityId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/knowledge/entities/${entityId}/activity/backfill-status`)
+      if (!res.ok) return null
+      const data = await res.json()
+      const status: ActivityBackfillStatus = data.status
+      if (status) {
+        set(state => ({ backfillStatuses: { ...state.backfillStatuses, [entityId]: status } }))
+      }
+      return status || null
+    } catch (error) {
+      console.error("Failed to fetch backfill status:", error)
+      return null
+    }
+  },
+
+  triggerBackfill: async (entityId) => {
+    set(state => ({ isBackfilling: { ...state.isBackfilling, [entityId]: true } }))
+    try {
+      const res = await fetch(`${API_BASE_URL}/knowledge/entities/${entityId}/activity/backfill`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      })
+      if (!res.ok) { toast.error("Backfill failed"); return null }
+      const data = await res.json()
+      toast.success(`Backfill complete — ${data.refs_created ?? 0} refs added`)
+      // Refresh backfill status after trigger
+      const statusRes = await fetch(`${API_BASE_URL}/knowledge/entities/${entityId}/activity/backfill-status`)
+      if (statusRes.ok) {
+        const sd = await statusRes.json()
+        if (sd.status) {
+          set(state => ({ backfillStatuses: { ...state.backfillStatuses, [entityId]: sd.status } }))
+        }
+      }
+      return { refs_created: data.refs_created ?? 0, duration_ms: data.duration_ms ?? 0 }
+    } catch (error) {
+      console.error("Failed to trigger backfill:", error)
+      toast.error("Backfill failed")
+      return null
+    } finally {
+      set(state => ({ isBackfilling: { ...state.isBackfilling, [entityId]: false } }))
+    }
+  },
+
+  // ── Phase 61: Live followed-stats update from websocket ───────────────────
+  applyFollowedStatsChanged: (stats) => set({ followedStats: stats }),
 }))

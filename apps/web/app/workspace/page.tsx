@@ -66,7 +66,7 @@ function WorkspaceContent() {
       <div className="flex h-full overflow-hidden">
         <div className="flex flex-col flex-1 min-w-0">
         {/* Channel Introduction & Artifacts */}
-        <div className="p-4 border-b bg-muted/10">
+        <div className="p-4 border-b bg-muted/10 shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded bg-muted flex items-center justify-center font-bold text-foreground border shadow-sm">

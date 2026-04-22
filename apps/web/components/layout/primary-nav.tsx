@@ -64,8 +64,8 @@ export function PrimaryNav() {
       <Tooltip>
         <TooltipTrigger asChild>
           <Button variant="ghost" size="icon" className="w-9 h-9 p-0 hover:bg-white/10">
-            <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center text-white font-bold text-sm text-foreground">
-              {currentWorkspace?.logo}
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 via-purple-600 to-indigo-700 flex items-center justify-center text-white font-black text-base shadow-lg ring-2 ring-white/20 select-none tracking-tight">
+              R
             </div>
           </Button>
         </TooltipTrigger>

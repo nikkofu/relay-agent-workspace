@@ -32,6 +32,9 @@ export function useWebsocket() {
 
     socket.onopen = () => {
       console.log("WebSocket connected ✅")
+      // Phase 61: bulk-hydrate presence on connect/reconnect
+      const channelId = useChannelStore.getState().currentChannel?.id
+      usePresenceStore.getState().bulkHydratePresence(channelId || undefined).catch(() => {})
     }
 
     socket.onmessage = (event) => {
@@ -173,6 +176,12 @@ export function useWebsocket() {
               days: payload.days ?? 7,
               items: payload.items,
             })
+          }
+        } else if (data.type === 'knowledge.followed.stats.changed') {
+          // Phase 61: push follow-stat deltas so the stats strip updates without polling
+          const payload = data.payload || {}
+          if (payload.stats) {
+            useKnowledgeStore.getState().applyFollowedStatsChanged(payload.stats)
           }
         } else if (data.type === 'knowledge.digest.published') {
           const payload = data.payload || {}

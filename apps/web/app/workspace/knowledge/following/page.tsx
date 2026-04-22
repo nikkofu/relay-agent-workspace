@@ -19,10 +19,11 @@ import {
   Bell, BellOff, BellRing, Newspaper, VolumeX,
   Zap, ChevronDown, ChevronRight, Loader2, Search,
   Tag, User2, Building2, BookOpen, FileText, Layout,
-  BellMinus, BellPlus,
+  BellMinus, BellPlus, Sparkles,
 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import type { FollowNotificationLevel, FollowedEntity } from "@/types"
+import { useWorkspaceStore } from "@/stores/workspace-store"
 
 const KIND_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string; badgeClass: string }> = {
   person:       { label: "Person",       icon: User2,       color: "text-sky-600",    badgeClass: "bg-sky-500/10 text-sky-700 border-sky-300 dark:border-sky-700" },
@@ -52,11 +53,14 @@ export default function FollowingPage() {
     spikingEntityIds,
     followedStats,
     fetchFollowedStats,
+    weeklyBrief, isGeneratingWeeklyBrief, generateWeeklyBrief,
   } = useKnowledgeStore()
+  const { currentWorkspace } = useWorkspaceStore()
 
   const [q, setQ] = useState("")
   const [pendingIds, setPendingIds] = useState<Record<string, boolean>>({})
   const [mutingAll, setMutingAll] = useState(false)
+  const [showWeeklyBrief, setShowWeeklyBrief] = useState(false)
 
   useEffect(() => {
     fetchFollowedEntities()
@@ -178,6 +182,58 @@ export default function FollowingPage() {
           </Button>
         </div>
       </header>
+
+      {/* Phase 61: Weekly brief CTA */}
+      <div className="px-6 pt-3 shrink-0">
+        <div className="rounded-xl border border-violet-400/30 bg-gradient-to-r from-violet-500/5 to-indigo-500/5 p-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-3.5 h-3.5 text-violet-500" />
+              <p className="text-[11px] font-black text-violet-700 dark:text-violet-400">Weekly Knowledge Digest</p>
+              {weeklyBrief && (
+                <span className="text-[9px] text-muted-foreground">
+                  {new Date(weeklyBrief.generated_at).toLocaleDateString()}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5">
+              {weeklyBrief && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-[10px] px-2 text-muted-foreground"
+                  onClick={() => setShowWeeklyBrief(v => !v)}
+                >
+                  {showWeeklyBrief ? 'Collapse' : 'View'}
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-6 text-[10px] gap-1 px-2 border-violet-400/40 text-violet-700 dark:text-violet-400 hover:bg-violet-500/10"
+                disabled={isGeneratingWeeklyBrief || !currentWorkspace}
+                onClick={() => {
+                  if (currentWorkspace) generateWeeklyBrief(currentWorkspace.id, !!weeklyBrief).then(() => setShowWeeklyBrief(true))
+                }}
+              >
+                {isGeneratingWeeklyBrief ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                {isGeneratingWeeklyBrief ? 'Generating…' : weeklyBrief ? 'Regenerate' : 'Generate'}
+              </Button>
+            </div>
+          </div>
+          {showWeeklyBrief && weeklyBrief && (
+            <div className="mt-3 pt-3 border-t border-violet-400/20 space-y-2">
+              <p className="text-xs font-bold">{weeklyBrief.headline}</p>
+              {weeklyBrief.sections.map((s, i) => (
+                <div key={i}>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-0.5">{s.title}</p>
+                  <p className="text-[11px] text-foreground/80 leading-relaxed">{s.body}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Phase 60: stats strip */}
       {followedStats && followedStats.total_count > 0 && (

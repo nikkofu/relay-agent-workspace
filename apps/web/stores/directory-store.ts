@@ -173,8 +173,14 @@ export const useDirectoryStore = create<DirectoryState>((set, get) => ({
     try {
       const response = await fetch(`${API_BASE_URL}/user-groups/${id}/members`)
       const data = await response.json()
-      if (get().activeGroup?.id === id) {
-        set({ activeGroup: { ...get().activeGroup!, members: data.members } })
+      const current = get().activeGroup
+      if (current?.id === id) {
+        set({ activeGroup: { ...current, members: data.members } })
+      } else {
+        const group = get().userGroups.find(g => g.id === id)
+        if (group) {
+          set({ activeGroup: { ...group, members: data.members } })
+        }
       }
     } catch (error) {
       console.error("Failed to fetch group members:", error)
