@@ -205,6 +205,48 @@ func GetChannelKnowledgeContext(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"context": context})
 }
 
+func GetChannelKnowledgeSummary(c *gin.Context) {
+	summary, err := knowledge.GetChannelKnowledgeSummary(
+		db.DB,
+		c.Param("id"),
+		parseLimit(c.Query("limit"), 5),
+		parseWindowDays(c.Query("days"), 7),
+	)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to load channel knowledge summary"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"summary": summary})
+}
+
+func SuggestKnowledgeEntities(c *gin.Context) {
+	query := strings.TrimSpace(c.Query("q"))
+	if query == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "q is required"})
+		return
+	}
+
+	suggestions, err := knowledge.SuggestEntities(db.DB, knowledge.SuggestEntitiesParams{
+		Query:       query,
+		ChannelID:   c.Query("channel_id"),
+		WorkspaceID: c.Query("workspace_id"),
+		Limit:       parseLimit(c.Query("limit"), 8),
+	})
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "channel not found"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to load knowledge entity suggestions"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"query":       query,
+		"suggestions": suggestions,
+	})
+}
+
 func handleKnowledgeError(c *gin.Context, err error, fallback string) {
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "knowledge entity not found"})
@@ -230,6 +272,17 @@ func parseLimit(raw string, fallback int) int {
 		return 100
 	}
 	return limit
+}
+
+func parseWindowDays(raw string, fallback int) int {
+	days, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || days <= 0 {
+		return fallback
+	}
+	if days > 30 {
+		return 30
+	}
+	return days
 }
 
 func autoLinkKnowledgeForMessage(message domain.Message) {

@@ -2,6 +2,66 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.89] - 2026-04-22
+
+This release implements Phase 49: Channel Knowledge Summary and Entity Mention APIs. Relay now exposes a channel-level knowledge summary endpoint for active-channel sidebars/cards and a scoped entity suggestion endpoint for `@entity:` composer autocomplete.
+
+### Added
+
+- **Channel Knowledge Summary API**:
+  - `GET /api/v1/channels/:id/knowledge/summary`
+  - Query params:
+    - `limit`
+    - `days`
+  - Response shape: `{ "summary": { "channel_id": string, "window_days": number, "total_refs": number, "recent_ref_count": number, "top_entities": [...] } }`
+  - Top entity payload includes:
+    - `entity_id`
+    - `entity_title`
+    - `entity_kind`
+    - `ref_count`
+    - `message_ref_count`
+    - `file_ref_count`
+    - `last_ref_at`
+    - `trend`
+- **Knowledge Entity Suggest API**:
+  - `GET /api/v1/knowledge/entities/suggest`
+  - Query params:
+    - `q`
+    - `channel_id`
+    - `workspace_id`
+    - `limit`
+  - Response shape: `{ "query": string, "suggestions": [...] }`
+  - Suggestion payload includes:
+    - `id`
+    - `title`
+    - `kind`
+    - `summary`
+    - `source_kind`
+    - `ref_count`
+    - `channel_ref_count`
+
+### Changed
+
+- **Channel Knowledge Aggregation**:
+  - Channel knowledge now has both a recent-ref feed (`/channels/:id/knowledge`) and an aggregated summary view (`/channels/:id/knowledge/summary`) built from canonical `KnowledgeEntityRef` records across channel messages and files.
+- **Scoped Entity Ranking**:
+  - Entity suggestions can now scope to the active channel's workspace and rank by channel-local reference frequency, which is the intended backend contract for `@entity:` autocomplete.
+
+### Windsurf Handoff
+
+- Use `GET /api/v1/channels/:id/knowledge/summary?days=7&limit=5` to render a compact "most referenced entities + sparkline" card in the channel knowledge panel or header area.
+- Use `GET /api/v1/knowledge/entities/suggest?q=...&channel_id=...&limit=8` for `@entity:` autocomplete in `MessageComposer`.
+- The non-intrusive `knowledge.entity.ref.created` banner/toast can reuse the existing websocket event. When it fires for the active channel, refresh `/channels/:id/knowledge` and `/channels/:id/knowledge/summary` and surface the newest linked entity.
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./internal/knowledge -run 'TestGetChannelKnowledgeSummaryAggregatesTopEntitiesAndTrend|TestSuggestEntitiesScopesToChannelWorkspaceAndRanksByChannelRefs' -count=1`
+- `cd apps/api && go test ./internal/handlers -run 'TestGetChannelKnowledgeSummaryReturnsTopEntitiesAndTrend|TestSuggestKnowledgeEntitiesReturnsScopedAutocompleteResults' -count=1`
+- `cd apps/api && go test ./...`
+- `cd apps/api && go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+- `pnpm --filter relay-agent-workspace exec tsc --noEmit`
+
 ## [0.5.88] - 2026-04-22
 
 This release implements Phase 48: Channel Knowledge Context. Relay now exposes channel-scoped knowledge refs for active-channel banners/sidebars and hydrates citation search results from the canonical `KnowledgeEntityRef` table created by message/file auto-linking.

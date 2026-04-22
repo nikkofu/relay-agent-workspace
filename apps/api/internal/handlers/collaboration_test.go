@@ -3787,6 +3787,109 @@ func TestGetChannelKnowledgeContextReturnsRecentRefs(t *testing.T) {
 	}
 }
 
+func TestGetChannelKnowledgeSummaryReturnsTopEntitiesAndTrend(t *testing.T) {
+	setupTestDB(t)
+	now := time.Now().UTC()
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	db.DB.Create(&domain.Message{ID: "msg-1", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program kickoff", CreatedAt: now.Add(-48 * time.Hour)})
+	db.DB.Create(&domain.Message{ID: "msg-2", ChannelID: "ch-1", UserID: "user-1", Content: "Launch checklist ready", CreatedAt: now.Add(-24 * time.Hour)})
+	db.DB.Create(&domain.FileAsset{ID: "file-1", ChannelID: "ch-1", UploaderID: "user-1", Name: "launch-plan.md", StoragePath: "launch-plan.md", ContentType: "text/markdown", CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Status: "active", SourceKind: "manual", CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-2", WorkspaceID: "ws-1", Kind: "doc", Title: "Launch Checklist", Status: "active", SourceKind: "manual", CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.KnowledgeEntityRef{ID: "kref-msg", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-1", Role: "discussion", CreatedAt: now.Add(-48 * time.Hour)})
+	db.DB.Create(&domain.KnowledgeEntityRef{ID: "kref-file", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "file", RefID: "file-1", Role: "evidence", CreatedAt: now})
+	db.DB.Create(&domain.KnowledgeEntityRef{ID: "kref-msg-2", WorkspaceID: "ws-1", EntityID: "entity-2", RefKind: "message", RefID: "msg-2", Role: "discussion", CreatedAt: now.Add(-24 * time.Hour)})
+
+	router := gin.New()
+	router.GET("/api/v1/channels/:id/knowledge/summary", GetChannelKnowledgeSummary)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/channels/ch-1/knowledge/summary?limit=2&days=7", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on channel knowledge summary, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Summary struct {
+			ChannelID      string `json:"channel_id"`
+			WindowDays     int    `json:"window_days"`
+			TotalRefs      int    `json:"total_refs"`
+			RecentRefCount int    `json:"recent_ref_count"`
+			TopEntities    []struct {
+				EntityID        string `json:"entity_id"`
+				EntityTitle     string `json:"entity_title"`
+				RefCount        int    `json:"ref_count"`
+				MessageRefCount int    `json:"message_ref_count"`
+				FileRefCount    int    `json:"file_ref_count"`
+				Trend           []struct {
+					Date  string `json:"date"`
+					Count int    `json:"count"`
+				} `json:"trend"`
+			} `json:"top_entities"`
+		} `json:"summary"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode channel knowledge summary: %v", err)
+	}
+	if payload.Summary.ChannelID != "ch-1" || payload.Summary.TotalRefs != 3 || payload.Summary.WindowDays != 7 {
+		t.Fatalf("unexpected summary payload: %#v", payload.Summary)
+	}
+	if len(payload.Summary.TopEntities) != 2 || payload.Summary.TopEntities[0].EntityID != "entity-1" {
+		t.Fatalf("expected ranked entities in summary payload, got %#v", payload.Summary.TopEntities)
+	}
+	if payload.Summary.TopEntities[0].MessageRefCount != 1 || payload.Summary.TopEntities[0].FileRefCount != 1 || len(payload.Summary.TopEntities[0].Trend) != 7 {
+		t.Fatalf("expected trend/count breakdown for top entity, got %#v", payload.Summary.TopEntities[0])
+	}
+}
+
+func TestSuggestKnowledgeEntitiesReturnsScopedAutocompleteResults(t *testing.T) {
+	setupTestDB(t)
+	now := time.Now().UTC()
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	db.DB.Create(&domain.Channel{ID: "ch-2", WorkspaceID: "ws-2", Name: "external", Type: "public"})
+	db.DB.Create(&domain.Message{ID: "msg-1", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program kickoff", CreatedAt: now})
+	db.DB.Create(&domain.FileAsset{ID: "file-1", ChannelID: "ch-1", UploaderID: "user-1", Name: "launch-plan.md", StoragePath: "launch-plan.md", ContentType: "text/markdown", CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Summary: "Main launch initiative", Status: "active", SourceKind: "manual", CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-2", WorkspaceID: "ws-1", Kind: "doc", Title: "Launch Checklist", Summary: "Pre-flight list", Status: "active", SourceKind: "manual", CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-3", WorkspaceID: "ws-2", Kind: "project", Title: "Launch External", Summary: "Other workspace", Status: "active", SourceKind: "manual", CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.KnowledgeEntityRef{ID: "kref-msg", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-1", Role: "discussion", CreatedAt: now})
+	db.DB.Create(&domain.KnowledgeEntityRef{ID: "kref-file", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "file", RefID: "file-1", Role: "evidence", CreatedAt: now})
+
+	router := gin.New()
+	router.GET("/api/v1/knowledge/entities/suggest", SuggestKnowledgeEntities)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/knowledge/entities/suggest?q=launch&channel_id=ch-1&limit=5", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on knowledge entity suggestions, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Query       string `json:"query"`
+		Suggestions []struct {
+			ID              string `json:"id"`
+			Title           string `json:"title"`
+			ChannelRefCount int    `json:"channel_ref_count"`
+		} `json:"suggestions"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode knowledge suggestions payload: %v", err)
+	}
+	if payload.Query != "launch" || len(payload.Suggestions) != 2 {
+		t.Fatalf("expected two scoped suggestions, got %#v", payload)
+	}
+	if payload.Suggestions[0].ID != "entity-1" || payload.Suggestions[0].ChannelRefCount != 2 {
+		t.Fatalf("expected entity-1 ranked first by channel refs, got %#v", payload.Suggestions)
+	}
+	for _, suggestion := range payload.Suggestions {
+		if suggestion.ID == "entity-3" {
+			t.Fatalf("expected cross-workspace entity to be excluded, got %#v", payload.Suggestions)
+		}
+	}
+}
+
 type knowledgeGraphNodePayload struct {
 	Kind    string `json:"kind"`
 	RefKind string `json:"ref_kind"`

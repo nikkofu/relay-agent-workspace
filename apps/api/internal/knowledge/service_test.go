@@ -124,14 +124,78 @@ func TestEntityGraphPreviewIncludesRefsAndLinks(t *testing.T) {
 	}
 }
 
+func TestGetChannelKnowledgeSummaryAggregatesTopEntitiesAndTrend(t *testing.T) {
+	database := setupKnowledgeTestDB(t)
+	now := time.Now().UTC()
+
+	database.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	database.Create(&domain.Message{ID: "msg-1", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program kickoff", CreatedAt: now.Add(-48 * time.Hour)})
+	database.Create(&domain.Message{ID: "msg-2", ChannelID: "ch-1", UserID: "user-1", Content: "Billing Service dependency", CreatedAt: now.Add(-24 * time.Hour)})
+	database.Create(&domain.FileAsset{ID: "file-1", ChannelID: "ch-1", UploaderID: "user-1", Name: "launch-plan.md", StoragePath: "launch-plan.md", ContentType: "text/markdown", CreatedAt: now.Add(-12 * time.Hour), UpdatedAt: now.Add(-12 * time.Hour)})
+	database.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Status: "active", CreatedAt: now, UpdatedAt: now})
+	database.Create(&domain.KnowledgeEntity{ID: "entity-2", WorkspaceID: "ws-1", Kind: "service", Title: "Billing Service", Status: "active", CreatedAt: now, UpdatedAt: now})
+	database.Create(&domain.KnowledgeEntityRef{ID: "kref-1", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-1", Role: "discussion", CreatedAt: now.Add(-48 * time.Hour)})
+	database.Create(&domain.KnowledgeEntityRef{ID: "kref-2", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "file", RefID: "file-1", Role: "evidence", CreatedAt: now.Add(-12 * time.Hour)})
+	database.Create(&domain.KnowledgeEntityRef{ID: "kref-3", WorkspaceID: "ws-1", EntityID: "entity-2", RefKind: "message", RefID: "msg-2", Role: "discussion", CreatedAt: now.Add(-24 * time.Hour)})
+
+	summary, err := GetChannelKnowledgeSummary(database, "ch-1", 5, 7)
+	if err != nil {
+		t.Fatalf("summary failed: %v", err)
+	}
+	if summary.ChannelID != "ch-1" || summary.TotalRefs != 3 || summary.RecentRefCount != 3 {
+		t.Fatalf("unexpected summary envelope: %#v", summary)
+	}
+	if len(summary.TopEntities) != 2 {
+		t.Fatalf("expected two top entities, got %#v", summary.TopEntities)
+	}
+	if summary.TopEntities[0].EntityID != "entity-1" || summary.TopEntities[0].RefCount != 2 || summary.TopEntities[0].MessageRefCount != 1 || summary.TopEntities[0].FileRefCount != 1 {
+		t.Fatalf("expected entity-1 to lead aggregated counts, got %#v", summary.TopEntities[0])
+	}
+	if len(summary.TopEntities[0].Trend) != 7 {
+		t.Fatalf("expected seven daily trend points, got %#v", summary.TopEntities[0].Trend)
+	}
+}
+
+func TestSuggestEntitiesScopesToChannelWorkspaceAndRanksByChannelRefs(t *testing.T) {
+	database := setupKnowledgeTestDB(t)
+	now := time.Now().UTC()
+
+	database.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	database.Create(&domain.Channel{ID: "ch-2", WorkspaceID: "ws-2", Name: "external", Type: "public"})
+	database.Create(&domain.Message{ID: "msg-1", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program kickoff", CreatedAt: now})
+	database.Create(&domain.FileAsset{ID: "file-1", ChannelID: "ch-1", UploaderID: "user-1", Name: "launch-plan.md", StoragePath: "launch-plan.md", ContentType: "text/markdown", CreatedAt: now, UpdatedAt: now})
+	database.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Summary: "Main launch initiative", Status: "active", CreatedAt: now, UpdatedAt: now})
+	database.Create(&domain.KnowledgeEntity{ID: "entity-2", WorkspaceID: "ws-1", Kind: "doc", Title: "Launch Checklist", Summary: "Pre-flight list", Status: "active", CreatedAt: now, UpdatedAt: now})
+	database.Create(&domain.KnowledgeEntity{ID: "entity-3", WorkspaceID: "ws-2", Kind: "project", Title: "Launch External", Summary: "Other workspace", Status: "active", CreatedAt: now, UpdatedAt: now})
+	database.Create(&domain.KnowledgeEntityRef{ID: "kref-1", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-1", Role: "discussion", CreatedAt: now})
+	database.Create(&domain.KnowledgeEntityRef{ID: "kref-2", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "file", RefID: "file-1", Role: "evidence", CreatedAt: now})
+
+	suggestions, err := SuggestEntities(database, SuggestEntitiesParams{Query: "launch", ChannelID: "ch-1", Limit: 5})
+	if err != nil {
+		t.Fatalf("suggest failed: %v", err)
+	}
+	if len(suggestions) != 2 {
+		t.Fatalf("expected two scoped suggestions, got %#v", suggestions)
+	}
+	if suggestions[0].ID != "entity-1" || suggestions[0].ChannelRefCount != 2 {
+		t.Fatalf("expected channel-ranked entity first, got %#v", suggestions[0])
+	}
+	for _, suggestion := range suggestions {
+		if suggestion.ID == "entity-3" {
+			t.Fatalf("expected workspace scoping to exclude entity-3, got %#v", suggestions)
+		}
+	}
+}
+
 func setupKnowledgeTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
-	database, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
+	database, err := gorm.Open(sqlite.Open("file:"+ids.NewPrefixedUUID("test")+"?mode=memory&cache=shared"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("failed to open sqlite test db: %v", err)
 	}
 	if err := database.AutoMigrate(
+		&domain.Channel{},
 		&domain.FileAsset{},
 		&domain.FileExtraction{},
 		&domain.FileExtractionChunk{},

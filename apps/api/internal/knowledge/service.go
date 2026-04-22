@@ -559,7 +559,257 @@ func GetChannelKnowledgeContext(database *gorm.DB, channelID string, limit int) 
 	return context, nil
 }
 
-func listChannelMessageKnowledgeRefs(database *gorm.DB, channelID string) ([]ChannelKnowledgeRef, error) {
+func GetChannelKnowledgeSummary(database *gorm.DB, channelID string, limit int, windowDays int) (ChannelKnowledgeSummary, error) {
+	channelID = strings.TrimSpace(channelID)
+	if limit <= 0 {
+		limit = 5
+	}
+	if limit > 20 {
+		limit = 20
+	}
+	if windowDays <= 0 {
+		windowDays = 7
+	}
+	if windowDays > 30 {
+		windowDays = 30
+	}
+
+	summary := ChannelKnowledgeSummary{
+		ChannelID:   channelID,
+		WindowDays:  windowDays,
+		TopEntities: []ChannelKnowledgeSummaryEntity{},
+	}
+	if channelID == "" {
+		return summary, errors.New("channel_id is required")
+	}
+
+	refs, err := listChannelKnowledgeEntityRefs(database, channelID)
+	if err != nil {
+		return summary, err
+	}
+	summary.TotalRefs = len(refs)
+	if len(refs) == 0 {
+		return summary, nil
+	}
+
+	windowStart := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -(windowDays - 1))
+	type aggregate struct {
+		EntityID        string
+		RefCount        int
+		MessageRefCount int
+		FileRefCount    int
+		LastRefAt       time.Time
+		TrendCounts     map[string]int
+	}
+
+	aggregates := make(map[string]*aggregate, len(refs))
+	entityIDs := make([]string, 0)
+	for _, ref := range refs {
+		item, exists := aggregates[ref.EntityID]
+		if !exists {
+			item = &aggregate{
+				EntityID:    ref.EntityID,
+				TrendCounts: map[string]int{},
+			}
+			aggregates[ref.EntityID] = item
+			entityIDs = append(entityIDs, ref.EntityID)
+		}
+		item.RefCount++
+		switch ref.RefKind {
+		case "file":
+			item.FileRefCount++
+		default:
+			item.MessageRefCount++
+		}
+		if ref.CreatedAt.After(item.LastRefAt) {
+			item.LastRefAt = ref.CreatedAt
+		}
+		if !ref.CreatedAt.Before(windowStart) {
+			summary.RecentRefCount++
+			item.TrendCounts[ref.CreatedAt.UTC().Format("2006-01-02")]++
+		}
+	}
+
+	entityMap, err := loadKnowledgeEntityMap(database, entityIDs)
+	if err != nil {
+		return summary, err
+	}
+
+	for _, entityID := range entityIDs {
+		aggregate := aggregates[entityID]
+		entity := entityMap[entityID]
+		topEntity := ChannelKnowledgeSummaryEntity{
+			EntityID:        entityID,
+			EntityTitle:     entity.Title,
+			EntityKind:      entity.Kind,
+			RefCount:        aggregate.RefCount,
+			MessageRefCount: aggregate.MessageRefCount,
+			FileRefCount:    aggregate.FileRefCount,
+			LastRefAt:       aggregate.LastRefAt,
+			Trend:           make([]ChannelKnowledgeTrendPoint, 0, windowDays),
+		}
+		if strings.TrimSpace(topEntity.EntityTitle) == "" {
+			topEntity.EntityTitle = entityID
+		}
+		for day := 0; day < windowDays; day++ {
+			date := windowStart.AddDate(0, 0, day).Format("2006-01-02")
+			topEntity.Trend = append(topEntity.Trend, ChannelKnowledgeTrendPoint{
+				Date:  date,
+				Count: aggregate.TrendCounts[date],
+			})
+		}
+		summary.TopEntities = append(summary.TopEntities, topEntity)
+	}
+
+	sort.SliceStable(summary.TopEntities, func(i, j int) bool {
+		if summary.TopEntities[i].RefCount == summary.TopEntities[j].RefCount {
+			if summary.TopEntities[i].LastRefAt.Equal(summary.TopEntities[j].LastRefAt) {
+				return summary.TopEntities[i].EntityTitle < summary.TopEntities[j].EntityTitle
+			}
+			return summary.TopEntities[i].LastRefAt.After(summary.TopEntities[j].LastRefAt)
+		}
+		return summary.TopEntities[i].RefCount > summary.TopEntities[j].RefCount
+	})
+	if len(summary.TopEntities) > limit {
+		summary.TopEntities = summary.TopEntities[:limit]
+	}
+
+	return summary, nil
+}
+
+func SuggestEntities(database *gorm.DB, params SuggestEntitiesParams) ([]KnowledgeEntitySuggestion, error) {
+	query := strings.TrimSpace(params.Query)
+	if query == "" {
+		return []KnowledgeEntitySuggestion{}, nil
+	}
+
+	limit := params.Limit
+	if limit <= 0 {
+		limit = 8
+	}
+	if limit > 20 {
+		limit = 20
+	}
+
+	workspaceID := strings.TrimSpace(params.WorkspaceID)
+	channelID := strings.TrimSpace(params.ChannelID)
+	if channelID != "" && workspaceID == "" {
+		var channel domain.Channel
+		if err := database.Select("id, workspace_id").First(&channel, "id = ?", channelID).Error; err != nil {
+			return nil, err
+		}
+		workspaceID = channel.WorkspaceID
+	}
+
+	needle := "%" + strings.ToLower(query) + "%"
+	entityQuery := database.Model(&domain.KnowledgeEntity{})
+	if workspaceID != "" {
+		entityQuery = entityQuery.Where("workspace_id = ?", workspaceID)
+	}
+
+	var entities []domain.KnowledgeEntity
+	if err := entityQuery.
+		Where("LOWER(title) LIKE ? OR LOWER(summary) LIKE ?", needle, needle).
+		Find(&entities).Error; err != nil {
+		return nil, err
+	}
+	if len(entities) == 0 {
+		return []KnowledgeEntitySuggestion{}, nil
+	}
+
+	entityIDs := make([]string, 0, len(entities))
+	for _, entity := range entities {
+		entityIDs = append(entityIDs, entity.ID)
+	}
+
+	refCounts, err := countKnowledgeEntityRefs(database, entityIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	channelRefCounts := map[string]int{}
+	if channelID != "" {
+		channelRefs, err := listChannelKnowledgeEntityRefs(database, channelID)
+		if err != nil {
+			return nil, err
+		}
+		for _, ref := range channelRefs {
+			channelRefCounts[ref.EntityID]++
+		}
+	}
+
+	type rankedSuggestion struct {
+		KnowledgeEntitySuggestion
+		matchScore int
+	}
+
+	ranked := make([]rankedSuggestion, 0, len(entities))
+	lowerQuery := strings.ToLower(query)
+	for _, entity := range entities {
+		matchScore := knowledgeEntityMatchScore(entity, lowerQuery)
+		if matchScore == 0 {
+			continue
+		}
+		ranked = append(ranked, rankedSuggestion{
+			KnowledgeEntitySuggestion: KnowledgeEntitySuggestion{
+				ID:              entity.ID,
+				Title:           entity.Title,
+				Kind:            entity.Kind,
+				Summary:         entity.Summary,
+				SourceKind:      entity.SourceKind,
+				RefCount:        refCounts[entity.ID],
+				ChannelRefCount: channelRefCounts[entity.ID],
+			},
+			matchScore: matchScore,
+		})
+	}
+
+	sort.SliceStable(ranked, func(i, j int) bool {
+		if ranked[i].matchScore == ranked[j].matchScore {
+			if ranked[i].ChannelRefCount == ranked[j].ChannelRefCount {
+				if ranked[i].RefCount == ranked[j].RefCount {
+					return ranked[i].Title < ranked[j].Title
+				}
+				return ranked[i].RefCount > ranked[j].RefCount
+			}
+			return ranked[i].ChannelRefCount > ranked[j].ChannelRefCount
+		}
+		return ranked[i].matchScore > ranked[j].matchScore
+	})
+
+	if len(ranked) > limit {
+		ranked = ranked[:limit]
+	}
+
+	suggestions := make([]KnowledgeEntitySuggestion, 0, len(ranked))
+	for _, item := range ranked {
+		suggestions = append(suggestions, item.KnowledgeEntitySuggestion)
+	}
+	return suggestions, nil
+}
+
+func listChannelKnowledgeEntityRefs(database *gorm.DB, channelID string) ([]domain.KnowledgeEntityRef, error) {
+	messageRefs, err := listChannelMessageKnowledgeEntityRefs(database, channelID)
+	if err != nil {
+		return nil, err
+	}
+
+	fileRefs, err := listChannelFileKnowledgeEntityRefs(database, channelID)
+	if err != nil {
+		return nil, err
+	}
+
+	refs := append(messageRefs, fileRefs...)
+	sort.SliceStable(refs, func(i, j int) bool {
+		if refs[i].CreatedAt.Equal(refs[j].CreatedAt) {
+			return refs[i].ID < refs[j].ID
+		}
+		return refs[i].CreatedAt.After(refs[j].CreatedAt)
+	})
+	return refs, nil
+}
+
+func listChannelMessageKnowledgeEntityRefs(database *gorm.DB, channelID string) ([]domain.KnowledgeEntityRef, error) {
 	var refs []domain.KnowledgeEntityRef
 	if err := database.Model(&domain.KnowledgeEntityRef{}).
 		Select("knowledge_entity_refs.*").
@@ -567,6 +817,27 @@ func listChannelMessageKnowledgeRefs(database *gorm.DB, channelID string) ([]Cha
 		Where("knowledge_entity_refs.ref_kind = ? AND messages.channel_id = ?", "message", channelID).
 		Order("knowledge_entity_refs.created_at desc").
 		Find(&refs).Error; err != nil {
+		return nil, err
+	}
+	return refs, nil
+}
+
+func listChannelFileKnowledgeEntityRefs(database *gorm.DB, channelID string) ([]domain.KnowledgeEntityRef, error) {
+	var refs []domain.KnowledgeEntityRef
+	if err := database.Model(&domain.KnowledgeEntityRef{}).
+		Select("knowledge_entity_refs.*").
+		Joins("JOIN file_assets ON file_assets.id = knowledge_entity_refs.ref_id").
+		Where("knowledge_entity_refs.ref_kind = ? AND file_assets.channel_id = ?", "file", channelID).
+		Order("knowledge_entity_refs.created_at desc").
+		Find(&refs).Error; err != nil {
+		return nil, err
+	}
+	return refs, nil
+}
+
+func listChannelMessageKnowledgeRefs(database *gorm.DB, channelID string) ([]ChannelKnowledgeRef, error) {
+	refs, err := listChannelMessageKnowledgeEntityRefs(database, channelID)
+	if err != nil {
 		return nil, err
 	}
 
@@ -582,13 +853,8 @@ func listChannelMessageKnowledgeRefs(database *gorm.DB, channelID string) ([]Cha
 }
 
 func listChannelFileKnowledgeRefs(database *gorm.DB, channelID string) ([]ChannelKnowledgeRef, error) {
-	var refs []domain.KnowledgeEntityRef
-	if err := database.Model(&domain.KnowledgeEntityRef{}).
-		Select("knowledge_entity_refs.*").
-		Joins("JOIN file_assets ON file_assets.id = knowledge_entity_refs.ref_id").
-		Where("knowledge_entity_refs.ref_kind = ? AND file_assets.channel_id = ?", "file", channelID).
-		Order("knowledge_entity_refs.created_at desc").
-		Find(&refs).Error; err != nil {
+	refs, err := listChannelFileKnowledgeEntityRefs(database, channelID)
+	if err != nil {
 		return nil, err
 	}
 
@@ -641,6 +907,65 @@ func hydrateChannelKnowledgeRef(database *gorm.DB, ref domain.KnowledgeEntityRef
 	}
 
 	return item, nil
+}
+
+func countKnowledgeEntityRefs(database *gorm.DB, entityIDs []string) (map[string]int, error) {
+	counts := map[string]int{}
+	if len(entityIDs) == 0 {
+		return counts, nil
+	}
+
+	type refCountRow struct {
+		EntityID string
+		Count    int
+	}
+
+	var rows []refCountRow
+	if err := database.Model(&domain.KnowledgeEntityRef{}).
+		Select("entity_id, COUNT(*) as count").
+		Where("entity_id IN ?", entityIDs).
+		Group("entity_id").
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		counts[row.EntityID] = row.Count
+	}
+	return counts, nil
+}
+
+func loadKnowledgeEntityMap(database *gorm.DB, entityIDs []string) (map[string]domain.KnowledgeEntity, error) {
+	result := map[string]domain.KnowledgeEntity{}
+	if len(entityIDs) == 0 {
+		return result, nil
+	}
+
+	var entities []domain.KnowledgeEntity
+	if err := database.Where("id IN ?", entityIDs).Find(&entities).Error; err != nil {
+		return nil, err
+	}
+	for _, entity := range entities {
+		result[entity.ID] = entity
+	}
+	return result, nil
+}
+
+func knowledgeEntityMatchScore(entity domain.KnowledgeEntity, lowerQuery string) int {
+	title := strings.ToLower(strings.TrimSpace(entity.Title))
+	summary := strings.ToLower(strings.TrimSpace(entity.Summary))
+
+	switch {
+	case title == lowerQuery:
+		return 4
+	case strings.HasPrefix(title, lowerQuery):
+		return 3
+	case strings.Contains(title, lowerQuery):
+		return 2
+	case strings.Contains(summary, lowerQuery):
+		return 1
+	default:
+		return 0
+	}
 }
 
 func BuildEntityGraph(database *gorm.DB, entityID string) (EntityGraph, error) {

@@ -123,6 +123,22 @@ Current backend surface already available:
 - `PUT /api/v1/drafts/:scope`
 - `GET /api/v1/search`
 - `GET /api/v1/search/suggestions`
+- `GET /api/v1/citations/lookup`
+- `GET /api/v1/channels/:id/knowledge`
+- `GET /api/v1/channels/:id/knowledge/summary`
+- `GET /api/v1/knowledge/entities`
+- `GET /api/v1/knowledge/entities/suggest`
+- `POST /api/v1/knowledge/entities`
+- `GET /api/v1/knowledge/entities/:id`
+- `PATCH /api/v1/knowledge/entities/:id`
+- `GET /api/v1/knowledge/entities/:id/refs`
+- `POST /api/v1/knowledge/entities/:id/refs`
+- `GET /api/v1/knowledge/entities/:id/timeline`
+- `POST /api/v1/knowledge/entities/:id/events`
+- `GET /api/v1/knowledge/entities/:id/links`
+- `POST /api/v1/knowledge/links`
+- `POST /api/v1/knowledge/events/ingest`
+- `GET /api/v1/knowledge/entities/:id/graph`
 - `GET /api/v1/lists`
 - `POST /api/v1/lists`
 - `GET /api/v1/lists/:id`
@@ -369,6 +385,42 @@ Likely follow-ups:
 - per-surface badge suppression preferences
 - treat string IDs as opaque identifiers; do not depend on timestamp-derived shapes in UI routing or stores
 
+### 4.10 Knowledge And Wiki Layer
+
+Baseline support now exists for:
+
+- `GET /api/v1/citations/lookup`
+- `GET /api/v1/channels/:id/knowledge`
+- `GET /api/v1/channels/:id/knowledge/summary`
+- `GET /api/v1/knowledge/entities`
+- `GET /api/v1/knowledge/entities/suggest`
+- `POST /api/v1/knowledge/entities`
+- `GET /api/v1/knowledge/entities/:id`
+- `PATCH /api/v1/knowledge/entities/:id`
+- `GET /api/v1/knowledge/entities/:id/refs`
+- `POST /api/v1/knowledge/entities/:id/refs`
+- `GET /api/v1/knowledge/entities/:id/timeline`
+- `POST /api/v1/knowledge/entities/:id/events`
+- `GET /api/v1/knowledge/entities/:id/links`
+- `POST /api/v1/knowledge/links`
+- `POST /api/v1/knowledge/events/ingest`
+- `GET /api/v1/knowledge/entities/:id/graph`
+- realtime events:
+  - `knowledge.entity.created`
+  - `knowledge.entity.updated`
+  - `knowledge.entity.ref.created`
+  - `knowledge.event.created`
+  - `knowledge.link.created`
+
+Likely follow-ups:
+
+- message rendering for first-class `@entity:` mentions after autocomplete selection
+- richer entity disambiguation and alias support beyond exact title matching
+- entity-aware search ranking that blends citations, refs, files, and channel-local activity
+- knowledge summaries that merge static wiki state with external live business signals
+- deeper graph traversal, filtering, and graph-to-message/file backreferences
+- explicit knowledge permissions and workspace-wide curation workflows
+
 ## 5. Realtime Target State
 
 Current websocket support is enough for message creation and interaction sync.  
@@ -402,8 +454,9 @@ Recommended sequence from here:
    - drafts and stars
 3. Persist AI conversation state and summaries.
 4. Introduce artifact and file lifecycle APIs.
-5. Add richer search layers such as suggestions and semantic retrieval.
-6. Move toward explicit agent runtime APIs once the collaboration foundation is stable.
+5. Deepen the knowledge layer with entity-aware mentions, summaries, graph views, and semantic retrieval.
+6. Add richer search layers such as suggestions and semantic retrieval.
+7. Move toward explicit agent runtime APIs once the collaboration foundation is stable.
 
 ## 7. Summary
 

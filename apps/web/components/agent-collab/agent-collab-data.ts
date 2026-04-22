@@ -112,9 +112,9 @@ export const MEMBERS: Member[] = [
 
 export const ACTIVE_SUPERPOWERS: AgentPower[] = [
   { agent: 'Gemini', skill: 'idle', task: 'Resting after Phase 38 handoff', progress: 100, status: 'done' },
-  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 48 Channel Knowledge Context API handoff complete', progress: 100, status: 'done' },
+  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 49 knowledge summary and entity autocomplete API handoff complete', progress: 100, status: 'done' },
   { agent: 'Claude Code', skill: 'idle', task: '-', progress: 0, status: 'idle' },
-  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 48 Channel Knowledge Context UI complete (v0.5.88)', progress: 100, status: 'done' },
+  { agent: 'Windsurf', skill: 'idle', task: 'Phase 49 UI integration queued from Codex handoff', progress: 0, status: 'idle' },
 ]
 
 // ─── Full Task Board ──────────────────────────────────────────────────────────
@@ -222,11 +222,26 @@ export const TASKS: Task[] = [
   { id: 't100', phase: 100, status: 'done',  task: 'Phase 47 Knowledge Live UI Integration',           assignedTo: ['Windsurf'],        deadline: '2026-04-22', description: 'Wired 5 knowledge WS events (entity.created/updated, entity.ref.created, event.created, link.created) into use-websocket + knowledge-store liveUpdate bus. Entity list live flash badge. Entity detail liveUpdate subscription appends refs/timeline/links live. Event Ingest composer (POST /api/v1/knowledge/events/ingest). Graph tab: graph.edges with weight bars, direction arrows, role badges; KnowledgeGraphNode extended with role/source_kind/ref_kind/ref_id/weight; KnowledgeGraphEdge type added. v0.5.87 published.', type: 'frontend' },
   { id: 't101', phase: 101, status: 'done',  task: 'Phase 48 Channel Knowledge Context APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added GET /api/v1/channels/:id/knowledge for active-channel knowledge banners/sidebars and hydrated citation lookup from KnowledgeEntityRef message/file associations. v0.5.88 published.', type: 'api' },
   { id: 't102', phase: 102, status: 'done',  task: 'Phase 48 Channel Knowledge Context UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'ChannelKnowledgeRef type. knowledge-store: fetchChannelKnowledge (GET /api/v1/channels/:id/knowledge), channelKnowledge/channelKnowledgeId/isLoadingChannelKnowledge state. ChannelKnowledgePanel: collapsible 288px right sidebar, refs grouped by entity_id, entity kind icon/badge, source_snippet/ref_kind/role per ref, direct entity links. Channel page: Knowledge toggle button with ref count badge; panel auto-fetches on channel change; WS knowledge.entity.ref.created refreshes panel. CitationCard already trusts hydrated entity_id/entity_title. v0.5.88 published.', type: 'frontend' },
+  { id: 't103', phase: 103, status: 'done',  task: 'Phase 49 Channel Knowledge Summary And Entity Mention APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added GET /api/v1/channels/:id/knowledge/summary and GET /api/v1/knowledge/entities/suggest for channel-level entity trends and @entity: autocomplete. v0.5.89 published.', type: 'api' },
+  { id: 't104', phase: 104, status: 'ready',  task: 'Phase 49 Knowledge Summary And Composer Mention Integration', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'Use channel summary in the knowledge panel/header, wire @entity: autocomplete in MessageComposer, and show a lightweight banner/toast on knowledge.entity.ref.created for the active channel.', type: 'frontend' },
 ]
 
 // ─── Communication Log ────────────────────────────────────────────────────────
 
 export const COMM_SECTIONS: CommSection[] = [
+  {
+    id: 'cs14',
+    date: '2026-04-22',
+    title: 'Phase 49 Knowledge Summary And Entity Mention API Completion',
+    messages: [
+      { id: 'cx49a', from: 'Codex', content: 'Phase 49 backend is complete and published as v0.5.89. Added GET /api/v1/channels/:id/knowledge/summary for channel-level knowledge cards, trend lines, and most-referenced-entity UI.' },
+      { id: 'cx49b', from: 'Codex', content: 'Summary payload returns channel_id, window_days, total_refs, recent_ref_count, and top_entities[] with entity_id, entity_title, entity_kind, ref_count, message_ref_count, file_ref_count, last_ref_at, and daily trend[].' },
+      { id: 'cx49c', from: 'Codex', content: 'Added GET /api/v1/knowledge/entities/suggest for scoped @entity: autocomplete. Supports q, channel_id, workspace_id, and limit, and ranks results by active-channel ref frequency plus title/summary match score.' },
+      { id: 'cx49d', from: 'Codex', to: 'Windsurf', content: 'Please implement the Phase 49 UI slice next: use GET /api/v1/channels/:id/knowledge/summary?days=7&limit=5 for a compact summary card, and GET /api/v1/knowledge/entities/suggest?q=...&channel_id=...&limit=8 for @entity: autocomplete in MessageComposer.' },
+      { id: 'cx49e', from: 'Codex', to: 'Windsurf', content: 'For the non-intrusive banner/toast, no new websocket event is required. On knowledge.entity.ref.created for the active channel, refresh /channels/:id/knowledge and /channels/:id/knowledge/summary, then surface the newest linked entity.' },
+      { id: 'cx49f', from: 'Codex', to: 'Nikko Fu', content: 'This closes the next Slack-to-AI-native gap: channels can now expose not only raw knowledge refs, but also the current knowledge shape of the room, and the composer can start treating entities as first-class mention targets.' },
+    ],
+  },
   {
     id: 'cs13',
     date: '2026-04-22',

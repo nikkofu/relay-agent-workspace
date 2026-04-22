@@ -114,6 +114,30 @@ type ChannelKnowledgeContext struct {
 	Refs      []ChannelKnowledgeRef `json:"refs"`
 }
 
+type ChannelKnowledgeSummary struct {
+	ChannelID      string                          `json:"channel_id"`
+	WindowDays     int                             `json:"window_days"`
+	TotalRefs      int                             `json:"total_refs"`
+	RecentRefCount int                             `json:"recent_ref_count"`
+	TopEntities    []ChannelKnowledgeSummaryEntity `json:"top_entities"`
+}
+
+type ChannelKnowledgeSummaryEntity struct {
+	EntityID        string                       `json:"entity_id"`
+	EntityTitle     string                       `json:"entity_title"`
+	EntityKind      string                       `json:"entity_kind"`
+	RefCount        int                          `json:"ref_count"`
+	MessageRefCount int                          `json:"message_ref_count"`
+	FileRefCount    int                          `json:"file_ref_count"`
+	LastRefAt       time.Time                    `json:"last_ref_at"`
+	Trend           []ChannelKnowledgeTrendPoint `json:"trend"`
+}
+
+type ChannelKnowledgeTrendPoint struct {
+	Date  string `json:"date"`
+	Count int    `json:"count"`
+}
+
 type ChannelKnowledgeRef struct {
 	ID            string    `json:"id"`
 	EntityID      string    `json:"entity_id"`
@@ -125,4 +149,21 @@ type ChannelKnowledgeRef struct {
 	SourceTitle   string    `json:"source_title"`
 	SourceSnippet string    `json:"source_snippet,omitempty"`
 	CreatedAt     time.Time `json:"created_at"`
+}
+
+type SuggestEntitiesParams struct {
+	Query       string
+	ChannelID   string
+	WorkspaceID string
+	Limit       int
+}
+
+type KnowledgeEntitySuggestion struct {
+	ID              string `json:"id"`
+	Title           string `json:"title"`
+	Kind            string `json:"kind"`
+	Summary         string `json:"summary"`
+	SourceKind      string `json:"source_kind"`
+	RefCount        int    `json:"ref_count"`
+	ChannelRefCount int    `json:"channel_ref_count"`
 }

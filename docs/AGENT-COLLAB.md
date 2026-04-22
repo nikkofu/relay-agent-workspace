@@ -121,7 +121,9 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 47 Knowledge Live Events And Auto-Linking APIs | Codex | 2026-04-22 | Added knowledge WS events, `POST /api/v1/knowledge/events/ingest`, richer graph edge/ref metadata, and deterministic entity auto-linking from messages/files. `v0.5.87` published. |
 | 🟢 Done | Phase 47 Knowledge Live UI Integration | Windsurf | 2026-04-22 | Wired 5 knowledge WS events into `use-websocket` + `knowledge-store` `liveUpdate` bus. Entity list: live flash badge. Entity detail: live-append refs/timeline/links. Event Ingest composer (`POST /api/v1/knowledge/events/ingest`) in Timeline tab. Graph: `graph.edges` with weight bars/direction arrows/role badges; enriched node cards. `KnowledgeGraphEdge` type + enriched `KnowledgeGraphNode`. `v0.5.87` published. |
 | 🟢 Done | Phase 48 Channel Knowledge Context APIs | Codex | 2026-04-22 | Added `GET /api/v1/channels/:id/knowledge` and citation hydration from canonical `KnowledgeEntityRef` message/file associations. `v0.5.88` published. |
-| � Done | Phase 48 Channel Knowledge Context UI | Windsurf | 2026-04-22 | `ChannelKnowledgeRef` type. `knowledge-store`: `fetchChannelKnowledge` + `channelKnowledge/channelKnowledgeId/isLoadingChannelKnowledge`. `ChannelKnowledgePanel`: collapsible 288px right sidebar, refs grouped by `entity_id`, kind icon/badge, `source_snippet`/`ref_kind`/`role` per ref, entity links. Channel header: Knowledge toggle button with ref-count pill. Auto-fetches on channel change. `knowledge.entity.ref.created` WS refreshes panel. `CitationCard` trusts hydrated `entity_id/entity_title`. `v0.5.88` published. |
+| 🟢 Done | Phase 48 Channel Knowledge Context UI | Windsurf | 2026-04-22 | `ChannelKnowledgeRef` type. `knowledge-store`: `fetchChannelKnowledge` + `channelKnowledge/channelKnowledgeId/isLoadingChannelKnowledge`. `ChannelKnowledgePanel`: collapsible 288px right sidebar, refs grouped by `entity_id`, kind icon/badge, `source_snippet`/`ref_kind`/`role` per ref, entity links. Channel header: Knowledge toggle button with ref-count pill. Auto-fetches on channel change. `knowledge.entity.ref.created` WS refreshes panel. `CitationCard` trusts hydrated `entity_id/entity_title`. `v0.5.88` published. |
+| 🟢 Done | Phase 49 Channel Knowledge Summary And Entity Mention APIs | Codex | 2026-04-22 | Added `GET /api/v1/channels/:id/knowledge/summary` and `GET /api/v1/knowledge/entities/suggest` for channel-level entity trends and `@entity:` autocomplete. `v0.5.89` published. |
+| 🟡 Ready | Phase 49 Knowledge Summary And Composer Mention Integration | Windsurf | 2026-04-22 | Use channel summary in the knowledge panel/header, wire `@entity:` autocomplete in `MessageComposer`, and show a lightweight banner/toast on `knowledge.entity.ref.created` for the active channel. |
 
 ---
 
@@ -130,13 +132,25 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
-| **Codex** | `api-architecture` | Phase 48 channel knowledge context API handoff complete | 100% |
+| **Codex** | `api-architecture` | Phase 49 knowledge summary and entity autocomplete API handoff complete | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-ui-agent` | Phase 48 Channel Knowledge Context UI complete (v0.5.88) | 100% |
+| **Windsurf** | `idle` | Phase 49 UI integration queued from Codex handoff | 0% |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-22 - Phase 49 Knowledge Summary And Entity Mention API Completion
+- **Codex**: Phase 49 backend is complete and published as `v0.5.89`.
+- **Codex**: Added `GET /api/v1/channels/:id/knowledge/summary` for channel-level knowledge cards, trend lines, and "most referenced entities" UI.
+- **Codex**: Summary payload returns `channel_id`, `window_days`, `total_refs`, `recent_ref_count`, and `top_entities[]`, where each top entity includes `entity_id`, `entity_title`, `entity_kind`, `ref_count`, `message_ref_count`, `file_ref_count`, `last_ref_at`, and daily `trend[]`.
+- **Codex**: Added `GET /api/v1/knowledge/entities/suggest` for scoped `@entity:` autocomplete. Supports `q`, `channel_id`, `workspace_id`, and `limit`, and ranks results by active-channel ref frequency plus title/summary match score.
+- **Codex → Windsurf**: Please implement the Phase 49 UI slice next:
+  - use `GET /api/v1/channels/:id/knowledge/summary?days=7&limit=5` for a compact summary card in `ChannelKnowledgePanel` or the channel header
+  - use `GET /api/v1/knowledge/entities/suggest?q=...&channel_id=...&limit=8` for `@entity:` autocomplete in `MessageComposer`
+  - when `knowledge.entity.ref.created` fires for the active channel, refresh both `/channels/:id/knowledge` and `/channels/:id/knowledge/summary`, then show a lightweight banner/toast for the newest linked entity
+- **Codex → Windsurf**: No new websocket event is required for the toast. The existing `knowledge.entity.ref.created` envelope is enough if the UI treats it as an invalidation trigger and fetches updated context/summary.
+- **Codex → Nikko Fu**: This closes the next Slack-to-AI-native gap: channels can now expose not only raw knowledge refs, but also the current "knowledge shape" of the room, and the composer can start treating entities as first-class mention targets instead of plain text.
 
 ### 2026-04-22 - Phase 48 Channel Knowledge Context UI Completion
 - **Windsurf**: Phase 48 complete. (1) `ChannelKnowledgeRef` type in `types/index.ts`. (2) `knowledge-store`: `fetchChannelKnowledge` (`GET /api/v1/channels/:id/knowledge`), `channelKnowledge` / `channelKnowledgeId` / `isLoadingChannelKnowledge` state. (3) `ChannelKnowledgePanel` (`components/channel/channel-knowledge-panel.tsx`): 288px collapsible right sidebar — refs grouped by `entity_id`; entity kind icon + badge + title + ref-count; per-ref row: `ref_kind` dot badge, `role` badge, `source_title`, `source_snippet` (truncated 2 lines), `created_at`. `ArrowUpRight` → `/workspace/knowledge/[entity_id]`. Manual `RefreshCw` button. **Browse all entities** footer. (4) `workspace/page.tsx`: **Knowledge** toggle button in channel header; active-highlight when open; ref-count pill shows total refs; panel auto-fetches on `currentChannel` change. Panel renders right of message list inside `flex h-full overflow-hidden`. (5) `use-websocket`: `knowledge.entity.ref.created` now calls `fetchChannelKnowledge` for active channel in addition to the Phase 47 `pushLiveUpdate`. (6) `CitationCard`: already trusts hydrated `entity_id/entity_title` from Phase 46 — no changes needed. `v0.5.88` published.
