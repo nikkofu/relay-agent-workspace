@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Globe, Search, Plus, Loader2, User2, Briefcase, Lightbulb, Building2,
-  FileText, Layout, Tag, Hash, ChevronRight, BookOpen, Zap, Bell,
+  FileText, Layout, Tag, Hash, ChevronRight, BookOpen, Zap, Bell, BellRing,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
@@ -34,7 +34,7 @@ const KIND_OPTIONS = ['person', 'project', 'concept', 'organization', 'file', 'a
 
 export default function KnowledgePage() {
   const router = useRouter()
-  const { entities, isLoading, fetchEntities, createEntity, liveUpdate, fetchFollowedEntities, followedEntityIds, followedEntities } = useKnowledgeStore()
+  const { entities, isLoading, fetchEntities, createEntity, liveUpdate, fetchFollowedEntities, followedEntityIds, followedEntities, spikingEntityIds } = useKnowledgeStore()
   const [q, setQ] = useState("")
   const [filterKind, setFilterKind] = useState("all")
   const [onlyFollowed, setOnlyFollowed] = useState(false)
@@ -104,9 +104,28 @@ export default function KnowledgePage() {
             </Badge>
           )}
         </div>
-        <Button size="sm" className="text-xs font-bold gap-1.5" onClick={() => setShowCreate(true)}>
-          <Plus className="w-3.5 h-3.5" /> New Entity
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className={cn(
+              "text-xs font-bold gap-1.5 h-8",
+              Object.keys(followedEntityIds).length > 0 && "border-purple-500/40 text-purple-600 dark:text-purple-400"
+            )}
+            onClick={() => router.push("/workspace/knowledge/following")}
+          >
+            <BellRing className="w-3.5 h-3.5" />
+            Following
+            {Object.keys(followedEntityIds).length > 0 && (
+              <Badge className="text-[9px] h-4 px-1 ml-0.5 bg-purple-500/10 text-purple-700 border-purple-300">
+                {Object.keys(followedEntityIds).length}
+              </Badge>
+            )}
+          </Button>
+          <Button size="sm" className="text-xs font-bold gap-1.5" onClick={() => setShowCreate(true)}>
+            <Plus className="w-3.5 h-3.5" /> New Entity
+          </Button>
+        </div>
       </header>
 
       {/* Filters */}
@@ -208,7 +227,7 @@ export default function KnowledgePage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <EntityFollowButton entityId={entity.id} variant="chip" />
+                      <EntityFollowButton entityId={entity.id} variant="chip" isSpiking={!!spikingEntityIds[entity.id]} />
                       <ChevronRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
                   </div>

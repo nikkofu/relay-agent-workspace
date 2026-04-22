@@ -11,6 +11,7 @@ import { useFileStore } from '@/stores/file-store'
 import { useKnowledgeStore } from '@/stores/knowledge-store'
 import { useChannelStore } from '@/stores/channel-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
+import { useUserStore } from '@/stores/user-store'
 
 export function useWebsocket() {
   const socketRef = useRef<WebSocket | null>(null)
@@ -140,6 +141,28 @@ export function useWebsocket() {
               payload: link,
               ts: Date.now(),
             })
+          }
+        } else if (data.type === 'knowledge.entity.activity.spiked') {
+          const payload = data.payload || {}
+          const currentUserId = useUserStore.getState().currentUser?.id
+          const userIds: string[] = payload.user_ids || []
+          if (currentUserId && userIds.includes(currentUserId)) {
+            const entity = payload.entity
+            const entityId: string = entity?.id || payload.entity_id
+            const entityTitle: string = entity?.title || payload.entity_title || 'An entity'
+            const delta: number = payload.delta ?? 0
+            if (entityId) useKnowledgeStore.getState().markEntitySpiking(entityId)
+            toast(
+              `⚡ ${entityTitle} is spiking`,
+              {
+                description: delta > 0 ? `+${delta} new references this period` : 'Activity spike detected',
+                duration: 8000,
+                action: entityId ? {
+                  label: 'View',
+                  onClick: () => window.location.href = `/workspace/knowledge/${entityId}`,
+                } : undefined,
+              }
+            )
           }
         } else if (data.type === 'knowledge.digest.published') {
           const payload = data.payload || {}

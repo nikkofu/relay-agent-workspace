@@ -225,12 +225,27 @@ export interface EntityHoverCard {
 
 export type MatchSource = 'knowledge_ref' | 'explicit_mention' | 'title_match'
 
+export type FollowNotificationLevel = 'all' | 'digest_only' | 'silent'
+
 export interface KnowledgeEntityFollow {
   id: string
   workspace_id: string
   entity_id: string
   user_id: string
+  notification_level: FollowNotificationLevel
+  last_alerted_at?: string
   created_at: string
+}
+
+export interface EntitySpikePayload {
+  entity: KnowledgeEntity
+  user_ids: string[]
+  channel_id?: string
+  related_channel_ids?: string[]
+  recent_ref_count: number
+  previous_ref_count: number
+  delta: number
+  occurred_at: string
 }
 
 export interface FollowedEntity {

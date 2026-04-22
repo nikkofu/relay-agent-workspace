@@ -37,7 +37,7 @@ interface EntityMentionChipProps {
 
 export function EntityMentionChip({ mention }: EntityMentionChipProps) {
   const router = useRouter()
-  const { fetchEntityHover } = useKnowledgeStore()
+  const { fetchEntityHover, spikingEntityIds } = useKnowledgeStore()
   const { currentChannel } = useChannelStore()
   const [open, setOpen] = useState(false)
   const [hover, setHover] = useState<EntityHoverCard | null>(null)
@@ -162,7 +162,7 @@ export function EntityMentionChip({ mention }: EntityMentionChipProps) {
 
           {/* Footer actions */}
           <div className="border-t pt-2 flex items-center justify-between gap-2">
-            <EntityFollowButton entityId={mention.entity_id} variant="chip" />
+            <EntityFollowButton entityId={mention.entity_id} variant="chip" isSpiking={!!spikingEntityIds[mention.entity_id]} />
             <div className="flex items-center gap-3">
               <button
                 className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 hover:text-emerald-600 transition-colors"

@@ -23,12 +23,14 @@ import type {
   DigestSchedulePreview,
   FollowedEntity,
   EntityTextMatch,
+  FollowNotificationLevel,
 } from "@/types"
 
 interface KnowledgeState {
   entities: KnowledgeEntity[]
   isLoading: boolean
   liveUpdate: KnowledgeUpdate | null
+  spikingEntityIds: Record<string, boolean>
   channelKnowledge: ChannelKnowledgeRef[]
   channelKnowledgeId: string | null
   isLoadingChannelKnowledge: boolean
@@ -63,6 +65,7 @@ interface KnowledgeState {
   previewDigestSchedule: (channelId: string, input: DigestScheduleInput) => Promise<DigestSchedulePreview | null>
   markInboxRead: (messageIds: string[]) => Promise<void>
   applyDigestPublished: (payload: { channel_id?: string; message?: Message; digest?: ChannelKnowledgeDigest }) => void
+  markEntitySpiking: (entityId: string, ttlMs?: number) => void
   ingestEvent: (data: {
     entity_id: string
     event_type: string
@@ -86,6 +89,7 @@ interface KnowledgeState {
   fetchFollowedEntities: () => Promise<FollowedEntity[]>
   followEntity: (entityId: string) => Promise<boolean>
   unfollowEntity: (entityId: string) => Promise<boolean>
+  updateFollowNotificationLevel: (followId: string, entityId: string, level: FollowNotificationLevel) => Promise<boolean>
   matchEntitiesInText: (workspaceId: string, text: string, limit?: number) => Promise<EntityTextMatch[]>
 }
 
@@ -93,6 +97,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set) => ({
   entities: [],
   isLoading: false,
   liveUpdate: null,
+  spikingEntityIds: {},
   channelKnowledge: [],
   channelKnowledgeId: null,
   isLoadingChannelKnowledge: false,
@@ -583,6 +588,30 @@ export const useKnowledgeStore = create<KnowledgeState>((set) => ({
     }
   },
 
+  updateFollowNotificationLevel: async (followId, entityId, level) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/users/me/knowledge/followed/${followId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notification_level: level }),
+      })
+      if (!res.ok) { toast.error("Failed to update alert preference"); return false }
+      // Optimistically update local follow list
+      set(state => ({
+        followedEntities: state.followedEntities.map(f =>
+          f.entity.id === entityId
+            ? { ...f, follow: { ...f.follow, notification_level: level } }
+            : f
+        ),
+      }))
+      return true
+    } catch (error) {
+      console.error("Failed to update follow notification level:", error)
+      toast.error("Failed to update alert preference")
+      return false
+    }
+  },
+
   unfollowEntity: async (entityId) => {
     try {
       const res = await fetch(`${API_BASE_URL}/knowledge/entities/${entityId}/follow`, {
@@ -604,6 +633,18 @@ export const useKnowledgeStore = create<KnowledgeState>((set) => ({
       toast.error("Failed to unfollow entity")
       return false
     }
+  },
+
+  // ── Phase 57: Spike tracking ─────────────────────────────────────────────
+  markEntitySpiking: (entityId, ttlMs = 5 * 60 * 1000) => {
+    set(state => ({ spikingEntityIds: { ...state.spikingEntityIds, [entityId]: true } }))
+    setTimeout(() => {
+      set(state => {
+        const next = { ...state.spikingEntityIds }
+        delete next[entityId]
+        return { spikingEntityIds: next }
+      })
+    }, ttlMs)
   },
 
   // ── Phase 56: Inbox Detail + Digest Preview ─────────────────────────────

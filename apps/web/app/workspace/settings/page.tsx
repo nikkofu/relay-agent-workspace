@@ -4,7 +4,8 @@ import { useEffect, useState } from "react"
 import { useNotificationStore } from "@/stores/notification-store"
 import { useUserStore } from "@/stores/user-store"
 import { useTheme } from "next-themes"
-import { Bell, Shield, Settings, User, Palette, Sun, Moon, Monitor, Check } from "lucide-react"
+import { Bell, Shield, Settings, User, Palette, Sun, Moon, Monitor, Check, Globe2 } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { API_BASE_URL } from "@/lib/constants"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
@@ -39,6 +40,26 @@ const DENSITY_OPTIONS = [
   { value: "compact", label: "Compact", description: "Tighter spacing, more content visible" },
 ]
 
+const LOCALE_OPTIONS = [
+  { value: "en",    label: "English" },
+  { value: "zh-CN", label: "中文（简体）" },
+  { value: "zh-TW", label: "中文（繁體）" },
+  { value: "ja",    label: "日本語" },
+  { value: "ko",    label: "한국어" },
+  { value: "fr",    label: "Français" },
+  { value: "de",    label: "Deutsch" },
+  { value: "es",    label: "Español" },
+  { value: "pt",    label: "Português" },
+]
+
+const TIMEZONE_OPTIONS = [
+  "UTC", "America/New_York", "America/Chicago", "America/Denver",
+  "America/Los_Angeles", "America/Sao_Paulo", "Europe/London",
+  "Europe/Paris", "Europe/Berlin", "Europe/Moscow",
+  "Asia/Dubai", "Asia/Kolkata", "Asia/Shanghai", "Asia/Singapore",
+  "Asia/Tokyo", "Asia/Seoul", "Australia/Sydney", "Pacific/Auckland",
+]
+
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("profile")
   const { preferences, isLoading: notifLoading, fetchPreferences, updatePreferences } = useNotificationStore()
@@ -46,6 +67,8 @@ export default function SettingsPage() {
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const [density, setDensity] = useState("comfortable")
+  const [locale, setLocale] = useState("en")
+  const [settingsTz, setSettingsTz] = useState("")
   const [isSaving, setIsSaving] = useState(false)
 
   const [profileForm, setProfileForm] = useState({
@@ -73,6 +96,8 @@ export default function SettingsPage() {
             setDensity(s.message_density)
             localStorage.setItem("relay-density", s.message_density)
           }
+          if (s.locale) setLocale(s.locale)
+          if (s.timezone) setSettingsTz(s.timezone)
         }
       } catch {
         const saved = localStorage.getItem("relay-density")
@@ -135,6 +160,18 @@ export default function SettingsPage() {
     localStorage.setItem("relay-density", val)
     patchSettings({ message_density: val })
     toast.success(`Density set to ${val}`)
+  }
+
+  const handleLocaleChange = (val: string) => {
+    setLocale(val)
+    patchSettings({ locale: val })
+    toast.success("Language preference saved")
+  }
+
+  const handleSettingsTzChange = (val: string) => {
+    setSettingsTz(val)
+    patchSettings({ timezone: val })
+    toast.success("Timezone saved")
   }
 
   return (
@@ -235,9 +272,10 @@ export default function SettingsPage() {
                         <Input
                           value={profileForm.timezone}
                           onChange={e => setProfileForm(p => ({ ...p, timezone: e.target.value }))}
-                          placeholder="e.g. UTC+8"
+                          placeholder="e.g. Asia/Shanghai"
                           className="text-xs"
                         />
+                        <p className="text-[10px] text-muted-foreground">Used for working hours display.</p>
                       </div>
                     </div>
 
@@ -281,6 +319,48 @@ export default function SettingsPage() {
                         className="text-xs resize-none"
                         rows={3}
                       />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Locale & Timezone */}
+                <Card className="shadow-none border-border/50">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-bold flex items-center gap-1.5">
+                      <Globe2 className="w-3.5 h-3.5 text-purple-500" />
+                      Language &amp; Timezone
+                    </CardTitle>
+                    <CardDescription className="text-xs">Synced across all your devices.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-bold">Language</Label>
+                        <Select value={locale} onValueChange={handleLocaleChange}>
+                          <SelectTrigger className="text-xs h-9">
+                            <SelectValue placeholder="Select language" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {LOCALE_OPTIONS.map(o => (
+                              <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-bold">Notification Timezone</Label>
+                        <Select value={settingsTz || "UTC"} onValueChange={handleSettingsTzChange}>
+                          <SelectTrigger className="text-xs h-9">
+                            <SelectValue placeholder="Select timezone" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {TIMEZONE_OPTIONS.map(tz => (
+                              <SelectItem key={tz} value={tz} className="text-xs">{tz}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[10px] text-muted-foreground">Used for digest &amp; alert scheduling.</p>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>

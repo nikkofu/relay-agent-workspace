@@ -44,7 +44,7 @@ const EVENT_KIND_COLOR: Record<string, string> = {
 
 function EntityDetailContent({ id }: { id: string }) {
   const router = useRouter()
-  const { fetchEntity, updateEntity, fetchEntityRefs, fetchEntityTimeline, fetchEntityLinks, fetchEntityGraph, ingestEvent, liveUpdate } = useKnowledgeStore()
+  const { fetchEntity, updateEntity, fetchEntityRefs, fetchEntityTimeline, fetchEntityLinks, fetchEntityGraph, ingestEvent, liveUpdate, spikingEntityIds } = useKnowledgeStore()
 
   const [entity, setEntity] = useState<KnowledgeEntity | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -183,7 +183,7 @@ function EntityDetailContent({ id }: { id: string }) {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <EntityFollowButton entityId={entity.id} />
+            <EntityFollowButton entityId={entity.id} isSpiking={!!spikingEntityIds[entity.id]} />
             <Button variant="outline" size="sm" className="text-xs gap-1.5" onClick={() => setIsEditing(!isEditing)}>
               {isEditing ? <X className="w-3.5 h-3.5" /> : <Edit2 className="w-3.5 h-3.5" />}
               {isEditing ? "Cancel" : "Edit"}
