@@ -146,13 +146,11 @@ export type KnowledgeUpdateType =
   | 'event.created'
   | 'link.created'
 
-export interface KnowledgeUpdate {
-  type: KnowledgeUpdateType
-  entityId: string
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  payload: any
-  ts: number
-}
+export type KnowledgeUpdate =
+  | { type: 'entity.created' | 'entity.updated'; entityId: string; payload: KnowledgeEntity; ts: number }
+  | { type: 'ref.created'; entityId: string; payload: KnowledgeEntityRef; ts: number }
+  | { type: 'event.created'; entityId: string; payload: KnowledgeEvent; ts: number }
+  | { type: 'link.created'; entityId: string; payload: KnowledgeEntityLink; ts: number }
 
 export interface FileSearchResult {
   id: string

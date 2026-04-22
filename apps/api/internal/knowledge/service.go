@@ -204,13 +204,43 @@ func attachEntity(database *gorm.DB, citation *Citation, evidenceKind, evidenceR
 	).First(&link).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil
+			return attachEntityFromKnowledgeRef(database, citation, evidenceKind, evidenceRefID, sourceKind, sourceRef)
 		}
 		return err
 	}
 
 	var ref domain.KnowledgeEvidenceEntityRef
 	err = database.Where("evidence_id = ?", link.ID).First(&ref).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil
+		}
+		return err
+	}
+
+	citation.EntityID = ref.EntityID
+	var entity domain.KnowledgeEntity
+	if err := database.First(&entity, "id = ?", ref.EntityID).Error; err == nil {
+		citation.EntityTitle = entity.Title
+	} else if err != gorm.ErrRecordNotFound {
+		return err
+	}
+	return nil
+}
+
+func attachEntityFromKnowledgeRef(database *gorm.DB, citation *Citation, evidenceKind, evidenceRefID, sourceKind, sourceRef string) error {
+	refKinds := []string{evidenceKind}
+	if sourceKind != "" && sourceKind != evidenceKind {
+		refKinds = append(refKinds, sourceKind)
+	}
+
+	refIDs := []string{evidenceRefID}
+	if sourceRef != "" && sourceRef != evidenceRefID {
+		refIDs = append(refIDs, sourceRef)
+	}
+
+	var ref domain.KnowledgeEntityRef
+	err := database.Where("ref_kind IN ? AND ref_id IN ?", refKinds, refIDs).Order("created_at desc").First(&ref).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil
@@ -492,6 +522,125 @@ func ListEntityTimeline(database *gorm.DB, entityID string) ([]domain.KnowledgeE
 		return nil, err
 	}
 	return events, nil
+}
+
+func GetChannelKnowledgeContext(database *gorm.DB, channelID string, limit int) (ChannelKnowledgeContext, error) {
+	channelID = strings.TrimSpace(channelID)
+	context := ChannelKnowledgeContext{ChannelID: channelID, Refs: []ChannelKnowledgeRef{}}
+	if channelID == "" {
+		return context, errors.New("channel_id is required")
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+
+	messageRefs, err := listChannelMessageKnowledgeRefs(database, channelID)
+	if err != nil {
+		return context, err
+	}
+	context.Refs = append(context.Refs, messageRefs...)
+
+	fileRefs, err := listChannelFileKnowledgeRefs(database, channelID)
+	if err != nil {
+		return context, err
+	}
+	context.Refs = append(context.Refs, fileRefs...)
+
+	sort.SliceStable(context.Refs, func(i, j int) bool {
+		if context.Refs[i].CreatedAt.Equal(context.Refs[j].CreatedAt) {
+			return context.Refs[i].ID < context.Refs[j].ID
+		}
+		return context.Refs[i].CreatedAt.After(context.Refs[j].CreatedAt)
+	})
+	if len(context.Refs) > limit {
+		context.Refs = context.Refs[:limit]
+	}
+
+	return context, nil
+}
+
+func listChannelMessageKnowledgeRefs(database *gorm.DB, channelID string) ([]ChannelKnowledgeRef, error) {
+	var refs []domain.KnowledgeEntityRef
+	if err := database.Model(&domain.KnowledgeEntityRef{}).
+		Select("knowledge_entity_refs.*").
+		Joins("JOIN messages ON messages.id = knowledge_entity_refs.ref_id").
+		Where("knowledge_entity_refs.ref_kind = ? AND messages.channel_id = ?", "message", channelID).
+		Order("knowledge_entity_refs.created_at desc").
+		Find(&refs).Error; err != nil {
+		return nil, err
+	}
+
+	results := make([]ChannelKnowledgeRef, 0, len(refs))
+	for _, ref := range refs {
+		item, err := hydrateChannelKnowledgeRef(database, ref)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, item)
+	}
+	return results, nil
+}
+
+func listChannelFileKnowledgeRefs(database *gorm.DB, channelID string) ([]ChannelKnowledgeRef, error) {
+	var refs []domain.KnowledgeEntityRef
+	if err := database.Model(&domain.KnowledgeEntityRef{}).
+		Select("knowledge_entity_refs.*").
+		Joins("JOIN file_assets ON file_assets.id = knowledge_entity_refs.ref_id").
+		Where("knowledge_entity_refs.ref_kind = ? AND file_assets.channel_id = ?", "file", channelID).
+		Order("knowledge_entity_refs.created_at desc").
+		Find(&refs).Error; err != nil {
+		return nil, err
+	}
+
+	results := make([]ChannelKnowledgeRef, 0, len(refs))
+	for _, ref := range refs {
+		item, err := hydrateChannelKnowledgeRef(database, ref)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, item)
+	}
+	return results, nil
+}
+
+func hydrateChannelKnowledgeRef(database *gorm.DB, ref domain.KnowledgeEntityRef) (ChannelKnowledgeRef, error) {
+	item := ChannelKnowledgeRef{
+		ID:        ref.ID,
+		EntityID:  ref.EntityID,
+		RefKind:   ref.RefKind,
+		RefID:     ref.RefID,
+		Role:      ref.Role,
+		CreatedAt: ref.CreatedAt,
+	}
+
+	var entity domain.KnowledgeEntity
+	if err := database.First(&entity, "id = ?", ref.EntityID).Error; err == nil {
+		item.EntityTitle = entity.Title
+		item.EntityKind = entity.Kind
+	} else if err != gorm.ErrRecordNotFound {
+		return item, err
+	}
+
+	switch ref.RefKind {
+	case "message":
+		var message domain.Message
+		if err := database.First(&message, "id = ?", ref.RefID).Error; err == nil {
+			item.SourceTitle = firstLine(message.Content)
+			item.SourceSnippet = bestSnippet(message.Content, item.EntityTitle)
+		} else if err != gorm.ErrRecordNotFound {
+			return item, err
+		}
+	case "file":
+		var file domain.FileAsset
+		if err := database.First(&file, "id = ?", ref.RefID).Error; err == nil {
+			item.SourceTitle = file.Name
+			item.SourceSnippet = file.Summary
+		} else if err != gorm.ErrRecordNotFound {
+			return item, err
+		}
+	}
+
+	return item, nil
 }
 
 func BuildEntityGraph(database *gorm.DB, entityID string) (EntityGraph, error) {

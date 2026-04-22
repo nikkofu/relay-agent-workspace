@@ -3745,6 +3745,48 @@ func TestKnowledgeEntityGraphEndpoint(t *testing.T) {
 	}
 }
 
+func TestGetChannelKnowledgeContextReturnsRecentRefs(t *testing.T) {
+	setupTestDB(t)
+	now := time.Now().UTC()
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	db.DB.Create(&domain.Message{ID: "msg-1", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program is ready", CreatedAt: now.Add(-2 * time.Minute)})
+	db.DB.Create(&domain.FileAsset{ID: "file-1", ChannelID: "ch-1", UploaderID: "user-1", Name: "launch-plan.md", StoragePath: "launch-plan.md", ContentType: "text/markdown", CreatedAt: now.Add(-time.Minute), UpdatedAt: now.Add(-time.Minute)})
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Status: "active", SourceKind: "manual", CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.KnowledgeEntityRef{ID: "kref-msg", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-1", Role: "discussion", CreatedAt: now.Add(-30 * time.Second)})
+	db.DB.Create(&domain.KnowledgeEntityRef{ID: "kref-file", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "file", RefID: "file-1", Role: "evidence", CreatedAt: now})
+
+	router := gin.New()
+	router.GET("/api/v1/channels/:id/knowledge", GetChannelKnowledgeContext)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/channels/ch-1/knowledge", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on channel knowledge context, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Context struct {
+			ChannelID string `json:"channel_id"`
+			Refs      []struct {
+				RefID       string `json:"ref_id"`
+				RefKind     string `json:"ref_kind"`
+				EntityTitle string `json:"entity_title"`
+				SourceTitle string `json:"source_title"`
+			} `json:"refs"`
+		} `json:"context"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode channel knowledge context: %v", err)
+	}
+	if payload.Context.ChannelID != "ch-1" || len(payload.Context.Refs) != 2 {
+		t.Fatalf("expected two channel knowledge refs, got %#v", payload.Context)
+	}
+	if payload.Context.Refs[0].RefKind != "file" || payload.Context.Refs[0].EntityTitle != "Launch Program" || payload.Context.Refs[0].SourceTitle != "launch-plan.md" {
+		t.Fatalf("expected newest file ref with hydrated entity/source title first, got %#v", payload.Context.Refs)
+	}
+}
+
 type knowledgeGraphNodePayload struct {
 	Kind    string `json:"kind"`
 	RefKind string `json:"ref_kind"`

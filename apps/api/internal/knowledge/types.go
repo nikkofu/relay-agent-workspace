@@ -1,5 +1,9 @@
 package knowledge
 
+import (
+	"time"
+)
+
 type Citation struct {
 	ID           string  `json:"id"`
 	EvidenceKind string  `json:"evidence_kind"`
@@ -103,4 +107,22 @@ type GraphEdge struct {
 type EntityGraph struct {
 	Nodes []GraphNode `json:"nodes"`
 	Edges []GraphEdge `json:"edges"`
+}
+
+type ChannelKnowledgeContext struct {
+	ChannelID string                `json:"channel_id"`
+	Refs      []ChannelKnowledgeRef `json:"refs"`
+}
+
+type ChannelKnowledgeRef struct {
+	ID            string    `json:"id"`
+	EntityID      string    `json:"entity_id"`
+	EntityTitle   string    `json:"entity_title"`
+	EntityKind    string    `json:"entity_kind"`
+	RefKind       string    `json:"ref_kind"`
+	RefID         string    `json:"ref_id"`
+	Role          string    `json:"role"`
+	SourceTitle   string    `json:"source_title"`
+	SourceSnippet string    `json:"source_snippet,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
 }

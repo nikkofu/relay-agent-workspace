@@ -112,9 +112,9 @@ export const MEMBERS: Member[] = [
 
 export const ACTIVE_SUPERPOWERS: AgentPower[] = [
   { agent: 'Gemini', skill: 'idle', task: 'Resting after Phase 38 handoff', progress: 100, status: 'done' },
-  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 47 Knowledge Live Events API handoff complete', progress: 100, status: 'done' },
+  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 48 Channel Knowledge Context API handoff complete', progress: 100, status: 'done' },
   { agent: 'Claude Code', skill: 'idle', task: '-', progress: 0, status: 'idle' },
-  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 47 Knowledge Live UI Integration complete (v0.5.87)', progress: 100, status: 'done' },
+  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Ready for Phase 48 Channel Knowledge Context UI', progress: 0, status: 'idle' },
 ]
 
 // ─── Full Task Board ──────────────────────────────────────────────────────────
@@ -220,11 +220,25 @@ export const TASKS: Task[] = [
   { id: 't98', phase: 98, status: 'done',  task: 'Phase 46 Knowledge Entity Wiki Integration',         assignedTo: ['Windsurf'],        deadline: '2026-04-21', description: 'Built /workspace/knowledge (entity list: search, kind filter pills, entity cards) and /workspace/knowledge/[id] (detail: Overview/Refs/Timeline/Graph tabs, inline edit). knowledge-store with full entity/refs/timeline/links/graph API. KnowledgeEntity + related types in types/index.ts. CitationCard entity_id badge now links to entity detail. Knowledge nav item (Globe). layout.tsx Suspense wrappers for cacheComponents dynamic route compat. v0.5.86 published.', type: 'frontend' },
   { id: 't99', phase: 99, status: 'done',  task: 'Phase 47 Knowledge Live Events And Auto-Linking APIs', assignedTo: ['Codex'],          deadline: '2026-04-22', description: 'Added knowledge websocket events, POST /api/v1/knowledge/events/ingest, richer graph edge/ref metadata, and deterministic entity auto-linking from messages/files. v0.5.87 published.', type: 'api' },
   { id: 't100', phase: 100, status: 'done',  task: 'Phase 47 Knowledge Live UI Integration',           assignedTo: ['Windsurf'],        deadline: '2026-04-22', description: 'Wired 5 knowledge WS events (entity.created/updated, entity.ref.created, event.created, link.created) into use-websocket + knowledge-store liveUpdate bus. Entity list live flash badge. Entity detail liveUpdate subscription appends refs/timeline/links live. Event Ingest composer (POST /api/v1/knowledge/events/ingest). Graph tab: graph.edges with weight bars, direction arrows, role badges; KnowledgeGraphNode extended with role/source_kind/ref_kind/ref_id/weight; KnowledgeGraphEdge type added. v0.5.87 published.', type: 'frontend' },
+  { id: 't101', phase: 101, status: 'done',  task: 'Phase 48 Channel Knowledge Context APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added GET /api/v1/channels/:id/knowledge for active-channel knowledge banners/sidebars and hydrated citation lookup from KnowledgeEntityRef message/file associations. v0.5.88 published.', type: 'api' },
+  { id: 't102', phase: 102, status: 'ready', task: 'Phase 48 Channel Knowledge Context UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'Build channel knowledge banner or right-panel section from GET /api/v1/channels/:id/knowledge; refresh on knowledge.entity.ref.created; trust hydrated entity links in CitationCard.', type: 'frontend' },
 ]
 
 // ─── Communication Log ────────────────────────────────────────────────────────
 
 export const COMM_SECTIONS: CommSection[] = [
+  {
+    id: 'cs13',
+    date: '2026-04-22',
+    title: 'Phase 48 Channel Knowledge Context API Completion',
+    messages: [
+      { id: 'cx48a', from: 'Codex', content: 'Phase 48 backend is complete and published as v0.5.88. Added GET /api/v1/channels/:id/knowledge for active-channel knowledge banners and right-side context panels.' },
+      { id: 'cx48b', from: 'Codex', content: 'Channel knowledge context returns newest message/file refs with entity_id, entity_title, entity_kind, ref_kind, ref_id, role, source_title, source_snippet, and created_at.' },
+      { id: 'cx48c', from: 'Codex', content: 'GET /api/v1/citations/lookup now hydrates entity_id/entity_title from canonical KnowledgeEntityRef rows, so auto-linked messages/files appear as entity-aware citation cards.' },
+      { id: 'cx48d', from: 'Codex', to: 'Windsurf', content: 'Please implement the Phase 48 UI slice next: add a channel knowledge banner or right-panel section from GET /api/v1/channels/:id/knowledge; refresh it when knowledge.entity.ref.created fires for the active channel; make CitationCard trust hydrated entity_id/entity_title and link to /workspace/knowledge/[entity_id].' },
+      { id: 'cx48e', from: 'Codex', to: 'Nikko Fu', content: 'This connects Slack-like active channels with AI-native knowledge. Mentions in messages/files can now surface as contextual knowledge objects instead of staying buried in history.' },
+    ],
+  },
   {
     id: 'cs12',
     date: '2026-04-22',

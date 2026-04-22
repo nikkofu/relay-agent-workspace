@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -195,6 +196,15 @@ func GetKnowledgeEntityGraph(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"graph": graph})
 }
 
+func GetChannelKnowledgeContext(c *gin.Context) {
+	context, err := knowledge.GetChannelKnowledgeContext(db.DB, c.Param("id"), parseLimit(c.Query("limit"), 20))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to load channel knowledge context"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"context": context})
+}
+
 func handleKnowledgeError(c *gin.Context, err error, fallback string) {
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "knowledge entity not found"})
@@ -209,6 +219,17 @@ func handleKnowledgeNotFound(c *gin.Context, err error, message string) {
 		return
 	}
 	c.JSON(http.StatusInternalServerError, gin.H{"error": message})
+}
+
+func parseLimit(raw string, fallback int) int {
+	limit, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || limit <= 0 {
+		return fallback
+	}
+	if limit > 100 {
+		return 100
+	}
+	return limit
 }
 
 func autoLinkKnowledgeForMessage(message domain.Message) {

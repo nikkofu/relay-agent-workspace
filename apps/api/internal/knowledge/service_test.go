@@ -51,6 +51,23 @@ func TestLookupAttachesEntityFieldsWhenEvidenceIsLinked(t *testing.T) {
 	}
 }
 
+func TestLookupHydratesEntityFromKnowledgeEntityRef(t *testing.T) {
+	database := setupKnowledgeTestDB(t)
+	now := time.Now().UTC()
+
+	database.Create(&domain.Message{ID: "msg-1", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program needs review", CreatedAt: now})
+	database.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Status: "active", CreatedAt: now, UpdatedAt: now})
+	database.Create(&domain.KnowledgeEntityRef{ID: "kref-1", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-1", Role: "discussion", CreatedAt: now})
+
+	results, err := Lookup(database, LookupParams{Query: "launch"})
+	if err != nil {
+		t.Fatalf("lookup failed: %v", err)
+	}
+	if len(results) == 0 || results[0].EntityID != "entity-1" || results[0].EntityTitle != "Launch Program" {
+		t.Fatalf("expected entity binding from knowledge entity ref, got %#v", results)
+	}
+}
+
 func TestCreateKnowledgeEntityDefaults(t *testing.T) {
 	database := setupKnowledgeTestDB(t)
 

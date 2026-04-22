@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.5.87` is the current release line and includes:
+`v0.5.88` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -47,6 +47,8 @@ For product, design, and marketing, the short version is:
 - realtime knowledge entity/wiki websocket events for live entity, ref, event, and link refresh
 - live knowledge event ingestion via `POST /api/v1/knowledge/events/ingest`
 - deterministic knowledge entity auto-linking from newly created messages and uploaded files
+- channel-scoped knowledge context via `GET /api/v1/channels/:id/knowledge`
+- citation lookup entity hydration from canonical `KnowledgeEntityRef` message/file associations
 - richer knowledge graph payloads with edge weight, direction, role, and typed reference-node metadata
 - real extraction support for `txt`, `md`, `pdf`, `docx`, `xlsx`, and `pptx`
 - OCR provider abstraction for image files with a mock OCR implementation
@@ -133,6 +135,7 @@ For product, design, and marketing, the short version is:
 - Unified citation lookup API:
   - `GET /api/v1/citations/lookup?q=...`
 - Knowledge entity/wiki APIs:
+  - `GET /api/v1/channels/:id/knowledge`
   - `GET /api/v1/knowledge/entities`
   - `POST /api/v1/knowledge/entities`
   - `GET /api/v1/knowledge/entities/:id`

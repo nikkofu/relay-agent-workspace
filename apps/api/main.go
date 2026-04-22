@@ -117,6 +117,7 @@ func main() {
 		v1.POST("/channels/:id/leave", handlers.LeaveChannel)
 		v1.PATCH("/channels/:id", handlers.UpdateChannel)
 		v1.POST("/channels/:id/star", handlers.ToggleChannelStar)
+		v1.GET("/channels/:id/knowledge", handlers.GetChannelKnowledgeContext)
 		v1.GET("/channels/:id/summary", handlers.GetChannelSummary)
 		v1.POST("/channels/:id/summary", handlers.GenerateChannelSummary)
 		v1.GET("/dms", handlers.GetDMConversations)

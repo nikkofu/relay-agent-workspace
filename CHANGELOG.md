@@ -2,6 +2,42 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.88] - 2026-04-22
+
+This release implements Phase 48: Channel Knowledge Context. Relay now exposes channel-scoped knowledge refs for active-channel banners/sidebars and hydrates citation search results from the canonical `KnowledgeEntityRef` table created by message/file auto-linking.
+
+### Added
+
+- **Channel Knowledge Context API**:
+  - `GET /api/v1/channels/:id/knowledge`
+  - Response shape: `{ "context": { "channel_id": string, "refs": [...] } }`
+  - Ref payload fields include `entity_id`, `entity_title`, `entity_kind`, `ref_kind`, `ref_id`, `role`, `source_title`, `source_snippet`, and `created_at`.
+
+### Changed
+
+- **Citation Entity Hydration**:
+  - `GET /api/v1/citations/lookup` now hydrates `entity_id` and `entity_title` from `KnowledgeEntityRef` when direct message/file refs exist.
+  - This means auto-linked messages and files become entity-aware in citation/search results without needing separate evidence-link rows.
+- **Knowledge Context Service**:
+  - Added channel aggregation for message and file refs, sorted by newest association first with `limit` support.
+
+### Windsurf Handoff
+
+- Use `GET /api/v1/channels/:id/knowledge` for the Phase 48 channel banner or right-side knowledge context panel.
+- On `knowledge.entity.ref.created`, if the event belongs to the active channel, refresh this endpoint and show the newly linked entity/ref.
+- Citation search cards can now rely on hydrated `entity_id/entity_title` from auto-linked `KnowledgeEntityRef` data.
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./internal/knowledge -run TestLookupHydratesEntityFromKnowledgeEntityRef -count=1`
+- `cd apps/api && go test ./internal/handlers -run TestGetChannelKnowledgeContextReturnsRecentRefs -count=1`
+- `cd apps/api && go test ./internal/knowledge`
+- `cd apps/api && go test ./internal/handlers`
+- `cd apps/api && go test ./...`
+- `cd apps/api && go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+- `pnpm --filter relay-agent-workspace exec tsc --noEmit`
+
 ## [0.5.87] - 2026-04-22
 
 This release implements Phase 47: Knowledge Live Events and Auto-Linking. Relay's wiki layer now updates in real time, accepts external/live business events, exposes richer graph metadata, and automatically links newly created messages/files to mentioned knowledge entities.
