@@ -16,6 +16,7 @@ import (
 	"github.com/nikkofu/relay-agent-workspace/api/internal/domain"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/ids"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/knowledge"
+	"github.com/nikkofu/relay-agent-workspace/api/internal/llm"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/realtime"
 )
 
@@ -322,6 +323,7 @@ func FollowKnowledgeEntity(c *gin.Context) {
 		handleKnowledgeNotFound(c, err, "knowledge entity not found")
 		return
 	}
+	_ = emitFollowedStatsChanged(currentUser.ID, follow.WorkspaceID)
 	c.JSON(http.StatusOK, gin.H{"follow": follow, "is_following": true})
 }
 
@@ -349,6 +351,7 @@ func PatchMyKnowledgeFollow(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	_ = emitFollowedStatsChanged(currentUser.ID, follow.WorkspaceID)
 	c.JSON(http.StatusOK, gin.H{"follow": follow, "is_following": true})
 }
 
@@ -373,6 +376,13 @@ func PatchMyKnowledgeFollowsBulk(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	workspaceIDs := map[string]struct{}{}
+	for _, follow := range items {
+		workspaceIDs[follow.WorkspaceID] = struct{}{}
+	}
+	for workspaceID := range workspaceIDs {
+		_ = emitFollowedStatsChanged(currentUser.ID, workspaceID)
+	}
 	c.JSON(http.StatusOK, gin.H{"items": items})
 }
 
@@ -387,6 +397,7 @@ func UnfollowKnowledgeEntity(c *gin.Context) {
 		handleKnowledgeNotFound(c, err, "knowledge entity not found")
 		return
 	}
+	_ = emitFollowedStatsChanged(currentUser.ID, "")
 	c.JSON(http.StatusOK, gin.H{"entity_id": c.Param("id"), "is_following": false})
 }
 
@@ -397,6 +408,213 @@ func ShareKnowledgeEntity(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"share": share})
+}
+
+func GenerateKnowledgeEntityBrief(c *gin.Context) {
+	if AIGateway == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ai gateway is not configured"})
+		return
+	}
+	var input struct {
+		Provider string `json:"provider"`
+		Model    string `json:"model"`
+		Force    bool   `json:"force"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	scopeID := c.Param("id")
+	if !input.Force {
+		if summary, err := getStoredSummary("knowledge_entity", scopeID); err == nil {
+			c.JSON(http.StatusOK, gin.H{"brief": knowledge.EntityBrief{
+				EntityID:    scopeID,
+				Content:     summary.Content,
+				Reasoning:   summary.Reasoning,
+				Provider:    summary.Provider,
+				Model:       summary.Model,
+				GeneratedAt: summary.UpdatedAt,
+				Cached:      true,
+			}})
+			return
+		}
+	}
+
+	entity, refs, events, prompt, err := knowledge.BuildEntityBriefPrompt(db.DB, scopeID)
+	if err != nil {
+		handleKnowledgeNotFound(c, err, "knowledge entity not found")
+		return
+	}
+	session, err := AIGateway.Stream(c.Request.Context(), llm.Request{
+		Prompt:    prompt,
+		ChannelID: entity.WorkspaceID,
+		Provider:  input.Provider,
+		Model:     input.Model,
+	})
+	if err != nil {
+		handleSummaryGenerationError(c, err)
+		return
+	}
+	content, reasoning, err := collectStreamOutput(c.Request.Context(), session)
+	if err != nil {
+		handleSummaryGenerationError(c, err)
+		return
+	}
+
+	now := time.Now().UTC()
+	var lastRefAt *time.Time
+	for _, ref := range refs {
+		if lastRefAt == nil || ref.CreatedAt.After(*lastRefAt) {
+			ts := ref.CreatedAt
+			lastRefAt = &ts
+		}
+	}
+	summary := domain.AISummary{
+		ScopeType:     "knowledge_entity",
+		ScopeID:       entity.ID,
+		ChannelID:     entity.WorkspaceID,
+		Provider:      session.Provider,
+		Model:         session.Model,
+		Content:       strings.TrimSpace(content),
+		Reasoning:     strings.TrimSpace(reasoning),
+		MessageCount:  len(refs),
+		LastMessageAt: lastRefAt,
+		UpdatedAt:     now,
+	}
+	if err := db.DB.Where("scope_type = ? AND scope_id = ?", summary.ScopeType, summary.ScopeID).Assign(summary).FirstOrCreate(&summary).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to persist entity brief"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"brief": knowledge.EntityBrief{
+		EntityID:    entity.ID,
+		WorkspaceID: entity.WorkspaceID,
+		Title:       entity.Title,
+		Content:     summary.Content,
+		Reasoning:   summary.Reasoning,
+		Provider:    summary.Provider,
+		Model:       summary.Model,
+		GeneratedAt: now,
+		RefCount:    len(refs),
+		EventCount:  len(events),
+		LastRefAt:   lastRefAt,
+		Cached:      false,
+	}})
+}
+
+func GenerateMyKnowledgeWeeklyBrief(c *gin.Context) {
+	if AIGateway == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ai gateway is not configured"})
+		return
+	}
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+	var input struct {
+		WorkspaceID string `json:"workspace_id"`
+		Provider    string `json:"provider"`
+		Model       string `json:"model"`
+		Force       bool   `json:"force"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	workspaceID := strings.TrimSpace(input.WorkspaceID)
+	if workspaceID == "" {
+		workspaceID = "ws-1"
+	}
+	scopeID := currentUser.ID + ":" + workspaceID + ":weekly"
+	if !input.Force {
+		if summary, err := getStoredSummary("knowledge_weekly", scopeID); err == nil {
+			c.JSON(http.StatusOK, gin.H{"brief": knowledge.WeeklyBrief{
+				UserID:      currentUser.ID,
+				WorkspaceID: workspaceID,
+				Content:     summary.Content,
+				Reasoning:   summary.Reasoning,
+				Provider:    summary.Provider,
+				Model:       summary.Model,
+				GeneratedAt: summary.UpdatedAt,
+				Cached:      true,
+			}})
+			return
+		}
+	}
+	now := time.Now().UTC()
+	stats, followed, trending, prompt, err := knowledge.BuildWeeklyBriefPrompt(db.DB, currentUser.ID, workspaceID, now)
+	if err != nil {
+		handleKnowledgeError(c, err, "failed to build weekly brief")
+		return
+	}
+	session, err := AIGateway.Stream(c.Request.Context(), llm.Request{
+		Prompt:    prompt,
+		ChannelID: workspaceID,
+		Provider:  input.Provider,
+		Model:     input.Model,
+	})
+	if err != nil {
+		handleSummaryGenerationError(c, err)
+		return
+	}
+	content, reasoning, err := collectStreamOutput(c.Request.Context(), session)
+	if err != nil {
+		handleSummaryGenerationError(c, err)
+		return
+	}
+	summary := domain.AISummary{
+		ScopeType:    "knowledge_weekly",
+		ScopeID:      scopeID,
+		ChannelID:    workspaceID,
+		Provider:     session.Provider,
+		Model:        session.Model,
+		Content:      strings.TrimSpace(content),
+		Reasoning:    strings.TrimSpace(reasoning),
+		MessageCount: len(followed),
+		UpdatedAt:    now,
+	}
+	if err := db.DB.Where("scope_type = ? AND scope_id = ?", summary.ScopeType, summary.ScopeID).Assign(summary).FirstOrCreate(&summary).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to persist weekly brief"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"brief": knowledge.WeeklyBrief{
+		UserID:      currentUser.ID,
+		WorkspaceID: workspaceID,
+		Content:     summary.Content,
+		Reasoning:   summary.Reasoning,
+		Provider:    summary.Provider,
+		Model:       summary.Model,
+		GeneratedAt: now,
+		Stats:       stats,
+		Trending:    trending,
+		Followed:    followed,
+		Cached:      false,
+	}})
+}
+
+func GetKnowledgeEntityActivityBackfillStatus(c *gin.Context) {
+	status, err := knowledge.GetEntityActivityBackfillStatus(db.DB, c.Param("id"))
+	if err != nil {
+		handleKnowledgeNotFound(c, err, "knowledge entity not found")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": status})
+}
+
+func BackfillKnowledgeEntityActivity(c *gin.Context) {
+	status, refs, err := knowledge.BackfillEntityActivity(db.DB, c.Param("id"))
+	if err != nil {
+		handleKnowledgeNotFound(c, err, "knowledge entity not found")
+		return
+	}
+	for _, ref := range refs {
+		_ = broadcastKnowledgeEvent("knowledge.entity.ref.created", ref.WorkspaceID, "", ref.EntityID, gin.H{"ref": ref, "backfilled": true})
+	}
+	if status.CreatedRefCount > 0 {
+		_ = emitKnowledgeTrendingChanged(status.WorkspaceID)
+	}
+	c.JSON(http.StatusOK, gin.H{"status": status, "created_refs": refs})
 }
 
 func GetWorkspaceSettings(c *gin.Context) {
@@ -948,6 +1166,28 @@ func emitKnowledgeTrendingChanged(workspaceID string) error {
 		"workspace_id": workspaceID,
 		"days":         7,
 		"items":        items,
+	})
+}
+
+func emitFollowedStatsChanged(userID, workspaceID string) error {
+	if RealtimeHub == nil || strings.TrimSpace(userID) == "" {
+		return nil
+	}
+	stats, err := knowledge.GetFollowedEntityStats(db.DB, userID, time.Now().UTC())
+	if err != nil {
+		return err
+	}
+	return RealtimeHub.Broadcast(realtime.Event{
+		ID:          ids.NewPrefixedUUID("evt"),
+		Type:        "knowledge.followed.stats.changed",
+		WorkspaceID: workspaceID,
+		EntityID:    userID,
+		TS:          time.Now().UTC().Format(time.RFC3339Nano),
+		Payload: gin.H{
+			"user_id":      userID,
+			"workspace_id": workspaceID,
+			"stats":        stats,
+		},
 	})
 }
 

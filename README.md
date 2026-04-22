@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.6.6` is the current release line and includes:
+`v0.6.8` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -73,6 +73,11 @@ For product, design, and marketing, the short version is:
 - workspace trending knowledge entities via `GET /api/v1/knowledge/trending`
 - realtime trending rerank broadcasts via websocket `knowledge.trending.changed`
 - entity deeplink sharing via `POST /api/v1/knowledge/entities/:id/share`
+- AI-generated knowledge entity briefs via `POST /api/v1/knowledge/entities/:id/brief`
+- per-user followed knowledge weekly briefs via `POST /api/v1/knowledge/weekly-brief`
+- historical knowledge activity backfill status and execution via `GET /api/v1/knowledge/entities/:id/activity/backfill-status` and `POST /api/v1/knowledge/entities/:id/activity/backfill`
+- realtime followed-stats deltas via websocket `knowledge.followed.stats.changed`
+- reconnect-friendly bulk presence hydration via `GET /api/v1/presence/bulk`
 - realtime entity spike alerts via websocket `knowledge.entity.activity.spiked`
 - knowledge summary velocity/anomaly fields for channel-header trend badges
 - citation lookup entity hydration from canonical `KnowledgeEntityRef` message/file associations
@@ -188,7 +193,10 @@ For product, design, and marketing, the short version is:
   - `POST /api/v1/knowledge/entities`
   - `GET /api/v1/knowledge/entities/:id`
   - `GET /api/v1/knowledge/entities/:id/activity`
+  - `GET /api/v1/knowledge/entities/:id/activity/backfill-status`
+  - `POST /api/v1/knowledge/entities/:id/activity/backfill`
   - `GET /api/v1/knowledge/entities/:id/hover`
+  - `POST /api/v1/knowledge/entities/:id/brief`
   - `POST /api/v1/knowledge/entities/:id/share`
   - `POST /api/v1/knowledge/entities/:id/follow`
   - `DELETE /api/v1/knowledge/entities/:id/follow`
@@ -200,6 +208,7 @@ For product, design, and marketing, the short version is:
   - `GET /api/v1/knowledge/entities/:id/links`
   - `POST /api/v1/knowledge/links`
   - `POST /api/v1/knowledge/events/ingest`
+  - `POST /api/v1/knowledge/weekly-brief`
   - `GET /api/v1/knowledge/entities/:id/graph`
 - Message metadata enrichment:
   - `message.metadata.entity_mentions`
@@ -215,6 +224,7 @@ For product, design, and marketing, the short version is:
   - `knowledge.digest.published`
   - `knowledge.entity.activity.spiked`
   - `knowledge.trending.changed`
+  - `knowledge.followed.stats.changed`
 - Channel notification preferences and self-service leave-channel API
 - Structured workspace list APIs for shared checklists and operational tracking
 - Artifact template APIs and virtual `new-doc` bootstrap support for canvas-first creation

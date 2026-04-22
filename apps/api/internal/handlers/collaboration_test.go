@@ -4608,9 +4608,9 @@ func TestPhase59KnowledgeOpsEndpoints(t *testing.T) {
 	}
 	var settingsPayload struct {
 		Settings struct {
-			WorkspaceID           string `json:"workspace_id"`
-			SpikeThreshold        int    `json:"spike_threshold"`
-			SpikeCooldownMinutes  int    `json:"spike_cooldown_minutes"`
+			WorkspaceID          string `json:"workspace_id"`
+			SpikeThreshold       int    `json:"spike_threshold"`
+			SpikeCooldownMinutes int    `json:"spike_cooldown_minutes"`
 		} `json:"settings"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &settingsPayload); err != nil {
@@ -4714,6 +4714,8 @@ func TestPhase60KnowledgeShareStatsAndTrendingRealtime(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200 follow entity-2, got %d body=%s", rec.Code, rec.Body.String())
 	}
+	assertRealtimeEventType(t, client, "knowledge.followed.stats.changed")
+	assertRealtimeEventType(t, client, "knowledge.followed.stats.changed")
 
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/users/me/knowledge/followed/stats", nil)
@@ -4785,6 +4787,153 @@ func TestPhase60KnowledgeShareStatsAndTrendingRealtime(t *testing.T) {
 	items, ok := payload["items"].([]any)
 	if !ok || len(items) == 0 {
 		t.Fatalf("expected trending items payload, got %#v", payload)
+	}
+}
+
+func TestPhase61KnowledgeBriefBackfillStatsRealtimeAndPresenceBulk(t *testing.T) {
+	setupTestDB(t)
+	now := time.Now().UTC()
+
+	hub := realtime.NewHub()
+	go hub.Run()
+	SetRealtimeHub(hub)
+	defer SetRealtimeHub(nil)
+	AIGateway = stubGateway{}
+	defer SetAIGateway(nil)
+
+	client := realtime.NewTestClient(8)
+	hub.RegisterTestClient(client)
+	defer hub.UnregisterTestClient(client)
+
+	expiresAt := now.Add(2 * time.Minute)
+	db.DB.Create(&domain.User{ID: "user-1", OrganizationID: "org-1", Name: "Nikko Fu", Email: "nikko@example.com", Status: "online", LastSeenAt: &now, PresenceExpiresAt: &expiresAt})
+	db.DB.Create(&domain.User{ID: "user-2", OrganizationID: "org-1", Name: "Windsurf", Email: "windsurf@example.com", Status: "away", LastSeenAt: &now})
+	db.DB.Create(&domain.Workspace{ID: "ws-1", OrganizationID: "org-1", Name: "Relay", KnowledgeSpikeThreshold: 3, KnowledgeSpikeCooldownMins: 360})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	db.DB.Create(&domain.ChannelMember{ChannelID: "ch-1", UserID: "user-1"})
+	db.DB.Create(&domain.ChannelMember{ChannelID: "ch-1", UserID: "user-2"})
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Summary: "AI-native launch workspace", Status: "active", CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-2", WorkspaceID: "ws-1", Kind: "concept", Title: "Agent Mesh", Status: "active", CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.Message{ID: "msg-1", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program kickoff has clear owners", CreatedAt: now.Add(-2 * time.Hour)})
+	db.DB.Create(&domain.Message{ID: "msg-2", ChannelID: "ch-1", UserID: "user-2", Content: "Agent Mesh depends on Launch Program docs", CreatedAt: now.Add(-90 * time.Minute)})
+	db.DB.Create(&domain.KnowledgeEntityRef{ID: "kref-1", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-1", Role: "discussion", CreatedAt: now.Add(-2 * time.Hour)})
+	db.DB.Create(&domain.KnowledgeEntityFollow{ID: "follow-1", WorkspaceID: "ws-1", EntityID: "entity-1", UserID: "user-1", NotificationLevel: "all", CreatedAt: now.Add(-2 * time.Hour)})
+
+	router := gin.New()
+	router.GET("/api/v1/presence/bulk", GetPresenceBulk)
+	router.POST("/api/v1/knowledge/entities/:id/brief", GenerateKnowledgeEntityBrief)
+	router.POST("/api/v1/knowledge/weekly-brief", GenerateMyKnowledgeWeeklyBrief)
+	router.GET("/api/v1/knowledge/entities/:id/activity/backfill-status", GetKnowledgeEntityActivityBackfillStatus)
+	router.POST("/api/v1/knowledge/entities/:id/activity/backfill", BackfillKnowledgeEntityActivity)
+	router.POST("/api/v1/knowledge/entities/:id/follow", FollowKnowledgeEntity)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/presence/bulk?channel_id=ch-1", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 presence bulk, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var presencePayload struct {
+		Users []domain.User `json:"users"`
+		Bulk  struct {
+			OnlineCount  int `json:"online_count"`
+			OfflineCount int `json:"offline_count"`
+		} `json:"bulk"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &presencePayload); err != nil {
+		t.Fatalf("decode presence bulk payload: %v", err)
+	}
+	if len(presencePayload.Users) != 2 || presencePayload.Bulk.OnlineCount != 1 || presencePayload.Bulk.OfflineCount != 1 {
+		t.Fatalf("unexpected presence bulk payload: %#v", presencePayload)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/entities/entity-1/brief", strings.NewReader(`{"force":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 entity brief, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var briefPayload struct {
+		Brief struct {
+			EntityID string `json:"entity_id"`
+			Content  string `json:"content"`
+			Provider string `json:"provider"`
+			Model    string `json:"model"`
+		} `json:"brief"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &briefPayload); err != nil {
+		t.Fatalf("decode entity brief payload: %v", err)
+	}
+	if briefPayload.Brief.EntityID != "entity-1" || !strings.Contains(briefPayload.Brief.Content, "Done.") || briefPayload.Brief.Provider != "stub" {
+		t.Fatalf("unexpected entity brief payload: %#v", briefPayload.Brief)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/weekly-brief", strings.NewReader(`{"workspace_id":"ws-1","force":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 weekly brief, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var weeklyPayload struct {
+		Brief struct {
+			UserID  string `json:"user_id"`
+			Content string `json:"content"`
+		} `json:"brief"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &weeklyPayload); err != nil {
+		t.Fatalf("decode weekly brief payload: %v", err)
+	}
+	if weeklyPayload.Brief.UserID != "user-1" || !strings.Contains(weeklyPayload.Brief.Content, "Done.") {
+		t.Fatalf("unexpected weekly brief payload: %#v", weeklyPayload.Brief)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/knowledge/entities/entity-1/activity/backfill-status", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 backfill status, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var statusPayload struct {
+		Status struct {
+			EntityID        string `json:"entity_id"`
+			MissingRefCount int    `json:"missing_ref_count"`
+			IsBackfilled    bool   `json:"is_backfilled"`
+		} `json:"status"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &statusPayload); err != nil {
+		t.Fatalf("decode backfill status payload: %v", err)
+	}
+	if statusPayload.Status.EntityID != "entity-1" || statusPayload.Status.MissingRefCount != 1 || statusPayload.Status.IsBackfilled {
+		t.Fatalf("unexpected backfill status before run: %#v", statusPayload.Status)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/entities/entity-1/activity/backfill", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 backfill, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	assertRealtimeEventType(t, client, "knowledge.entity.ref.created")
+	assertRealtimeEventType(t, client, "knowledge.trending.changed")
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/entities/entity-2/follow", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 follow entity-2, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	raw, err := client.Receive(2 * time.Second)
+	if err != nil {
+		t.Fatalf("failed to receive followed stats event: %v", err)
+	}
+	var event realtime.Event
+	if err := json.Unmarshal(raw, &event); err != nil {
+		t.Fatalf("decode followed stats event: %v", err)
+	}
+	if event.Type != "knowledge.followed.stats.changed" {
+		t.Fatalf("expected knowledge.followed.stats.changed, got %s", event.Type)
 	}
 }
 

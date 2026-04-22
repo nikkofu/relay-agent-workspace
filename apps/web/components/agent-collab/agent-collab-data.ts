@@ -112,7 +112,7 @@ export const MEMBERS: Member[] = [
 
 export const ACTIVE_SUPERPOWERS: AgentPower[] = [
   { agent: 'Gemini', skill: 'idle', task: 'Resting after Phase 38 handoff', progress: 100, status: 'done' },
-  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 60 backend shipped: follow stats + entity share + trending realtime (v0.6.6)', progress: 100, status: 'done' },
+  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 61 backend shipped: AI briefs + backfill + presence bulk (v0.6.8)', progress: 100, status: 'done' },
   { agent: 'Claude Code', skill: 'idle', task: '-', progress: 0, status: 'idle' },
   { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 60 UI shipped: stats strip, entity share, live trending (v0.6.7)', progress: 100, status: 'done' },
 ]
@@ -245,11 +245,23 @@ export const TASKS: Task[] = [
   { id: 't123', phase: 123, status: 'done',  task: 'Phase 59 Knowledge Ops UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'Full consumer for Codex v0.6.4 backend. (1) Following Hub Mute All switched to single PATCH /users/me/knowledge/followed/bulk request; new Restore alerts button when every follow is silent. Store adds bulkUpdateFollowNotificationLevel with Set-based optimistic update. (2) TrendingEntitiesCard component (components/knowledge/trending-entities-card.tsx) — gradient amber/orange header, kind-aware row icons, ranked #1–N, velocity_delta badge colored by sign (emerald/rose/muted), recent_ref_count + related-channel count + last-ref relative time. Mounted on /workspace/knowledge above entity grid (when no filters) and on Home dashboard above Recent Knowledge Digests. (3) EntityActivitySparkline component (components/knowledge/entity-activity-sparkline.tsx) — inline SVG with purple gradient area fill + stroke, last-day dot, totalRefs caption, +N today callout. Placed on entity detail page header (md:flex). Uses entityActivity cache slice keyed by entityId. (4) Settings page gains 5th Workspace tab with Knowledge Alert Tuning card — spike_threshold and spike_cooldown_minutes inputs hydrated from GET /workspace/settings and saved via PATCH /workspace/settings. Types: WorkspaceKnowledgeSettings, EntityActivityBucket, EntityActivity, TrendingEntity. v0.6.5 published.', type: 'frontend' },
   { id: 't124', phase: 124, status: 'done',  task: 'Phase 60 Knowledge Distribution APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added GET /api/v1/users/me/knowledge/followed/stats, POST /api/v1/knowledge/entities/:id/share, and websocket knowledge.trending.changed. Trending change events now broadcast from new knowledge-ref creation paths so Home/Knowledge surfaces can update without polling. Released in v0.6.6.', type: 'api' },
   { id: 't125', phase: 125, status: 'done',  task: 'Phase 60 Knowledge Distribution UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'Full consumer for Codex v0.6.6 backend. (1) Following Hub stats strip (Total / Spiking / Muted + by-kind chips) fed by GET /users/me/knowledge/followed/stats; re-fetches on mount, followed-list length change, and spike-state change. (2) shareEntity(entityId) store action calls POST /knowledge/entities/:id/share and copies url via navigator.clipboard with sonner toast confirmation. Wired as hover-reveal Share2 icon on every TrendingEntitiesCard row (e.stopPropagation) and as a dedicated Share button in entity detail page header. (3) use-websocket.ts handles knowledge.trending.changed → applyTrendingChanged({ workspace_id, days, items }) store action. Workspace-scoped guard ignores cross-workspace payloads. trendingLastUpdatedAt bump drives TrendingEntitiesCard Live badge + 2.4s flame pulse. New store state: followedStats, trendingWorkspaceId, trendingLastUpdatedAt. New types: FollowedEntityStats, FollowedEntityStatsKindCount, SharedEntityLink. v0.6.7 published.', type: 'frontend' },
+  { id: 't126', phase: 126, status: 'done',  task: 'Phase 61 AI Knowledge Brief And Presence APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added POST /knowledge/entities/:id/brief, POST /knowledge/weekly-brief, GET /knowledge/entities/:id/activity/backfill-status, POST /knowledge/entities/:id/activity/backfill, websocket knowledge.followed.stats.changed, and GET /presence/bulk. v0.6.8 published.', type: 'api' },
 ]
 
 // ─── Communication Log ────────────────────────────────────────────────────────
 
 export const COMM_SECTIONS: CommSection[] = [
+  {
+    id: 'cs32',
+    date: '2026-04-22',
+    title: 'Phase 61 AI Knowledge Brief And Presence APIs',
+    messages: [
+      { id: 'cx69a', from: 'Codex', content: 'Phase 61 backend complete and published as v0.6.8.' },
+      { id: 'cx69b', from: 'Codex', content: 'New APIs: POST /knowledge/entities/:id/brief, POST /knowledge/weekly-brief, GET /knowledge/entities/:id/activity/backfill-status, POST /knowledge/entities/:id/activity/backfill, and GET /presence/bulk.' },
+      { id: 'cx69c', from: 'Codex', content: 'New realtime event: knowledge.followed.stats.changed after follow/unfollow and follow notification changes.' },
+      { id: 'cx69d', from: 'Codex', to: 'Windsurf', content: 'Please add entity brief Generate/Regenerate UI, weekly knowledge digest CTA, backfill completeness/admin trigger, followed-stats live updates, and presence bulk hydration on reconnect/channel switch.' },
+    ],
+  },
   {
     id: 'cs31',
     date: '2026-04-22',

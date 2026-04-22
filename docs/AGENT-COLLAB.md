@@ -143,6 +143,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 59 Knowledge Ops UI | Windsurf | 2026-04-22 | Consumed all four Phase 59 backend contracts. Mute All in Following Hub now uses `PATCH /users/me/knowledge/followed/bulk` (single request) and gains a **Restore alerts** counterpart when everything is silenced. `TrendingEntitiesCard` component mounted on `/workspace/knowledge` (inline above entity grid) and Home dashboard — ranked by `velocity_delta` with recent/previous deltas, related channels, last activity. `EntityActivitySparkline` SVG sparkline on entity detail page header reads `/knowledge/entities/:id/activity` (30-day default) with gradient fill + last-day dot. Settings page gains a new **Workspace** tab with `Flame` + `Timer` inputs for `spike_threshold` + `spike_cooldown_minutes`, hydrated via `GET /workspace/settings` and persisted via `PATCH /workspace/settings`. `v0.6.5` published. |
 | 🟢 Done | Phase 60 Knowledge Distribution APIs | Codex | 2026-04-22 | Added `GET /api/v1/users/me/knowledge/followed/stats`, `POST /api/v1/knowledge/entities/:id/share`, and websocket `knowledge.trending.changed` for live trend reranking. Released in `v0.6.6`. |
 | 🟢 Done | Phase 60 Knowledge Distribution UI | Windsurf | 2026-04-22 | Consumed all three Phase 60 backend contracts. Following Hub gains a compact stats strip (total / spiking / muted + by-kind chips) fed by `GET /users/me/knowledge/followed/stats`; re-fetches on follow/unfollow/spike. `TrendingEntitiesCard` gets per-row Share buttons (copy deeplink via `POST /knowledge/entities/:id/share` → `navigator.clipboard`), plus a header pulse + **Live** badge when websocket delivers a rerank. Entity detail page header gains a **Share** button. `use-websocket.ts` handles `knowledge.trending.changed` and routes it to new `applyTrendingChanged` store action (workspace-scoped guard). Store adds `followedStats`, `fetchFollowedStats`, `shareEntity`, `applyTrendingChanged`, and `trendingWorkspaceId`/`trendingLastUpdatedAt` tracking. `v0.6.7` published. |
+| 🟢 Done | Phase 61 AI Knowledge Brief And Presence APIs | Codex | 2026-04-22 | Added `POST /api/v1/knowledge/entities/:id/brief`, `POST /api/v1/knowledge/weekly-brief`, `GET /api/v1/knowledge/entities/:id/activity/backfill-status`, `POST /api/v1/knowledge/entities/:id/activity/backfill`, websocket `knowledge.followed.stats.changed`, and `GET /api/v1/presence/bulk`. Released in `v0.6.8`. |
 
 ---
 
@@ -151,9 +152,24 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
-| **Codex** | `api-architecture` | Phase 60 backend shipped: follow stats + entity share + trending realtime (v0.6.6) | 100% |
+| **Codex** | `api-architecture` | Phase 61 backend shipped: AI knowledge briefs + backfill + presence bulk (v0.6.8) | 100% |
 | **Claude Code**| `idle` | - | - |
 | **Windsurf** | `web-ui-agent` | Phase 60 UI shipped: stats strip, entity share, live trending (v0.6.7) | 100% |
+
+### 2026-04-22 - Phase 61 AI Knowledge Brief And Presence API Completion (v0.6.8)
+- **Codex**: Phase 61 backend is complete and published as `v0.6.8`.
+- **Codex**: Added `POST /api/v1/knowledge/entities/:id/brief`. It builds a grounded prompt from the entity, recent refs, and timeline events, calls the configured LLM gateway, and caches output in `AISummary` scope `knowledge_entity`. Request fields: `provider`, `model`, `force`.
+- **Codex**: Added `POST /api/v1/knowledge/weekly-brief`. It combines followed stats, followed entities, and workspace trending data into a per-user weekly brief through the LLM gateway. Request fields: `workspace_id`, `provider`, `model`, `force`.
+- **Codex**: Added `GET /api/v1/knowledge/entities/:id/activity/backfill-status` and `POST /api/v1/knowledge/entities/:id/activity/backfill`. The backfill scans historical channel messages and files for entity-title matches, creates missing `KnowledgeEntityRef` rows, and emits `knowledge.entity.ref.created` plus `knowledge.trending.changed` when refs are created.
+- **Codex**: Added websocket `knowledge.followed.stats.changed`, emitted after follow/unfollow, per-follow notification edits, and bulk follow notification updates.
+- **Codex**: Added `GET /api/v1/presence/bulk?channel_id=...`, returning hydrated users plus `online_count`, `away_count`, `busy_count`, `offline_count`, and `total_count` for reconnect/channel-switch hydration.
+- **Codex → Windsurf**: Please consume these contracts next:
+  - add **Generate brief** / **Regenerate** on entity detail using `POST /knowledge/entities/:id/brief`
+  - add a Following Hub or Home weekly digest CTA using `POST /knowledge/weekly-brief`
+  - show activity backfill completeness from `GET /knowledge/entities/:id/activity/backfill-status`, with an admin/dev trigger for `POST /activity/backfill`
+  - listen for `knowledge.followed.stats.changed` to update the stats strip without manual refetch coupling
+  - switch large reconnect/channel-member presence hydration to `GET /presence/bulk?channel_id=...`
+- **Codex → Nikko Fu**: This phase turns the wiki layer from metadata-only into an agent-written knowledge surface while also closing two operational gaps: historical sparkline completeness and large-workspace presence hydration.
 
 ### 2026-04-22 - Phase 60 Knowledge Distribution UI (v0.6.7)
 - **Windsurf**: Phase 60 UI complete and published as `v0.6.7`. Full consumer for Codex `v0.6.6` backend — all three new endpoints + the new websocket event are now wired.
@@ -319,6 +335,17 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-22 - Phase 61 AI Knowledge Brief And Presence APIs
+- **Codex**: Phase 61 backend complete and published as `v0.6.8`.
+- **Codex**: New endpoints are ready: `POST /knowledge/entities/:id/brief`, `POST /knowledge/weekly-brief`, `GET /knowledge/entities/:id/activity/backfill-status`, `POST /knowledge/entities/:id/activity/backfill`, and `GET /presence/bulk`.
+- **Codex**: New websocket event `knowledge.followed.stats.changed` is emitted after follow/unfollow and follow-notification changes.
+- **Codex → Windsurf**: Please build the UI consumer pass:
+  - entity detail brief card with Generate/Regenerate using `POST /knowledge/entities/:id/brief`
+  - Following/Home weekly knowledge digest action using `POST /knowledge/weekly-brief`
+  - backfill completeness indicator and admin/dev backfill trigger for entity sparklines
+  - stats strip live update from `knowledge.followed.stats.changed`
+  - reconnect/channel-switch hydration from `GET /presence/bulk?channel_id=...`
 
 ### 2026-04-22 - Phase 60 Knowledge Distribution UI
 - **Windsurf**: Phase 60 UI complete and published as `v0.6.7`. All three new Phase 60 contracts + the websocket event are now consumed.

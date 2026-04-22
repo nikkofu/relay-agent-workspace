@@ -1027,6 +1027,249 @@ func BuildSharedEntityLink(database *gorm.DB, entityID, baseURL string) (SharedE
 	}, nil
 }
 
+func BuildEntityBriefPrompt(database *gorm.DB, entityID string) (domain.KnowledgeEntity, []ChannelKnowledgeRef, []domain.KnowledgeEvent, string, error) {
+	entity, err := GetEntity(database, entityID)
+	if err != nil {
+		return domain.KnowledgeEntity{}, nil, nil, "", err
+	}
+
+	var refs []domain.KnowledgeEntityRef
+	if err := database.Where("entity_id = ?", entity.ID).Order("created_at desc").Limit(20).Find(&refs).Error; err != nil {
+		return entity, nil, nil, "", err
+	}
+	hydratedRefs := make([]ChannelKnowledgeRef, 0, len(refs))
+	for _, ref := range refs {
+		hydrated, err := hydrateChannelKnowledgeRef(database, ref)
+		if err != nil {
+			continue
+		}
+		hydratedRefs = append(hydratedRefs, hydrated)
+	}
+
+	var events []domain.KnowledgeEvent
+	if err := database.Where("entity_id = ?", entity.ID).Order("occurred_at desc, created_at desc").Limit(10).Find(&events).Error; err != nil {
+		return entity, hydratedRefs, nil, "", err
+	}
+
+	var prompt strings.Builder
+	prompt.WriteString("Write an AI-native workspace knowledge brief for this entity. Return concise markdown with: Summary, Key Discussions, Risks, Next Actions.\n\n")
+	prompt.WriteString("Entity: ")
+	prompt.WriteString(entity.Title)
+	prompt.WriteString("\nKind: ")
+	prompt.WriteString(entity.Kind)
+	if strings.TrimSpace(entity.Summary) != "" {
+		prompt.WriteString("\nExisting summary: ")
+		prompt.WriteString(entity.Summary)
+	}
+	prompt.WriteString("\n\nRecent references:\n")
+	for _, ref := range hydratedRefs {
+		prompt.WriteString("- ")
+		prompt.WriteString(ref.RefKind)
+		prompt.WriteString(" / ")
+		prompt.WriteString(ref.Role)
+		prompt.WriteString(": ")
+		prompt.WriteString(ref.SourceSnippet)
+		prompt.WriteString("\n")
+	}
+	prompt.WriteString("\nRecent timeline events:\n")
+	for _, event := range events {
+		prompt.WriteString("- ")
+		prompt.WriteString(event.EventType)
+		prompt.WriteString(": ")
+		prompt.WriteString(event.Title)
+		if strings.TrimSpace(event.Body) != "" {
+			prompt.WriteString(" - ")
+			prompt.WriteString(event.Body)
+		}
+		prompt.WriteString("\n")
+	}
+	return entity, hydratedRefs, events, prompt.String(), nil
+}
+
+func BuildWeeklyBriefPrompt(database *gorm.DB, userID, workspaceID string, now time.Time) (FollowedEntityStats, []FollowedEntity, []TrendingEntity, string, error) {
+	userID = strings.TrimSpace(userID)
+	workspaceID = strings.TrimSpace(workspaceID)
+	if workspaceID == "" {
+		workspaceID = "ws-1"
+	}
+
+	stats, err := GetFollowedEntityStats(database, userID, now)
+	if err != nil {
+		return FollowedEntityStats{}, nil, nil, "", err
+	}
+	followed, err := ListFollowedEntities(database, userID)
+	if err != nil {
+		return stats, nil, nil, "", err
+	}
+	trending, err := GetTrendingEntities(database, TrendingEntitiesParams{WorkspaceID: workspaceID, Days: 7, Limit: 10, Now: now})
+	if err != nil {
+		return stats, followed, nil, "", err
+	}
+
+	var prompt strings.Builder
+	prompt.WriteString("Write a weekly AI-native knowledge brief for a busy teammate. Focus on followed entities, emerging topics, risks, and next actions. Return concise markdown.\n\n")
+	prompt.WriteString(fmt.Sprintf("Follow stats: total=%d spiking=%d muted=%d\n", stats.TotalCount, stats.SpikingCount, stats.MutedCount))
+	prompt.WriteString("\nFollowed entities:\n")
+	for _, item := range followed {
+		if item.Entity.WorkspaceID != workspaceID {
+			continue
+		}
+		prompt.WriteString("- ")
+		prompt.WriteString(item.Entity.Title)
+		prompt.WriteString(" (")
+		prompt.WriteString(item.Entity.Kind)
+		prompt.WriteString(", alerts=")
+		prompt.WriteString(item.Follow.NotificationLevel)
+		prompt.WriteString(")\n")
+	}
+	prompt.WriteString("\nTrending entities:\n")
+	for _, item := range trending {
+		prompt.WriteString(fmt.Sprintf("- %s: recent_refs=%d delta=%d\n", item.Entity.Title, item.RecentRefCount, item.VelocityDelta))
+	}
+	return stats, followed, trending, prompt.String(), nil
+}
+
+func GetEntityActivityBackfillStatus(database *gorm.DB, entityID string) (ActivityBackfillStatus, error) {
+	return backfillEntityActivity(database, entityID, false)
+}
+
+func BackfillEntityActivity(database *gorm.DB, entityID string) (ActivityBackfillStatus, []domain.KnowledgeEntityRef, error) {
+	var existingIDs []string
+	if err := database.Model(&domain.KnowledgeEntityRef{}).Where("entity_id = ?", entityID).Pluck("id", &existingIDs).Error; err != nil {
+		return ActivityBackfillStatus{}, nil, err
+	}
+
+	status, err := backfillEntityActivity(database, entityID, true)
+	if err != nil {
+		return status, nil, err
+	}
+	var refs []domain.KnowledgeEntityRef
+	if status.CreatedRefCount > 0 {
+		query := database.Where("entity_id = ?", entityID)
+		if len(existingIDs) > 0 {
+			query = query.Where("id NOT IN ?", existingIDs)
+		}
+		if err := query.Order("created_at desc").Limit(status.CreatedRefCount).Find(&refs).Error; err != nil {
+			return status, nil, err
+		}
+	}
+	return status, refs, nil
+}
+
+func backfillEntityActivity(database *gorm.DB, entityID string, mutate bool) (ActivityBackfillStatus, error) {
+	entity, err := GetEntity(database, entityID)
+	if err != nil {
+		return ActivityBackfillStatus{}, err
+	}
+	status := ActivityBackfillStatus{
+		EntityID:    entity.ID,
+		WorkspaceID: entity.WorkspaceID,
+		Title:       entity.Title,
+	}
+
+	var existingRefs []domain.KnowledgeEntityRef
+	if err := database.Where("entity_id = ?", entity.ID).Find(&existingRefs).Error; err != nil {
+		return status, err
+	}
+	status.ExistingRefCount = len(existingRefs)
+	existing := map[string]struct{}{}
+	for _, ref := range existingRefs {
+		existing[ref.RefKind+":"+ref.RefID] = struct{}{}
+		if status.LastRefAt == nil || ref.CreatedAt.After(*status.LastRefAt) {
+			ts := ref.CreatedAt
+			status.LastRefAt = &ts
+		}
+	}
+
+	var messages []domain.Message
+	if err := database.Model(&domain.Message{}).
+		Select("messages.*").
+		Joins("JOIN channels ON channels.id = messages.channel_id").
+		Where("channels.workspace_id = ? AND LOWER(messages.content) LIKE ?", entity.WorkspaceID, "%"+strings.ToLower(entity.Title)+"%").
+		Order("messages.created_at asc").
+		Find(&messages).Error; err != nil {
+		return status, err
+	}
+	for _, message := range messages {
+		status.MessageCandidateCount++
+		key := "message:" + message.ID
+		if _, ok := existing[key]; ok {
+			continue
+		}
+		status.MissingRefCount++
+		if mutate {
+			ref := domain.KnowledgeEntityRef{
+				ID:          newKnowledgeID("kref"),
+				WorkspaceID: entity.WorkspaceID,
+				EntityID:    entity.ID,
+				RefKind:     "message",
+				RefID:       message.ID,
+				Role:        "backfilled",
+				CreatedAt:   message.CreatedAt,
+			}
+			if err := database.Create(&ref).Error; err != nil {
+				return status, err
+			}
+			existing[key] = struct{}{}
+			status.CreatedRefCount++
+			if status.LastRefAt == nil || ref.CreatedAt.After(*status.LastRefAt) {
+				ts := ref.CreatedAt
+				status.LastRefAt = &ts
+			}
+		}
+	}
+
+	var files []domain.FileAsset
+	if err := database.Model(&domain.FileAsset{}).
+		Select("file_assets.*").
+		Joins("JOIN channels ON channels.id = file_assets.channel_id").
+		Where("channels.workspace_id = ?", entity.WorkspaceID).
+		Find(&files).Error; err != nil {
+		return status, err
+	}
+	for _, file := range files {
+		content := strings.Join([]string{file.Name, file.Description, file.Summary, file.ContentSummary}, " ")
+		var extraction domain.FileExtraction
+		if err := database.Where("file_id = ?", file.ID).First(&extraction).Error; err == nil {
+			content += " " + extraction.ContentText + " " + extraction.ContentSummary
+		}
+		if !strings.Contains(strings.ToLower(content), strings.ToLower(entity.Title)) {
+			continue
+		}
+		status.FileCandidateCount++
+		key := "file:" + file.ID
+		if _, ok := existing[key]; ok {
+			continue
+		}
+		status.MissingRefCount++
+		if mutate {
+			ref := domain.KnowledgeEntityRef{
+				ID:          newKnowledgeID("kref"),
+				WorkspaceID: entity.WorkspaceID,
+				EntityID:    entity.ID,
+				RefKind:     "file",
+				RefID:       file.ID,
+				Role:        "backfilled",
+				CreatedAt:   file.CreatedAt,
+			}
+			if err := database.Create(&ref).Error; err != nil {
+				return status, err
+			}
+			existing[key] = struct{}{}
+			status.CreatedRefCount++
+			if status.LastRefAt == nil || ref.CreatedAt.After(*status.LastRefAt) {
+				ts := ref.CreatedAt
+				status.LastRefAt = &ts
+			}
+		}
+	}
+	if mutate {
+		status.MissingRefCount = 0
+	}
+	status.IsBackfilled = status.MissingRefCount == 0
+	return status, nil
+}
+
 func GetWorkspaceKnowledgeSettings(database *gorm.DB, workspaceID string) (WorkspaceKnowledgeSettings, error) {
 	workspaceID = strings.TrimSpace(workspaceID)
 	if workspaceID == "" {

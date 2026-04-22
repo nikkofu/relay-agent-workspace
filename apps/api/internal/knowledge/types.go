@@ -197,9 +197,9 @@ type EntitySpikeAlert struct {
 }
 
 type WorkspaceKnowledgeSettings struct {
-	WorkspaceID           string `json:"workspace_id"`
-	SpikeThreshold        int    `json:"spike_threshold"`
-	SpikeCooldownMinutes  int    `json:"spike_cooldown_minutes"`
+	WorkspaceID          string `json:"workspace_id"`
+	SpikeThreshold       int    `json:"spike_threshold"`
+	SpikeCooldownMinutes int    `json:"spike_cooldown_minutes"`
 }
 
 type EntityActivityBucket struct {
@@ -208,10 +208,10 @@ type EntityActivityBucket struct {
 }
 
 type EntityActivity struct {
-	EntityID   string                 `json:"entity_id"`
-	WorkspaceID string                `json:"workspace_id"`
-	Days       int                    `json:"days"`
-	Buckets    []EntityActivityBucket `json:"buckets"`
+	EntityID    string                 `json:"entity_id"`
+	WorkspaceID string                 `json:"workspace_id"`
+	Days        int                    `json:"days"`
+	Buckets     []EntityActivityBucket `json:"buckets"`
 }
 
 type TrendingEntitiesParams struct {
@@ -236,9 +236,9 @@ type FollowedEntityStatsKindCount struct {
 }
 
 type FollowedEntityStats struct {
-	TotalCount   int                          `json:"total_count"`
-	SpikingCount int                          `json:"spiking_count"`
-	MutedCount   int                          `json:"muted_count"`
+	TotalCount   int                            `json:"total_count"`
+	SpikingCount int                            `json:"spiking_count"`
+	MutedCount   int                            `json:"muted_count"`
 	ByKind       []FollowedEntityStatsKindCount `json:"by_kind"`
 }
 
@@ -249,6 +249,48 @@ type SharedEntityLink struct {
 	URL          string `json:"url"`
 	ShortURL     string `json:"short_url"`
 	RelativePath string `json:"relative_path"`
+}
+
+type EntityBrief struct {
+	EntityID    string     `json:"entity_id"`
+	WorkspaceID string     `json:"workspace_id"`
+	Title       string     `json:"title"`
+	Content     string     `json:"content"`
+	Reasoning   string     `json:"reasoning,omitempty"`
+	Provider    string     `json:"provider"`
+	Model       string     `json:"model"`
+	GeneratedAt time.Time  `json:"generated_at"`
+	RefCount    int        `json:"ref_count"`
+	EventCount  int        `json:"event_count"`
+	LastRefAt   *time.Time `json:"last_ref_at,omitempty"`
+	Cached      bool       `json:"cached"`
+}
+
+type WeeklyBrief struct {
+	UserID      string              `json:"user_id"`
+	WorkspaceID string              `json:"workspace_id"`
+	Content     string              `json:"content"`
+	Reasoning   string              `json:"reasoning,omitempty"`
+	Provider    string              `json:"provider"`
+	Model       string              `json:"model"`
+	GeneratedAt time.Time           `json:"generated_at"`
+	Stats       FollowedEntityStats `json:"stats"`
+	Trending    []TrendingEntity    `json:"trending"`
+	Followed    []FollowedEntity    `json:"followed"`
+	Cached      bool                `json:"cached"`
+}
+
+type ActivityBackfillStatus struct {
+	EntityID              string     `json:"entity_id"`
+	WorkspaceID           string     `json:"workspace_id"`
+	Title                 string     `json:"title"`
+	ExistingRefCount      int        `json:"existing_ref_count"`
+	MessageCandidateCount int        `json:"message_candidate_count"`
+	FileCandidateCount    int        `json:"file_candidate_count"`
+	MissingRefCount       int        `json:"missing_ref_count"`
+	CreatedRefCount       int        `json:"created_ref_count"`
+	IsBackfilled          bool       `json:"is_backfilled"`
+	LastRefAt             *time.Time `json:"last_ref_at,omitempty"`
 }
 
 type MatchEntitiesInput struct {

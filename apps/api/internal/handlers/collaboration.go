@@ -1662,6 +1662,61 @@ func GetPresence(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"users": users})
 }
 
+func GetPresenceBulk(c *gin.Context) {
+	var users []domain.User
+	query := db.DB.Order("name asc")
+	if channelID := c.Query("channel_id"); channelID != "" {
+		var memberIDs []string
+		if err := db.DB.Model(&domain.ChannelMember{}).Where("channel_id = ?", channelID).Pluck("user_id", &memberIDs).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load channel presence members"})
+			return
+		}
+		if len(memberIDs) == 0 {
+			c.JSON(http.StatusOK, gin.H{"users": []domain.User{}, "bulk": gin.H{"online_count": 0, "offline_count": 0, "away_count": 0, "busy_count": 0, "total_count": 0}})
+			return
+		}
+		query = query.Where("id IN ?", memberIDs)
+	}
+	if err := query.Find(&users).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load bulk presence"})
+		return
+	}
+
+	now := time.Now().UTC()
+	onlineCount := 0
+	awayCount := 0
+	busyCount := 0
+	offlineCount := 0
+	for idx := range users {
+		if users[idx].PresenceExpiresAt == nil || users[idx].PresenceExpiresAt.Before(now) {
+			users[idx].Status = "offline"
+		}
+		users[idx] = enrichUser(users[idx])
+		switch users[idx].Status {
+		case "online":
+			onlineCount++
+		case "away":
+			awayCount++
+		case "busy":
+			busyCount++
+		default:
+			offlineCount++
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"users": users,
+		"bulk": gin.H{
+			"online_count":  onlineCount,
+			"away_count":    awayCount,
+			"busy_count":    busyCount,
+			"offline_count": offlineCount,
+			"total_count":   len(users),
+			"generated_at":  now,
+		},
+	})
+}
+
 func GetStarredChannels(c *gin.Context) {
 	var channels []domain.Channel
 	if err := db.DB.Where("is_starred = ?", true).Order("name asc").Find(&channels).Error; err != nil {

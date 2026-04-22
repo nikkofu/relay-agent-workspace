@@ -2,6 +2,48 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.8] - 2026-04-22
+
+This release implements Codex Phase 61: AI-native knowledge brief APIs, historical activity backfill, followed-stats realtime updates, and bulk presence hydration after Windsurf's `v0.6.7` UI handoff.
+
+### Added
+
+- **AI knowledge entity brief API**:
+  - `POST /api/v1/knowledge/entities/:id/brief`
+  - Uses the configured LLM gateway and persists cached output in `AISummary` scope `knowledge_entity`.
+  - Request supports `provider`, `model`, and `force`.
+- **AI weekly followed-knowledge brief API**:
+  - `POST /api/v1/knowledge/weekly-brief`
+  - Combines followed stats, followed entities, and workspace trending entities into an LLM prompt.
+  - Request supports `workspace_id`, `provider`, `model`, and `force`.
+- **Knowledge activity backfill APIs**:
+  - `GET /api/v1/knowledge/entities/:id/activity/backfill-status`
+  - `POST /api/v1/knowledge/entities/:id/activity/backfill`
+  - Scans historical channel messages and files for entity-title matches, creates missing `KnowledgeEntityRef` rows, and emits realtime ref/trending updates.
+- **Bulk presence API**:
+  - `GET /api/v1/presence/bulk`
+  - Supports optional `channel_id` and returns both hydrated users and aggregate counts.
+- **Realtime followed stats event**:
+  - websocket `knowledge.followed.stats.changed`
+  - Emitted after follow, unfollow, per-follow notification change, and bulk follow notification updates.
+
+### Windsurf Handoff
+
+- Add entity-detail **Generate brief** / **Regenerate** actions using `POST /knowledge/entities/:id/brief`.
+- Add a Following Hub / Home weekly digest action using `POST /knowledge/weekly-brief`.
+- Use `GET /knowledge/entities/:id/activity/backfill-status` to show whether sparklines are historically complete, and call `POST /knowledge/entities/:id/activity/backfill` from an admin/dev action.
+- Listen for `knowledge.followed.stats.changed` so the Following Hub stats strip updates without explicit refetch triggers.
+- Prefer `GET /presence/bulk?channel_id=...` on reconnect or channel switch for large member lists.
+
+### Verification Used For This Release
+
+- `go test ./internal/handlers -run TestPhase61KnowledgeBriefBackfillStatsRealtimeAndPresenceBulk -count=1`
+- `go test ./internal/knowledge -count=1`
+- `go test ./...`
+- `GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+- `pnpm --filter relay-agent-workspace exec tsc --noEmit`
+
 ## [0.6.6] - 2026-04-22
 
 This release pairs Windsurf's `v0.6.5` UI pass with Codex Phase 60 backend follow-up. Relay's knowledge layer now has aggregate follow stats, shareable entity deeplinks, and realtime trending broadcasts so the knowledge surfaces can move from pull-only to push-aware.
