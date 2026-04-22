@@ -518,6 +518,7 @@ Recommended sequence from here:
    - Current delivered extensions now also include digest scheduling, digest inbox aggregation, inbox drill-down detail, entity follow, composer reverse lookup, and schedule dry-run preview.
    - The next delivered layer now also includes per-follow notification levels, realtime entity spike alerts, bulk follow operations, workspace-level spike tuning, entity activity timeseries, and a trending knowledge feed.
    - Phase 61 extends this into AI-native knowledge operations with entity briefs, weekly followed-knowledge briefs, historical activity backfill, followed-stats realtime events, and bulk presence hydration.
+   - Phase 62 adds cache-first brief hydration, entity-brief realtime completion events, and atomic notification bulk-read for larger inbox workflows.
 6. Add richer search layers such as suggestions and semantic retrieval.
 7. Move toward explicit agent runtime APIs once the collaboration foundation is stable.
 

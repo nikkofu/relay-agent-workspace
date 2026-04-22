@@ -4868,6 +4868,7 @@ func TestPhase61KnowledgeBriefBackfillStatsRealtimeAndPresenceBulk(t *testing.T)
 	if briefPayload.Brief.EntityID != "entity-1" || !strings.Contains(briefPayload.Brief.Content, "Done.") || briefPayload.Brief.Provider != "stub" {
 		t.Fatalf("unexpected entity brief payload: %#v", briefPayload.Brief)
 	}
+	assertRealtimeEventType(t, client, "knowledge.entity.brief.generated")
 
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/weekly-brief", strings.NewReader(`{"workspace_id":"ws-1","force":true}`))
@@ -4934,6 +4935,138 @@ func TestPhase61KnowledgeBriefBackfillStatsRealtimeAndPresenceBulk(t *testing.T)
 	}
 	if event.Type != "knowledge.followed.stats.changed" {
 		t.Fatalf("expected knowledge.followed.stats.changed, got %s", event.Type)
+	}
+}
+
+func TestPhase62CachedBriefsRealtimeAndBulkRead(t *testing.T) {
+	setupTestDB(t)
+	now := time.Now().UTC()
+
+	hub := realtime.NewHub()
+	go hub.Run()
+	SetRealtimeHub(hub)
+	defer SetRealtimeHub(nil)
+	AIGateway = stubGateway{}
+	defer SetAIGateway(nil)
+
+	client := realtime.NewTestClient(8)
+	hub.RegisterTestClient(client)
+	defer hub.UnregisterTestClient(client)
+
+	db.DB.Create(&domain.User{ID: "user-1", OrganizationID: "org-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Workspace{ID: "ws-1", OrganizationID: "org-1", Name: "Relay", KnowledgeSpikeThreshold: 3, KnowledgeSpikeCooldownMins: 360})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Summary: "AI-native launch workspace", Status: "active", CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.Message{ID: "msg-1", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program kickoff has clear owners", CreatedAt: now.Add(-2 * time.Hour)})
+	db.DB.Create(&domain.KnowledgeEntityRef{ID: "kref-1", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-1", Role: "discussion", CreatedAt: now.Add(-2 * time.Hour)})
+	db.DB.Create(&domain.KnowledgeEntityFollow{ID: "follow-1", WorkspaceID: "ws-1", EntityID: "entity-1", UserID: "user-1", NotificationLevel: "all", CreatedAt: now.Add(-2 * time.Hour)})
+
+	router := gin.New()
+	router.GET("/api/v1/knowledge/entities/:id/brief", GetKnowledgeEntityBrief)
+	router.POST("/api/v1/knowledge/entities/:id/brief", GenerateKnowledgeEntityBrief)
+	router.GET("/api/v1/knowledge/weekly-brief", GetMyKnowledgeWeeklyBrief)
+	router.POST("/api/v1/knowledge/weekly-brief", GenerateMyKnowledgeWeeklyBrief)
+	router.POST("/api/v1/notifications/bulk-read", MarkNotificationsBulkRead)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/knowledge/entities/entity-1/brief", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 empty cached entity brief, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var emptyBriefPayload struct {
+		Brief *knowledge.EntityBrief `json:"brief"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &emptyBriefPayload); err != nil {
+		t.Fatalf("decode empty entity brief payload: %v", err)
+	}
+	if emptyBriefPayload.Brief != nil {
+		t.Fatalf("expected nil cached entity brief before generation, got %#v", emptyBriefPayload.Brief)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/entities/entity-1/brief", strings.NewReader(`{"force":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 generate entity brief, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	raw, err := client.Receive(2 * time.Second)
+	if err != nil {
+		t.Fatalf("failed to receive brief generated event: %v", err)
+	}
+	var event realtime.Event
+	if err := json.Unmarshal(raw, &event); err != nil {
+		t.Fatalf("decode brief event: %v", err)
+	}
+	if event.Type != "knowledge.entity.brief.generated" || event.EntityID != "entity-1" {
+		t.Fatalf("expected knowledge.entity.brief.generated for entity-1, got %#v", event)
+	}
+
+	SetAIGateway(nil)
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/knowledge/entities/entity-1/brief", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 cached entity brief without llm gateway, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var cachedBriefPayload struct {
+		Brief knowledge.EntityBrief `json:"brief"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &cachedBriefPayload); err != nil {
+		t.Fatalf("decode cached entity brief payload: %v", err)
+	}
+	if !cachedBriefPayload.Brief.Cached || cachedBriefPayload.Brief.EntityID != "entity-1" || cachedBriefPayload.Brief.Title != "Launch Program" {
+		t.Fatalf("unexpected cached entity brief payload: %#v", cachedBriefPayload.Brief)
+	}
+
+	AIGateway = stubGateway{}
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/weekly-brief", strings.NewReader(`{"workspace_id":"ws-1","force":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 generate weekly brief, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	SetAIGateway(nil)
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/knowledge/weekly-brief?workspace_id=ws-1", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 cached weekly brief without llm gateway, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var cachedWeeklyPayload struct {
+		Brief knowledge.WeeklyBrief `json:"brief"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &cachedWeeklyPayload); err != nil {
+		t.Fatalf("decode cached weekly brief payload: %v", err)
+	}
+	if !cachedWeeklyPayload.Brief.Cached || cachedWeeklyPayload.Brief.UserID != "user-1" || cachedWeeklyPayload.Brief.WorkspaceID != "ws-1" {
+		t.Fatalf("unexpected cached weekly brief payload: %#v", cachedWeeklyPayload.Brief)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/notifications/bulk-read", strings.NewReader(`{"item_ids":["activity-mention-msg-1","knowledge-digest-msg-2","activity-thread-msg-3"]}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 bulk read, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var readCount int64
+	db.DB.Model(&domain.NotificationRead{}).Where("user_id = ?", "user-1").Count(&readCount)
+	if readCount != 3 {
+		t.Fatalf("expected 3 notification read rows, got %d", readCount)
+	}
+	raw, err = client.Receive(2 * time.Second)
+	if err != nil {
+		t.Fatalf("failed to receive bulk read event: %v", err)
+	}
+	if err := json.Unmarshal(raw, &event); err != nil {
+		t.Fatalf("decode bulk read event: %v", err)
+	}
+	if event.Type != "notifications.bulk_read" {
+		t.Fatalf("expected notifications.bulk_read event, got %s", event.Type)
 	}
 }
 

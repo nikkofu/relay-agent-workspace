@@ -410,6 +410,36 @@ func ShareKnowledgeEntity(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"share": share})
 }
 
+func GetKnowledgeEntityBrief(c *gin.Context) {
+	entity, err := knowledge.GetEntity(db.DB, c.Param("id"))
+	if err != nil {
+		handleKnowledgeNotFound(c, err, "knowledge entity not found")
+		return
+	}
+	summary, err := getStoredSummary("knowledge_entity", entity.ID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusOK, gin.H{"brief": nil})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load entity brief"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"brief": knowledge.EntityBrief{
+		EntityID:    entity.ID,
+		WorkspaceID: entity.WorkspaceID,
+		Title:       entity.Title,
+		Content:     summary.Content,
+		Reasoning:   summary.Reasoning,
+		Provider:    summary.Provider,
+		Model:       summary.Model,
+		GeneratedAt: summary.UpdatedAt,
+		RefCount:    summary.MessageCount,
+		LastRefAt:   summary.LastMessageAt,
+		Cached:      true,
+	}})
+}
+
 func GenerateKnowledgeEntityBrief(c *gin.Context) {
 	if AIGateway == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ai gateway is not configured"})
@@ -486,7 +516,7 @@ func GenerateKnowledgeEntityBrief(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to persist entity brief"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"brief": knowledge.EntityBrief{
+	brief := knowledge.EntityBrief{
 		EntityID:    entity.ID,
 		WorkspaceID: entity.WorkspaceID,
 		Title:       entity.Title,
@@ -499,6 +529,43 @@ func GenerateKnowledgeEntityBrief(c *gin.Context) {
 		EventCount:  len(events),
 		LastRefAt:   lastRefAt,
 		Cached:      false,
+	}
+	_ = broadcastKnowledgeEvent("knowledge.entity.brief.generated", entity.WorkspaceID, "", entity.ID, gin.H{"brief": brief})
+	c.JSON(http.StatusOK, gin.H{"brief": brief})
+}
+
+func GetMyKnowledgeWeeklyBrief(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+	workspaceID := strings.TrimSpace(c.DefaultQuery("workspace_id", "ws-1"))
+	scopeID := currentUser.ID + ":" + workspaceID + ":weekly"
+	summary, err := getStoredSummary("knowledge_weekly", scopeID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusOK, gin.H{"brief": nil})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load weekly brief"})
+		return
+	}
+	stats, _ := knowledge.GetFollowedEntityStats(db.DB, currentUser.ID, time.Now().UTC())
+	followed, _ := knowledge.ListFollowedEntities(db.DB, currentUser.ID)
+	trending, _ := knowledge.GetTrendingEntities(db.DB, knowledge.TrendingEntitiesParams{WorkspaceID: workspaceID, Days: 7, Limit: 10})
+	c.JSON(http.StatusOK, gin.H{"brief": knowledge.WeeklyBrief{
+		UserID:      currentUser.ID,
+		WorkspaceID: workspaceID,
+		Content:     summary.Content,
+		Reasoning:   summary.Reasoning,
+		Provider:    summary.Provider,
+		Model:       summary.Model,
+		GeneratedAt: summary.UpdatedAt,
+		Stats:       stats,
+		Trending:    trending,
+		Followed:    followed,
+		Cached:      true,
 	}})
 }
 

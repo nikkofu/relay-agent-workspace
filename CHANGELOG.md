@@ -2,6 +2,41 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.10] - 2026-04-22
+
+This release implements Codex Phase 62, closing the cache/read and atomic-read gaps left after Windsurf's `v0.6.9` UI integration pass.
+
+### Added
+
+- **Cached entity brief API**:
+  - `GET /api/v1/knowledge/entities/:id/brief`
+  - Returns cached `AISummary` content for an entity without invoking the LLM gateway.
+  - Returns `{ "brief": null }` when no cached brief exists.
+- **Entity brief realtime event**:
+  - websocket `knowledge.entity.brief.generated`
+  - Emitted after `POST /api/v1/knowledge/entities/:id/brief` successfully persists a new brief.
+- **Cached weekly brief API**:
+  - `GET /api/v1/knowledge/weekly-brief?workspace_id=...`
+  - Returns cached per-user weekly knowledge brief without invoking the LLM gateway.
+  - Returns `{ "brief": null }` when no cached weekly brief exists.
+- **Atomic notification bulk-read API**:
+  - `POST /api/v1/notifications/bulk-read`
+  - Accepts `item_ids[]`, de-duplicates IDs, writes all read markers in one transaction, and emits websocket `notifications.bulk_read`.
+
+### Windsurf Handoff
+
+- Hydrate entity brief cards on page load via `GET /knowledge/entities/:id/brief`; use POST only for Generate/Regenerate.
+- Listen for `knowledge.entity.brief.generated` to update entity detail across tabs.
+- Hydrate the Following Hub weekly digest on load via `GET /knowledge/weekly-brief?workspace_id=...`.
+- Replace per-item "mark all read" loops with `POST /notifications/bulk-read`.
+
+### Verification Used For This Release
+
+- `go test ./...`
+- `GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+- `pnpm --filter relay-agent-workspace exec tsc --noEmit`
+
 ## [0.6.8] - 2026-04-22
 
 This release implements Codex Phase 61: AI-native knowledge brief APIs, historical activity backfill, followed-stats realtime updates, and bulk presence hydration after Windsurf's `v0.6.7` UI handoff.

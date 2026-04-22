@@ -112,9 +112,9 @@ export const MEMBERS: Member[] = [
 
 export const ACTIVE_SUPERPOWERS: AgentPower[] = [
   { agent: 'Gemini', skill: 'idle', task: 'Resting after Phase 38 handoff', progress: 100, status: 'done' },
-  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 61 backend shipped: AI briefs + backfill + presence bulk (v0.6.8)', progress: 100, status: 'done' },
+  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 62 backend shipped: cached briefs + bulk-read (v0.6.10)', progress: 100, status: 'done' },
   { agent: 'Claude Code', skill: 'idle', task: '-', progress: 0, status: 'idle' },
-  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 60 UI shipped: stats strip, entity share, live trending (v0.6.7)', progress: 100, status: 'done' },
+  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 61 UI shipped: AI brief card, weekly digest CTA, backfill, presence bulk (v0.6.9)', progress: 100, status: 'done' },
 ]
 
 // ─── Full Task Board ──────────────────────────────────────────────────────────
@@ -246,11 +246,24 @@ export const TASKS: Task[] = [
   { id: 't124', phase: 124, status: 'done',  task: 'Phase 60 Knowledge Distribution APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added GET /api/v1/users/me/knowledge/followed/stats, POST /api/v1/knowledge/entities/:id/share, and websocket knowledge.trending.changed. Trending change events now broadcast from new knowledge-ref creation paths so Home/Knowledge surfaces can update without polling. Released in v0.6.6.', type: 'api' },
   { id: 't125', phase: 125, status: 'done',  task: 'Phase 60 Knowledge Distribution UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'Full consumer for Codex v0.6.6 backend. (1) Following Hub stats strip (Total / Spiking / Muted + by-kind chips) fed by GET /users/me/knowledge/followed/stats; re-fetches on mount, followed-list length change, and spike-state change. (2) shareEntity(entityId) store action calls POST /knowledge/entities/:id/share and copies url via navigator.clipboard with sonner toast confirmation. Wired as hover-reveal Share2 icon on every TrendingEntitiesCard row (e.stopPropagation) and as a dedicated Share button in entity detail page header. (3) use-websocket.ts handles knowledge.trending.changed → applyTrendingChanged({ workspace_id, days, items }) store action. Workspace-scoped guard ignores cross-workspace payloads. trendingLastUpdatedAt bump drives TrendingEntitiesCard Live badge + 2.4s flame pulse. New store state: followedStats, trendingWorkspaceId, trendingLastUpdatedAt. New types: FollowedEntityStats, FollowedEntityStatsKindCount, SharedEntityLink. v0.6.7 published.', type: 'frontend' },
   { id: 't126', phase: 126, status: 'done',  task: 'Phase 61 AI Knowledge Brief And Presence APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added POST /knowledge/entities/:id/brief, POST /knowledge/weekly-brief, GET /knowledge/entities/:id/activity/backfill-status, POST /knowledge/entities/:id/activity/backfill, websocket knowledge.followed.stats.changed, and GET /presence/bulk. v0.6.8 published.', type: 'api' },
+  { id: 't127', phase: 127, status: 'done',  task: 'Phase 61 AI Knowledge Brief And Presence UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'Consumed Phase 61 backend. Added entity AI Brief card, weekly digest CTA, activity backfill controls, knowledge.followed.stats.changed handling, presence bulk hydration, people profile dialog, group-member fix, and agent-collab parse-error fallback. v0.6.9 published.', type: 'frontend' },
+  { id: 't128', phase: 128, status: 'done',  task: 'Phase 62 Cached Brief And Bulk Read APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added GET /knowledge/entities/:id/brief, websocket knowledge.entity.brief.generated, GET /knowledge/weekly-brief, and POST /notifications/bulk-read. v0.6.10 published.', type: 'api' },
 ]
 
 // ─── Communication Log ────────────────────────────────────────────────────────
 
 export const COMM_SECTIONS: CommSection[] = [
+  {
+    id: 'cs34',
+    date: '2026-04-22',
+    title: 'Phase 62 Cached Brief And Bulk Read APIs',
+    messages: [
+      { id: 'cx71a', from: 'Codex', content: 'Phase 62 backend complete and published as v0.6.10.' },
+      { id: 'cx71b', from: 'Codex', content: 'Added cache-read APIs: GET /knowledge/entities/:id/brief and GET /knowledge/weekly-brief?workspace_id=... so UI hydration does not trigger LLM cost.' },
+      { id: 'cx71c', from: 'Codex', content: 'Added websocket knowledge.entity.brief.generated after entity brief generation, plus POST /notifications/bulk-read with notifications.bulk_read realtime event.' },
+      { id: 'cx71d', from: 'Codex', to: 'Windsurf', content: 'Please switch entity/weekly brief hydration to GET on page load, keep POST for Generate/Regenerate, listen for knowledge.entity.brief.generated, and replace mark-all-read loops with POST /notifications/bulk-read.' },
+    ],
+  },
   {
     id: 'cs32',
     date: '2026-04-22',

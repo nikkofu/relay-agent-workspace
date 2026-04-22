@@ -1597,6 +1597,66 @@ func MarkNotificationsRead(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"read": true, "item_ids": input.ItemIDs})
 }
 
+func MarkNotificationsBulkRead(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var input struct {
+		ItemIDs []string `json:"item_ids" binding:"required,min=1"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	now := time.Now().UTC()
+	normalized := make([]string, 0, len(input.ItemIDs))
+	seen := map[string]struct{}{}
+	err = db.DB.Transaction(func(tx *gorm.DB) error {
+		for _, itemID := range input.ItemIDs {
+			itemID = strings.TrimSpace(itemID)
+			if itemID == "" {
+				continue
+			}
+			if _, ok := seen[itemID]; ok {
+				continue
+			}
+			seen[itemID] = struct{}{}
+			normalized = append(normalized, itemID)
+			read := domain.NotificationRead{
+				UserID: currentUser.ID,
+				ItemID: itemID,
+				ReadAt: now,
+			}
+			if err := tx.Where("user_id = ? AND item_id = ?", currentUser.ID, itemID).
+				Assign(domain.NotificationRead{ReadAt: now}).
+				FirstOrCreate(&read).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to persist notification read state"})
+		return
+	}
+
+	if RealtimeHub != nil {
+		_ = RealtimeHub.Broadcast(realtime.Event{
+			ID:       "evt_" + time.Now().Format("20060102150405.000000"),
+			Type:     "notifications.bulk_read",
+			EntityID: currentUser.ID,
+			TS:       time.Now().UTC().Format(time.RFC3339Nano),
+			Payload:  gin.H{"user_id": currentUser.ID, "item_ids": normalized, "read": true},
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"read": true, "item_ids": normalized, "read_count": len(normalized)})
+}
+
 func GetLater(c *gin.Context) {
 	currentUser, err := getCurrentUser()
 	if err != nil {
