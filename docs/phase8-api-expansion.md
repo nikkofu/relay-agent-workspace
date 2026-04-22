@@ -122,14 +122,18 @@ Current backend surface already available:
 - `GET /api/v1/drafts`
 - `PUT /api/v1/drafts/:scope`
 - `GET /api/v1/search`
+- `GET /api/v1/search/messages/by-entity`
 - `GET /api/v1/search/suggestions`
 - `GET /api/v1/citations/lookup`
 - `GET /api/v1/channels/:id/knowledge`
 - `GET /api/v1/channels/:id/knowledge/summary`
+- `GET /api/v1/channels/:id/knowledge/digest`
+- `POST /api/v1/channels/:id/knowledge/digest/publish`
 - `GET /api/v1/knowledge/entities`
 - `GET /api/v1/knowledge/entities/suggest`
 - `POST /api/v1/knowledge/entities`
 - `GET /api/v1/knowledge/entities/:id`
+- `GET /api/v1/knowledge/entities/:id/hover`
 - `PATCH /api/v1/knowledge/entities/:id`
 - `GET /api/v1/knowledge/entities/:id/refs`
 - `POST /api/v1/knowledge/entities/:id/refs`
@@ -152,6 +156,7 @@ Current backend surface already available:
 - `POST /api/v1/messages`
 - message metadata enrichment:
   - `message.metadata.entity_mentions`
+  - `message.metadata.knowledge_digest`
 - `DELETE /api/v1/messages/:id`
 - `POST /api/v1/messages/:id/reactions`
 - `POST /api/v1/messages/:id/pin`
@@ -394,10 +399,13 @@ Baseline support now exists for:
 - `GET /api/v1/citations/lookup`
 - `GET /api/v1/channels/:id/knowledge`
 - `GET /api/v1/channels/:id/knowledge/summary`
+- `GET /api/v1/channels/:id/knowledge/digest`
+- `POST /api/v1/channels/:id/knowledge/digest/publish`
 - `GET /api/v1/knowledge/entities`
 - `GET /api/v1/knowledge/entities/suggest`
 - `POST /api/v1/knowledge/entities`
 - `GET /api/v1/knowledge/entities/:id`
+- `GET /api/v1/knowledge/entities/:id/hover`
 - `PATCH /api/v1/knowledge/entities/:id`
 - `GET /api/v1/knowledge/entities/:id/refs`
 - `POST /api/v1/knowledge/entities/:id/refs`
@@ -409,6 +417,7 @@ Baseline support now exists for:
 - `GET /api/v1/knowledge/entities/:id/graph`
 - message metadata enrichment:
   - `message.metadata.entity_mentions`
+  - `message.metadata.knowledge_digest`
 - channel summary alert metadata:
   - `summary.velocity.recent_window_days`
   - `summary.velocity.previous_ref_count`
@@ -425,6 +434,9 @@ Baseline support now exists for:
 Likely follow-ups:
 
 - message rendering for first-class `@entity:` mentions after autocomplete selection
+- entity-centric search UX and channel/header drilldowns using `/api/v1/search/messages/by-entity`
+- richer hover-card UI that consumes `/api/v1/knowledge/entities/:id/hover`
+- digest review/publish UX for weekly or daily channel summaries using `/api/v1/channels/:id/knowledge/digest`
 - richer entity disambiguation and alias support beyond exact title matching
 - entity-aware search ranking that blends citations, refs, files, and channel-local activity
 - knowledge summaries that merge static wiki state with external live business signals

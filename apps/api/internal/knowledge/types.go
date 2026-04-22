@@ -184,3 +184,45 @@ type MentionedEntity struct {
 	SourceKind  string `json:"source_kind,omitempty"`
 	MentionText string `json:"mention_text"`
 }
+
+type EntityHoverSummary struct {
+	EntityID         string                 `json:"entity_id"`
+	RefCount         int                    `json:"ref_count"`
+	ChannelRefCount  int                    `json:"channel_ref_count"`
+	MessageRefCount  int                    `json:"message_ref_count"`
+	FileRefCount     int                    `json:"file_ref_count"`
+	RecentWindowDays int                    `json:"recent_window_days"`
+	RecentRefCount   int                    `json:"recent_ref_count"`
+	LastActivityAt   *time.Time             `json:"last_activity_at,omitempty"`
+	RelatedChannels  []EntityChannelSummary `json:"related_channels"`
+}
+
+type EntityChannelSummary struct {
+	ChannelID      string     `json:"channel_id"`
+	Name           string     `json:"name"`
+	RefCount       int        `json:"ref_count"`
+	LastActivityAt *time.Time `json:"last_activity_at,omitempty"`
+}
+
+type ChannelKnowledgeDigest struct {
+	ChannelID      string                           `json:"channel_id"`
+	Window         string                           `json:"window"`
+	WindowDays     int                              `json:"window_days"`
+	GeneratedAt    time.Time                        `json:"generated_at"`
+	TotalRefs      int                              `json:"total_refs"`
+	RecentRefCount int                              `json:"recent_ref_count"`
+	Headline       string                           `json:"headline"`
+	Summary        string                           `json:"summary"`
+	TopMovements   []ChannelKnowledgeDigestMovement `json:"top_movements"`
+}
+
+type ChannelKnowledgeDigestMovement struct {
+	EntityID         string     `json:"entity_id"`
+	EntityTitle      string     `json:"entity_title"`
+	EntityKind       string     `json:"entity_kind"`
+	RefCount         int        `json:"ref_count"`
+	RecentRefCount   int        `json:"recent_ref_count"`
+	PreviousRefCount int        `json:"previous_ref_count"`
+	Delta            int        `json:"delta"`
+	LastActivityAt   *time.Time `json:"last_activity_at,omitempty"`
+}

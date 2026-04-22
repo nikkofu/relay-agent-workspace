@@ -112,9 +112,9 @@ export const MEMBERS: Member[] = [
 
 export const ACTIVE_SUPERPOWERS: AgentPower[] = [
   { agent: 'Gemini', skill: 'idle', task: 'Resting after Phase 38 handoff', progress: 100, status: 'done' },
-  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 50 message mention and knowledge velocity API handoff complete', progress: 100, status: 'done' },
+  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 51 knowledge discovery API handoff complete', progress: 100, status: 'done' },
   { agent: 'Claude Code', skill: 'idle', task: '-', progress: 0, status: 'idle' },
-  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 50 Entity Mention Rendering And Knowledge Alert UI complete (v0.5.90)', progress: 100, status: 'done' },
+  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Waiting on Phase 51 knowledge discovery UI integration', progress: 0, status: 'idle' },
 ]
 
 // ─── Full Task Board ──────────────────────────────────────────────────────────
@@ -226,11 +226,27 @@ export const TASKS: Task[] = [
   { id: 't104', phase: 104, status: 'done',   task: 'Phase 49 Knowledge Summary And Composer Mention Integration', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'ChannelKnowledgeSummary/ChannelKnowledgeTopEntity/EntitySuggestResult types. knowledge-store: fetchChannelKnowledgeSummary (GET /channels/:id/knowledge/summary) + suggestEntities (GET /knowledge/entities/suggest). ChannelKnowledgePanel: 7-day snapshot card (top entities with ref bar + 5-day trend sparkbar). MessageComposer: @entity: autocomplete (180ms debounce, Globe popover, insert @title with range delete). use-websocket: knowledge.entity.ref.created refreshes summary + shows auto-link toast with View action. workspace/page.tsx prefetches summary on channel change. v0.5.89 published.', type: 'frontend' },
   { id: 't105', phase: 105, status: 'done',  task: 'Phase 50 Message Entity Mentions And Knowledge Velocity APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added message.metadata.entity_mentions for explicit @Entity Title references and summary.velocity on GET /api/v1/channels/:id/knowledge/summary for anomaly badges. v0.5.90 published.', type: 'api' },
   { id: 't106', phase: 106, status: 'done',  task: 'Phase 50 Entity Mention Rendering And Knowledge Alert UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'MessageEntityMention type + metadata.entity_mentions on Message + KnowledgeVelocity + velocity on ChannelKnowledgeSummary. EntityMentionChip (HoverCard: entity kind icon/badge, title, ArrowUpRight to wiki page). MessageItem: entity_mentions row below content. Channel header: pulsing amber Zap badge for is_spiking, emerald TrendingUp badge for non-spiking positive delta. v0.5.90 published.', type: 'frontend' },
+  { id: 't107', phase: 107, status: 'done',  task: 'Phase 51 Knowledge Discovery APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added GET /api/v1/search/messages/by-entity, GET /api/v1/knowledge/entities/:id/hover, GET /api/v1/channels/:id/knowledge/digest, and POST /api/v1/channels/:id/knowledge/digest/publish. Published digest messages now preserve message.metadata.knowledge_digest. v0.5.91 published.', type: 'api' },
+  { id: 't108', phase: 108, status: 'ready', task: 'Phase 51 Knowledge Discovery UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'Consume entity message discovery, hover enrichment, and knowledge digest preview/publish contracts for search drilldowns, richer HoverCards, and channel digest banner/pin workflows.', type: 'frontend' },
 ]
 
 // ─── Communication Log ────────────────────────────────────────────────────────
 
 export const COMM_SECTIONS: CommSection[] = [
+  {
+    id: 'cs16',
+    date: '2026-04-22',
+    title: 'Phase 51 Knowledge Discovery API Completion',
+    messages: [
+      { id: 'cx51a', from: 'Codex', content: 'Phase 51 backend is complete and published as v0.5.91.' },
+      { id: 'cx51b', from: 'Codex', content: 'Added GET /api/v1/search/messages/by-entity?entity_id=...&channel_id=...&limit=... so the UI can open entity-centric message drilldowns. Results return refreshed metadata, snippet, and match_sources (knowledge_ref, explicit_mention, title_match).' },
+      { id: 'cx51c', from: 'Codex', content: 'Added GET /api/v1/knowledge/entities/:id/hover?channel_id=...&days=7 for live HoverCard enrichment. Payload includes ref_count, channel_ref_count, message_ref_count, file_ref_count, recent_ref_count, last_activity_at, and related_channels.' },
+      { id: 'cx51d', from: 'Codex', content: 'Added GET /api/v1/channels/:id/knowledge/digest?window=daily|weekly|monthly&limit=... plus POST /api/v1/channels/:id/knowledge/digest/publish. Publish returns a real channel message and can pin it immediately.' },
+      { id: 'cx51e', from: 'Codex', to: 'Windsurf', content: 'Please implement the Phase 51 UI slice next: enrich EntityMentionChip HoverCard via /knowledge/entities/:id/hover, add an entity drilldown/result sheet via /search/messages/by-entity, add a channel digest preview banner via /channels/:id/knowledge/digest, and add a publish CTA via /channels/:id/knowledge/digest/publish with { window: weekly, limit: 5, pin: true }.' },
+      { id: 'cx51f', from: 'Codex', to: 'Windsurf', content: 'Published digest messages intentionally do not auto-link themselves back into knowledge refs. message.metadata now preserves knowledge_digest so the UI can render structured cards from the returned message payload.' },
+      { id: 'cx51g', from: 'Codex', to: 'Nikko Fu', content: 'Relay now has a closed knowledge-discovery loop: entity mentions can be rendered, hovered, searched, summarized, and promoted into pinned channel digest messages without introducing a second summary system.' },
+    ],
+  },
   {
     id: 'cs15',
     date: '2026-04-22',

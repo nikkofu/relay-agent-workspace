@@ -209,6 +209,66 @@ func TestSuggestEntitiesScopesToChannelWorkspaceAndRanksByChannelRefs(t *testing
 	}
 }
 
+func TestGetEntityHoverSummaryAggregatesLiveRefStats(t *testing.T) {
+	database := setupKnowledgeTestDB(t)
+	now := time.Now().UTC()
+
+	database.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	database.Create(&domain.Channel{ID: "ch-2", WorkspaceID: "ws-1", Name: "exec", Type: "public"})
+	database.Create(&domain.Message{ID: "msg-1", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program kickoff", CreatedAt: now.Add(-12 * time.Hour)})
+	database.Create(&domain.Message{ID: "msg-2", ChannelID: "ch-2", UserID: "user-1", Content: "Launch Program escalated", CreatedAt: now.Add(-2 * time.Hour)})
+	database.Create(&domain.FileAsset{ID: "file-1", ChannelID: "ch-1", UploaderID: "user-1", Name: "launch-plan.md", StoragePath: "launch-plan.md", ContentType: "text/markdown", CreatedAt: now.Add(-6 * time.Hour), UpdatedAt: now.Add(-6 * time.Hour)})
+	database.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Status: "active", CreatedAt: now, UpdatedAt: now})
+	database.Create(&domain.KnowledgeEntityRef{ID: "kref-1", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-1", Role: "discussion", CreatedAt: now.Add(-12 * time.Hour)})
+	database.Create(&domain.KnowledgeEntityRef{ID: "kref-2", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "file", RefID: "file-1", Role: "evidence", CreatedAt: now.Add(-6 * time.Hour)})
+	database.Create(&domain.KnowledgeEntityRef{ID: "kref-3", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-2", Role: "discussion", CreatedAt: now.Add(-2 * time.Hour)})
+
+	hover, err := GetEntityHoverSummary(database, "entity-1", "ch-1", 7)
+	if err != nil {
+		t.Fatalf("hover summary failed: %v", err)
+	}
+	if hover.EntityID != "entity-1" || hover.RefCount != 3 || hover.ChannelRefCount != 2 {
+		t.Fatalf("unexpected hover envelope: %#v", hover)
+	}
+	if hover.MessageRefCount != 2 || hover.FileRefCount != 1 || hover.RecentRefCount != 3 {
+		t.Fatalf("expected split ref counts, got %#v", hover)
+	}
+	if len(hover.RelatedChannels) != 2 || hover.RelatedChannels[0].ChannelID != "ch-1" {
+		t.Fatalf("expected related channels ranked by ref count, got %#v", hover.RelatedChannels)
+	}
+}
+
+func TestBuildChannelKnowledgeDigestRanksRecentMovements(t *testing.T) {
+	database := setupKnowledgeTestDB(t)
+	now := time.Now().UTC()
+
+	database.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	database.Create(&domain.Message{ID: "msg-1", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program kickoff", CreatedAt: now.Add(-48 * time.Hour)})
+	database.Create(&domain.Message{ID: "msg-2", ChannelID: "ch-1", UserID: "user-1", Content: "Billing Service dependency", CreatedAt: now.Add(-6 * time.Hour)})
+	database.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Status: "active", CreatedAt: now, UpdatedAt: now})
+	database.Create(&domain.KnowledgeEntity{ID: "entity-2", WorkspaceID: "ws-1", Kind: "service", Title: "Billing Service", Status: "active", CreatedAt: now, UpdatedAt: now})
+	database.Create(&domain.KnowledgeEntityRef{ID: "kref-1", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-1", Role: "discussion", CreatedAt: now.Add(-48 * time.Hour)})
+	database.Create(&domain.KnowledgeEntityRef{ID: "kref-2", WorkspaceID: "ws-1", EntityID: "entity-2", RefKind: "message", RefID: "msg-2", Role: "discussion", CreatedAt: now.Add(-6 * time.Hour)})
+	database.Create(&domain.KnowledgeEntityRef{ID: "kref-3", WorkspaceID: "ws-1", EntityID: "entity-2", RefKind: "message", RefID: "msg-2", Role: "discussion", CreatedAt: now.Add(-2 * time.Hour)})
+
+	digest, err := BuildChannelKnowledgeDigest(database, "ch-1", "weekly", 5)
+	if err != nil {
+		t.Fatalf("build digest failed: %v", err)
+	}
+	if digest.ChannelID != "ch-1" || digest.Window != "weekly" || digest.WindowDays != 7 {
+		t.Fatalf("unexpected digest envelope: %#v", digest)
+	}
+	if digest.TotalRefs != 3 || len(digest.TopMovements) != 2 {
+		t.Fatalf("expected digest movement list, got %#v", digest)
+	}
+	if digest.TopMovements[0].EntityID != "entity-2" || digest.TopMovements[0].RecentRefCount != 2 {
+		t.Fatalf("expected hottest recent entity first, got %#v", digest.TopMovements)
+	}
+	if digest.Headline == "" || digest.Summary == "" {
+		t.Fatalf("expected digest narrative text, got %#v", digest)
+	}
+}
+
 func setupKnowledgeTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 

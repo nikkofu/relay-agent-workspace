@@ -2,6 +2,80 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.91] - 2026-04-22
+
+This release implements Phase 51: Knowledge Discovery APIs. Relay now exposes entity-centric message discovery, live hover-card activity summaries, and channel knowledge digests that can be previewed or published as pinned messages.
+
+### Added
+
+- **Entity Message Discovery API**:
+  - `GET /api/v1/search/messages/by-entity`
+  - Required query param:
+    - `entity_id`
+  - Optional query params:
+    - `channel_id`
+    - `limit`
+  - Response payload returns entity-scoped message results with:
+    - `entity_id`
+    - `entity_title`
+    - `match_sources`
+    - refreshed `metadata`
+    - search `snippet`
+- **Knowledge Entity Hover Summary API**:
+  - `GET /api/v1/knowledge/entities/:id/hover`
+  - Optional query params:
+    - `channel_id`
+    - `days`
+  - Hover payload returns:
+    - `ref_count`
+    - `channel_ref_count`
+    - `message_ref_count`
+    - `file_ref_count`
+    - `recent_ref_count`
+    - `last_activity_at`
+    - `related_channels[]`
+- **Channel Knowledge Digest APIs**:
+  - `GET /api/v1/channels/:id/knowledge/digest`
+  - `POST /api/v1/channels/:id/knowledge/digest/publish`
+  - Supported digest windows:
+    - `daily`
+    - `weekly`
+    - `monthly`
+  - Digest payload returns:
+    - `headline`
+    - `summary`
+    - `top_movements[]`
+    - `recent_ref_count`
+    - `total_refs`
+- **Digest Message Metadata**:
+  - Published digest messages now preserve structured `message.metadata.knowledge_digest` for downstream UI rendering.
+
+### Changed
+
+- **Message Metadata Preservation**:
+  - Message metadata refresh now preserves a structured `knowledge_digest` block alongside reactions, attachments, and entity mentions.
+- **Knowledge Discovery Surface**:
+  - Relay's knowledge layer is no longer limited to side panels and wiki pages. The backend now provides one contract for:
+    - searching messages by entity
+    - enriching hover cards with live activity
+    - publishing Slack-style digest messages without inventing separate storage
+
+### Windsurf Handoff
+
+- Use `GET /api/v1/search/messages/by-entity?entity_id=...&channel_id=...` for entity click-through drilldowns from hover cards, mention chips, or knowledge panels.
+- Use `GET /api/v1/knowledge/entities/:id/hover?channel_id=...&days=7` to enrich the existing `EntityMentionChip` hover content with live ref counts, last activity, and related channels.
+- Use `GET /api/v1/channels/:id/knowledge/digest?window=weekly&limit=5` for a non-destructive banner preview, and `POST /api/v1/channels/:id/knowledge/digest/publish` with `{ "window": "weekly", "limit": 5, "pin": true }` when the UI wants to publish the digest into the channel as a pinned message.
+- Published digest messages intentionally do not auto-link themselves back into knowledge refs. This avoids recursive “digest creates more digest input” noise.
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./internal/knowledge -run 'Test(GetEntityHoverSummaryAggregatesLiveRefStats|BuildChannelKnowledgeDigestRanksRecentMovements)' -count=1`
+- `cd apps/api && go test ./internal/handlers -run 'Test(SearchMessagesByEntityReturnsKnowledgeBackedAndExplicitMatches|GetKnowledgeEntityHoverReturnsLiveActivitySummary|GetChannelKnowledgeDigestReturnsTopMovements|PublishChannelKnowledgeDigestCreatesPinnedMessage)' -count=1`
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+- `pnpm --filter relay-agent-workspace exec tsc --noEmit`
+
 ## [0.5.90] - 2026-04-22
 
 This release implements Phase 50: Message Entity Mentions and Knowledge Velocity APIs. Relay messages now return structured knowledge-entity mention metadata, and channel knowledge summaries now expose velocity/anomaly fields for header badges and trend alerts.

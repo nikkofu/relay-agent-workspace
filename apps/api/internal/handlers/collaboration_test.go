@@ -3925,6 +3925,205 @@ func TestGetChannelKnowledgeSummaryReturnsTopEntitiesAndTrend(t *testing.T) {
 	}
 }
 
+func TestSearchMessagesByEntityReturnsKnowledgeBackedAndExplicitMatches(t *testing.T) {
+	setupTestDB(t)
+	now := time.Now().UTC()
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Status: "active", SourceKind: "manual", CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.Message{ID: "msg-1", ChannelID: "ch-1", UserID: "user-1", Content: "<p>@Launch Program update</p>", CreatedAt: now.Add(-time.Minute)})
+	db.DB.Create(&domain.Message{ID: "msg-2", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program doc synced", CreatedAt: now})
+	db.DB.Create(&domain.KnowledgeEntityRef{ID: "kref-msg-2", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-2", Role: "discussion", CreatedAt: now})
+
+	router := gin.New()
+	router.GET("/api/v1/search/messages/by-entity", SearchMessagesByEntity)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/search/messages/by-entity?entity_id=entity-1&limit=10", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on entity message search, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		EntityID string `json:"entity_id"`
+		Messages []struct {
+			ID           string   `json:"id"`
+			EntityTitle  string   `json:"entity_title"`
+			MatchSources []string `json:"match_sources"`
+			Metadata     string   `json:"metadata"`
+		} `json:"messages"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode entity message search payload: %v", err)
+	}
+	if payload.EntityID != "entity-1" || len(payload.Messages) != 2 {
+		t.Fatalf("expected two entity message matches, got %#v", payload)
+	}
+	if payload.Messages[0].ID != "msg-2" || payload.Messages[0].EntityTitle != "Launch Program" {
+		t.Fatalf("expected newest result first with hydrated entity title, got %#v", payload.Messages)
+	}
+	if len(payload.Messages[0].MatchSources) == 0 || len(payload.Messages[1].MatchSources) == 0 {
+		t.Fatalf("expected match_sources for every result, got %#v", payload.Messages)
+	}
+	if !strings.Contains(payload.Messages[1].Metadata, "\"entity_mentions\"") {
+		t.Fatalf("expected explicit mention metadata to be refreshed, got %s", payload.Messages[1].Metadata)
+	}
+}
+
+func TestGetKnowledgeEntityHoverReturnsLiveActivitySummary(t *testing.T) {
+	setupTestDB(t)
+	now := time.Now().UTC()
+
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	db.DB.Create(&domain.Message{ID: "msg-1", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program kickoff", CreatedAt: now.Add(-2 * time.Hour)})
+	db.DB.Create(&domain.FileAsset{ID: "file-1", ChannelID: "ch-1", UploaderID: "user-1", Name: "launch-plan.md", StoragePath: "launch-plan.md", ContentType: "text/markdown", CreatedAt: now.Add(-time.Hour), UpdatedAt: now.Add(-time.Hour)})
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Summary: "Main initiative", Status: "active", SourceKind: "manual", CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.KnowledgeEntityRef{ID: "kref-msg", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-1", Role: "discussion", CreatedAt: now.Add(-2 * time.Hour)})
+	db.DB.Create(&domain.KnowledgeEntityRef{ID: "kref-file", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "file", RefID: "file-1", Role: "evidence", CreatedAt: now.Add(-time.Hour)})
+
+	router := gin.New()
+	router.GET("/api/v1/knowledge/entities/:id/hover", GetKnowledgeEntityHover)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/knowledge/entities/entity-1/hover?channel_id=ch-1&days=7", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on entity hover summary, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Entity struct {
+			ID    string `json:"id"`
+			Title string `json:"title"`
+		} `json:"entity"`
+		Hover struct {
+			EntityID        string `json:"entity_id"`
+			RefCount        int    `json:"ref_count"`
+			ChannelRefCount int    `json:"channel_ref_count"`
+			MessageRefCount int    `json:"message_ref_count"`
+			FileRefCount    int    `json:"file_ref_count"`
+			RecentRefCount  int    `json:"recent_ref_count"`
+			RelatedChannels []struct {
+				ChannelID string `json:"channel_id"`
+				Name      string `json:"name"`
+				RefCount  int    `json:"ref_count"`
+			} `json:"related_channels"`
+		} `json:"hover"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode entity hover payload: %v", err)
+	}
+	if payload.Entity.ID != "entity-1" || payload.Hover.RefCount != 2 || payload.Hover.ChannelRefCount != 2 {
+		t.Fatalf("unexpected hover envelope: %#v", payload)
+	}
+	if payload.Hover.MessageRefCount != 1 || payload.Hover.FileRefCount != 1 || payload.Hover.RecentRefCount != 2 {
+		t.Fatalf("expected hover to split message/file and recent counts, got %#v", payload.Hover)
+	}
+	if len(payload.Hover.RelatedChannels) != 1 || payload.Hover.RelatedChannels[0].ChannelID != "ch-1" {
+		t.Fatalf("expected channel activity breakdown, got %#v", payload.Hover.RelatedChannels)
+	}
+}
+
+func TestGetChannelKnowledgeDigestReturnsTopMovements(t *testing.T) {
+	setupTestDB(t)
+	now := time.Now().UTC()
+
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	db.DB.Create(&domain.Message{ID: "msg-1", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program kickoff", CreatedAt: now.Add(-48 * time.Hour)})
+	db.DB.Create(&domain.Message{ID: "msg-2", ChannelID: "ch-1", UserID: "user-1", Content: "Billing Service dependency", CreatedAt: now.Add(-12 * time.Hour)})
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Status: "active", CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-2", WorkspaceID: "ws-1", Kind: "service", Title: "Billing Service", Status: "active", CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.KnowledgeEntityRef{ID: "kref-1", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-1", Role: "discussion", CreatedAt: now.Add(-48 * time.Hour)})
+	db.DB.Create(&domain.KnowledgeEntityRef{ID: "kref-2", WorkspaceID: "ws-1", EntityID: "entity-2", RefKind: "message", RefID: "msg-2", Role: "discussion", CreatedAt: now.Add(-12 * time.Hour)})
+	db.DB.Create(&domain.KnowledgeEntityRef{ID: "kref-3", WorkspaceID: "ws-1", EntityID: "entity-2", RefKind: "message", RefID: "msg-2", Role: "discussion", CreatedAt: now.Add(-6 * time.Hour)})
+
+	router := gin.New()
+	router.GET("/api/v1/channels/:id/knowledge/digest", GetChannelKnowledgeDigest)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/channels/ch-1/knowledge/digest?window=weekly&limit=3", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on knowledge digest, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Digest struct {
+			ChannelID    string `json:"channel_id"`
+			Window       string `json:"window"`
+			WindowDays   int    `json:"window_days"`
+			Headline     string `json:"headline"`
+			TotalRefs    int    `json:"total_refs"`
+			TopMovements []struct {
+				EntityID       string `json:"entity_id"`
+				EntityTitle    string `json:"entity_title"`
+				RecentRefCount int    `json:"recent_ref_count"`
+				Delta          int    `json:"delta"`
+			} `json:"top_movements"`
+		} `json:"digest"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode knowledge digest payload: %v", err)
+	}
+	if payload.Digest.ChannelID != "ch-1" || payload.Digest.Window != "weekly" || payload.Digest.WindowDays != 7 {
+		t.Fatalf("unexpected digest envelope: %#v", payload.Digest)
+	}
+	if payload.Digest.TotalRefs != 3 || len(payload.Digest.TopMovements) == 0 {
+		t.Fatalf("expected digest to contain movements, got %#v", payload.Digest)
+	}
+	if payload.Digest.TopMovements[0].EntityID != "entity-2" || payload.Digest.TopMovements[0].RecentRefCount == 0 {
+		t.Fatalf("expected recent hottest entity first, got %#v", payload.Digest.TopMovements)
+	}
+	if strings.TrimSpace(payload.Digest.Headline) == "" {
+		t.Fatalf("expected digest headline, got %#v", payload.Digest)
+	}
+}
+
+func TestPublishChannelKnowledgeDigestCreatesPinnedMessage(t *testing.T) {
+	setupTestDB(t)
+	now := time.Now().UTC()
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	db.DB.Create(&domain.Message{ID: "msg-1", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program kickoff", CreatedAt: now.Add(-12 * time.Hour)})
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Status: "active", CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.KnowledgeEntityRef{ID: "kref-1", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-1", Role: "discussion", CreatedAt: now.Add(-2 * time.Hour)})
+
+	router := gin.New()
+	router.POST("/api/v1/channels/:id/knowledge/digest/publish", PublishChannelKnowledgeDigest)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/channels/ch-1/knowledge/digest/publish", strings.NewReader(`{"window":"daily","limit":3,"pin":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on digest publish, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Message struct {
+			ID        string `json:"id"`
+			ChannelID string `json:"channel_id"`
+			IsPinned  bool   `json:"is_pinned"`
+			Metadata  string `json:"metadata"`
+		} `json:"message"`
+		Digest struct {
+			Window string `json:"window"`
+		} `json:"digest"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode publish digest payload: %v", err)
+	}
+	if payload.Message.ChannelID != "ch-1" || !payload.Message.IsPinned || payload.Digest.Window != "daily" {
+		t.Fatalf("expected pinned digest message in channel, got %#v", payload)
+	}
+	if !strings.Contains(payload.Message.Metadata, "\"knowledge_digest\"") {
+		t.Fatalf("expected published message metadata to retain knowledge digest payload, got %s", payload.Message.Metadata)
+	}
+}
+
 func TestSuggestKnowledgeEntitiesReturnsScopedAutocompleteResults(t *testing.T) {
 	setupTestDB(t)
 	now := time.Now().UTC()

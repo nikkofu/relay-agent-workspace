@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.5.90` is the current release line and includes:
+`v0.5.91` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -48,9 +48,14 @@ For product, design, and marketing, the short version is:
 - live knowledge event ingestion via `POST /api/v1/knowledge/events/ingest`
 - deterministic knowledge entity auto-linking from newly created messages and uploaded files
 - structured message `entity_mentions` metadata for explicit `@Entity Title` references
+- structured message `knowledge_digest` metadata for published channel digest messages
 - channel-scoped knowledge context via `GET /api/v1/channels/:id/knowledge`
 - channel-scoped knowledge summary via `GET /api/v1/channels/:id/knowledge/summary`
+- channel-scoped knowledge digest preview via `GET /api/v1/channels/:id/knowledge/digest`
+- channel-scoped knowledge digest publish flow via `POST /api/v1/channels/:id/knowledge/digest/publish`
 - scoped knowledge entity autocomplete via `GET /api/v1/knowledge/entities/suggest`
+- entity hover enrichment via `GET /api/v1/knowledge/entities/:id/hover`
+- entity-centric message discovery via `GET /api/v1/search/messages/by-entity`
 - knowledge summary velocity/anomaly fields for channel-header trend badges
 - citation lookup entity hydration from canonical `KnowledgeEntityRef` message/file associations
 - channel-aware entity ranking for `@entity:` composer autocomplete and knowledge side-panel summary cards
@@ -142,10 +147,13 @@ For product, design, and marketing, the short version is:
 - Knowledge entity/wiki APIs:
   - `GET /api/v1/channels/:id/knowledge`
   - `GET /api/v1/channels/:id/knowledge/summary`
+  - `GET /api/v1/channels/:id/knowledge/digest`
+  - `POST /api/v1/channels/:id/knowledge/digest/publish`
   - `GET /api/v1/knowledge/entities`
   - `GET /api/v1/knowledge/entities/suggest`
   - `POST /api/v1/knowledge/entities`
   - `GET /api/v1/knowledge/entities/:id`
+  - `GET /api/v1/knowledge/entities/:id/hover`
   - `PATCH /api/v1/knowledge/entities/:id`
   - `GET /api/v1/knowledge/entities/:id/refs`
   - `POST /api/v1/knowledge/entities/:id/refs`
@@ -157,6 +165,9 @@ For product, design, and marketing, the short version is:
   - `GET /api/v1/knowledge/entities/:id/graph`
 - Message metadata enrichment:
   - `message.metadata.entity_mentions`
+  - `message.metadata.knowledge_digest`
+- Entity-centric message discovery:
+  - `GET /api/v1/search/messages/by-entity?entity_id=...`
 - Knowledge realtime websocket events:
   - `knowledge.entity.created`
   - `knowledge.entity.updated`

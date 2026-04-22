@@ -62,9 +62,10 @@ type messageAttachment struct {
 var CollabSnapshotPath = agentcollab.DefaultPath()
 
 type messageMetadata struct {
-	Reactions      []reactionSummary           `json:"reactions,omitempty"`
-	Attachments    []messageAttachment         `json:"attachments,omitempty"`
-	EntityMentions []knowledge.MentionedEntity `json:"entity_mentions,omitempty"`
+	Reactions       []reactionSummary                 `json:"reactions,omitempty"`
+	Attachments     []messageAttachment               `json:"attachments,omitempty"`
+	EntityMentions  []knowledge.MentionedEntity       `json:"entity_mentions,omitempty"`
+	KnowledgeDigest *knowledge.ChannelKnowledgeDigest `json:"knowledge_digest,omitempty"`
 }
 
 func getCurrentUser() (domain.User, error) {

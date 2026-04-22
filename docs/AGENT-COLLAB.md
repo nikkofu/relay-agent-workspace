@@ -125,7 +125,9 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 49 Channel Knowledge Summary And Entity Mention APIs | Codex | 2026-04-22 | Added `GET /api/v1/channels/:id/knowledge/summary` and `GET /api/v1/knowledge/entities/suggest` for channel-level entity trends and `@entity:` autocomplete. `v0.5.89` published. |
 | 🟢 Done | Phase 49 Knowledge Summary And Composer Mention Integration | Windsurf | 2026-04-22 | `ChannelKnowledgeSummary/ChannelKnowledgeTopEntity/EntitySuggestResult` types. `fetchChannelKnowledgeSummary` + `suggestEntities` in store. `ChannelKnowledgePanel`: 7-day snapshot card with ref-frequency bar + 5-day trend sparkbar. `MessageComposer`: `@entity:` autocomplete popover (180ms debounce, `deleteRange` + `insertContent`). `knowledge.entity.ref.created` WS: refreshes summary + Sonner auto-link toast. `v0.5.89` published. |
 | 🟢 Done | Phase 50 Message Entity Mentions And Knowledge Velocity APIs | Codex | 2026-04-22 | Added `message.metadata.entity_mentions` for explicit `@Entity Title` references and `summary.velocity` on `GET /api/v1/channels/:id/knowledge/summary` for anomaly badges. `v0.5.90` published. |
-| � Done | Phase 50 Entity Mention Rendering And Knowledge Alert UI | Windsurf | 2026-04-22 | `MessageEntityMention` + `metadata.entity_mentions` on `Message` + `KnowledgeVelocity` + `velocity` on `ChannelKnowledgeSummary`. `EntityMentionChip`: shadcn `HoverCard` chip with kind icon/badge/title → wiki link. `MessageItem`: `entity_mentions` row below content. Channel header: pulsing amber `Zap` for `is_spiking`, emerald `TrendingUp` for positive delta. `v0.5.90` published. |
+| 🟢 Done | Phase 50 Entity Mention Rendering And Knowledge Alert UI | Windsurf | 2026-04-22 | `MessageEntityMention` + `metadata.entity_mentions` on `Message` + `KnowledgeVelocity` + `velocity` on `ChannelKnowledgeSummary`. `EntityMentionChip`: shadcn `HoverCard` chip with kind icon/badge/title → wiki link. `MessageItem`: `entity_mentions` row below content. Channel header: pulsing amber `Zap` for `is_spiking`, emerald `TrendingUp` for positive delta. `v0.5.90` published. |
+| 🟢 Done | Phase 51 Knowledge Discovery APIs | Codex | 2026-04-22 | Added `GET /api/v1/search/messages/by-entity`, `GET /api/v1/knowledge/entities/:id/hover`, `GET /api/v1/channels/:id/knowledge/digest`, and `POST /api/v1/channels/:id/knowledge/digest/publish`. Published digest messages now preserve `message.metadata.knowledge_digest`. `v0.5.91` published. |
+| 🟡 Ready | Phase 51 Knowledge Discovery UI | Windsurf | 2026-04-22 | Consume entity message discovery, hover enrichment, and knowledge digest preview/publish contracts for search drilldowns, richer entity HoverCards, and channel digest banner/pin workflows. |
 
 ---
 
@@ -134,13 +136,27 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
-| **Codex** | `api-architecture` | Phase 50 message mention and knowledge velocity API handoff complete | 100% |
+| **Codex** | `api-architecture` | Phase 51 knowledge discovery API handoff complete | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-ui-agent` | Phase 50 Entity Mention Rendering And Knowledge Alert UI complete (v0.5.90) | 100% |
+| **Windsurf** | `web-ui-agent` | Waiting on Phase 51 knowledge discovery UI integration | 0% |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-22 - Phase 51 Knowledge Discovery API Completion
+- **Codex**: Phase 51 backend is complete and published as `v0.5.91`.
+- **Codex**: Added `GET /api/v1/search/messages/by-entity?entity_id=...&channel_id=...&limit=...` so Windsurf can open an entity-centric message drilldown from mention chips, hover cards, or wiki pages. Results return refreshed `metadata`, `snippet`, and `match_sources` (`knowledge_ref`, `explicit_mention`, `title_match`).
+- **Codex**: Added `GET /api/v1/knowledge/entities/:id/hover?channel_id=...&days=7` for live HoverCard enrichment. Payload includes `ref_count`, `channel_ref_count`, `message_ref_count`, `file_ref_count`, `recent_ref_count`, `last_activity_at`, and `related_channels[]`.
+- **Codex**: Added `GET /api/v1/channels/:id/knowledge/digest?window=daily|weekly|monthly&limit=...` plus `POST /api/v1/channels/:id/knowledge/digest/publish`. Publish returns a real channel message and can pin it immediately with `{ "pin": true }`.
+- **Codex**: Published digest messages now carry structured `message.metadata.knowledge_digest`, and refresh logic preserves that field so the UI can render a proper banner/card from the message payload instead of scraping message text.
+- **Codex → Windsurf**: Please implement the Phase 51 UI slice next:
+  - enrich `EntityMentionChip` HoverCard using `GET /api/v1/knowledge/entities/:id/hover?channel_id=...&days=7`
+  - add an entity drilldown/result sheet backed by `GET /api/v1/search/messages/by-entity?entity_id=...&channel_id=...`
+  - add a channel digest preview banner using `GET /api/v1/channels/:id/knowledge/digest?window=weekly&limit=5`
+  - add a publish CTA that calls `POST /api/v1/channels/:id/knowledge/digest/publish` with `{ "window": "weekly", "limit": 5, "pin": true }`
+- **Codex → Windsurf**: Important behavior note: published digest messages intentionally do **not** auto-link themselves back into knowledge refs. This avoids recursive digest noise.
+- **Codex → Nikko Fu**: Relay now has a closed knowledge-discovery loop: entity mentions can be rendered, hovered, searched, summarized, and promoted into pinned channel digest messages without introducing a second summary system.
 
 ### 2026-04-22 - Phase 50 Entity Mention Rendering And Knowledge Alert UI Completion
 - **Windsurf**: Phase 50 complete. (1) Types: `MessageEntityMention` (`entity_id/entity_title/entity_kind/source_kind/mention_text`) added to `types/index.ts`; `metadata.entity_mentions?: MessageEntityMention[]` added to `Message`; `KnowledgeVelocity` (`recent_window_days/previous_ref_count/recent_ref_count/delta/is_spiking`) added; `velocity?` field added to `ChannelKnowledgeSummary`. (2) `EntityMentionChip` (`components/message/entity-mention-chip.tsx`): shadcn `HoverCard` — trigger is a kind-colored chip with icon + `mention_text`; card content shows icon/badge + full `entity_title` + `ArrowUpRight` to wiki + footer link. (3) `MessageItem`: renders `message.metadata.entity_mentions` as a `flex-wrap` chip row directly below message content. (4) Channel header: pulsing amber `Zap` badge with `+N refs` when `velocity.is_spiking`, quiet emerald `TrendingUp` badge when `delta > 0`. `v0.5.90` published.

@@ -860,6 +860,382 @@ func FindMentionedEntities(database *gorm.DB, workspaceID string, content string
 	return mentions, nil
 }
 
+type EntityMessageSearchParams struct {
+	EntityID  string
+	ChannelID string
+	Limit     int
+}
+
+type EntityMessageMatch struct {
+	Message      domain.Message
+	EntityID     string
+	EntityTitle  string
+	MatchSources []string
+}
+
+func FindMessagesByEntity(database *gorm.DB, params EntityMessageSearchParams) ([]EntityMessageMatch, error) {
+	entityID := strings.TrimSpace(params.EntityID)
+	if entityID == "" {
+		return []EntityMessageMatch{}, errors.New("entity_id is required")
+	}
+
+	entity, err := GetEntity(database, entityID)
+	if err != nil {
+		return nil, err
+	}
+
+	limit := params.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	channelID := strings.TrimSpace(params.ChannelID)
+	lowerTitle := strings.ToLower(strings.TrimSpace(entity.Title))
+
+	type matchAccumulator struct {
+		Message      domain.Message
+		MatchSources map[string]struct{}
+	}
+
+	matches := map[string]*matchAccumulator{}
+	messageRefQuery := database.Model(&domain.Message{}).
+		Select("messages.*").
+		Joins("JOIN knowledge_entity_refs ON knowledge_entity_refs.ref_id = messages.id AND knowledge_entity_refs.ref_kind = ?", "message").
+		Where("knowledge_entity_refs.entity_id = ?", entityID)
+	if channelID != "" {
+		messageRefQuery = messageRefQuery.Where("messages.channel_id = ?", channelID)
+	}
+
+	var refMessages []domain.Message
+	if err := messageRefQuery.Order("messages.created_at desc").Find(&refMessages).Error; err != nil {
+		return nil, err
+	}
+	for _, message := range refMessages {
+		accumulator := matches[message.ID]
+		if accumulator == nil {
+			accumulator = &matchAccumulator{
+				Message:      message,
+				MatchSources: map[string]struct{}{},
+			}
+			matches[message.ID] = accumulator
+		}
+		accumulator.MatchSources["knowledge_ref"] = struct{}{}
+	}
+
+	if lowerTitle != "" {
+		needle := "%" + lowerTitle + "%"
+		contentQuery := database.Model(&domain.Message{}).
+			Select("messages.*").
+			Joins("JOIN channels ON channels.id = messages.channel_id").
+			Where("channels.workspace_id = ? AND LOWER(messages.content) LIKE ?", entity.WorkspaceID, needle)
+		if channelID != "" {
+			contentQuery = contentQuery.Where("messages.channel_id = ?", channelID)
+		}
+
+		var titleMessages []domain.Message
+		if err := contentQuery.Order("messages.created_at desc").Find(&titleMessages).Error; err != nil {
+			return nil, err
+		}
+		for _, message := range titleMessages {
+			accumulator := matches[message.ID]
+			if accumulator == nil {
+				accumulator = &matchAccumulator{
+					Message:      message,
+					MatchSources: map[string]struct{}{},
+				}
+				matches[message.ID] = accumulator
+			}
+
+			mentions, err := FindMentionedEntities(database, entity.WorkspaceID, message.Content)
+			if err != nil {
+				return nil, err
+			}
+
+			explicit := false
+			for _, mention := range mentions {
+				if mention.EntityID == entityID {
+					accumulator.MatchSources["explicit_mention"] = struct{}{}
+					explicit = true
+					break
+				}
+			}
+			if !explicit {
+				accumulator.MatchSources["title_match"] = struct{}{}
+			}
+		}
+	}
+
+	results := make([]EntityMessageMatch, 0, len(matches))
+	for _, accumulator := range matches {
+		matchSources := make([]string, 0, len(accumulator.MatchSources))
+		for matchSource := range accumulator.MatchSources {
+			matchSources = append(matchSources, matchSource)
+		}
+		sort.Strings(matchSources)
+		results = append(results, EntityMessageMatch{
+			Message:      accumulator.Message,
+			EntityID:     entity.ID,
+			EntityTitle:  entity.Title,
+			MatchSources: matchSources,
+		})
+	}
+
+	sort.SliceStable(results, func(i, j int) bool {
+		if results[i].Message.CreatedAt.Equal(results[j].Message.CreatedAt) {
+			return results[i].Message.ID < results[j].Message.ID
+		}
+		return results[i].Message.CreatedAt.After(results[j].Message.CreatedAt)
+	})
+	if len(results) > limit {
+		results = results[:limit]
+	}
+	return results, nil
+}
+
+func GetEntityHoverSummary(database *gorm.DB, entityID string, channelID string, days int) (EntityHoverSummary, error) {
+	entityID = strings.TrimSpace(entityID)
+	channelID = strings.TrimSpace(channelID)
+	if days <= 0 {
+		days = 7
+	}
+	if days > 30 {
+		days = 30
+	}
+
+	entity, err := GetEntity(database, entityID)
+	if err != nil {
+		return EntityHoverSummary{}, err
+	}
+
+	var refs []domain.KnowledgeEntityRef
+	if err := database.Where("entity_id = ?", entityID).Order("created_at desc").Find(&refs).Error; err != nil {
+		return EntityHoverSummary{}, err
+	}
+
+	summary := EntityHoverSummary{
+		EntityID:         entity.ID,
+		RecentWindowDays: days,
+		RelatedChannels:  []EntityChannelSummary{},
+	}
+	if len(refs) == 0 {
+		return summary, nil
+	}
+
+	recentWindowStart := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -(days - 1))
+	messageChannelMap, err := loadMessageChannelMap(database, refs)
+	if err != nil {
+		return summary, err
+	}
+	fileChannelMap, err := loadFileChannelMap(database, refs)
+	if err != nil {
+		return summary, err
+	}
+	channelNames, err := loadChannelNames(database, refs, messageChannelMap, fileChannelMap)
+	if err != nil {
+		return summary, err
+	}
+
+	type channelAggregate struct {
+		ChannelID      string
+		Name           string
+		RefCount       int
+		LastActivityAt time.Time
+	}
+	channelAggregates := map[string]*channelAggregate{}
+
+	for _, ref := range refs {
+		summary.RefCount++
+		switch ref.RefKind {
+		case "file":
+			summary.FileRefCount++
+		default:
+			summary.MessageRefCount++
+		}
+		if summary.LastActivityAt == nil || ref.CreatedAt.After(*summary.LastActivityAt) {
+			lastActivity := ref.CreatedAt
+			summary.LastActivityAt = &lastActivity
+		}
+		if !ref.CreatedAt.Before(recentWindowStart) {
+			summary.RecentRefCount++
+		}
+
+		resolvedChannelID := resolveKnowledgeRefChannelID(ref, messageChannelMap, fileChannelMap)
+		if resolvedChannelID == "" {
+			continue
+		}
+		aggregate := channelAggregates[resolvedChannelID]
+		if aggregate == nil {
+			aggregate = &channelAggregate{
+				ChannelID: resolvedChannelID,
+				Name:      channelNames[resolvedChannelID],
+			}
+			channelAggregates[resolvedChannelID] = aggregate
+		}
+		aggregate.RefCount++
+		if ref.CreatedAt.After(aggregate.LastActivityAt) {
+			aggregate.LastActivityAt = ref.CreatedAt
+		}
+		if resolvedChannelID == channelID {
+			summary.ChannelRefCount++
+		}
+	}
+
+	for _, aggregate := range channelAggregates {
+		lastActivity := aggregate.LastActivityAt
+		summary.RelatedChannels = append(summary.RelatedChannels, EntityChannelSummary{
+			ChannelID:      aggregate.ChannelID,
+			Name:           aggregate.Name,
+			RefCount:       aggregate.RefCount,
+			LastActivityAt: &lastActivity,
+		})
+	}
+	sort.SliceStable(summary.RelatedChannels, func(i, j int) bool {
+		if summary.RelatedChannels[i].RefCount == summary.RelatedChannels[j].RefCount {
+			if summary.RelatedChannels[i].LastActivityAt != nil && summary.RelatedChannels[j].LastActivityAt != nil &&
+				summary.RelatedChannels[i].LastActivityAt.Equal(*summary.RelatedChannels[j].LastActivityAt) {
+				return summary.RelatedChannels[i].ChannelID < summary.RelatedChannels[j].ChannelID
+			}
+			if summary.RelatedChannels[i].LastActivityAt == nil {
+				return false
+			}
+			if summary.RelatedChannels[j].LastActivityAt == nil {
+				return true
+			}
+			return summary.RelatedChannels[i].LastActivityAt.After(*summary.RelatedChannels[j].LastActivityAt)
+		}
+		return summary.RelatedChannels[i].RefCount > summary.RelatedChannels[j].RefCount
+	})
+
+	return summary, nil
+}
+
+func BuildChannelKnowledgeDigest(database *gorm.DB, channelID string, window string, limit int) (ChannelKnowledgeDigest, error) {
+	channelID = strings.TrimSpace(channelID)
+	window, windowDays := normalizeDigestWindow(window)
+	if limit <= 0 {
+		limit = 5
+	}
+	if limit > 20 {
+		limit = 20
+	}
+
+	digest := ChannelKnowledgeDigest{
+		ChannelID:    channelID,
+		Window:       window,
+		WindowDays:   windowDays,
+		GeneratedAt:  time.Now().UTC(),
+		TopMovements: []ChannelKnowledgeDigestMovement{},
+	}
+	if channelID == "" {
+		return digest, errors.New("channel_id is required")
+	}
+
+	var channel domain.Channel
+	if err := database.Select("id, name").First(&channel, "id = ?", channelID).Error; err != nil {
+		return digest, err
+	}
+
+	refs, err := listChannelKnowledgeEntityRefs(database, channelID)
+	if err != nil {
+		return digest, err
+	}
+	digest.TotalRefs = len(refs)
+	if len(refs) == 0 {
+		digest.Headline = fmt.Sprintf("No knowledge movement detected in #%s %s.", channel.Name, digestWindowPhrase(window))
+		digest.Summary = "No entity references were created in the selected digest window."
+		return digest, nil
+	}
+
+	recentWindowStart := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -(windowDays - 1))
+	previousWindowStart := recentWindowStart.AddDate(0, 0, -windowDays)
+	type aggregate struct {
+		EntityID         string
+		RefCount         int
+		RecentRefCount   int
+		PreviousRefCount int
+		LastActivityAt   time.Time
+	}
+	aggregates := map[string]*aggregate{}
+	entityIDs := make([]string, 0)
+	for _, ref := range refs {
+		item := aggregates[ref.EntityID]
+		if item == nil {
+			item = &aggregate{EntityID: ref.EntityID}
+			aggregates[ref.EntityID] = item
+			entityIDs = append(entityIDs, ref.EntityID)
+		}
+		item.RefCount++
+		if ref.CreatedAt.After(item.LastActivityAt) {
+			item.LastActivityAt = ref.CreatedAt
+		}
+		if !ref.CreatedAt.Before(recentWindowStart) {
+			item.RecentRefCount++
+			digest.RecentRefCount++
+		} else if !ref.CreatedAt.Before(previousWindowStart) {
+			item.PreviousRefCount++
+		}
+	}
+
+	entityMap, err := loadKnowledgeEntityMap(database, entityIDs)
+	if err != nil {
+		return digest, err
+	}
+
+	for _, entityID := range entityIDs {
+		aggregate := aggregates[entityID]
+		entity := entityMap[entityID]
+		lastActivity := aggregate.LastActivityAt
+		title := entity.Title
+		if strings.TrimSpace(title) == "" {
+			title = entityID
+		}
+		digest.TopMovements = append(digest.TopMovements, ChannelKnowledgeDigestMovement{
+			EntityID:         entityID,
+			EntityTitle:      title,
+			EntityKind:       entity.Kind,
+			RefCount:         aggregate.RefCount,
+			RecentRefCount:   aggregate.RecentRefCount,
+			PreviousRefCount: aggregate.PreviousRefCount,
+			Delta:            aggregate.RecentRefCount - aggregate.PreviousRefCount,
+			LastActivityAt:   &lastActivity,
+		})
+	}
+
+	sort.SliceStable(digest.TopMovements, func(i, j int) bool {
+		if digest.TopMovements[i].RecentRefCount == digest.TopMovements[j].RecentRefCount {
+			if digest.TopMovements[i].Delta == digest.TopMovements[j].Delta {
+				if digest.TopMovements[i].RefCount == digest.TopMovements[j].RefCount {
+					if digest.TopMovements[i].LastActivityAt != nil && digest.TopMovements[j].LastActivityAt != nil &&
+						digest.TopMovements[i].LastActivityAt.Equal(*digest.TopMovements[j].LastActivityAt) {
+						return digest.TopMovements[i].EntityTitle < digest.TopMovements[j].EntityTitle
+					}
+					if digest.TopMovements[i].LastActivityAt == nil {
+						return false
+					}
+					if digest.TopMovements[j].LastActivityAt == nil {
+						return true
+					}
+					return digest.TopMovements[i].LastActivityAt.After(*digest.TopMovements[j].LastActivityAt)
+				}
+				return digest.TopMovements[i].RefCount > digest.TopMovements[j].RefCount
+			}
+			return digest.TopMovements[i].Delta > digest.TopMovements[j].Delta
+		}
+		return digest.TopMovements[i].RecentRefCount > digest.TopMovements[j].RecentRefCount
+	})
+	if len(digest.TopMovements) > limit {
+		digest.TopMovements = digest.TopMovements[:limit]
+	}
+
+	top := digest.TopMovements[0]
+	digest.Headline = fmt.Sprintf("%s leads knowledge movement in #%s %s.", top.EntityTitle, channel.Name, digestWindowPhrase(window))
+	digest.Summary = fmt.Sprintf("%d entity references were created in #%s across %d highlighted movements.", digest.RecentRefCount, channel.Name, len(digest.TopMovements))
+	return digest, nil
+}
+
 func listChannelKnowledgeEntityRefs(database *gorm.DB, channelID string) ([]domain.KnowledgeEntityRef, error) {
 	messageRefs, err := listChannelMessageKnowledgeEntityRefs(database, channelID)
 	if err != nil {
@@ -1022,6 +1398,91 @@ func loadKnowledgeEntityMap(database *gorm.DB, entityIDs []string) (map[string]d
 	return result, nil
 }
 
+func loadMessageChannelMap(database *gorm.DB, refs []domain.KnowledgeEntityRef) (map[string]string, error) {
+	messageIDs := make([]string, 0)
+	for _, ref := range refs {
+		if ref.RefKind == "message" {
+			messageIDs = append(messageIDs, ref.RefID)
+		}
+	}
+
+	messageChannelMap := map[string]string{}
+	if len(messageIDs) == 0 {
+		return messageChannelMap, nil
+	}
+
+	var messages []domain.Message
+	if err := database.Select("id, channel_id").Where("id IN ?", messageIDs).Find(&messages).Error; err != nil {
+		return nil, err
+	}
+	for _, message := range messages {
+		messageChannelMap[message.ID] = message.ChannelID
+	}
+	return messageChannelMap, nil
+}
+
+func loadFileChannelMap(database *gorm.DB, refs []domain.KnowledgeEntityRef) (map[string]string, error) {
+	fileIDs := make([]string, 0)
+	for _, ref := range refs {
+		if ref.RefKind == "file" {
+			fileIDs = append(fileIDs, ref.RefID)
+		}
+	}
+
+	fileChannelMap := map[string]string{}
+	if len(fileIDs) == 0 {
+		return fileChannelMap, nil
+	}
+
+	var files []domain.FileAsset
+	if err := database.Select("id, channel_id").Where("id IN ?", fileIDs).Find(&files).Error; err != nil {
+		return nil, err
+	}
+	for _, file := range files {
+		fileChannelMap[file.ID] = file.ChannelID
+	}
+	return fileChannelMap, nil
+}
+
+func loadChannelNames(database *gorm.DB, refs []domain.KnowledgeEntityRef, messageChannelMap map[string]string, fileChannelMap map[string]string) (map[string]string, error) {
+	channelIDs := make([]string, 0)
+	seen := map[string]struct{}{}
+	for _, ref := range refs {
+		channelID := resolveKnowledgeRefChannelID(ref, messageChannelMap, fileChannelMap)
+		if channelID == "" {
+			continue
+		}
+		if _, exists := seen[channelID]; exists {
+			continue
+		}
+		seen[channelID] = struct{}{}
+		channelIDs = append(channelIDs, channelID)
+	}
+
+	channelNames := map[string]string{}
+	if len(channelIDs) == 0 {
+		return channelNames, nil
+	}
+
+	var channels []domain.Channel
+	if err := database.Select("id, name").Where("id IN ?", channelIDs).Find(&channels).Error; err != nil {
+		return nil, err
+	}
+	for _, channel := range channels {
+		channelNames[channel.ID] = channel.Name
+	}
+	return channelNames, nil
+}
+
+func resolveKnowledgeRefChannelID(ref domain.KnowledgeEntityRef, messageChannelMap map[string]string, fileChannelMap map[string]string) string {
+	switch ref.RefKind {
+	case "file":
+		return fileChannelMap[ref.RefID]
+	default:
+		return messageChannelMap[ref.RefID]
+	}
+}
+
 func knowledgeEntityMatchScore(entity domain.KnowledgeEntity, lowerQuery string) int {
 	title := strings.ToLower(strings.TrimSpace(entity.Title))
 	summary := strings.ToLower(strings.TrimSpace(entity.Summary))
@@ -1037,6 +1498,28 @@ func knowledgeEntityMatchScore(entity domain.KnowledgeEntity, lowerQuery string)
 		return 1
 	default:
 		return 0
+	}
+}
+
+func normalizeDigestWindow(window string) (string, int) {
+	switch strings.ToLower(strings.TrimSpace(window)) {
+	case "daily", "day", "1d":
+		return "daily", 1
+	case "monthly", "month", "30d":
+		return "monthly", 30
+	default:
+		return "weekly", 7
+	}
+}
+
+func digestWindowPhrase(window string) string {
+	switch window {
+	case "daily":
+		return "today"
+	case "monthly":
+		return "this month"
+	default:
+		return "this week"
 	}
 }
 

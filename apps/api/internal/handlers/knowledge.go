@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -12,6 +14,7 @@ import (
 
 	"github.com/nikkofu/relay-agent-workspace/api/internal/db"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/domain"
+	"github.com/nikkofu/relay-agent-workspace/api/internal/ids"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/knowledge"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/realtime"
 )
@@ -247,6 +250,163 @@ func SuggestKnowledgeEntities(c *gin.Context) {
 	})
 }
 
+func SearchMessagesByEntity(c *gin.Context) {
+	entityID := strings.TrimSpace(c.Query("entity_id"))
+	if entityID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "entity_id is required"})
+		return
+	}
+
+	matches, err := knowledge.FindMessagesByEntity(db.DB, knowledge.EntityMessageSearchParams{
+		EntityID:  entityID,
+		ChannelID: c.Query("channel_id"),
+		Limit:     parseLimit(c.Query("limit"), 20),
+	})
+	if err != nil {
+		handleKnowledgeNotFound(c, err, "knowledge entity not found")
+		return
+	}
+
+	items := make([]gin.H, 0, len(matches))
+	for _, match := range matches {
+		message := match.Message
+		refreshed, err := refreshMessageMetadata(message.ID)
+		if err == nil && refreshed != nil {
+			message = *refreshed
+		}
+		items = append(items, gin.H{
+			"id":            message.ID,
+			"channel_id":    message.ChannelID,
+			"user_id":       message.UserID,
+			"content":       message.Content,
+			"thread_id":     message.ThreadID,
+			"created_at":    message.CreatedAt,
+			"metadata":      message.Metadata,
+			"snippet":       buildSearchSnippet(message.Content, match.EntityTitle),
+			"entity_id":     match.EntityID,
+			"entity_title":  match.EntityTitle,
+			"match_sources": match.MatchSources,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"entity_id":  entityID,
+		"channel_id": strings.TrimSpace(c.Query("channel_id")),
+		"messages":   items,
+	})
+}
+
+func GetKnowledgeEntityHover(c *gin.Context) {
+	entity, err := knowledge.GetEntity(db.DB, c.Param("id"))
+	if err != nil {
+		handleKnowledgeNotFound(c, err, "knowledge entity not found")
+		return
+	}
+
+	hover, err := knowledge.GetEntityHoverSummary(
+		db.DB,
+		c.Param("id"),
+		c.Query("channel_id"),
+		parseWindowDays(c.Query("days"), 7),
+	)
+	if err != nil {
+		handleKnowledgeNotFound(c, err, "knowledge entity not found")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"entity": entity,
+		"hover":  hover,
+	})
+}
+
+func GetChannelKnowledgeDigest(c *gin.Context) {
+	digest, err := knowledge.BuildChannelKnowledgeDigest(
+		db.DB,
+		c.Param("id"),
+		c.DefaultQuery("window", "weekly"),
+		parseLimit(c.Query("limit"), 5),
+	)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "channel not found"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to build channel knowledge digest"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"digest": digest})
+}
+
+func PublishChannelKnowledgeDigest(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var input struct {
+		Window string `json:"window"`
+		Limit  int    `json:"limit"`
+		Pin    bool   `json:"pin"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	digest, err := knowledge.BuildChannelKnowledgeDigest(
+		db.DB,
+		c.Param("id"),
+		defaultString(strings.TrimSpace(input.Window), "weekly"),
+		parseLimit(strconv.Itoa(input.Limit), 5),
+	)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "channel not found"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to build channel knowledge digest"})
+		return
+	}
+
+	meta := messageMetadata{
+		KnowledgeDigest: &digest,
+	}
+	metadataJSON, err := json.Marshal(meta)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to encode digest metadata"})
+		return
+	}
+
+	message := domain.Message{
+		ID:        ids.NewPrefixedUUID("msg"),
+		ChannelID: c.Param("id"),
+		UserID:    currentUser.ID,
+		Content:   buildKnowledgeDigestMessageContent(digest),
+		IsPinned:  input.Pin,
+		CreatedAt: time.Now().UTC(),
+		Metadata:  string(metadataJSON),
+	}
+	if err := db.DB.Create(&message).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create digest message"})
+		return
+	}
+
+	if RealtimeHub != nil {
+		if err := broadcastRealtimeEvent("message.created", message, message); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to broadcast digest message"})
+			return
+		}
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message": message,
+		"digest":  digest,
+	})
+}
+
 func handleKnowledgeError(c *gin.Context, err error, fallback string) {
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "knowledge entity not found"})
@@ -283,6 +443,21 @@ func parseWindowDays(raw string, fallback int) int {
 		return 30
 	}
 	return days
+}
+
+func buildKnowledgeDigestMessageContent(digest knowledge.ChannelKnowledgeDigest) string {
+	lines := []string{
+		fmt.Sprintf("Knowledge digest (%s)", digest.Window),
+		digest.Headline,
+		digest.Summary,
+	}
+	for idx, movement := range digest.TopMovements {
+		if idx >= 3 {
+			break
+		}
+		lines = append(lines, fmt.Sprintf("- %s: %d recent refs (%+d vs previous window)", movement.EntityTitle, movement.RecentRefCount, movement.Delta))
+	}
+	return strings.Join(lines, "\n")
 }
 
 func autoLinkKnowledgeForMessage(message domain.Message) {
