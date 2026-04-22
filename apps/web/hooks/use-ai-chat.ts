@@ -119,8 +119,9 @@ export function useAIChat() {
     saveSettings({ mode })
   }
 
-  const append = useCallback(async (content: string) => {
-    const plainText = content.replace(/<[^>]*>/g, '').trim()
+  const append = useCallback(async (content: string, promptOverride?: string) => {
+    const promptForApi = promptOverride || content
+    const plainText = promptForApi.replace(/<[^>]*>/g, '').trim()
     const slashCommand = plainText.startsWith('/') ? plainText.slice(1).split(/\s+/)[0] : undefined
 
     const userMsg: AIMessage = {
@@ -149,7 +150,7 @@ export function useAIChat() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
-          prompt: content, 
+          prompt: promptForApi, 
           channel_id: "ai-chat", 
           conversation_id: currentConversationId,
           command: slashCommand,

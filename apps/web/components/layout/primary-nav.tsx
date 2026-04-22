@@ -10,6 +10,7 @@ import { useUIStore } from "@/stores/ui-store"
 import { useUserStore } from "@/stores/user-store"
 import { useDMStore } from "@/stores/dm-store"
 import { useChannelStore } from "@/stores/channel-store"
+import { useKnowledgeStore } from "@/stores/knowledge-store"
 import { usePathname, useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 
@@ -32,13 +33,15 @@ export function PrimaryNav() {
   const { currentUser } = useUserStore()
   const { conversations } = useDMStore()
   const { setCurrentChannel } = useChannelStore()
+  const { knowledgeInboxUnreadCount, fetchKnowledgeInbox } = useKnowledgeStore()
   const router = useRouter()
   const pathname = usePathname()
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     setMounted(true)
-  }, [])
+    fetchKnowledgeInbox('all', 50).catch(() => { /* silent */ })
+  }, [fetchKnowledgeInbox])
 
   const handleNavItemClick = (item: typeof NAV_ITEMS[0]) => {
     if (item.label === "Home") {
@@ -75,6 +78,9 @@ export function PrimaryNav() {
           let unreadCount = 0
           if (item.label === "DMs") {
             unreadCount = conversations.reduce((acc, c) => acc + (c.unreadCount || 0), 0)
+          }
+          if (item.label === "Knowledge") {
+            unreadCount = knowledgeInboxUnreadCount
           }
 
           return (

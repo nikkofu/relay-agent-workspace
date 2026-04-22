@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button"
 import { useUIStore } from "@/stores/ui-store"
 import { useAIStore } from "@/stores/ai-store"
 import { useChannelStore } from "@/stores/channel-store"
+import { useMessageStore } from "@/stores/message-store"
+import { useUserStore } from "@/stores/user-store"
 import { useEffect, useRef, useState } from "react"
 import { AISettings } from "./ai-settings"
 import { formatDistanceToNow } from "date-fns"
@@ -65,11 +67,42 @@ export function AIChatPanel() {
 
   const handleSuggestionClick = (suggestion: string) => {
     if (suggestion === "Summarize this channel") {
-      if (currentChannel) {
-        handleSend(`Summarize the #${currentChannel.name} channel (ID: ${currentChannel.id})`)
-      } else {
+      if (!currentChannel) {
         toast.info("Please select a channel to summarize first.")
+        return
       }
+
+      // Pull recent channel history from the store and inject into the prompt
+      // so the AI has actual context instead of just a channel name.
+      const allMessages = useMessageStore.getState().messages
+      const users = useUserStore.getState().users
+      const channelMessages = allMessages
+        .filter(m => m.channelId === currentChannel.id && !m.threadId)
+        .slice(-50)
+
+      if (channelMessages.length === 0) {
+        handleSend(`Summarize the #${currentChannel.name} channel. No recent messages are available yet.`)
+        return
+      }
+
+      const userMap = new Map(users.map(u => [u.id, u.name]))
+      const history = channelMessages.map(m => {
+        const sender = userMap.get(m.senderId) || m.senderId
+        const plain = (m.content || "").replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()
+        return `- [${sender}] ${plain}`
+      }).join('\n')
+
+      const displayContent = `Summarize the #${currentChannel.name} channel`
+      const apiPrompt = [
+        `Summarize the #${currentChannel.name} channel for a busy teammate.`,
+        `Focus on key topics, decisions, action items with owners, blockers, and overall tone.`,
+        `Return a concise markdown summary with bold section headings.`,
+        ``,
+        `Recent messages (${channelMessages.length}):`,
+        history,
+      ].join('\n')
+
+      append(displayContent, apiPrompt)
       return
     }
     handleSend(suggestion)

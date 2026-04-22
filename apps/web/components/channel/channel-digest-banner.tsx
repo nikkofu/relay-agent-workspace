@@ -4,36 +4,45 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   Newspaper, Pin, Loader2, ChevronDown, ChevronUp, X, Globe,
-  TrendingUp, TrendingDown, Zap,
+  TrendingUp, TrendingDown, Zap, CalendarClock,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 import { useKnowledgeStore } from "@/stores/knowledge-store"
+import { DigestScheduleDialog } from "./digest-schedule-dialog"
 import type { ChannelKnowledgeDigest } from "@/types"
 
 type DigestWindow = 'daily' | 'weekly' | 'monthly'
 
 interface ChannelDigestBannerProps {
   channelId: string
+  channelName?: string
 }
 
-export function ChannelDigestBanner({ channelId }: ChannelDigestBannerProps) {
+export function ChannelDigestBanner({ channelId, channelName }: ChannelDigestBannerProps) {
   const router = useRouter()
-  const { fetchChannelDigest, publishChannelDigest } = useKnowledgeStore()
+  const { fetchChannelDigest, publishChannelDigest, fetchDigestSchedule, digestSchedules } = useKnowledgeStore()
   const [expanded, setExpanded] = useState(false)
   const [dismissed, setDismissed] = useState(false)
   const [digest, setDigest] = useState<ChannelKnowledgeDigest | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [window, setWindow] = useState<DigestWindow>('weekly')
   const [isPublishing, setIsPublishing] = useState(false)
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false)
+  const schedule = digestSchedules[channelId] || null
 
   useEffect(() => {
     setDismissed(false)
     setExpanded(false)
     setDigest(null)
   }, [channelId])
+
+  useEffect(() => {
+    if (!channelId) return
+    fetchDigestSchedule(channelId)
+  }, [channelId, fetchDigestSchedule])
 
   useEffect(() => {
     if (!channelId || dismissed) return
@@ -125,6 +134,22 @@ export function ChannelDigestBanner({ channelId }: ChannelDigestBannerProps) {
           <Button
             variant="ghost"
             size="icon"
+            className={cn(
+              "h-7 w-7 relative",
+              schedule?.is_enabled && "text-emerald-700 hover:text-emerald-700"
+            )}
+            onClick={() => setScheduleDialogOpen(true)}
+            title={schedule?.is_enabled ? `Auto-publish scheduled${schedule?.next_run_at ? ` · next ${format(new Date(schedule.next_run_at), 'MMM d h:mm a')}` : ''}` : "Schedule auto-publish"}
+          >
+            <CalendarClock className="w-3.5 h-3.5" />
+            {schedule?.is_enabled && (
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 border border-white dark:border-[#1a1d21]" />
+            )}
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon"
             className="h-7 w-7"
             onClick={() => setExpanded(v => !v)}
             title={expanded ? "Collapse" : "Expand"}
@@ -152,6 +177,14 @@ export function ChannelDigestBanner({ channelId }: ChannelDigestBannerProps) {
             <X className="w-3.5 h-3.5" />
           </Button>
         </div>
+
+        {/* Schedule indicator */}
+        {schedule?.is_enabled && schedule?.next_run_at && (
+          <div className="mt-1 pl-9 text-[9px] text-emerald-700 flex items-center gap-1">
+            <CalendarClock className="w-2.5 h-2.5" />
+            Auto-publishing {schedule.window} · next run {format(new Date(schedule.next_run_at), "MMM d, h:mm a")}
+          </div>
+        )}
 
         {/* Expanded entry list */}
         {expanded && (
@@ -186,6 +219,13 @@ export function ChannelDigestBanner({ channelId }: ChannelDigestBannerProps) {
           </div>
         )}
       </div>
+
+      <DigestScheduleDialog
+        open={scheduleDialogOpen}
+        onOpenChange={setScheduleDialogOpen}
+        channelId={channelId}
+        channelName={channelName}
+      />
     </div>
   )
 }

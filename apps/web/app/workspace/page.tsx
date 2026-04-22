@@ -160,7 +160,7 @@ function WorkspaceContent() {
         </div>
 
         {/* Knowledge Digest Banner */}
-        <ChannelDigestBanner channelId={currentChannel.id} />
+        <ChannelDigestBanner channelId={currentChannel.id} channelName={currentChannel.name} />
 
         {/* Messages List */}
         <div className="flex-1 min-h-0 flex flex-col">

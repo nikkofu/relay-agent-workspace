@@ -15,6 +15,10 @@ import type {
   MessageByEntityResult,
   ChannelKnowledgeDigest,
   Message,
+  DigestSchedule,
+  DigestScheduleInput,
+  KnowledgeInboxItem,
+  KnowledgeInboxScope,
 } from "@/types"
 
 interface KnowledgeState {
@@ -28,6 +32,11 @@ interface KnowledgeState {
   isLoadingChannelSummary: boolean
   entitySuggestions: EntitySuggestResult[]
   isLoadingSuggestions: boolean
+  digestSchedules: Record<string, DigestSchedule | null>
+  knowledgeInbox: KnowledgeInboxItem[]
+  knowledgeInboxScope: KnowledgeInboxScope
+  knowledgeInboxUnreadCount: number
+  isLoadingInbox: boolean
 
   pushLiveUpdate: (update: KnowledgeUpdate) => void
   handleEntityCreated: (entity: KnowledgeEntity) => void
@@ -39,6 +48,12 @@ interface KnowledgeState {
   searchMessagesByEntity: (entityId: string, channelId?: string, limit?: number) => Promise<MessageByEntityResult[]>
   fetchChannelDigest: (channelId: string, window?: 'daily' | 'weekly' | 'monthly', limit?: number) => Promise<ChannelKnowledgeDigest | null>
   publishChannelDigest: (channelId: string, params: { window?: 'daily' | 'weekly' | 'monthly'; limit?: number; pin?: boolean }) => Promise<Message | null>
+  fetchDigestSchedule: (channelId: string) => Promise<DigestSchedule | null>
+  upsertDigestSchedule: (channelId: string, input: DigestScheduleInput) => Promise<DigestSchedule | null>
+  deleteDigestSchedule: (channelId: string) => Promise<boolean>
+  fetchKnowledgeInbox: (scope?: KnowledgeInboxScope, limit?: number) => Promise<KnowledgeInboxItem[]>
+  markInboxRead: (messageIds: string[]) => Promise<void>
+  applyDigestPublished: (payload: { channel_id?: string; message?: Message; digest?: ChannelKnowledgeDigest }) => void
   ingestEvent: (data: {
     entity_id: string
     event_type: string
@@ -72,6 +87,11 @@ export const useKnowledgeStore = create<KnowledgeState>((set) => ({
   isLoadingChannelSummary: false,
   entitySuggestions: [],
   isLoadingSuggestions: false,
+  digestSchedules: {},
+  knowledgeInbox: [],
+  knowledgeInboxScope: 'all' as KnowledgeInboxScope,
+  knowledgeInboxUnreadCount: 0,
+  isLoadingInbox: false,
 
   pushLiveUpdate: (update) => set({ liveUpdate: update }),
 
@@ -144,6 +164,114 @@ export const useKnowledgeStore = create<KnowledgeState>((set) => ({
       console.error("Failed to fetch channel digest:", error)
       return null
     }
+  },
+
+  fetchDigestSchedule: async (channelId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/channels/${channelId}/knowledge/digest/schedule`)
+      if (res.status === 404) {
+        set(state => ({ digestSchedules: { ...state.digestSchedules, [channelId]: null } }))
+        return null
+      }
+      if (!res.ok) return null
+      const data = await res.json()
+      const schedule = (data.schedule || data) as DigestSchedule
+      set(state => ({ digestSchedules: { ...state.digestSchedules, [channelId]: schedule } }))
+      return schedule
+    } catch (error) {
+      console.error("Failed to fetch digest schedule:", error)
+      return null
+    }
+  },
+
+  upsertDigestSchedule: async (channelId, input) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/channels/${channelId}/knowledge/digest/schedule`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      })
+      if (!res.ok) {
+        toast.error(`Failed to save schedule (${res.status})`)
+        return null
+      }
+      const data = await res.json()
+      const schedule = (data.schedule || data) as DigestSchedule
+      set(state => ({ digestSchedules: { ...state.digestSchedules, [channelId]: schedule } }))
+      toast.success(input.is_enabled ? "Digest schedule saved" : "Digest schedule disabled")
+      return schedule
+    } catch (error) {
+      console.error("Failed to save digest schedule:", error)
+      toast.error("Failed to save digest schedule")
+      return null
+    }
+  },
+
+  deleteDigestSchedule: async (channelId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/channels/${channelId}/knowledge/digest/schedule`, {
+        method: 'DELETE',
+      })
+      if (!res.ok && res.status !== 404) {
+        toast.error(`Failed to remove schedule (${res.status})`)
+        return false
+      }
+      set(state => ({ digestSchedules: { ...state.digestSchedules, [channelId]: null } }))
+      toast.success("Digest schedule removed")
+      return true
+    } catch (error) {
+      console.error("Failed to delete digest schedule:", error)
+      return false
+    }
+  },
+
+  fetchKnowledgeInbox: async (scope = 'all', limit = 30) => {
+    set({ isLoadingInbox: true, knowledgeInboxScope: scope })
+    try {
+      const params = new URLSearchParams({ scope, limit: String(limit) })
+      const res = await fetch(`${API_BASE_URL}/knowledge/inbox?${params}`)
+      if (!res.ok) { set({ isLoadingInbox: false }); return [] }
+      const data = await res.json()
+      const items: KnowledgeInboxItem[] = data.items || data.inbox || []
+      const unread = items.filter(i => !i.is_read).length
+      set({ knowledgeInbox: items, knowledgeInboxUnreadCount: unread, isLoadingInbox: false })
+      return items
+    } catch (error) {
+      console.error("Failed to fetch knowledge inbox:", error)
+      set({ isLoadingInbox: false })
+      return []
+    }
+  },
+
+  markInboxRead: async (messageIds) => {
+    if (messageIds.length === 0) return
+    const itemIds = messageIds.map(id => `knowledge-digest-${id}`)
+    // Optimistic local update
+    set(state => {
+      const idSet = new Set(messageIds)
+      const next = state.knowledgeInbox.map(item =>
+        idSet.has(item.message?.id) ? { ...item, is_read: true } : item
+      )
+      return { knowledgeInbox: next, knowledgeInboxUnreadCount: next.filter(i => !i.is_read).length }
+    })
+    try {
+      await fetch(`${API_BASE_URL}/notifications/read`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item_ids: itemIds }),
+      })
+    } catch (error) {
+      console.error("Failed to mark inbox items read:", error)
+    }
+  },
+
+  applyDigestPublished: (payload) => {
+    // Invalidate channel summary if applicable; inbox will be re-fetched by caller.
+    const channelId = payload?.channel_id
+    if (!channelId) return
+    set(() => ({
+      liveUpdate: { type: 'digest.published', entityId: channelId, payload, ts: Date.now() },
+    }))
   },
 
   publishChannelDigest: async (channelId, { window = 'weekly', limit = 5, pin = true }) => {

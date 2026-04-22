@@ -145,11 +145,13 @@ export type KnowledgeUpdateType =
   | 'ref.created'
   | 'event.created'
   | 'link.created'
+  | 'digest.published'
 
 export type KnowledgeUpdate =
   | { type: 'entity.created' | 'entity.updated'; entityId: string; payload: KnowledgeEntity; ts: number }
   | { type: 'ref.created'; entityId: string; payload: KnowledgeEntityRef; ts: number }
   | { type: 'event.created'; entityId: string; payload: KnowledgeEvent; ts: number }
+  | { type: 'digest.published'; entityId: string; payload: { channel_id?: string; message?: unknown; digest?: unknown }; ts: number }
   | { type: 'link.created'; entityId: string; payload: KnowledgeEntityLink; ts: number }
 
 export interface ChannelKnowledgeRef {
@@ -256,6 +258,54 @@ export interface ChannelKnowledgeDigest {
   delta?: number
   entries: ChannelKnowledgeDigestEntry[]
   headline?: string
+}
+
+export type DigestWindow = 'daily' | 'weekly' | 'monthly'
+
+export interface DigestSchedule {
+  channel_id: string
+  window: DigestWindow
+  timezone: string
+  day_of_week?: number
+  day_of_month?: number
+  hour: number
+  minute: number
+  limit: number
+  pin: boolean
+  is_enabled: boolean
+  last_published_at?: string
+  next_run_at?: string
+  created_at?: string
+  updated_at?: string
+}
+
+export interface DigestScheduleInput {
+  window: DigestWindow
+  timezone: string
+  day_of_week?: number
+  day_of_month?: number
+  hour: number
+  minute: number
+  limit: number
+  pin: boolean
+  is_enabled: boolean
+}
+
+export type KnowledgeInboxScope = 'all' | 'starred'
+
+export interface KnowledgeInboxChannel {
+  id: string
+  name?: string
+  is_starred?: boolean
+}
+
+export interface KnowledgeInboxItem {
+  id: string
+  channel: KnowledgeInboxChannel
+  message: Message
+  digest: ChannelKnowledgeDigest
+  is_read: boolean
+  occurred_at: string
 }
 
 export interface FileSearchResult {

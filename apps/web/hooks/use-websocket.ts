@@ -10,6 +10,7 @@ import { useDirectoryStore } from '@/stores/directory-store'
 import { useFileStore } from '@/stores/file-store'
 import { useKnowledgeStore } from '@/stores/knowledge-store'
 import { useChannelStore } from '@/stores/channel-store'
+import { useWorkspaceStore } from '@/stores/workspace-store'
 
 export function useWebsocket() {
   const socketRef = useRef<WebSocket | null>(null)
@@ -140,6 +141,39 @@ export function useWebsocket() {
               ts: Date.now(),
             })
           }
+        } else if (data.type === 'knowledge.digest.published') {
+          const payload = data.payload || {}
+          const channelId = payload.channel_id || payload.channel?.id
+          // Update the live-update bus so the inbox page reacts
+          useKnowledgeStore.getState().applyDigestPublished({
+            channel_id: channelId,
+            message: payload.message,
+            digest: payload.digest,
+          })
+          // Refresh the cross-channel inbox
+          const scope = useKnowledgeStore.getState().knowledgeInboxScope
+          useKnowledgeStore.getState().fetchKnowledgeInbox(scope, 50).catch(() => {})
+          // If current channel matches, re-fetch its digest & summary
+          const activeChannelId = useChannelStore.getState().currentChannel?.id
+          if (activeChannelId && activeChannelId === channelId) {
+            useKnowledgeStore.getState().fetchChannelKnowledgeSummary(activeChannelId).catch(() => {})
+          }
+          // Refresh home digest aggregation so Home stays in sync
+          useWorkspaceStore.getState().fetchHome?.().catch?.(() => {})
+          // Subtle toast with jump
+          const channelName = payload?.channel?.name
+          const messageId = payload?.message?.id
+          toast(
+            `📰 New ${payload?.digest?.window || 'weekly'} digest${channelName ? ` in #${channelName}` : ''}`,
+            {
+              description: payload?.digest?.headline || 'Auto-published knowledge digest',
+              duration: 5000,
+              action: messageId && channelId ? {
+                label: 'View',
+                onClick: () => window.location.href = `/workspace?c=${channelId}&m=${messageId}`,
+              } : undefined,
+            }
+          )
         }
       } catch (err) {
         console.error("Failed to parse WS message:", err)

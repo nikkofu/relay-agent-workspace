@@ -4,8 +4,10 @@ import { useEffect, useState } from "react"
 import { useDirectoryStore } from "@/stores/directory-store"
 import { 
   Layout, Users, Zap, Briefcase, ChevronRight, FileText, MessageSquare, 
-  Plus, UserPlus, Smile, ArrowRight, Sparkles, Hash, Clock
+  Plus, UserPlus, Smile, ArrowRight, Sparkles, Hash, Clock, Inbox, Newspaper
 } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { format } from "date-fns"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
@@ -24,6 +26,7 @@ import {
 import { Copy, ExternalLink, MoreVertical } from "lucide-react"
 
 export function HomeDashboard() {
+  const router = useRouter()
   const { userGroups, workflows, tools, fetchUserGroups, fetchWorkflows, fetchTools } = useDirectoryStore()
   const { homeData, fetchHome, currentWorkspace } = useWorkspaceStore()
   const { currentUser } = useUserStore()
@@ -95,7 +98,7 @@ export function HomeDashboard() {
 
           <div className="p-8 max-w-6xl mx-auto w-full space-y-12 pb-32">
             {/* Quick Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 -mt-20 relative z-20">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 -mt-20 relative z-20">
               <Card className="bg-white dark:bg-[#222529] border-none shadow-2xl hover:translate-y-[-4px] transition-all duration-300">
                 <CardContent className="p-6 flex items-center gap-5">
                   <div className="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-600 shrink-0">
@@ -126,6 +129,25 @@ export function HomeDashboard() {
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">New Knowledge</p>
                     <p className="text-2xl font-black">{homeData?.recent_artifacts?.length || 0}</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card
+                className="bg-white dark:bg-[#222529] border-none shadow-2xl hover:translate-y-[-4px] transition-all duration-300 cursor-pointer"
+                onClick={() => router.push('/workspace/knowledge/inbox')}
+              >
+                <CardContent className="p-6 flex items-center gap-5">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-600 shrink-0 relative">
+                    <Inbox className="w-6 h-6" />
+                    {(homeData?.knowledge_inbox_count || 0) > 0 && (
+                      <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-emerald-500 text-white text-[9px] font-black flex items-center justify-center border-2 border-white dark:border-[#222529]">
+                        {homeData?.knowledge_inbox_count}
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Knowledge Inbox</p>
+                    <p className="text-2xl font-black">{homeData?.knowledge_inbox_count || 0}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -167,6 +189,59 @@ export function HomeDashboard() {
                     )}
                   </div>
                 </div>
+
+                {/* Recent Knowledge Digests */}
+                {(homeData?.recent_knowledge_digests?.length || 0) > 0 && (
+                  <div className="space-y-5">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-black tracking-tight flex items-center gap-2">
+                        <Newspaper className="w-5 h-5 text-emerald-600" />
+                        Recent Knowledge Digests
+                      </h3>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-[10px] font-black text-emerald-700 hover:text-emerald-600"
+                        onClick={() => router.push('/workspace/knowledge/inbox')}
+                      >
+                        Open inbox
+                        <ArrowRight className="w-3 h-3 ml-1" />
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      {(homeData?.recent_knowledge_digests || []).slice(0, 4).map((d: any) => (
+                        <button
+                          key={d.id || d.message?.id}
+                          onClick={() => {
+                            if (d.channel?.id && d.message?.id) {
+                              router.push(`/workspace?c=${d.channel.id}&m=${d.message.id}`)
+                            }
+                          }}
+                          className="w-full flex items-center gap-3 p-3.5 border rounded-2xl hover:border-emerald-300 hover:bg-emerald-500/5 transition-colors text-left group"
+                        >
+                          <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0 text-emerald-600">
+                            <Newspaper className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                              <Hash className="w-2.5 h-2.5" />
+                              <span className="font-bold">{d.channel?.name || d.channel?.id}</span>
+                              <span>·</span>
+                              <span>{d.digest?.window}</span>
+                              {d.occurred_at && (
+                                <span className="ml-auto">{format(new Date(d.occurred_at), 'MMM d')}</span>
+                              )}
+                            </div>
+                            <p className="text-xs font-bold truncate mt-0.5">
+                              {d.digest?.headline || `Top ${d.digest?.entries?.length || 0} entities`}
+                            </p>
+                          </div>
+                          <ArrowRight className="w-3 h-3 text-muted-foreground group-hover:text-emerald-600 shrink-0" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="space-y-5">
                   <h3 className="text-lg font-black tracking-tight flex items-center gap-2">
