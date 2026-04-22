@@ -114,7 +114,7 @@ export const ACTIVE_SUPERPOWERS: AgentPower[] = [
   { agent: 'Gemini', skill: 'idle', task: 'Resting after Phase 38 handoff', progress: 100, status: 'done' },
   { agent: 'Codex', skill: 'api-architecture', task: 'v0.5.95 composer lint hotfix complete', progress: 100, status: 'done' },
   { agent: 'Claude Code', skill: 'idle', task: '-', progress: 0, status: 'idle' },
-  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'v0.5.94 Bug fixes: home scroll, HTML strip, DM overlay, composer clear, AI avatar, collab stats (7 bugs)', progress: 100, status: 'done' },
+  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 54 Settings & Appearance: ThemeProvider, Profile tab, Appearance tab (v0.5.96)', progress: 100, status: 'done' },
 ]
 
 // ─── Full Task Board ──────────────────────────────────────────────────────────
@@ -233,11 +233,24 @@ export const TASKS: Task[] = [
   { id: 't111', phase: 111, status: 'done',  task: 'Phase 53 Channel Persistence Hardening', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Fixed newly created channels disappearing after refresh by removing the frontend ws_1 fallback, mapping channel API payloads into camelCase, validating workspace_id in POST /channels, and repairing legacy workspace_id=ws_1 rows on API startup. v0.5.93 published.', type: 'api' },
   { id: 't112', phase: 112, status: 'done',  task: 'v0.5.94 UI Bug Fixes', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'Fixed home scrolling, recent-conversation HTML previews, user hover DM overlay, composer draft clearing, AI avatar, and Agent-Collab statistics/heatmap/trend visualizations. v0.5.94 published.', type: 'frontend' },
   { id: 't113', phase: 113, status: 'done',  task: 'v0.5.95 Composer Lint Hotfix', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Removed stale react-hooks/exhaustive-deps disable directive from message-composer.tsx because the current ESLint flat config does not register react-hooks. Lint is clean again. v0.5.95 published.', type: 'frontend' },
+  { id: 't114', phase: 114, status: 'done',  task: 'Phase 54 Settings & Appearance', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'ThemeProvider wired into layout.tsx (defaultTheme=dark, enableSystem). /workspace/settings redesigned: 4-tab sidebar (Profile/Appearance/Notifications/Privacy). Profile tab: avatar display + editable title/dept/timezone/pronouns/location/phone/bio via updateProfile API. Appearance tab: Light/Dark/System theme picker (3 visual tiles, useTheme) + Comfortable/Compact density selector (localStorage). Nav theme toggle verified clean. v0.5.96 published.', type: 'frontend' },
 ]
 
 // ─── Communication Log ────────────────────────────────────────────────────────
 
 export const COMM_SECTIONS: CommSection[] = [
+  {
+    id: 'cs20',
+    date: '2026-04-22',
+    title: 'Phase 54 Settings & Appearance',
+    messages: [
+      { id: 'ws56a', from: 'Windsurf', content: 'Phase 54 complete and published as v0.5.96.' },
+      { id: 'ws56b', from: 'Windsurf', content: 'ThemeProvider (next-themes) wired into app/layout.tsx. Theme is now user-controlled via light/dark/system picker in Settings → Appearance.' },
+      { id: 'ws56c', from: 'Windsurf', content: '/workspace/settings redesigned with 4-tab sidebar. Profile tab: avatar + full editable form backed by updateProfile. Appearance tab: theme tile picker + density selector.' },
+      { id: 'ws56d', from: 'Windsurf', to: 'Codex', content: 'For Phase 55: (a) PATCH /api/v1/me/settings accepting message_density for server-side persistence; (b) GET /api/v1/me/settings returning full prefs on login for cross-device sync; (c) consider a user display name update endpoint so the name field in Settings is editable.' },
+      { id: 'ws56e', from: 'Windsurf', to: 'Nikko Fu', content: 'Settings page live at /workspace/settings. Theme toggle also available in bottom of primary nav (Sun/Moon icon).' },
+    ],
+  },
   {
     id: 'cs19',
     date: '2026-04-22',

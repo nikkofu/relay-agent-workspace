@@ -133,6 +133,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 53 Channel Persistence Hardening | Codex | 2026-04-22 | Fixed newly created channels disappearing after refresh by removing the frontend `ws_1` fallback, mapping channel API payloads to camelCase, rejecting unknown workspace IDs in `POST /api/v1/channels`, and repairing legacy `workspace_id=ws_1` channel rows on API startup. `v0.5.93` published. |
 | 🟢 Done | v0.5.94 UI Bug Fixes (7 bugs) | Windsurf | 2026-04-22 | (1) **Home scroll**: `WorkspacePage` now wraps in `h-full w-full flex flex-col overflow-hidden` so `HomeDashboard`'s `ScrollArea` properly fills the resizable panel. (2) **Recent Conversations HTML**: `stripHtml()` applied to `item.last_message` in home dashboard. (3) **User hover card → DM overlay**: `UserProfile` Message button now calls `openDockedChat(userId)` instead of navigating; `DockedChatWindow` gains a `Maximize2` expand button routing to full DM page. (4) **Composer draft clear**: draft-restore `useEffect` now only depends on `[scope, editor]` (not `drafts`) — uses a `draftsRef` updated via `useLayoutEffect` to avoid re-populating editor after send. (5) **AI avatar**: `/ai-wand-avatar.svg` (purple gradient wand icon) replaces dicebear yellow-bot URL for AI Assistant. (6+7) **ch-collab Stats**: `Windsurf` added to `AssigneeBreakdown`; `ContributionHeatmap` component added to Stats tab; Daily Task Velocity chart gains SVG cumulative-done-rate trend polyline. `v0.5.94` published. |
 | 🟢 Done | v0.5.95 Composer Lint Hotfix | Codex | 2026-04-22 | Removed stale `react-hooks/exhaustive-deps` disable directive from `message-composer.tsx` because the current ESLint flat config does not register the `react-hooks` plugin. `pnpm --filter relay-agent-workspace lint` is clean again. `v0.5.95` published. |
+| 🟢 Done | Phase 54 Settings & Appearance | Windsurf | 2026-04-22 | (1) **ThemeProvider**: `next-themes` `ThemeProvider` wired into `app/layout.tsx` with `defaultTheme="dark"` and `enableSystem`; removed hardcoded `class="dark"` from `<html>`. (2) **Settings page redesign**: replaced single-section page with a 4-tab sidebar layout — **Profile** (avatar display, editable title/dept/timezone/pronouns/location/phone/bio via `updateProfile`), **Appearance** (light/dark/system theme picker with visual tile selection + message density comfortable/compact toggle stored in `localStorage`), **Notifications** (refactored from inline to table-driven switch list), **Privacy** (blocking/permissions/export/delete stubs). (3) **Primary nav**: verified theme toggle (`Sun`/`Moon` icon, `useTheme`) was already present and clean. `v0.5.96` published. |
 
 ---
 
@@ -143,11 +144,16 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
 | **Codex** | `api-architecture` | v0.5.95 composer lint hotfix complete | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-ui-agent` | v0.5.94 Bug fixes: home scroll, HTML strip, DM overlay, composer clear, AI avatar, collab stats | 100% |
+| **Windsurf** | `web-ui-agent` | Phase 54 Settings & Appearance: ThemeProvider, Profile tab, Appearance tab (v0.5.96) | 100% |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-22 - Phase 54 Settings & Appearance
+- **Windsurf**: Phase 54 complete and published as `v0.5.96`. (1) `app/layout.tsx`: added `next-themes` `ThemeProvider` (`defaultTheme="dark"`, `enableSystem`, `disableTransitionOnChange`), replaced hardcoded `class="dark"` with `suppressHydrationWarning` — theme is now fully user-controlled. (2) `/workspace/settings` redesigned as a two-pane page with a 4-item left nav: **Profile** tab displays user avatar/status badge + a full form (title, department, timezone, pronouns, location, phone, bio) backed by `updateProfile`; **Appearance** tab has a 3-tile theme picker (Light/Dark/System with check indicator) and a 2-option density selector (Comfortable/Compact, persisted in `localStorage`); **Notifications** and **Privacy** tabs are the existing content refactored into the new layout. (3) `primary-nav.tsx` already had a clean `Sun`/`Moon` theme toggle — verified no duplicate imports or hooks.
+- **Windsurf → Codex**: For Phase 55, please consider: (a) **`PATCH /api/v1/me/settings`** accepting `message_density` so the density preference is server-persisted per user instead of localStorage-only; (b) **`GET /api/v1/me/settings`** returning full preferences (theme, density, timezone, locale) on login so settings sync across devices; (c) **keyboard shortcut API** — no backend needed but worth noting the pattern.
+- **Windsurf → Nikko Fu**: Settings page is now live at `/workspace/settings`. Theme toggle is also in the bottom of the primary nav (Sun/Moon icon).
 
 ### 2026-04-22 - v0.5.95 Composer Lint Hotfix
 - **Codex**: v0.5.95 is complete and published.

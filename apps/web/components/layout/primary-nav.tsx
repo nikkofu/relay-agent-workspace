@@ -1,6 +1,6 @@
 "use client"
 
-import { Home, MessageSquare, Bell, Bookmark, Plus, Sparkles, Users, Folder, Zap, Settings, Quote, Globe } from "lucide-react"
+import { Home, MessageSquare, Bell, Bookmark, Plus, Sparkles, Users, Folder, Zap, Settings, Quote, Globe, Sun, Moon } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -12,6 +12,7 @@ import { useDMStore } from "@/stores/dm-store"
 import { useChannelStore } from "@/stores/channel-store"
 import { useKnowledgeStore } from "@/stores/knowledge-store"
 import { usePathname, useRouter } from "next/navigation"
+import { useTheme } from "next-themes"
 import { useState, useEffect } from "react"
 
 const NAV_ITEMS = [
@@ -34,6 +35,7 @@ export function PrimaryNav() {
   const { conversations } = useDMStore()
   const { setCurrentChannel } = useChannelStore()
   const { knowledgeInboxUnreadCount, fetchKnowledgeInbox } = useKnowledgeStore()
+  const { theme, setTheme } = useTheme()
   const router = useRouter()
   const pathname = usePathname()
   const [mounted, setMounted] = useState(false)
@@ -132,9 +134,21 @@ export function PrimaryNav() {
           </TooltipContent>
         </Tooltip>
 
-        <Button variant="ghost" size="icon" className="w-9 h-9 rounded-lg text-white/70 hover:bg-white/10">
-          <Plus className="w-5 h-5" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="w-9 h-9 rounded-lg text-white/70 hover:bg-white/10 hover:text-white transition-colors"
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            >
+              {mounted && theme === 'light' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            <p>Toggle {mounted && theme === 'light' ? 'Dark' : 'Light'} Mode</p>
+          </TooltipContent>
+        </Tooltip>
 
         <Tooltip>
           <TooltipTrigger asChild>
