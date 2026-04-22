@@ -525,6 +525,14 @@ type KnowledgeEvent struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
+type KnowledgeEntityFollow struct {
+	ID          string    `gorm:"primaryKey" json:"id"`
+	WorkspaceID string    `gorm:"index" json:"workspace_id"`
+	EntityID    string    `gorm:"index;uniqueIndex:idx_knowledge_entity_follow" json:"entity_id"`
+	UserID      string    `gorm:"index;uniqueIndex:idx_knowledge_entity_follow" json:"user_id"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
 type KnowledgeDigestSchedule struct {
 	ID              string     `gorm:"primaryKey" json:"id"`
 	ChannelID       string     `gorm:"uniqueIndex;index" json:"channel_id"`

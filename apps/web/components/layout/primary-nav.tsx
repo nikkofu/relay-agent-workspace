@@ -1,6 +1,6 @@
 "use client"
 
-import { Home, MessageSquare, Bell, Bookmark, Plus, Sparkles, Users, Folder, Zap, Settings, Quote, Globe, Sun, Moon } from "lucide-react"
+import { Home, MessageSquare, Bell, Bookmark, Sparkles, Users, Folder, Zap, Settings, Quote, Globe, Sun, Moon } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"

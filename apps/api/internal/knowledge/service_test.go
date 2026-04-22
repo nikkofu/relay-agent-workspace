@@ -209,6 +209,73 @@ func TestSuggestEntitiesScopesToChannelWorkspaceAndRanksByChannelRefs(t *testing
 	}
 }
 
+func TestFollowEntityAndListFollowedEntities(t *testing.T) {
+	database := setupKnowledgeTestDB(t)
+	now := time.Now().UTC()
+	database.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	database.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Summary: "Main launch initiative", Status: "active", CreatedAt: now, UpdatedAt: now})
+
+	follow, err := FollowEntity(database, "entity-1", "user-1")
+	if err != nil {
+		t.Fatalf("failed to follow entity: %v", err)
+	}
+	if follow.EntityID != "entity-1" || follow.UserID != "user-1" || follow.WorkspaceID != "ws-1" {
+		t.Fatalf("unexpected follow payload: %#v", follow)
+	}
+
+	if _, err := FollowEntity(database, "entity-1", "user-1"); err != nil {
+		t.Fatalf("idempotent follow failed: %v", err)
+	}
+
+	items, err := ListFollowedEntities(database, "user-1")
+	if err != nil {
+		t.Fatalf("failed to list followed entities: %v", err)
+	}
+	if len(items) != 1 || items[0].Entity.ID != "entity-1" || !items[0].IsFollowing {
+		t.Fatalf("unexpected followed entities: %#v", items)
+	}
+
+	if err := UnfollowEntity(database, "entity-1", "user-1"); err != nil {
+		t.Fatalf("failed to unfollow entity: %v", err)
+	}
+	items, err = ListFollowedEntities(database, "user-1")
+	if err != nil {
+		t.Fatalf("failed to list after unfollow: %v", err)
+	}
+	if len(items) != 0 {
+		t.Fatalf("expected no followed entities after unfollow, got %#v", items)
+	}
+}
+
+func TestMatchEntitiesInTextReturnsLongestNonOverlappingSpans(t *testing.T) {
+	database := setupKnowledgeTestDB(t)
+	now := time.Now().UTC()
+	database.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Summary: "Main launch initiative", Status: "active", CreatedAt: now, UpdatedAt: now})
+	database.Create(&domain.KnowledgeEntity{ID: "entity-2", WorkspaceID: "ws-1", Kind: "doc", Title: "Launch", Summary: "Generic launch", Status: "active", CreatedAt: now, UpdatedAt: now})
+	database.Create(&domain.KnowledgeEntity{ID: "entity-3", WorkspaceID: "ws-1", Kind: "service", Title: "Billing Service", Summary: "Payments", Status: "active", CreatedAt: now, UpdatedAt: now})
+
+	matches, err := MatchEntitiesInText(database, MatchEntitiesInput{
+		WorkspaceID: "ws-1",
+		Text:        "Can we align Launch Program with Billing Service today?",
+		Limit:       8,
+	})
+	if err != nil {
+		t.Fatalf("failed to match entities: %v", err)
+	}
+	if len(matches) != 2 {
+		t.Fatalf("expected two entity matches, got %#v", matches)
+	}
+	if matches[0].EntityID != "entity-1" || matches[0].MatchedText != "Launch Program" {
+		t.Fatalf("expected longest Launch Program match first, got %#v", matches[0])
+	}
+	if matches[1].EntityID != "entity-3" || matches[1].MatchedText != "Billing Service" {
+		t.Fatalf("expected billing match second, got %#v", matches[1])
+	}
+	if matches[0].Start >= matches[0].End || matches[1].Start >= matches[1].End {
+		t.Fatalf("expected valid spans, got %#v", matches)
+	}
+}
+
 func TestGetEntityHoverSummaryAggregatesLiveRefStats(t *testing.T) {
 	database := setupKnowledgeTestDB(t)
 	now := time.Now().UTC()
@@ -430,6 +497,7 @@ func setupKnowledgeTestDB(t *testing.T) *gorm.DB {
 		&domain.KnowledgeEntityRef{},
 		&domain.KnowledgeEntityLink{},
 		&domain.KnowledgeEvent{},
+		&domain.KnowledgeEntityFollow{},
 		&domain.KnowledgeDigestSchedule{},
 		&domain.NotificationRead{},
 		&domain.User{},

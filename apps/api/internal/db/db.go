@@ -72,6 +72,7 @@ func InitDB() error {
 		&domain.KnowledgeEntityRef{},
 		&domain.KnowledgeEntityLink{},
 		&domain.KnowledgeEvent{},
+		&domain.KnowledgeEntityFollow{},
 		&domain.KnowledgeDigestSchedule{},
 		&domain.FileComment{},
 		&domain.FileShare{},

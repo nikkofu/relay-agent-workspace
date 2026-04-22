@@ -179,6 +179,28 @@ type KnowledgeEntitySuggestion struct {
 	ChannelRefCount int    `json:"channel_ref_count"`
 }
 
+type FollowedEntity struct {
+	Follow      domain.KnowledgeEntityFollow `json:"follow"`
+	Entity      domain.KnowledgeEntity       `json:"entity"`
+	IsFollowing bool                         `json:"is_following"`
+}
+
+type MatchEntitiesInput struct {
+	WorkspaceID string
+	Text        string
+	Limit       int
+}
+
+type EntityTextMatch struct {
+	EntityID    string `json:"entity_id"`
+	EntityTitle string `json:"entity_title"`
+	EntityKind  string `json:"entity_kind"`
+	SourceKind  string `json:"source_kind,omitempty"`
+	MatchedText string `json:"matched_text"`
+	Start       int    `json:"start"`
+	End         int    `json:"end"`
+}
+
 type MentionedEntity struct {
 	EntityID    string `json:"entity_id"`
 	EntityTitle string `json:"entity_title"`

@@ -802,6 +802,154 @@ func SuggestEntities(database *gorm.DB, params SuggestEntitiesParams) ([]Knowled
 	return suggestions, nil
 }
 
+func FollowEntity(database *gorm.DB, entityID, userID string) (domain.KnowledgeEntityFollow, error) {
+	entityID = strings.TrimSpace(entityID)
+	userID = strings.TrimSpace(userID)
+	if entityID == "" || userID == "" {
+		return domain.KnowledgeEntityFollow{}, errors.New("entity_id and user_id are required")
+	}
+
+	var entity domain.KnowledgeEntity
+	if err := database.First(&entity, "id = ?", entityID).Error; err != nil {
+		return domain.KnowledgeEntityFollow{}, err
+	}
+	if err := database.First(&domain.User{}, "id = ?", userID).Error; err != nil {
+		return domain.KnowledgeEntityFollow{}, err
+	}
+
+	var existing domain.KnowledgeEntityFollow
+	err := database.Where("entity_id = ? AND user_id = ?", entity.ID, userID).First(&existing).Error
+	if err == nil {
+		return existing, nil
+	}
+	if err != gorm.ErrRecordNotFound {
+		return domain.KnowledgeEntityFollow{}, err
+	}
+
+	follow := domain.KnowledgeEntityFollow{
+		ID:          ids.NewPrefixedUUID("kfollow"),
+		WorkspaceID: entity.WorkspaceID,
+		EntityID:    entity.ID,
+		UserID:      userID,
+		CreatedAt:   time.Now().UTC(),
+	}
+	if err := database.Create(&follow).Error; err != nil {
+		return domain.KnowledgeEntityFollow{}, err
+	}
+	return follow, nil
+}
+
+func UnfollowEntity(database *gorm.DB, entityID, userID string) error {
+	entityID = strings.TrimSpace(entityID)
+	userID = strings.TrimSpace(userID)
+	if entityID == "" || userID == "" {
+		return errors.New("entity_id and user_id are required")
+	}
+	if err := database.First(&domain.KnowledgeEntity{}, "id = ?", entityID).Error; err != nil {
+		return err
+	}
+	return database.Where("entity_id = ? AND user_id = ?", entityID, userID).Delete(&domain.KnowledgeEntityFollow{}).Error
+}
+
+func ListFollowedEntities(database *gorm.DB, userID string) ([]FollowedEntity, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return []FollowedEntity{}, nil
+	}
+
+	var follows []domain.KnowledgeEntityFollow
+	if err := database.Where("user_id = ?", userID).Order("created_at desc, id desc").Find(&follows).Error; err != nil {
+		return nil, err
+	}
+	items := make([]FollowedEntity, 0, len(follows))
+	for _, follow := range follows {
+		var entity domain.KnowledgeEntity
+		if err := database.First(&entity, "id = ?", follow.EntityID).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				continue
+			}
+			return nil, err
+		}
+		items = append(items, FollowedEntity{
+			Follow:      follow,
+			Entity:      entity,
+			IsFollowing: true,
+		})
+	}
+	return items, nil
+}
+
+func MatchEntitiesInText(database *gorm.DB, input MatchEntitiesInput) ([]EntityTextMatch, error) {
+	text := strings.TrimSpace(input.Text)
+	if text == "" {
+		return []EntityTextMatch{}, nil
+	}
+
+	limit := input.Limit
+	if limit <= 0 {
+		limit = 10
+	}
+	if limit > 50 {
+		limit = 50
+	}
+
+	var entities []domain.KnowledgeEntity
+	query := database.Model(&domain.KnowledgeEntity{}).Where("status <> ?", "archived")
+	if strings.TrimSpace(input.WorkspaceID) != "" {
+		query = query.Where("workspace_id = ?", strings.TrimSpace(input.WorkspaceID))
+	}
+	if err := query.Order("LENGTH(title) DESC, title ASC").Find(&entities).Error; err != nil {
+		return nil, err
+	}
+
+	lowerText := strings.ToLower(text)
+	occupied := make([]bool, len(text))
+	matches := make([]EntityTextMatch, 0)
+	for _, entity := range entities {
+		title := strings.TrimSpace(entity.Title)
+		if title == "" {
+			continue
+		}
+		lowerTitle := strings.ToLower(title)
+		searchFrom := 0
+		for searchFrom < len(lowerText) {
+			idx := strings.Index(lowerText[searchFrom:], lowerTitle)
+			if idx < 0 {
+				break
+			}
+			start := searchFrom + idx
+			end := start + len(lowerTitle)
+			searchFrom = end
+			if !isEntityTextBoundary(lowerText, start, end) || spanOccupied(occupied, start, end) {
+				continue
+			}
+			for i := start; i < end && i < len(occupied); i++ {
+				occupied[i] = true
+			}
+			matches = append(matches, EntityTextMatch{
+				EntityID:    entity.ID,
+				EntityTitle: entity.Title,
+				EntityKind:  entity.Kind,
+				SourceKind:  entity.SourceKind,
+				MatchedText: text[start:end],
+				Start:       start,
+				End:         end,
+			})
+			if len(matches) >= limit {
+				sort.SliceStable(matches, func(i, j int) bool {
+					return matches[i].Start < matches[j].Start
+				})
+				return matches, nil
+			}
+		}
+	}
+
+	sort.SliceStable(matches, func(i, j int) bool {
+		return matches[i].Start < matches[j].Start
+	})
+	return matches, nil
+}
+
 func FindMentionedEntities(database *gorm.DB, workspaceID string, content string) ([]MentionedEntity, error) {
 	workspaceID = strings.TrimSpace(workspaceID)
 	if workspaceID == "" {
@@ -1590,6 +1738,32 @@ func hasOccupiedRange(start, end int, occupied map[int]struct{}) bool {
 		}
 	}
 	return false
+}
+
+func spanOccupied(occupied []bool, start, end int) bool {
+	if start < 0 || end > len(occupied) || start >= end {
+		return true
+	}
+	for idx := start; idx < end; idx++ {
+		if occupied[idx] {
+			return true
+		}
+	}
+	return false
+}
+
+func isEntityTextBoundary(text string, start, end int) bool {
+	if start > 0 && isEntityBoundaryRune(rune(text[start-1])) {
+		return false
+	}
+	if end < len(text) && isEntityBoundaryRune(rune(text[end])) {
+		return false
+	}
+	return true
+}
+
+func isEntityBoundaryRune(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' || r == '-'
 }
 
 func minInt(a, b int) int {

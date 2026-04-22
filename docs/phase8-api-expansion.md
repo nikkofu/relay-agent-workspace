@@ -137,11 +137,15 @@ Current backend surface already available:
 - `PUT /api/v1/channels/:id/knowledge/digest/schedule`
 - `DELETE /api/v1/channels/:id/knowledge/digest/schedule`
 - `GET /api/v1/knowledge/inbox`
+- `GET /api/v1/users/me/knowledge/followed`
 - `GET /api/v1/knowledge/entities`
 - `GET /api/v1/knowledge/entities/suggest`
+- `POST /api/v1/knowledge/entities/match-text`
 - `POST /api/v1/knowledge/entities`
 - `GET /api/v1/knowledge/entities/:id`
 - `GET /api/v1/knowledge/entities/:id/hover`
+- `POST /api/v1/knowledge/entities/:id/follow`
+- `DELETE /api/v1/knowledge/entities/:id/follow`
 - `PATCH /api/v1/knowledge/entities/:id`
 - `GET /api/v1/knowledge/entities/:id/refs`
 - `POST /api/v1/knowledge/entities/:id/refs`
@@ -413,11 +417,15 @@ Baseline support now exists for:
 - `PUT /api/v1/channels/:id/knowledge/digest/schedule`
 - `DELETE /api/v1/channels/:id/knowledge/digest/schedule`
 - `GET /api/v1/knowledge/inbox`
+- `GET /api/v1/users/me/knowledge/followed`
 - `GET /api/v1/knowledge/entities`
 - `GET /api/v1/knowledge/entities/suggest`
+- `POST /api/v1/knowledge/entities/match-text`
 - `POST /api/v1/knowledge/entities`
 - `GET /api/v1/knowledge/entities/:id`
 - `GET /api/v1/knowledge/entities/:id/hover`
+- `POST /api/v1/knowledge/entities/:id/follow`
+- `DELETE /api/v1/knowledge/entities/:id/follow`
 - `PATCH /api/v1/knowledge/entities/:id`
 - `GET /api/v1/knowledge/entities/:id/refs`
 - `POST /api/v1/knowledge/entities/:id/refs`
@@ -450,8 +458,9 @@ Likely follow-ups:
 - entity-centric search UX and channel/header drilldowns using `/api/v1/search/messages/by-entity`
 - richer hover-card UI that consumes `/api/v1/knowledge/entities/:id/hover`
 - digest review/publish UX for weekly or daily channel summaries using `/api/v1/channels/:id/knowledge/digest`
-- entity follow or subscription APIs for per-user knowledge watchlists
+- entity activity spike websockets for per-user knowledge watchlists
 - passive composer reverse-lookup hints that convert plain-text entity matches into `@entity` mentions
+- inbox detail/context APIs for digest drilldowns
 - richer entity disambiguation and alias support beyond exact title matching
 - entity-aware search ranking that blends citations, refs, files, and channel-local activity
 - knowledge summaries that merge static wiki state with external live business signals

@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.5.95` is the current release line and includes:
+`v0.5.97` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -160,11 +160,15 @@ For product, design, and marketing, the short version is:
   - `PUT /api/v1/channels/:id/knowledge/digest/schedule`
   - `DELETE /api/v1/channels/:id/knowledge/digest/schedule`
   - `GET /api/v1/knowledge/inbox`
+  - `GET /api/v1/users/me/knowledge/followed`
   - `GET /api/v1/knowledge/entities`
   - `GET /api/v1/knowledge/entities/suggest`
+  - `POST /api/v1/knowledge/entities/match-text`
   - `POST /api/v1/knowledge/entities`
   - `GET /api/v1/knowledge/entities/:id`
   - `GET /api/v1/knowledge/entities/:id/hover`
+  - `POST /api/v1/knowledge/entities/:id/follow`
+  - `DELETE /api/v1/knowledge/entities/:id/follow`
   - `PATCH /api/v1/knowledge/entities/:id`
   - `GET /api/v1/knowledge/entities/:id/refs`
   - `POST /api/v1/knowledge/entities/:id/refs`

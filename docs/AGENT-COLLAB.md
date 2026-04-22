@@ -134,6 +134,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | v0.5.94 UI Bug Fixes (7 bugs) | Windsurf | 2026-04-22 | (1) **Home scroll**: `WorkspacePage` now wraps in `h-full w-full flex flex-col overflow-hidden` so `HomeDashboard`'s `ScrollArea` properly fills the resizable panel. (2) **Recent Conversations HTML**: `stripHtml()` applied to `item.last_message` in home dashboard. (3) **User hover card → DM overlay**: `UserProfile` Message button now calls `openDockedChat(userId)` instead of navigating; `DockedChatWindow` gains a `Maximize2` expand button routing to full DM page. (4) **Composer draft clear**: draft-restore `useEffect` now only depends on `[scope, editor]` (not `drafts`) — uses a `draftsRef` updated via `useLayoutEffect` to avoid re-populating editor after send. (5) **AI avatar**: `/ai-wand-avatar.svg` (purple gradient wand icon) replaces dicebear yellow-bot URL for AI Assistant. (6+7) **ch-collab Stats**: `Windsurf` added to `AssigneeBreakdown`; `ContributionHeatmap` component added to Stats tab; Daily Task Velocity chart gains SVG cumulative-done-rate trend polyline. `v0.5.94` published. |
 | 🟢 Done | v0.5.95 Composer Lint Hotfix | Codex | 2026-04-22 | Removed stale `react-hooks/exhaustive-deps` disable directive from `message-composer.tsx` because the current ESLint flat config does not register the `react-hooks` plugin. `pnpm --filter relay-agent-workspace lint` is clean again. `v0.5.95` published. |
 | 🟢 Done | Phase 54 Settings & Appearance | Windsurf | 2026-04-22 | (1) **ThemeProvider**: `next-themes` `ThemeProvider` wired into `app/layout.tsx` with `defaultTheme="dark"` and `enableSystem`; removed hardcoded `class="dark"` from `<html>`. (2) **Settings page redesign**: replaced single-section page with a 4-tab sidebar layout — **Profile** (avatar display, editable title/dept/timezone/pronouns/location/phone/bio via `updateProfile`), **Appearance** (light/dark/system theme picker with visual tile selection + message density comfortable/compact toggle stored in `localStorage`), **Notifications** (refactored from inline to table-driven switch list), **Privacy** (blocking/permissions/export/delete stubs). (3) **Primary nav**: verified theme toggle (`Sun`/`Moon` icon, `useTheme`) was already present and clean. `v0.5.96` published. |
+| 🟢 Done | Phase 55 Knowledge Follow And Composer Match APIs | Codex | 2026-04-22 | Added `GET /api/v1/users/me/knowledge/followed`, `POST|DELETE /api/v1/knowledge/entities/:id/follow`, `POST /api/v1/knowledge/entities/match-text`, and persistent `KnowledgeEntityFollow` storage. Matching is deterministic, workspace-scoped, and longest-title-first. `v0.5.97` published. |
 
 ---
 
@@ -144,7 +145,26 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
 | **Codex** | `api-architecture` | v0.5.95 composer lint hotfix complete | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-ui-agent` | Phase 54 Settings & Appearance: ThemeProvider, Profile tab, Appearance tab (v0.5.96) | 100% |
+| **Windsurf** | `web-ui-agent` | Ready for Phase 55 UI integration: entity follow surfaces + composer reverse lookup (v0.5.97 backend) | 100% |
+
+### 2026-04-22 - Phase 55 Knowledge Follow And Composer Match API Completion
+- **Codex**: Phase 55 backend is complete and published as `v0.5.97`.
+- **Codex**: Added per-user knowledge follow contracts:
+  - `GET /api/v1/users/me/knowledge/followed`
+  - `POST /api/v1/knowledge/entities/:id/follow`
+  - `DELETE /api/v1/knowledge/entities/:id/follow`
+- **Codex**: Added `POST /api/v1/knowledge/entities/match-text` for passive composer reverse lookup. Input: `workspace_id`, `text`, `limit`. Output spans include `entity_id`, `entity_title`, `entity_kind`, `source_kind`, `matched_text`, `start`, and `end`.
+- **Codex**: Match behavior is deterministic and longest-title-first, with archived entities excluded and overlapping shorter matches suppressed.
+- **Codex → Windsurf**: Please implement the Phase 55 UI slice next:
+  - add follow/unfollow toggles on knowledge entity detail pages and mention hover cards using `POST|DELETE /knowledge/entities/:id/follow`
+  - add a “Following” tab or filter using `GET /users/me/knowledge/followed`
+  - call `POST /knowledge/entities/match-text` from `MessageComposer` draft text to show a passive “entity detected” chip and offer one-click conversion to explicit `@entity` mentions
+  - keep server persistence in mind for message density next; your current Appearance tab still stores density in `localStorage`
+- **Codex → Windsurf**: Remaining backend candidates I recommend after you consume this contract:
+  - `GET /api/v1/knowledge/inbox/:id` for richer digest context
+  - `POST /api/v1/channels/:id/knowledge/digest/preview-schedule`
+  - websocket `knowledge.entity.activity.spiked`
+- **Codex → Nikko Fu**: This closes a practical AI-native gap. Knowledge entities are now not only discoverable after the fact, but also subscribable per user and detectable while a draft is still being written.
 
 ---
 

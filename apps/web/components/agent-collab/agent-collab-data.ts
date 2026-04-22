@@ -112,9 +112,9 @@ export const MEMBERS: Member[] = [
 
 export const ACTIVE_SUPERPOWERS: AgentPower[] = [
   { agent: 'Gemini', skill: 'idle', task: 'Resting after Phase 38 handoff', progress: 100, status: 'done' },
-  { agent: 'Codex', skill: 'api-architecture', task: 'v0.5.95 composer lint hotfix complete', progress: 100, status: 'done' },
+  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 55 knowledge follow + composer match APIs complete (v0.5.97)', progress: 100, status: 'done' },
   { agent: 'Claude Code', skill: 'idle', task: '-', progress: 0, status: 'idle' },
-  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 54 Settings & Appearance: ThemeProvider, Profile tab, Appearance tab (v0.5.96)', progress: 100, status: 'done' },
+  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Ready for Phase 55 UI integration: entity follow surfaces + composer reverse lookup', progress: 100, status: 'done' },
 ]
 
 // ─── Full Task Board ──────────────────────────────────────────────────────────
@@ -234,11 +234,26 @@ export const TASKS: Task[] = [
   { id: 't112', phase: 112, status: 'done',  task: 'v0.5.94 UI Bug Fixes', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'Fixed home scrolling, recent-conversation HTML previews, user hover DM overlay, composer draft clearing, AI avatar, and Agent-Collab statistics/heatmap/trend visualizations. v0.5.94 published.', type: 'frontend' },
   { id: 't113', phase: 113, status: 'done',  task: 'v0.5.95 Composer Lint Hotfix', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Removed stale react-hooks/exhaustive-deps disable directive from message-composer.tsx because the current ESLint flat config does not register react-hooks. Lint is clean again. v0.5.95 published.', type: 'frontend' },
   { id: 't114', phase: 114, status: 'done',  task: 'Phase 54 Settings & Appearance', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'ThemeProvider wired into layout.tsx (defaultTheme=dark, enableSystem). /workspace/settings redesigned: 4-tab sidebar (Profile/Appearance/Notifications/Privacy). Profile tab: avatar display + editable title/dept/timezone/pronouns/location/phone/bio via updateProfile API. Appearance tab: Light/Dark/System theme picker (3 visual tiles, useTheme) + Comfortable/Compact density selector (localStorage). Nav theme toggle verified clean. v0.5.96 published.', type: 'frontend' },
+  { id: 't115', phase: 115, status: 'done',  task: 'Phase 55 Knowledge Follow And Composer Match APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added GET /api/v1/users/me/knowledge/followed, POST|DELETE /api/v1/knowledge/entities/:id/follow, POST /api/v1/knowledge/entities/match-text, and persistent KnowledgeEntityFollow storage. Matching is deterministic, workspace-scoped, and longest-title-first. v0.5.97 published.', type: 'api' },
 ]
 
 // ─── Communication Log ────────────────────────────────────────────────────────
 
 export const COMM_SECTIONS: CommSection[] = [
+  {
+    id: 'cs21',
+    date: '2026-04-22',
+    title: 'Phase 55 Knowledge Follow And Composer Match APIs',
+    messages: [
+      { id: 'cx57a', from: 'Codex', content: 'Phase 55 backend is complete and published as v0.5.97.' },
+      { id: 'cx57b', from: 'Codex', content: 'Added per-user knowledge follow APIs: GET /api/v1/users/me/knowledge/followed, POST /api/v1/knowledge/entities/:id/follow, and DELETE /api/v1/knowledge/entities/:id/follow.' },
+      { id: 'cx57c', from: 'Codex', content: 'Added POST /api/v1/knowledge/entities/match-text for passive composer reverse lookup. Input is workspace_id + text + limit, and results return entity_id, entity_title, entity_kind, source_kind, matched_text, start, and end.' },
+      { id: 'cx57d', from: 'Codex', content: 'Matching is deterministic and longest-title-first, so Launch Program suppresses the shorter overlapping Launch match. Archived entities are excluded.' },
+      { id: 'cx57e', from: 'Codex', to: 'Windsurf', content: 'Please wire follow/unfollow toggles on knowledge detail pages and mention hover cards, add a Following tab/filter backed by GET /users/me/knowledge/followed, and call POST /knowledge/entities/match-text from MessageComposer to power passive "entity detected" hints with one-click conversion to explicit @entity mentions.' },
+      { id: 'cx57f', from: 'Codex', to: 'Windsurf', content: 'Recommended next backend targets after you consume this release: GET /knowledge/inbox/:id for richer digest context, POST /channels/:id/knowledge/digest/preview-schedule, and websocket knowledge.entity.activity.spiked.' },
+      { id: 'cx57g', from: 'Codex', to: 'Nikko Fu', content: 'Relay knowledge is now both subscribable per user and detectable while drafting, which is a more useful AI-native collaboration step than waiting until after messages are sent and indexed.' },
+    ],
+  },
   {
     id: 'cs20',
     date: '2026-04-22',

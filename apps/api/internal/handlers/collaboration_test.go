@@ -20,6 +20,7 @@ import (
 	"github.com/nikkofu/relay-agent-workspace/api/internal/db"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/domain"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/ids"
+	"github.com/nikkofu/relay-agent-workspace/api/internal/knowledge"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/realtime"
 )
 
@@ -4330,6 +4331,87 @@ func TestSuggestKnowledgeEntitiesReturnsScopedAutocompleteResults(t *testing.T) 
 	}
 }
 
+func TestKnowledgeEntityFollowEndpoints(t *testing.T) {
+	setupTestDB(t)
+	now := time.Now().UTC()
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Status: "active", SourceKind: "manual", CreatedAt: now, UpdatedAt: now})
+
+	router := gin.New()
+	router.GET("/api/v1/users/me/knowledge/followed", GetMyFollowedKnowledgeEntities)
+	router.POST("/api/v1/knowledge/entities/:id/follow", FollowKnowledgeEntity)
+	router.DELETE("/api/v1/knowledge/entities/:id/follow", UnfollowKnowledgeEntity)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/entities/entity-1/follow", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 follow, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var followPayload struct {
+		Follow      domain.KnowledgeEntityFollow `json:"follow"`
+		IsFollowing bool                         `json:"is_following"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &followPayload); err != nil {
+		t.Fatalf("failed to decode follow payload: %v", err)
+	}
+	if followPayload.Follow.EntityID != "entity-1" || !followPayload.IsFollowing {
+		t.Fatalf("unexpected follow payload: %#v", followPayload)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/users/me/knowledge/followed", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 followed list, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var listPayload struct {
+		Items []knowledge.FollowedEntity `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &listPayload); err != nil {
+		t.Fatalf("failed to decode followed list: %v", err)
+	}
+	if len(listPayload.Items) != 1 || listPayload.Items[0].Entity.ID != "entity-1" {
+		t.Fatalf("unexpected followed list: %#v", listPayload.Items)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodDelete, "/api/v1/knowledge/entities/entity-1/follow", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 unfollow, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestMatchKnowledgeEntitiesInTextEndpoint(t *testing.T) {
+	setupTestDB(t)
+	now := time.Now().UTC()
+
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Status: "active", SourceKind: "manual", CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-2", WorkspaceID: "ws-1", Kind: "doc", Title: "Launch", Status: "active", SourceKind: "manual", CreatedAt: now, UpdatedAt: now})
+
+	router := gin.New()
+	router.POST("/api/v1/knowledge/entities/match-text", MatchKnowledgeEntitiesInText)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/entities/match-text", strings.NewReader(`{"workspace_id":"ws-1","text":"Launch Program needs a decision","limit":5}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 match text, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var payload struct {
+		Matches []knowledge.EntityTextMatch `json:"matches"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode match payload: %v", err)
+	}
+	if len(payload.Matches) != 1 || payload.Matches[0].EntityID != "entity-1" || payload.Matches[0].MatchedText != "Launch Program" {
+		t.Fatalf("expected longest entity match, got %#v", payload.Matches)
+	}
+}
+
 type knowledgeGraphNodePayload struct {
 	Kind    string `json:"kind"`
 	RefKind string `json:"ref_kind"`
@@ -4612,7 +4694,7 @@ func setupTestDB(t *testing.T) {
 	if err := db.DB.AutoMigrate(&domain.Organization{}, &domain.Team{}, &domain.User{}, &domain.Agent{}, &domain.Workspace{}, &domain.WorkspaceInvite{}, &domain.UserGroup{}, &domain.UserGroupMember{}, &domain.WorkflowDefinition{}, &domain.WorkflowRunStep{}, &domain.WorkflowRunLog{}, &domain.ToolDefinition{}, &domain.ToolRun{}, &domain.ToolRunLog{}, &domain.Channel{}, &domain.ChannelMember{}, &domain.ChannelPreference{}, &domain.WorkspaceList{}, &domain.WorkspaceListItem{}, &domain.Message{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
-	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.NotificationPreference{}, &domain.NotificationMuteRule{}, &domain.AIFeedback{}, &domain.AIConversation{}, &domain.AIConversationMessage{}, &domain.AISummary{}, &domain.Artifact{}, &domain.ArtifactVersion{}, &domain.FileAsset{}, &domain.FileAssetEvent{}, &domain.FileExtraction{}, &domain.FileExtractionChunk{}, &domain.FileComment{}, &domain.FileShare{}, &domain.StarredFile{}, &domain.MessageArtifactReference{}, &domain.MessageFileAttachment{}, &domain.KnowledgeEvidenceLink{}, &domain.KnowledgeEvidenceEntityRef{}, &domain.KnowledgeEntity{}, &domain.KnowledgeEntityRef{}, &domain.KnowledgeEntityLink{}, &domain.KnowledgeEvent{}, &domain.KnowledgeDigestSchedule{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}, &domain.WorkflowRun{}); err != nil {
+	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.NotificationPreference{}, &domain.NotificationMuteRule{}, &domain.AIFeedback{}, &domain.AIConversation{}, &domain.AIConversationMessage{}, &domain.AISummary{}, &domain.Artifact{}, &domain.ArtifactVersion{}, &domain.FileAsset{}, &domain.FileAssetEvent{}, &domain.FileExtraction{}, &domain.FileExtractionChunk{}, &domain.FileComment{}, &domain.FileShare{}, &domain.StarredFile{}, &domain.MessageArtifactReference{}, &domain.MessageFileAttachment{}, &domain.KnowledgeEvidenceLink{}, &domain.KnowledgeEvidenceEntityRef{}, &domain.KnowledgeEntity{}, &domain.KnowledgeEntityRef{}, &domain.KnowledgeEntityLink{}, &domain.KnowledgeEvent{}, &domain.KnowledgeEntityFollow{}, &domain.KnowledgeDigestSchedule{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}, &domain.WorkflowRun{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 }

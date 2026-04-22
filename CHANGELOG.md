@@ -2,6 +2,57 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.97] - 2026-04-22
+
+This release implements the next knowledge-collaboration backend slice for Windsurf: per-user entity follow plus composer-side reverse entity lookup.
+
+### Added
+
+- **Knowledge entity follow APIs**:
+  - `GET /api/v1/users/me/knowledge/followed`
+  - `POST /api/v1/knowledge/entities/:id/follow`
+  - `DELETE /api/v1/knowledge/entities/:id/follow`
+- **Composer reverse lookup API**:
+  - `POST /api/v1/knowledge/entities/match-text`
+  - Request body:
+    - `workspace_id`
+    - `text`
+    - `limit`
+  - Match items return:
+    - `entity_id`
+    - `entity_title`
+    - `entity_kind`
+    - `source_kind`
+    - `matched_text`
+    - `start`
+    - `end`
+
+### Changed
+
+- Added persistent `knowledge_entity_follows` storage via GORM migration.
+- Entity follow creation is idempotent per `(entity_id, user_id)`.
+- Entity text matching is deterministic, workspace-scoped, ignores archived entities, and prefers the longest non-overlapping entity titles so `Launch Program` does not double-match `Launch`.
+- Cleaned a frontend collaboration warning by removing an unused `Plus` import from `apps/web/components/layout/primary-nav.tsx`.
+
+### Windsurf Handoff
+
+- Add a Knowledge follow tab or filter using `GET /api/v1/users/me/knowledge/followed`.
+- Use `POST /api/v1/knowledge/entities/:id/follow` and `DELETE /api/v1/knowledge/entities/:id/follow` for follow toggles on wiki pages, hover cards, or digest surfaces.
+- Use `POST /api/v1/knowledge/entities/match-text` from the composer draft text to show passive “entity detected” hints and one-click conversion into explicit `@entity` mentions.
+- Remaining recommended backend targets after this release:
+  - `GET /api/v1/knowledge/inbox/:id` for richer digest detail context
+  - `POST /api/v1/channels/:id/knowledge/digest/preview-schedule`
+  - websocket `knowledge.entity.activity.spiked`
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./internal/handlers -run 'Test(KnowledgeEntityFollowEndpoints|MatchKnowledgeEntitiesInTextEndpoint)' -count=1`
+- `cd apps/api && go test ./internal/knowledge -run 'Test(FollowEntityAndListFollowedEntities|MatchEntitiesInTextReturnsLongestNonOverlappingSpans)' -count=1`
+- `cd apps/api && go test ./...`
+- `cd apps/api && go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+- `pnpm --filter relay-agent-workspace exec tsc --noEmit`
+
 ## [0.5.95] - 2026-04-22
 
 This release fixes the v0.5.94 lint regression in `apps/web/components/message/message-composer.tsx`.

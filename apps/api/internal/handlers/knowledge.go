@@ -249,6 +249,78 @@ func SuggestKnowledgeEntities(c *gin.Context) {
 	})
 }
 
+func MatchKnowledgeEntitiesInText(c *gin.Context) {
+	var input struct {
+		WorkspaceID string `json:"workspace_id"`
+		Text        string `json:"text"`
+		Limit       int    `json:"limit"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if strings.TrimSpace(input.Text) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "text is required"})
+		return
+	}
+
+	matches, err := knowledge.MatchEntitiesInText(db.DB, knowledge.MatchEntitiesInput{
+		WorkspaceID: input.WorkspaceID,
+		Text:        input.Text,
+		Limit:       input.Limit,
+	})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to match knowledge entities"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"matches": matches})
+}
+
+func GetMyFollowedKnowledgeEntities(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	items, err := knowledge.ListFollowedEntities(db.DB, currentUser.ID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to load followed knowledge entities"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items})
+}
+
+func FollowKnowledgeEntity(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	follow, err := knowledge.FollowEntity(db.DB, c.Param("id"), currentUser.ID)
+	if err != nil {
+		handleKnowledgeNotFound(c, err, "knowledge entity not found")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"follow": follow, "is_following": true})
+}
+
+func UnfollowKnowledgeEntity(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	if err := knowledge.UnfollowEntity(db.DB, c.Param("id"), currentUser.ID); err != nil {
+		handleKnowledgeNotFound(c, err, "knowledge entity not found")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"entity_id": c.Param("id"), "is_following": false})
+}
+
 func SearchMessagesByEntity(c *gin.Context) {
 	entityID := strings.TrimSpace(c.Query("entity_id"))
 	if entityID == "" {
