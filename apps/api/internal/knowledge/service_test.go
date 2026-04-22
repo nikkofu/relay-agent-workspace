@@ -1,6 +1,7 @@
 package knowledge
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -410,6 +411,58 @@ func TestBulkFollowUpdatesWorkspaceSettingsActivityAndTrending(t *testing.T) {
 	}
 	if follow.NotificationLevel != "silent" {
 		t.Fatalf("expected follow2 to persist silent, got %#v", follow)
+	}
+}
+
+func TestFollowedStatsAndSharedEntityLink(t *testing.T) {
+	database := setupKnowledgeTestDB(t)
+	now := time.Now().UTC()
+
+	database.Create(&domain.Workspace{ID: "ws-1", OrganizationID: "org-1", Name: "Relay"})
+	database.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	database.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Status: "active", CreatedAt: now, UpdatedAt: now})
+	database.Create(&domain.KnowledgeEntity{ID: "entity-2", WorkspaceID: "ws-1", Kind: "concept", Title: "Agent Mesh", Status: "active", CreatedAt: now, UpdatedAt: now})
+	database.Create(&domain.KnowledgeEntityRef{ID: "kref-1", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-1", Role: "discussion", CreatedAt: now.Add(-2 * time.Hour)})
+	database.Create(&domain.KnowledgeEntityRef{ID: "kref-2", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-2", Role: "decision", CreatedAt: now.Add(-90 * time.Minute)})
+	database.Create(&domain.KnowledgeEntityRef{ID: "kref-3", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-3", Role: "decision", CreatedAt: now.Add(-30 * time.Minute)})
+
+	follow1, err := FollowEntity(database, "entity-1", "user-1")
+	if err != nil {
+		t.Fatalf("follow entity-1: %v", err)
+	}
+	if _, err := FollowEntity(database, "entity-2", "user-1"); err != nil {
+		t.Fatalf("follow entity-2: %v", err)
+	}
+	if _, err := UpdateFollowNotificationLevel(database, "entity-2", "user-1", "silent"); err != nil {
+		t.Fatalf("mute entity-2: %v", err)
+	}
+	alertTime := now.Add(-10 * time.Minute)
+	if err := database.Model(&domain.KnowledgeEntityFollow{}).
+		Where("id = ?", follow1.ID).
+		Update("last_alerted_at", alertTime).Error; err != nil {
+		t.Fatalf("mark follow spiking: %v", err)
+	}
+
+	stats, err := GetFollowedEntityStats(database, "user-1", now)
+	if err != nil {
+		t.Fatalf("get followed stats: %v", err)
+	}
+	if stats.TotalCount != 2 || stats.MutedCount != 1 || stats.SpikingCount != 1 {
+		t.Fatalf("unexpected followed stats: %#v", stats)
+	}
+	if len(stats.ByKind) != 2 || stats.ByKind[0].Count != 1 {
+		t.Fatalf("unexpected stats by kind: %#v", stats.ByKind)
+	}
+
+	share, err := BuildSharedEntityLink(database, "entity-1", "http://localhost:3000")
+	if err != nil {
+		t.Fatalf("build shared entity link: %v", err)
+	}
+	if share.EntityID != "entity-1" || share.RelativePath != "/workspace/knowledge/entity-1" {
+		t.Fatalf("unexpected share payload: %#v", share)
+	}
+	if !strings.Contains(share.URL, "/workspace/knowledge/entity-1") || !strings.Contains(share.ShortURL, "/k/entity-1") {
+		t.Fatalf("unexpected share urls: %#v", share)
 	}
 }
 

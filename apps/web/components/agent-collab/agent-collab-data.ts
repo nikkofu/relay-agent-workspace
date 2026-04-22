@@ -112,7 +112,7 @@ export const MEMBERS: Member[] = [
 
 export const ACTIVE_SUPERPOWERS: AgentPower[] = [
   { agent: 'Gemini', skill: 'idle', task: 'Resting after Phase 38 handoff', progress: 100, status: 'done' },
-  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 59 backend shipped: bulk follow ops + workspace knowledge settings + activity/trending (v0.6.4)', progress: 100, status: 'done' },
+  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 60 backend shipped: follow stats + entity share + trending realtime (v0.6.6)', progress: 100, status: 'done' },
   { agent: 'Claude Code', skill: 'idle', task: '-', progress: 0, status: 'idle' },
   { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 59 UI shipped: bulk mute, trending cards, entity sparkline, workspace alert tuning (v0.6.5)', progress: 100, status: 'done' },
 ]
@@ -243,11 +243,25 @@ export const TASKS: Task[] = [
   { id: 't121', phase: 121, status: 'done',  task: 'Phase 58 Following Hub + Locale Formatting UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'Proactive phase — no new backend required. (1) /workspace/knowledge/following: dedicated Following Hub page. Lists followedEntities[] sorted by spiking-first then alpha. Spiking entities floated to top section with amber pulse, Zap icon, Spiking badge. Each row: kind icon, title, kind badge, notification-level dropdown picker (All/Digest only/Silent with checkmark + Unfollow separator), and Following since timestamp. Mute All header button bulk-PATCHes all non-silent follows to silent via individual PATCH /api/v1/users/me/knowledge/followed/:id calls. Empty-state with guidance. (2) Knowledge listing header: Following (N) button linking to /following hub; active when any follows exist (purple border + count badge). (3) hooks/use-locale.ts: session-cached locale hook. First consumer calls GET /api/v1/me/settings, caches locale module-level so subsequent hooks share it. Exports formatLocaleDate(date, locale, opts?) using Intl.DateTimeFormat and formatRelativeTime(date, locale) using Intl.RelativeTimeFormat. (4) Knowledge Inbox: replaces date-fns format() with formatLocaleDate using user locale. v0.6.3 published.', type: 'frontend' },
   { id: 't122', phase: 122, status: 'done',  task: 'Phase 59 Knowledge Ops APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added PATCH /api/v1/users/me/knowledge/followed/bulk, GET|PATCH /api/v1/workspace/settings, GET /api/v1/knowledge/entities/:id/activity, and GET /api/v1/knowledge/trending. Workspace spike detection now reads persisted threshold/cooldown settings instead of hardcoded values. Released in v0.6.4.', type: 'api' },
   { id: 't123', phase: 123, status: 'done',  task: 'Phase 59 Knowledge Ops UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'Full consumer for Codex v0.6.4 backend. (1) Following Hub Mute All switched to single PATCH /users/me/knowledge/followed/bulk request; new Restore alerts button when every follow is silent. Store adds bulkUpdateFollowNotificationLevel with Set-based optimistic update. (2) TrendingEntitiesCard component (components/knowledge/trending-entities-card.tsx) — gradient amber/orange header, kind-aware row icons, ranked #1–N, velocity_delta badge colored by sign (emerald/rose/muted), recent_ref_count + related-channel count + last-ref relative time. Mounted on /workspace/knowledge above entity grid (when no filters) and on Home dashboard above Recent Knowledge Digests. (3) EntityActivitySparkline component (components/knowledge/entity-activity-sparkline.tsx) — inline SVG with purple gradient area fill + stroke, last-day dot, totalRefs caption, +N today callout. Placed on entity detail page header (md:flex). Uses entityActivity cache slice keyed by entityId. (4) Settings page gains 5th Workspace tab with Knowledge Alert Tuning card — spike_threshold and spike_cooldown_minutes inputs hydrated from GET /workspace/settings and saved via PATCH /workspace/settings. Types: WorkspaceKnowledgeSettings, EntityActivityBucket, EntityActivity, TrendingEntity. v0.6.5 published.', type: 'frontend' },
+  { id: 't124', phase: 124, status: 'done',  task: 'Phase 60 Knowledge Distribution APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added GET /api/v1/users/me/knowledge/followed/stats, POST /api/v1/knowledge/entities/:id/share, and websocket knowledge.trending.changed. Trending change events now broadcast from new knowledge-ref creation paths so Home/Knowledge surfaces can update without polling. Released in v0.6.6.', type: 'api' },
 ]
 
 // ─── Communication Log ────────────────────────────────────────────────────────
 
 export const COMM_SECTIONS: CommSection[] = [
+  {
+    id: 'cs29',
+    date: '2026-04-22',
+    title: 'Phase 60 Knowledge Distribution APIs',
+    messages: [
+      { id: 'cx67a', from: 'Codex', content: 'Phase 60 backend is complete and published as v0.6.6.' },
+      { id: 'cx67b', from: 'Codex', content: 'Added GET /api/v1/users/me/knowledge/followed/stats with total_count, spiking_count, muted_count, and by_kind[] for Following Hub summary UI and future AI-native follow digests.' },
+      { id: 'cx67c', from: 'Codex', content: 'Added POST /api/v1/knowledge/entities/:id/share returning entity deeplinks with url, short_url, and relative_path.' },
+      { id: 'cx67d', from: 'Codex', content: 'Added websocket knowledge.trending.changed. It is emitted when new knowledge refs land, so Trending cards can rerank live without polling.' },
+      { id: 'cx67e', from: 'Codex', to: 'Windsurf', content: 'Please wire a Following Hub header strip from followed/stats, add share actions on trending/entity surfaces, and consume knowledge.trending.changed for live card refresh.' },
+      { id: 'cx67f', from: 'Codex', to: 'Nikko Fu', content: 'Relay knowledge is now not only queryable and configurable, but also distributable: it can summarize follow state, create shareable entry points, and push trend changes out in realtime.' },
+    ],
+  },
   {
     id: 'cs29',
     date: '2026-04-22',

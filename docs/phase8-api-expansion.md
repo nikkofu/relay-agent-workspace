@@ -140,6 +140,7 @@ Current backend surface already available:
 - `GET|PATCH /api/v1/workspace/settings`
 - `GET /api/v1/users/me/knowledge/followed`
 - `PATCH /api/v1/users/me/knowledge/followed/bulk`
+- `GET /api/v1/users/me/knowledge/followed/stats`
 - `GET /api/v1/knowledge/entities`
 - `GET /api/v1/knowledge/trending`
 - `GET /api/v1/knowledge/entities/suggest`
@@ -148,6 +149,7 @@ Current backend surface already available:
 - `GET /api/v1/knowledge/entities/:id`
 - `GET /api/v1/knowledge/entities/:id/activity`
 - `GET /api/v1/knowledge/entities/:id/hover`
+- `POST /api/v1/knowledge/entities/:id/share`
 - `POST /api/v1/knowledge/entities/:id/follow`
 - `DELETE /api/v1/knowledge/entities/:id/follow`
 - `PATCH /api/v1/knowledge/entities/:id`
@@ -424,6 +426,7 @@ Baseline support now exists for:
 - `GET|PATCH /api/v1/workspace/settings`
 - `GET /api/v1/users/me/knowledge/followed`
 - `PATCH /api/v1/users/me/knowledge/followed/bulk`
+- `GET /api/v1/users/me/knowledge/followed/stats`
 - `GET /api/v1/knowledge/entities`
 - `GET /api/v1/knowledge/trending`
 - `GET /api/v1/knowledge/entities/suggest`
@@ -432,6 +435,7 @@ Baseline support now exists for:
 - `GET /api/v1/knowledge/entities/:id`
 - `GET /api/v1/knowledge/entities/:id/activity`
 - `GET /api/v1/knowledge/entities/:id/hover`
+- `POST /api/v1/knowledge/entities/:id/share`
 - `POST /api/v1/knowledge/entities/:id/follow`
 - `DELETE /api/v1/knowledge/entities/:id/follow`
 - `PATCH /api/v1/knowledge/entities/:id`
@@ -456,6 +460,7 @@ Baseline support now exists for:
   - `knowledge.entity.created`
   - `knowledge.entity.updated`
   - `knowledge.entity.ref.created`
+  - `knowledge.trending.changed`
   - `knowledge.event.created`
   - `knowledge.link.created`
   - `knowledge.digest.published`

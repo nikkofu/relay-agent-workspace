@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.6.4` is the current release line and includes:
+`v0.6.6` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -67,9 +67,12 @@ For product, design, and marketing, the short version is:
 - `GET /api/v1/me/settings` for cross-device settings hydration
 - per-follow notification settings via `PATCH /api/v1/users/me/knowledge/followed/:id`
 - bulk follow notification updates via `PATCH /api/v1/users/me/knowledge/followed/bulk`
+- followed knowledge aggregate stats via `GET /api/v1/users/me/knowledge/followed/stats`
 - workspace knowledge alert settings via `GET|PATCH /api/v1/workspace/settings`
 - per-entity activity timeseries via `GET /api/v1/knowledge/entities/:id/activity`
 - workspace trending knowledge entities via `GET /api/v1/knowledge/trending`
+- realtime trending rerank broadcasts via websocket `knowledge.trending.changed`
+- entity deeplink sharing via `POST /api/v1/knowledge/entities/:id/share`
 - realtime entity spike alerts via websocket `knowledge.entity.activity.spiked`
 - knowledge summary velocity/anomaly fields for channel-header trend badges
 - citation lookup entity hydration from canonical `KnowledgeEntityRef` message/file associations
@@ -175,6 +178,7 @@ For product, design, and marketing, the short version is:
   - `GET /api/v1/workspace/settings`
   - `PATCH /api/v1/workspace/settings`
   - `PATCH /api/v1/users/me/knowledge/followed/bulk`
+  - `GET /api/v1/users/me/knowledge/followed/stats`
   - `PATCH /api/v1/users/me/knowledge/followed/:id`
   - `GET /api/v1/users/me/knowledge/followed`
   - `GET /api/v1/knowledge/trending`
@@ -185,6 +189,7 @@ For product, design, and marketing, the short version is:
   - `GET /api/v1/knowledge/entities/:id`
   - `GET /api/v1/knowledge/entities/:id/activity`
   - `GET /api/v1/knowledge/entities/:id/hover`
+  - `POST /api/v1/knowledge/entities/:id/share`
   - `POST /api/v1/knowledge/entities/:id/follow`
   - `DELETE /api/v1/knowledge/entities/:id/follow`
   - `PATCH /api/v1/knowledge/entities/:id`
@@ -209,6 +214,7 @@ For product, design, and marketing, the short version is:
   - `knowledge.link.created`
   - `knowledge.digest.published`
   - `knowledge.entity.activity.spiked`
+  - `knowledge.trending.changed`
 - Channel notification preferences and self-service leave-channel API
 - Structured workspace list APIs for shared checklists and operational tracking
 - Artifact template APIs and virtual `new-doc` bootstrap support for canvas-first creation

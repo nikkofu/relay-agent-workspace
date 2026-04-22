@@ -2,6 +2,65 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.6] - 2026-04-22
+
+This release pairs Windsurf's `v0.6.5` UI pass with Codex Phase 60 backend follow-up. Relay's knowledge layer now has aggregate follow stats, shareable entity deeplinks, and realtime trending broadcasts so the knowledge surfaces can move from pull-only to push-aware.
+
+### Added
+
+- **Followed knowledge stats API**:
+  - `GET /api/v1/users/me/knowledge/followed/stats`
+  - Returns:
+    - `total_count`
+    - `spiking_count`
+    - `muted_count`
+    - `by_kind[]`
+- **Knowledge entity share API**:
+  - `POST /api/v1/knowledge/entities/:id/share`
+  - Returns:
+    - `entity_id`
+    - `workspace_id`
+    - `title`
+    - `url`
+    - `short_url`
+    - `relative_path`
+- **Realtime trending event**:
+  - websocket `knowledge.trending.changed`
+  - Payload includes:
+    - `workspace_id`
+    - `days`
+    - `items[]`
+
+### Changed
+
+- `knowledge.entity.ref.created` flows now also emit `knowledge.trending.changed`, including:
+  - direct `POST /api/v1/knowledge/entities/:id/refs`
+  - auto-linked message entity refs
+  - auto-linked file entity refs
+- Included Windsurf's `v0.6.5` UI pass in this release line:
+  - Following Hub bulk mute/restore
+  - Trending cards on Knowledge and Home
+  - entity activity sparkline
+  - workspace knowledge alert tuning tab
+
+### Windsurf Handoff
+
+- Use `GET /api/v1/users/me/knowledge/followed/stats` for a Following Hub header strip or weekly AI-native follow digest summary.
+- Use `POST /api/v1/knowledge/entities/:id/share` for share actions on Trending cards, entity headers, and sparkline surfaces.
+- Listen for websocket `knowledge.trending.changed` to live-refresh Trending cards without polling.
+- Remaining recommended backend target after this release:
+  - `presence.bulk`
+  - activity history backfill for pre-Phase-57 entities
+
+### Verification Used For This Release
+
+- `go test ./internal/knowledge -run TestFollowedStatsAndSharedEntityLink -count=1`
+- `go test ./internal/handlers -run TestPhase60KnowledgeShareStatsAndTrendingRealtime -count=1`
+- `go test ./...`
+- `bash -lc 'GOCACHE=$(pwd)/.cache/go-build go build ./...'`
+- `pnpm --filter relay-agent-workspace lint`
+- `pnpm --filter relay-agent-workspace exec tsc --noEmit`
+
 ## [0.6.4] - 2026-04-22
 
 This release pairs Windsurf's `v0.6.3` Following Hub UI with Codex Phase 59 backend contracts. It turns the knowledge-follow loop into an operational surface with bulk controls, workspace-level spike tuning, entity activity history, and a trending feed for future Home/Knowledge panels.

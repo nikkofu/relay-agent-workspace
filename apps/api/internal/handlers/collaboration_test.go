@@ -4672,6 +4672,122 @@ func TestPhase59KnowledgeOpsEndpoints(t *testing.T) {
 	}
 }
 
+func TestPhase60KnowledgeShareStatsAndTrendingRealtime(t *testing.T) {
+	setupTestDB(t)
+	now := time.Now().UTC()
+
+	hub := realtime.NewHub()
+	go hub.Run()
+	SetRealtimeHub(hub)
+	defer SetRealtimeHub(nil)
+
+	client := realtime.NewTestClient(8)
+	hub.RegisterTestClient(client)
+	defer hub.UnregisterTestClient(client)
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Workspace{ID: "ws-1", OrganizationID: "org-1", Name: "Relay", KnowledgeSpikeThreshold: 3, KnowledgeSpikeCooldownMins: 360})
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Status: "active", CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-2", WorkspaceID: "ws-1", Kind: "concept", Title: "Agent Mesh", Status: "active", CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	db.DB.Create(&domain.Message{ID: "msg-1", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program kickoff", CreatedAt: now.Add(-2 * time.Hour)})
+	db.DB.Create(&domain.Message{ID: "msg-2", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program QA", CreatedAt: now.Add(-90 * time.Minute)})
+	db.DB.Create(&domain.KnowledgeEntityRef{ID: "kref-1", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-1", Role: "discussion", CreatedAt: now.Add(-2 * time.Hour)})
+	db.DB.Create(&domain.KnowledgeEntityRef{ID: "kref-2", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-2", Role: "decision", CreatedAt: now.Add(-90 * time.Minute)})
+
+	router := gin.New()
+	router.POST("/api/v1/knowledge/entities/:id/follow", FollowKnowledgeEntity)
+	router.GET("/api/v1/users/me/knowledge/followed/stats", GetMyFollowedKnowledgeStats)
+	router.POST("/api/v1/knowledge/entities/:id/share", ShareKnowledgeEntity)
+	router.POST("/api/v1/knowledge/entities/:id/refs", AddKnowledgeEntityRef)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/entities/entity-1/follow", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 follow entity-1, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/entities/entity-2/follow", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 follow entity-2, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/users/me/knowledge/followed/stats", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 followed stats, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var statsPayload struct {
+		Stats struct {
+			TotalCount   int `json:"total_count"`
+			SpikingCount int `json:"spiking_count"`
+			MutedCount   int `json:"muted_count"`
+		} `json:"stats"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &statsPayload); err != nil {
+		t.Fatalf("decode followed stats payload: %v", err)
+	}
+	if statsPayload.Stats.TotalCount != 2 {
+		t.Fatalf("unexpected followed stats payload: %#v", statsPayload.Stats)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/entities/entity-1/share", bytes.NewBufferString(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 entity share, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var sharePayload struct {
+		Share struct {
+			EntityID string `json:"entity_id"`
+			URL      string `json:"url"`
+			ShortURL string `json:"short_url"`
+		} `json:"share"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &sharePayload); err != nil {
+		t.Fatalf("decode share payload: %v", err)
+	}
+	if sharePayload.Share.EntityID != "entity-1" || !strings.Contains(sharePayload.Share.URL, "/workspace/knowledge/entity-1") {
+		t.Fatalf("unexpected share payload: %#v", sharePayload.Share)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/entities/entity-1/refs", strings.NewReader(`{"ref_kind":"message","ref_id":"msg-3","role":"decision"}`))
+	req.Header.Set("Content-Type", "application/json")
+	db.DB.Create(&domain.Message{ID: "msg-3", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program launch", CreatedAt: now.Add(-30 * time.Minute)})
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 entity ref create, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	assertRealtimeEventType(t, client, "knowledge.entity.ref.created")
+	assertRealtimeEventType(t, client, "knowledge.entity.activity.spiked")
+	raw, err := client.Receive(2 * time.Second)
+	if err != nil {
+		t.Fatalf("failed to receive trending event: %v", err)
+	}
+	var event realtime.Event
+	if err := json.Unmarshal(raw, &event); err != nil {
+		t.Fatalf("decode trending event: %v", err)
+	}
+	if event.Type != "knowledge.trending.changed" {
+		t.Fatalf("expected knowledge.trending.changed, got %s", event.Type)
+	}
+	payload, ok := event.Payload.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map payload, got %#v", event.Payload)
+	}
+	items, ok := payload["items"].([]any)
+	if !ok || len(items) == 0 {
+		t.Fatalf("expected trending items payload, got %#v", payload)
+	}
+}
+
 func TestMatchKnowledgeEntitiesInTextEndpoint(t *testing.T) {
 	setupTestDB(t)
 	now := time.Now().UTC()
@@ -4783,6 +4899,7 @@ func TestKnowledgeEntityEndpointsBroadcastRealtimeEvents(t *testing.T) {
 		t.Fatalf("expected 201 on entity ref, got %d body=%s", rec.Code, rec.Body.String())
 	}
 	assertRealtimeEventType(t, client, "knowledge.entity.ref.created")
+	assertRealtimeEventType(t, client, "knowledge.trending.changed")
 
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/entities/"+createPayload.Entity.ID+"/events", strings.NewReader(`{"event_type":"live_update","title":"Live update"}`))

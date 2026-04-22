@@ -141,6 +141,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 58 Following Hub + Locale Formatting UI | Windsurf | 2026-04-22 | Dedicated `/workspace/knowledge/following` hub page listing all followed entities with inline notification-level pickers, spike pulse, Mute All, and empty-state guidance. `Following (N)` button in knowledge listing header links to it. `useLocale` + `formatLocaleDate` + `formatRelativeTime` utility hook hydrates user locale from `GET /api/v1/me/settings` and caches it session-wide; inbox date renders via `Intl.DateTimeFormat` respecting user preference. `v0.6.3` published. |
 | 🟢 Done | Phase 59 Knowledge Ops APIs | Codex | 2026-04-22 | Added `PATCH /api/v1/users/me/knowledge/followed/bulk`, `GET|PATCH /api/v1/workspace/settings`, `GET /api/v1/knowledge/entities/:id/activity`, and `GET /api/v1/knowledge/trending`. Workspace spike detection now reads persisted threshold/cooldown settings. Released in `v0.6.4`. |
 | 🟢 Done | Phase 59 Knowledge Ops UI | Windsurf | 2026-04-22 | Consumed all four Phase 59 backend contracts. Mute All in Following Hub now uses `PATCH /users/me/knowledge/followed/bulk` (single request) and gains a **Restore alerts** counterpart when everything is silenced. `TrendingEntitiesCard` component mounted on `/workspace/knowledge` (inline above entity grid) and Home dashboard — ranked by `velocity_delta` with recent/previous deltas, related channels, last activity. `EntityActivitySparkline` SVG sparkline on entity detail page header reads `/knowledge/entities/:id/activity` (30-day default) with gradient fill + last-day dot. Settings page gains a new **Workspace** tab with `Flame` + `Timer` inputs for `spike_threshold` + `spike_cooldown_minutes`, hydrated via `GET /workspace/settings` and persisted via `PATCH /workspace/settings`. `v0.6.5` published. |
+| 🟢 Done | Phase 60 Knowledge Distribution APIs | Codex | 2026-04-22 | Added `GET /api/v1/users/me/knowledge/followed/stats`, `POST /api/v1/knowledge/entities/:id/share`, and websocket `knowledge.trending.changed` for live trend reranking. Released in `v0.6.6`. |
 
 ---
 
@@ -149,9 +150,21 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
-| **Codex** | `api-architecture` | Phase 59 backend shipped: bulk follow ops + workspace knowledge settings + activity/trending (v0.6.4) | 100% |
+| **Codex** | `api-architecture` | Phase 60 backend shipped: follow stats + entity share + trending realtime (v0.6.6) | 100% |
 | **Claude Code**| `idle` | - | - |
 | **Windsurf** | `web-ui-agent` | Phase 59 UI shipped: bulk mute, trending cards, entity sparkline, workspace alert tuning (v0.6.5) | 100% |
+
+### 2026-04-22 - Phase 60 Knowledge Distribution API Completion (v0.6.6)
+- **Codex**: Phase 60 backend is complete and published as `v0.6.6`.
+- **Codex**: Added `GET /api/v1/users/me/knowledge/followed/stats` returning `total_count`, `spiking_count`, `muted_count`, and `by_kind[]`. This gives the Following Hub and future AI summaries a compact aggregate snapshot instead of making the frontend re-derive everything from the full followed list.
+- **Codex**: Added `POST /api/v1/knowledge/entities/:id/share` returning a shareable entity deeplink payload with `url`, `short_url`, and `relative_path`.
+- **Codex**: Added websocket `knowledge.trending.changed`. The payload shape matches the `GET /api/v1/knowledge/trending` response envelope closely enough for direct UI reuse.
+- **Codex**: Trending change broadcasts now fire when knowledge refs are created through direct entity-ref APIs and through auto-link flows from messages/files.
+- **Codex → Windsurf**: Please consume these contracts next:
+  - add a stats strip to Following Hub from `GET /api/v1/users/me/knowledge/followed/stats`
+  - add share actions on Trending cards and entity detail using `POST /api/v1/knowledge/entities/:id/share`
+  - listen for `knowledge.trending.changed` so Trending cards update live without polling
+- **Codex → Nikko Fu**: This phase moves the knowledge layer one step closer to a collaboration broadcast system: it can now summarize followed-state at a glance, generate shareable entity entry points, and proactively push ranking changes instead of waiting for manual refresh.
 
 ### 2026-04-22 - Phase 59 Knowledge Ops UI (v0.6.5)
 - **Windsurf**: Phase 59 UI complete and published as `v0.6.5`. Full consumer for Codex v0.6.4 backend — every one of the four new endpoints is now wired into the UI.
@@ -282,6 +295,15 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-22 - Phase 60 Knowledge Distribution APIs
+- **Codex**: Phase 60 backend is complete and published as `v0.6.6`.
+- **Codex**: Added `GET /api/v1/users/me/knowledge/followed/stats`, `POST /api/v1/knowledge/entities/:id/share`, and websocket `knowledge.trending.changed`.
+- **Codex**: `knowledge.trending.changed` is emitted from new knowledge-ref creation paths so Knowledge and Home trending surfaces can refresh live.
+- **Codex → Windsurf**: Please wire Following Hub summary counts, entity share actions, and live trending invalidation next.
+- **Codex → Windsurf**: Remaining backend targets I still recommend after this release:
+  - `presence.bulk`
+  - historical activity backfill for older entity refs
 
 ### 2026-04-22 - Phase 59 Knowledge Ops UI
 - **Windsurf**: Phase 59 UI complete and published as `v0.6.5`. Every new Phase 59 backend contract is now consumed.

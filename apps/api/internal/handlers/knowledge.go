@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -101,6 +102,7 @@ func AddKnowledgeEntityRef(c *gin.Context) {
 		return
 	}
 	_ = emitKnowledgeEntitySpikeAlerts(ref.EntityID, "")
+	_ = emitKnowledgeTrendingChanged(ref.WorkspaceID)
 	c.JSON(http.StatusCreated, gin.H{"ref": ref})
 }
 
@@ -293,6 +295,21 @@ func GetMyFollowedKnowledgeEntities(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"items": items})
 }
 
+func GetMyFollowedKnowledgeStats(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	stats, err := knowledge.GetFollowedEntityStats(db.DB, currentUser.ID, time.Now().UTC())
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to load followed knowledge stats"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"stats": stats})
+}
+
 func FollowKnowledgeEntity(c *gin.Context) {
 	currentUser, err := getCurrentUser()
 	if err != nil {
@@ -371,6 +388,15 @@ func UnfollowKnowledgeEntity(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"entity_id": c.Param("id"), "is_following": false})
+}
+
+func ShareKnowledgeEntity(c *gin.Context) {
+	share, err := knowledge.BuildSharedEntityLink(db.DB, c.Param("id"), strings.TrimSpace(os.Getenv("RELAY_APP_BASE_URL")))
+	if err != nil {
+		handleKnowledgeNotFound(c, err, "knowledge entity not found")
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"share": share})
 }
 
 func GetWorkspaceSettings(c *gin.Context) {
@@ -862,6 +888,9 @@ func autoLinkKnowledgeForMessage(message domain.Message) {
 		_ = broadcastKnowledgeEvent("knowledge.entity.ref.created", ref.WorkspaceID, channel.ID, ref.EntityID, gin.H{"ref": ref})
 		_ = emitKnowledgeEntitySpikeAlerts(ref.EntityID, channel.ID)
 	}
+	if len(refs) > 0 {
+		_ = emitKnowledgeTrendingChanged(channel.WorkspaceID)
+	}
 }
 
 func autoLinkKnowledgeForFile(asset domain.FileAsset, content string) {
@@ -877,6 +906,9 @@ func autoLinkKnowledgeForFile(asset domain.FileAsset, content string) {
 	for _, ref := range refs {
 		_ = broadcastKnowledgeEvent("knowledge.entity.ref.created", ref.WorkspaceID, channel.ID, ref.EntityID, gin.H{"ref": ref})
 		_ = emitKnowledgeEntitySpikeAlerts(ref.EntityID, channel.ID)
+	}
+	if len(refs) > 0 {
+		_ = emitKnowledgeTrendingChanged(channel.WorkspaceID)
 	}
 }
 
@@ -900,6 +932,23 @@ func emitKnowledgeEntitySpikeAlerts(entityID, channelID string) error {
 		}
 	}
 	return nil
+}
+
+func emitKnowledgeTrendingChanged(workspaceID string) error {
+	items, err := knowledge.GetTrendingEntities(db.DB, knowledge.TrendingEntitiesParams{
+		WorkspaceID: workspaceID,
+		Days:        7,
+		Limit:       5,
+		Now:         time.Now().UTC(),
+	})
+	if err != nil {
+		return err
+	}
+	return broadcastKnowledgeEvent("knowledge.trending.changed", workspaceID, "", "", gin.H{
+		"workspace_id": workspaceID,
+		"days":         7,
+		"items":        items,
+	})
 }
 
 func broadcastKnowledgeEvent(eventType, workspaceID, channelID, entityID string, payload any) error {

@@ -945,6 +945,88 @@ func ListFollowedEntities(database *gorm.DB, userID string) ([]FollowedEntity, e
 	return items, nil
 }
 
+func GetFollowedEntityStats(database *gorm.DB, userID string, now time.Time) (FollowedEntityStats, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return FollowedEntityStats{}, nil
+	}
+
+	var follows []domain.KnowledgeEntityFollow
+	if err := database.Where("user_id = ?", userID).Find(&follows).Error; err != nil {
+		return FollowedEntityStats{}, err
+	}
+
+	stats := FollowedEntityStats{
+		ByKind: make([]FollowedEntityStatsKindCount, 0),
+	}
+	kindCounts := map[string]int{}
+
+	for _, follow := range follows {
+		var entity domain.KnowledgeEntity
+		if err := database.First(&entity, "id = ?", follow.EntityID).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				continue
+			}
+			return FollowedEntityStats{}, err
+		}
+		stats.TotalCount++
+		kindCounts[entity.Kind]++
+		if normalizeFollowNotificationLevel(follow.NotificationLevel) == "silent" {
+			stats.MutedCount++
+		}
+
+		settings, err := getWorkspaceKnowledgeSettingsOrDefault(database, follow.WorkspaceID)
+		if err != nil {
+			return FollowedEntityStats{}, err
+		}
+		if follow.LastAlertedAt != nil && follow.LastAlertedAt.After(now.Add(-time.Duration(settings.SpikeCooldownMinutes)*time.Minute)) {
+			stats.SpikingCount++
+		}
+	}
+
+	for kind, count := range kindCounts {
+		stats.ByKind = append(stats.ByKind, FollowedEntityStatsKindCount{
+			Kind:  kind,
+			Count: count,
+		})
+	}
+	sort.SliceStable(stats.ByKind, func(i, j int) bool {
+		if stats.ByKind[i].Count == stats.ByKind[j].Count {
+			return stats.ByKind[i].Kind < stats.ByKind[j].Kind
+		}
+		return stats.ByKind[i].Count > stats.ByKind[j].Count
+	})
+
+	return stats, nil
+}
+
+func BuildSharedEntityLink(database *gorm.DB, entityID, baseURL string) (SharedEntityLink, error) {
+	entityID = strings.TrimSpace(entityID)
+	if entityID == "" {
+		return SharedEntityLink{}, errors.New("entity_id is required")
+	}
+
+	var entity domain.KnowledgeEntity
+	if err := database.First(&entity, "id = ?", entityID).Error; err != nil {
+		return SharedEntityLink{}, err
+	}
+
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if baseURL == "" {
+		baseURL = "http://localhost:3000"
+	}
+
+	relativePath := "/workspace/knowledge/" + entity.ID
+	return SharedEntityLink{
+		EntityID:     entity.ID,
+		WorkspaceID:  entity.WorkspaceID,
+		Title:        entity.Title,
+		URL:          baseURL + relativePath,
+		ShortURL:     baseURL + "/k/" + entity.ID,
+		RelativePath: relativePath,
+	}, nil
+}
+
 func GetWorkspaceKnowledgeSettings(database *gorm.DB, workspaceID string) (WorkspaceKnowledgeSettings, error) {
 	workspaceID = strings.TrimSpace(workspaceID)
 	if workspaceID == "" {

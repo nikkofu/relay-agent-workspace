@@ -230,6 +230,27 @@ type TrendingEntity struct {
 	LastRefAt         *time.Time             `json:"last_ref_at,omitempty"`
 }
 
+type FollowedEntityStatsKindCount struct {
+	Kind  string `json:"kind"`
+	Count int    `json:"count"`
+}
+
+type FollowedEntityStats struct {
+	TotalCount   int                          `json:"total_count"`
+	SpikingCount int                          `json:"spiking_count"`
+	MutedCount   int                          `json:"muted_count"`
+	ByKind       []FollowedEntityStatsKindCount `json:"by_kind"`
+}
+
+type SharedEntityLink struct {
+	EntityID     string `json:"entity_id"`
+	WorkspaceID  string `json:"workspace_id"`
+	Title        string `json:"title"`
+	URL          string `json:"url"`
+	ShortURL     string `json:"short_url"`
+	RelativePath string `json:"relative_path"`
+}
+
 type MatchEntitiesInput struct {
 	WorkspaceID string
 	Text        string
