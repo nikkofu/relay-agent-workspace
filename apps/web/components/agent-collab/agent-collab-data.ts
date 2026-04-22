@@ -112,7 +112,7 @@ export const MEMBERS: Member[] = [
 
 export const ACTIVE_SUPERPOWERS: AgentPower[] = [
   { agent: 'Gemini', skill: 'idle', task: 'Resting after Phase 38 handoff', progress: 100, status: 'done' },
-  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 53 channel persistence hardening complete', progress: 100, status: 'done' },
+  { agent: 'Codex', skill: 'api-architecture', task: 'v0.5.95 composer lint hotfix complete', progress: 100, status: 'done' },
   { agent: 'Claude Code', skill: 'idle', task: '-', progress: 0, status: 'idle' },
   { agent: 'Windsurf', skill: 'web-ui-agent', task: 'v0.5.94 Bug fixes: home scroll, HTML strip, DM overlay, composer clear, AI avatar, collab stats (7 bugs)', progress: 100, status: 'done' },
 ]
@@ -231,11 +231,26 @@ export const TASKS: Task[] = [
   { id: 't109', phase: 109, status: 'done',  task: 'Phase 52 Digest Automation And Knowledge Inbox APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added GET|PUT|DELETE /api/v1/channels/:id/knowledge/digest/schedule, background auto-publish scheduler, GET /api/v1/knowledge/inbox, home.knowledge_inbox_count, home.recent_knowledge_digests, and knowledge.digest.published websocket broadcasts. v0.5.92 published.', type: 'api' },
   { id: 't110', phase: 110, status: 'done',  task: 'Phase 52 Digest Automation And Knowledge Inbox UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'DigestSchedule/DigestScheduleInput/KnowledgeInboxItem/KnowledgeInboxScope types + digest.published KnowledgeUpdate variant. knowledge-store: fetchDigestSchedule/upsertDigestSchedule/deleteDigestSchedule/fetchKnowledgeInbox/markInboxRead/applyDigestPublished; digestSchedules/knowledgeInbox/knowledgeInboxScope/knowledgeInboxUnreadCount state. DigestScheduleDialog: window/day_of_week/day_of_month/hour/minute/timezone/limit/pin with enable toggle + remove schedule. ChannelDigestBanner: CalendarClock schedule button (auto-loads current schedule; green dot + next-run indicator). /workspace/knowledge/inbox two-pane page: scope toggle (all/starred), unread dot + Mark all read, selected digest preview via KnowledgeDigestCard + jump-to-message. Home: 4th stat card Knowledge Inbox (clickable) + Recent Knowledge Digests section. primary-nav: unread badge on Knowledge icon. use-websocket: knowledge.digest.published refreshes inbox + home + channel summary + sonner toast with View. AI Summarize bug fix: ai-chat-panel injects last 50 channel messages with user names into prompt via promptOverride in use-ai-chat append. v0.5.92 published.', type: 'frontend' },
   { id: 't111', phase: 111, status: 'done',  task: 'Phase 53 Channel Persistence Hardening', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Fixed newly created channels disappearing after refresh by removing the frontend ws_1 fallback, mapping channel API payloads into camelCase, validating workspace_id in POST /channels, and repairing legacy workspace_id=ws_1 rows on API startup. v0.5.93 published.', type: 'api' },
+  { id: 't112', phase: 112, status: 'done',  task: 'v0.5.94 UI Bug Fixes', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'Fixed home scrolling, recent-conversation HTML previews, user hover DM overlay, composer draft clearing, AI avatar, and Agent-Collab statistics/heatmap/trend visualizations. v0.5.94 published.', type: 'frontend' },
+  { id: 't113', phase: 113, status: 'done',  task: 'v0.5.95 Composer Lint Hotfix', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Removed stale react-hooks/exhaustive-deps disable directive from message-composer.tsx because the current ESLint flat config does not register react-hooks. Lint is clean again. v0.5.95 published.', type: 'frontend' },
 ]
 
 // ─── Communication Log ────────────────────────────────────────────────────────
 
 export const COMM_SECTIONS: CommSection[] = [
+  {
+    id: 'cs19',
+    date: '2026-04-22',
+    title: 'v0.5.95 Composer Lint Hotfix',
+    messages: [
+      { id: 'cx55a', from: 'Codex', content: 'v0.5.95 is complete and published.' },
+      { id: 'cx55b', from: 'Codex', content: 'Fixed Windsurf lint failure in apps/web/components/message/message-composer.tsx.' },
+      { id: 'cx55c', from: 'Codex', content: 'Root cause: message-composer.tsx used // eslint-disable-next-line react-hooks/exhaustive-deps, but the repo ESLint flat config does not register the react-hooks plugin. ESLint 9 reports that disable directive as an unknown-rule error.' },
+      { id: 'cx55d', from: 'Codex', content: 'Removed only the stale disable directive. The v0.5.94 draft-clear behavior remains unchanged: effect deps stay [scope, editor] and latest drafts are read through draftsRef.' },
+      { id: 'cx55e', from: 'Codex', to: 'Windsurf', content: 'Please pull v0.5.95 before continuing web work. If future code needs react-hooks/exhaustive-deps, add eslint-plugin-react-hooks explicitly to the flat config instead of adding disable comments for an unregistered rule.' },
+      { id: 'cx55f', from: 'Codex', to: 'Nikko Fu', content: 'Verified pnpm lint, tsc --noEmit, go test ./..., and Go build after the fix.' },
+    ],
+  },
   {
     id: 'cs18',
     date: '2026-04-22',

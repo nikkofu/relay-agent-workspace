@@ -132,6 +132,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 52 Digest Automation And Knowledge Inbox UI | Windsurf | 2026-04-22 | `DigestSchedule/DigestScheduleInput/KnowledgeInboxItem/KnowledgeInboxScope` types + `digest.published` `KnowledgeUpdate` variant. `knowledge-store`: `fetchDigestSchedule/upsertDigestSchedule/deleteDigestSchedule/fetchKnowledgeInbox/markInboxRead/applyDigestPublished`. `DigestScheduleDialog`: full cadence/time/timezone/limit/pin editor. `ChannelDigestBanner`: `CalendarClock` schedule button with green dot + next-run indicator. `/workspace/knowledge/inbox` two-pane page with scope toggle + Mark all read + `KnowledgeDigestCard` preview. Home: Knowledge Inbox stat card + Recent Knowledge Digests section. `primary-nav`: unread badge on Knowledge icon. WS `knowledge.digest.published` refreshes inbox/home/summary + sonner toast. Bug fix: AI Summarize injects last 50 channel messages via `promptOverride`. `v0.5.92` published. |
 | 🟢 Done | Phase 53 Channel Persistence Hardening | Codex | 2026-04-22 | Fixed newly created channels disappearing after refresh by removing the frontend `ws_1` fallback, mapping channel API payloads to camelCase, rejecting unknown workspace IDs in `POST /api/v1/channels`, and repairing legacy `workspace_id=ws_1` channel rows on API startup. `v0.5.93` published. |
 | 🟢 Done | v0.5.94 UI Bug Fixes (7 bugs) | Windsurf | 2026-04-22 | (1) **Home scroll**: `WorkspacePage` now wraps in `h-full w-full flex flex-col overflow-hidden` so `HomeDashboard`'s `ScrollArea` properly fills the resizable panel. (2) **Recent Conversations HTML**: `stripHtml()` applied to `item.last_message` in home dashboard. (3) **User hover card → DM overlay**: `UserProfile` Message button now calls `openDockedChat(userId)` instead of navigating; `DockedChatWindow` gains a `Maximize2` expand button routing to full DM page. (4) **Composer draft clear**: draft-restore `useEffect` now only depends on `[scope, editor]` (not `drafts`) — uses a `draftsRef` updated via `useLayoutEffect` to avoid re-populating editor after send. (5) **AI avatar**: `/ai-wand-avatar.svg` (purple gradient wand icon) replaces dicebear yellow-bot URL for AI Assistant. (6+7) **ch-collab Stats**: `Windsurf` added to `AssigneeBreakdown`; `ContributionHeatmap` component added to Stats tab; Daily Task Velocity chart gains SVG cumulative-done-rate trend polyline. `v0.5.94` published. |
+| 🟢 Done | v0.5.95 Composer Lint Hotfix | Codex | 2026-04-22 | Removed stale `react-hooks/exhaustive-deps` disable directive from `message-composer.tsx` because the current ESLint flat config does not register the `react-hooks` plugin. `pnpm --filter relay-agent-workspace lint` is clean again. `v0.5.95` published. |
 
 ---
 
@@ -140,13 +141,21 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
-| **Codex** | `api-architecture` | Phase 53 channel persistence hardening complete | 100% |
+| **Codex** | `api-architecture` | v0.5.95 composer lint hotfix complete | 100% |
 | **Claude Code**| `idle` | - | - |
 | **Windsurf** | `web-ui-agent` | v0.5.94 Bug fixes: home scroll, HTML strip, DM overlay, composer clear, AI avatar, collab stats | 100% |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-22 - v0.5.95 Composer Lint Hotfix
+- **Codex**: v0.5.95 is complete and published.
+- **Codex**: Fixed Windsurf's lint failure in `apps/web/components/message/message-composer.tsx`.
+- **Codex**: Root cause: `message-composer.tsx` had `// eslint-disable-next-line react-hooks/exhaustive-deps`, but this repo's ESLint flat config does not register the `react-hooks` plugin. ESLint 9 therefore reports the disable directive itself as an unknown-rule error.
+- **Codex**: Removed only the stale disable directive. The v0.5.94 draft-clear behavior remains unchanged: the effect still depends on `[scope, editor]` and uses `draftsRef` to avoid re-populating sent draft content.
+- **Codex → Windsurf**: Please pull `v0.5.95` before continuing web work. If future code needs `react-hooks/exhaustive-deps`, add `eslint-plugin-react-hooks` explicitly to the flat config instead of adding disable comments for an unregistered rule.
+- **Codex → Nikko Fu**: Verified `pnpm --filter relay-agent-workspace lint`, `tsc --noEmit`, `go test ./...`, and Go build all pass after the fix.
 
 ### 2026-04-22 - Phase 53 Channel Persistence Hardening Completion
 - **Codex**: Phase 53 is complete and published as `v0.5.93`.

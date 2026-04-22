@@ -214,7 +214,6 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
         editor.commands.clearContent()
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope, editor])
 
   // Initial fetch of drafts

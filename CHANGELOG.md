@@ -2,6 +2,36 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.95] - 2026-04-22
+
+This release fixes the v0.5.94 lint regression in `apps/web/components/message/message-composer.tsx`.
+
+### Fixed
+
+- Removed the stale `// eslint-disable-next-line react-hooks/exhaustive-deps` directive from `message-composer.tsx`.
+- Root cause: the project ESLint flat config does not register the `react-hooks` plugin, so ESLint 9 treats that disable directive as an unknown rule error.
+- The draft-restore effect behavior from v0.5.94 remains unchanged: it still depends on `[scope, editor]` and uses `draftsRef` to avoid re-populating sent draft content.
+
+### Verification Used For This Release
+
+- `pnpm --filter relay-agent-workspace lint`
+- `pnpm --filter relay-agent-workspace exec tsc --noEmit`
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+
+## [0.5.94] - 2026-04-22
+
+This release contains Windsurf's UI bug-fix pass for workspace usability and Agent-Collab statistics.
+
+### Fixed
+
+- Home dashboard scroll behavior inside the workspace resizable panel.
+- Recent Conversations raw HTML previews now render as plain text.
+- User hover card Message action opens a docked DM overlay instead of forcing route navigation.
+- Composer draft clearing no longer re-populates the last sent content after send.
+- AI Assistant avatar now uses `/ai-wand-avatar.svg`.
+- Agent-Collab statistics include Windsurf in assignee breakdown and add contribution heatmap/trend-line visualizations.
+
 ## [0.5.93] - 2026-04-22
 
 This release implements Phase 53: Channel Persistence Hardening. It fixes a refresh-loss bug where newly created channels could appear locally, then disappear after reload because the frontend posted a legacy mock workspace ID (`ws_1`) instead of the persisted workspace ID (`ws-1`).

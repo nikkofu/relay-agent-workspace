@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.5.93` is the current release line and includes:
+`v0.5.95` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -36,6 +36,8 @@ For product, design, and marketing, the short version is:
 - REST endpoints for org, team, agent, workspace, channel, and message flows
 - hardened channel creation persistence so newly created channels survive refresh and reject unknown workspace IDs
 - startup repair for legacy `ws_1` mock workspace channel rows created by earlier frontend fallback logic
+- v0.5.94 UI bug fixes for Home scrolling, DM overlay behavior, composer draft clearing, AI avatar, and Agent-Collab statistics
+- lint hotfix for `message-composer.tsx` after the v0.5.94 draft-restore change
 - `AGENT-COLLAB.md` watcher and `agent_collab.sync` websocket broadcast for the `#agent-collab` dashboard
 - dynamic Agent-Collab Hub APIs for members, comm-log persistence, and realtime hub refresh
 - hardened Agent-Collab Hub payloads with direct-message `to` fields and normalized member tool arrays
