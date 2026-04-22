@@ -138,6 +138,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 55 Knowledge Follow And Composer Match UI | Windsurf | 2026-04-22 | (1) **Types**: added `KnowledgeEntityFollow`, `FollowedEntity`, `EntityTextMatch` to `types/index.ts`. (2) **Store**: `followedEntities`/`followedEntityIds`/`isLoadingFollowed` state + `fetchFollowedEntities`/`followEntity`/`unfollowEntity`/`matchEntitiesInText` actions with optimistic updates and full-list refresh. (3) **`EntityFollowButton`** (`components/knowledge/entity-follow-button.tsx`): shared reusable toggle with `chip` + `default` variants, `Bell`/`BellOff` icons, purple theme. (4) **Entity detail header** (`/workspace/knowledge/[id]`): Follow button placed alongside Edit. (5) **`EntityMentionChip`** hover card: Follow chip in footer next to Wiki/Messages actions. (6) **Knowledge listing** (`/workspace/knowledge`): `Following (N)` filter pill (purple ring), follow chip on every entity card, empty-state messaging for "not following anything yet". (7) **`MessageComposer`** passive reverse-lookup: 500ms debounce on draft text → `POST /knowledge/entities/match-text` (workspace-scoped); renders a purple **Knowledge detected** hint row above the editor with clickable chips; one-click converts matched span into explicit `@Entity Title ` via tiptap; individual dismiss (X) + auto-clears on send; skips while mid `@`/`@entity:`/`/`. `v0.5.98` published. |
 | 🟢 Done | Phase 56 Knowledge Inbox Detail And Settings Sync APIs | Codex | 2026-04-22 | Added `GET /api/v1/knowledge/inbox/:id`, `POST /api/v1/channels/:id/knowledge/digest/preview-schedule`, `GET /api/v1/me/settings`, and expanded `PATCH /api/v1/me/settings` to persist theme, density, locale, and timezone. `v0.5.99` published. |
 | 🟢 Done | Phase 57 Follow Notification Levels And Spike Alerts APIs | Codex | 2026-04-22 | Added `PATCH /api/v1/users/me/knowledge/followed/:id`, persisted `notification_level` + `last_alerted_at`, and websocket `knowledge.entity.activity.spiked` for followed-entity anomaly alerts. Included Windsurf's v0.6.0 UI pass in release train `v0.6.1`. |
+| 🟢 Done | Phase 58 Following Hub + Locale Formatting UI | Windsurf | 2026-04-22 | Dedicated `/workspace/knowledge/following` hub page listing all followed entities with inline notification-level pickers, spike pulse, Mute All, and empty-state guidance. `Following (N)` button in knowledge listing header links to it. `useLocale` + `formatLocaleDate` + `formatRelativeTime` utility hook hydrates user locale from `GET /api/v1/me/settings` and caches it session-wide; inbox date renders via `Intl.DateTimeFormat` respecting user preference. `v0.6.3` published. |
 
 ---
 
@@ -148,7 +149,22 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
 | **Codex** | `api-architecture` | Phase 57 backend shipped: follow alert prefs + spike events (v0.6.1) | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-ui-agent` | Phase 56 UI shipped: settings sync, inbox detail, digest preview, DMs page, all bug fixes (v0.6.0) | 100% |
+| **Windsurf** | `web-ui-agent` | Phase 58 UI shipped: Following Hub page, locale-aware formatting, Mute All (v0.6.3) | 100% |
+
+### 2026-04-22 - Phase 58 Following Hub + Locale Formatting UI (v0.6.3)
+- **Windsurf**: Phase 58 UI complete and published as `v0.6.3`. Proactive phase — no new backend required.
+- **Windsurf**: Created `/workspace/knowledge/following` — a dedicated Following Hub page. Shows all followed entities sorted by spike status (spiking entities floated to top with amber pulse). Each row: kind icon + badge, entity title, "Following since" timestamp, inline notification-level picker dropdown (All / Digest only / Silent), and Unfollow. A **Mute All** button in the header bulk-sets all follows to `silent` via individual `PATCH /api/v1/users/me/knowledge/followed/:id` calls (no bulk endpoint yet).
+- **Windsurf**: Knowledge wiki listing (`/workspace/knowledge`) gains a **Following (N)** button in the header that links to the hub and shows the follow count badge.
+- **Windsurf**: Created `hooks/use-locale.ts` — a session-cached locale hook. On mount it fetches `GET /api/v1/me/settings`, reads `settings.locale`, and caches it in a module-level variable so all consumers share a single request. Exports `formatLocaleDate(date, locale, options?)` and `formatRelativeTime(date, locale)` using `Intl.DateTimeFormat` / `Intl.RelativeTimeFormat`.
+- **Windsurf**: Knowledge Inbox date display now uses `formatLocaleDate` with the user's locale instead of the hard-coded `date-fns` `format()`.
+- **Windsurf → Codex**: Recommended next phases (Phase 59):
+  - **`PATCH /api/v1/users/me/knowledge/followed/bulk`** accepting `{ entity_ids: string[], notification_level }` so Mute All can be a single request instead of N fan-out calls. This also enables a Restore Alerts button after mute.
+  - **`GET /api/v1/workspace/settings`** exposing `spike_threshold` and `spike_cooldown_minutes` so power users and team admins can tune how sensitive entity spike detection is.
+  - **`GET /api/v1/knowledge/entities/:id/activity`** returning a per-entity ref-count time series (daily buckets, last 30 days) so the entity detail page can show a sparkline/mini-chart of activity over time — very visual for AI-native story-telling.
+  - **`GET /api/v1/knowledge/trending`** returning top-N entities by recent ref velocity (workspace-scoped, last 7 days) to power a Trending section on the Knowledge listing page and the Home dashboard.
+- **Windsurf → Nikko Fu**: Try: go to `/workspace/knowledge` → click **Following (N)** button in header → see the new Following Hub. Spiking entities appear at top with amber pulse. Click the alert-level badge on any row to change to Digest only or Silent. "Mute All" in the top-right bulk-silences everything.
+
+---
 
 ### 2026-04-22 - Phase 57 Follow Notification Levels And Spike Alerts API Completion
 - **Codex**: Phase 57 backend is complete and published as `v0.6.1`.
@@ -162,6 +178,23 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
   - add toast / pulse treatment for followed entities that spike
   - next settings slice: add locale/timezone picker on the Profile tab
 - **Codex → Nikko Fu**: This moves knowledge follow from passive state into a real AI-native alert primitive. Users can now tune alert intensity per entity, and the workspace can proactively surface emerging topics.
+
+### 2026-04-22 - Phase 57 UI Completion (v0.6.2)
+- **Windsurf**: Phase 57 UI complete and published as `v0.6.2`. Full consumer for Codex v0.6.1 backend.
+- **Windsurf**: `KnowledgeEntityFollow` type now carries `notification_level` + `last_alerted_at`. New `FollowNotificationLevel = 'all' | 'digest_only' | 'silent'` union type added.
+- **Windsurf**: `EntityFollowButton` completely reworked (both `chip` and `default` variants). When following, a chevron opens a dropdown showing all three alert levels with description subtitles; current level is checked. Unfollow is a red item at the bottom. `isSpiking` prop adds a purple pulse animation (ping ring on chip, Zap icon on default) and changes label to "Spiking".
+- **Windsurf**: `updateFollowNotificationLevel(followId, entityId, level)` added to `knowledge-store.ts` — calls `PATCH /api/v1/users/me/knowledge/followed/:id` and optimistically updates `followedEntities` in store.
+- **Windsurf**: `markEntitySpiking(entityId, ttlMs)` added to `knowledge-store.ts` — sets `spikingEntityIds[id]=true` and auto-clears after 5 minutes.
+- **Windsurf**: `use-websocket.ts` handles `knowledge.entity.activity.spiked`. Checks `payload.user_ids.includes(currentUser.id)` before acting. Calls `markEntitySpiking` then fires an `⚡ {title} is spiking` sonner toast with delta description and View CTA.
+- **Windsurf**: Settings Profile tab gains a **Language & Timezone** card with two selects. Language (9 locales) and Notification Timezone (18 IANA entries) both call `PATCH /api/v1/me/settings` immediately on change and are hydrated on mount from `GET /api/v1/me/settings`.
+- **Windsurf → Codex**: Recommended next phases:
+  - **`PATCH /api/v1/users/me/knowledge/followed/:id` bulk** — bulk-update notification levels (e.g. "Mute all"). A single endpoint accepting `{ entity_ids: [...], notification_level: 'silent' }` would let us add a "Mute All Follows" button on the Following tab.
+  - **`knowledge.entity.activity.spiked` cool-down tuning** — expose `spike_threshold` and `cooldown_minutes` as workspace-level settings so power users can tune alert sensitivity.
+  - **`GET /api/v1/me/settings` locale application** — Codex backend already persists locale; next practical step is actually loading translated strings. Even partial i18n (date formats, number formats) from the locale field would be high-value.
+  - **`websocket presence.bulk`** — batch presence updates for large workspaces to avoid N individual WS events on reconnect.
+- **Windsurf → Nikko Fu**: Try: hover any entity mention → Following chip → chevron dropdown to pick **All alerts / Digest only / Silent**. Open `/workspace/knowledge` → entity card → same split-button. When a spike event fires, a purple `⚡` toast appears only for you. Settings → Profile → Language & Timezone syncs to backend.
+
+---
 
 ### 2026-04-22 - Phase 56 UI Completion (v0.6.0)
 - **Windsurf**: Phase 56 UI complete and published as `v0.6.0`.

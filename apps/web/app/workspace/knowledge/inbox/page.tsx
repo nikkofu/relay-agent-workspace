@@ -11,12 +11,14 @@ import {
   TrendingUp, TrendingDown, Zap, Globe, MessageSquare,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { format, formatDistanceToNow } from "date-fns"
+import { formatDistanceToNow } from "date-fns"
+import { useLocale, formatLocaleDate } from "@/hooks/use-locale"
 import { KnowledgeDigestCard } from "@/components/message/knowledge-digest-card"
 import type { KnowledgeInboxItem, KnowledgeInboxScope, KnowledgeInboxDetail } from "@/types"
 
 export default function KnowledgeInboxPage() {
   const router = useRouter()
+  const locale = useLocale()
   const {
     knowledgeInbox, knowledgeInboxScope, knowledgeInboxUnreadCount, isLoadingInbox,
     fetchKnowledgeInbox, fetchKnowledgeInboxItem, markInboxRead, liveUpdate,
@@ -216,7 +218,7 @@ export default function KnowledgeInboxPage() {
                     <span className="font-bold truncate">{selectedItem.channel?.name || selectedItem.channel?.id}</span>
                     <span>·</span>
                     <Clock className="w-2.5 h-2.5" />
-                    {format(new Date(selectedItem.occurred_at), "MMM d, yyyy h:mm a")}
+                    {formatLocaleDate(selectedItem.occurred_at, locale, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                   </div>
                   <p className="text-sm font-black truncate">
                     {selectedItem.digest?.headline || `${selectedItem.digest?.window} knowledge digest`}
