@@ -27,6 +27,8 @@ import type {
   WorkspaceKnowledgeSettings,
   EntityActivity,
   TrendingEntity,
+  FollowedEntityStats,
+  SharedEntityLink,
 } from "@/types"
 
 interface KnowledgeState {
@@ -52,8 +54,12 @@ interface KnowledgeState {
   // ── Phase 59 ─────────────────────────────────────────────────────────────
   workspaceKnowledgeSettings: Record<string, WorkspaceKnowledgeSettings>
   trendingEntities: TrendingEntity[]
+  trendingWorkspaceId: string | null
+  trendingLastUpdatedAt: number | null
   isLoadingTrending: boolean
   entityActivity: Record<string, EntityActivity>
+  // ── Phase 60 ─────────────────────────────────────────────────────────────
+  followedStats: FollowedEntityStats | null
 
   pushLiveUpdate: (update: KnowledgeUpdate) => void
   handleEntityCreated: (entity: KnowledgeEntity) => void
@@ -105,6 +111,10 @@ interface KnowledgeState {
   updateWorkspaceKnowledgeSettings: (workspaceId: string, spikeThreshold: number, spikeCooldownMinutes: number) => Promise<WorkspaceKnowledgeSettings | null>
   fetchEntityActivity: (entityId: string, days?: number) => Promise<EntityActivity | null>
   fetchTrendingEntities: (workspaceId: string, days?: number, limit?: number) => Promise<TrendingEntity[]>
+  // ── Phase 60 ─────────────────────────────────────────────────────────────
+  fetchFollowedStats: () => Promise<FollowedEntityStats | null>
+  shareEntity: (entityId: string) => Promise<SharedEntityLink | null>
+  applyTrendingChanged: (payload: { workspace_id: string; days: number; items: TrendingEntity[] }) => void
 }
 
 export const useKnowledgeStore = create<KnowledgeState>((set) => ({
@@ -129,8 +139,11 @@ export const useKnowledgeStore = create<KnowledgeState>((set) => ({
   isLoadingFollowed: false,
   workspaceKnowledgeSettings: {},
   trendingEntities: [],
+  trendingWorkspaceId: null,
+  trendingLastUpdatedAt: null,
   isLoadingTrending: false,
   entityActivity: {},
+  followedStats: null,
 
   pushLiveUpdate: (update) => set({ liveUpdate: update }),
 
@@ -724,7 +737,12 @@ export const useKnowledgeStore = create<KnowledgeState>((set) => ({
       if (!res.ok) { set({ isLoadingTrending: false }); return [] }
       const data = await res.json()
       const items: TrendingEntity[] = data.items || []
-      set({ trendingEntities: items, isLoadingTrending: false })
+      set({
+        trendingEntities: items,
+        trendingWorkspaceId: workspaceId,
+        trendingLastUpdatedAt: Date.now(),
+        isLoadingTrending: false,
+      })
       return items
     } catch (error) {
       console.error("Failed to fetch trending entities:", error)
@@ -732,6 +750,59 @@ export const useKnowledgeStore = create<KnowledgeState>((set) => ({
       return []
     }
   },
+
+  // ── Phase 60: Followed stats (for Following Hub summary strip) ──────────
+  fetchFollowedStats: async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/users/me/knowledge/followed/stats`)
+      if (!res.ok) return null
+      const data = await res.json()
+      const stats: FollowedEntityStats = data.stats
+      if (!stats) return null
+      set({ followedStats: stats })
+      return stats
+    } catch (error) {
+      console.error("Failed to fetch followed stats:", error)
+      return null
+    }
+  },
+
+  // ── Phase 60: Shareable entity deeplink ─────────────────────────────────
+  shareEntity: async (entityId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/knowledge/entities/${entityId}/share`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      })
+      if (!res.ok) {
+        toast.error("Failed to generate share link")
+        return null
+      }
+      const data = await res.json()
+      const share: SharedEntityLink = data.share
+      return share || null
+    } catch (error) {
+      console.error("Failed to share entity:", error)
+      toast.error("Failed to generate share link")
+      return null
+    }
+  },
+
+  // ── Phase 60: Live trending update from websocket ───────────────────────
+  applyTrendingChanged: (payload) => set(state => {
+    // Only apply if the payload workspace matches what the UI is currently showing,
+    // or if nothing has been loaded yet (first subscriber wins).
+    if (state.trendingWorkspaceId && payload.workspace_id !== state.trendingWorkspaceId) {
+      return state
+    }
+    return {
+      ...state,
+      trendingEntities: payload.items || [],
+      trendingWorkspaceId: payload.workspace_id,
+      trendingLastUpdatedAt: Date.now(),
+    }
+  }),
 
   unfollowEntity: async (entityId) => {
     try {

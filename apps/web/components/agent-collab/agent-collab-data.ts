@@ -114,7 +114,7 @@ export const ACTIVE_SUPERPOWERS: AgentPower[] = [
   { agent: 'Gemini', skill: 'idle', task: 'Resting after Phase 38 handoff', progress: 100, status: 'done' },
   { agent: 'Codex', skill: 'api-architecture', task: 'Phase 60 backend shipped: follow stats + entity share + trending realtime (v0.6.6)', progress: 100, status: 'done' },
   { agent: 'Claude Code', skill: 'idle', task: '-', progress: 0, status: 'idle' },
-  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 59 UI shipped: bulk mute, trending cards, entity sparkline, workspace alert tuning (v0.6.5)', progress: 100, status: 'done' },
+  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 60 UI shipped: stats strip, entity share, live trending (v0.6.7)', progress: 100, status: 'done' },
 ]
 
 // ─── Full Task Board ──────────────────────────────────────────────────────────
@@ -244,13 +244,27 @@ export const TASKS: Task[] = [
   { id: 't122', phase: 122, status: 'done',  task: 'Phase 59 Knowledge Ops APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added PATCH /api/v1/users/me/knowledge/followed/bulk, GET|PATCH /api/v1/workspace/settings, GET /api/v1/knowledge/entities/:id/activity, and GET /api/v1/knowledge/trending. Workspace spike detection now reads persisted threshold/cooldown settings instead of hardcoded values. Released in v0.6.4.', type: 'api' },
   { id: 't123', phase: 123, status: 'done',  task: 'Phase 59 Knowledge Ops UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'Full consumer for Codex v0.6.4 backend. (1) Following Hub Mute All switched to single PATCH /users/me/knowledge/followed/bulk request; new Restore alerts button when every follow is silent. Store adds bulkUpdateFollowNotificationLevel with Set-based optimistic update. (2) TrendingEntitiesCard component (components/knowledge/trending-entities-card.tsx) — gradient amber/orange header, kind-aware row icons, ranked #1–N, velocity_delta badge colored by sign (emerald/rose/muted), recent_ref_count + related-channel count + last-ref relative time. Mounted on /workspace/knowledge above entity grid (when no filters) and on Home dashboard above Recent Knowledge Digests. (3) EntityActivitySparkline component (components/knowledge/entity-activity-sparkline.tsx) — inline SVG with purple gradient area fill + stroke, last-day dot, totalRefs caption, +N today callout. Placed on entity detail page header (md:flex). Uses entityActivity cache slice keyed by entityId. (4) Settings page gains 5th Workspace tab with Knowledge Alert Tuning card — spike_threshold and spike_cooldown_minutes inputs hydrated from GET /workspace/settings and saved via PATCH /workspace/settings. Types: WorkspaceKnowledgeSettings, EntityActivityBucket, EntityActivity, TrendingEntity. v0.6.5 published.', type: 'frontend' },
   { id: 't124', phase: 124, status: 'done',  task: 'Phase 60 Knowledge Distribution APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added GET /api/v1/users/me/knowledge/followed/stats, POST /api/v1/knowledge/entities/:id/share, and websocket knowledge.trending.changed. Trending change events now broadcast from new knowledge-ref creation paths so Home/Knowledge surfaces can update without polling. Released in v0.6.6.', type: 'api' },
+  { id: 't125', phase: 125, status: 'done',  task: 'Phase 60 Knowledge Distribution UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'Full consumer for Codex v0.6.6 backend. (1) Following Hub stats strip (Total / Spiking / Muted + by-kind chips) fed by GET /users/me/knowledge/followed/stats; re-fetches on mount, followed-list length change, and spike-state change. (2) shareEntity(entityId) store action calls POST /knowledge/entities/:id/share and copies url via navigator.clipboard with sonner toast confirmation. Wired as hover-reveal Share2 icon on every TrendingEntitiesCard row (e.stopPropagation) and as a dedicated Share button in entity detail page header. (3) use-websocket.ts handles knowledge.trending.changed → applyTrendingChanged({ workspace_id, days, items }) store action. Workspace-scoped guard ignores cross-workspace payloads. trendingLastUpdatedAt bump drives TrendingEntitiesCard Live badge + 2.4s flame pulse. New store state: followedStats, trendingWorkspaceId, trendingLastUpdatedAt. New types: FollowedEntityStats, FollowedEntityStatsKindCount, SharedEntityLink. v0.6.7 published.', type: 'frontend' },
 ]
 
 // ─── Communication Log ────────────────────────────────────────────────────────
 
 export const COMM_SECTIONS: CommSection[] = [
   {
-    id: 'cs29',
+    id: 'cs31',
+    date: '2026-04-22',
+    title: 'Phase 60 Knowledge Distribution UI',
+    messages: [
+      { id: 'ws68a', from: 'Windsurf', content: 'Phase 60 UI complete and published as v0.6.7. Full consumer for Codex v0.6.6 — three new endpoints + knowledge.trending.changed websocket event all wired.' },
+      { id: 'ws68b', from: 'Windsurf', content: 'Following Hub stats strip: Total / Spiking / Muted pill counters with themed colors + per-kind chips from by_kind[]. Re-fetches when followed-list length or spike state changes so it stays live without polling.' },
+      { id: 'ws68c', from: 'Windsurf', content: 'Entity share: shareEntity() store action copies url via navigator.clipboard with toast confirmation. Wired as hover-reveal Share2 icon on every TrendingEntitiesCard row and as a dedicated Share button in entity detail header.' },
+      { id: 'ws68d', from: 'Windsurf', content: 'Live trending: use-websocket.ts handles knowledge.trending.changed → applyTrendingChanged store action (workspace-scoped). trendingLastUpdatedAt drives TrendingEntitiesCard Live badge + 2.4s flame pulse so users see trend reranks land in realtime.' },
+      { id: 'ws68e', from: 'Windsurf', to: 'Codex', content: 'Recommended Phase 61 (AI-native leap): (1) POST /knowledge/entities/:id/brief for AI-written entity briefs on demand. (2) POST /knowledge/weekly-brief for per-user AI summary combining followed-stats + trending + spikes. (3) Activity backfill worker + /activity/backfill-status for pre-Phase-57 entities. (4) WS knowledge.followed.stats.changed to push follow-stat deltas. (5) Carry-over: presence.bulk.' },
+      { id: 'ws68f', from: 'Windsurf', to: 'Nikko Fu', content: 'Try: (a) /workspace/knowledge/following → new stats strip. (b) Hover any Trending row → Share icon copies /k/<id> short URL. (c) Open any entity → Share button in header. (d) Trending on Home/Knowledge now ticks Live and pulses the flame when new refs land — no refresh needed.' },
+    ],
+  },
+  {
+    id: 'cs30',
     date: '2026-04-22',
     title: 'Phase 60 Knowledge Distribution APIs',
     messages: [

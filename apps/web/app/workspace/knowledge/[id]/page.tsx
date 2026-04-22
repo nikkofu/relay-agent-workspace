@@ -16,8 +16,9 @@ import {
   Globe, ChevronLeft, Loader2, Edit2, CheckCircle2, X,
   BookOpen, Clock, Network, FileText, MessageSquare,
   Layout, Tag, ArrowRight, ArrowLeft, User2, Briefcase,
-  Lightbulb, Building2, AlertCircle, Zap, Send, Plus,
+  Lightbulb, Building2, AlertCircle, Zap, Send, Plus, Share2,
 } from "lucide-react"
+import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 import type { KnowledgeEntity, KnowledgeEntityRef, KnowledgeEntityLink, KnowledgeEvent, KnowledgeGraph, KnowledgeGraphEdge } from "@/types"
@@ -45,7 +46,23 @@ const EVENT_KIND_COLOR: Record<string, string> = {
 
 function EntityDetailContent({ id }: { id: string }) {
   const router = useRouter()
-  const { fetchEntity, updateEntity, fetchEntityRefs, fetchEntityTimeline, fetchEntityLinks, fetchEntityGraph, ingestEvent, liveUpdate, spikingEntityIds } = useKnowledgeStore()
+  const { fetchEntity, updateEntity, fetchEntityRefs, fetchEntityTimeline, fetchEntityLinks, fetchEntityGraph, ingestEvent, liveUpdate, spikingEntityIds, shareEntity } = useKnowledgeStore()
+  const [sharing, setSharing] = useState(false)
+
+  const handleShare = async () => {
+    if (!id || sharing) return
+    setSharing(true)
+    const share = await shareEntity(id)
+    setSharing(false)
+    if (share?.url) {
+      try {
+        await navigator.clipboard.writeText(share.url)
+        toast.success("Share link copied", { description: share.url })
+      } catch {
+        toast("Share link ready", { description: share.url })
+      }
+    }
+  }
 
   const [entity, setEntity] = useState<KnowledgeEntity | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -186,6 +203,10 @@ function EntityDetailContent({ id }: { id: string }) {
           <div className="flex items-center gap-3 shrink-0">
             <EntityActivitySparkline entityId={entity.id} days={30} width={180} height={38} className="hidden md:flex" />
             <EntityFollowButton entityId={entity.id} isSpiking={!!spikingEntityIds[entity.id]} />
+            <Button variant="outline" size="sm" className="text-xs gap-1.5" onClick={handleShare} disabled={sharing} title="Copy shareable link">
+              {sharing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Share2 className="w-3.5 h-3.5" />}
+              Share
+            </Button>
             <Button variant="outline" size="sm" className="text-xs gap-1.5" onClick={() => setIsEditing(!isEditing)}>
               {isEditing ? <X className="w-3.5 h-3.5" /> : <Edit2 className="w-3.5 h-3.5" />}
               {isEditing ? "Cancel" : "Edit"}

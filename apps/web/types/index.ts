@@ -281,6 +281,27 @@ export interface TrendingEntity {
   last_ref_at?: string
 }
 
+export interface FollowedEntityStatsKindCount {
+  kind: string
+  count: number
+}
+
+export interface FollowedEntityStats {
+  total_count: number
+  spiking_count: number
+  muted_count: number
+  by_kind: FollowedEntityStatsKindCount[]
+}
+
+export interface SharedEntityLink {
+  entity_id: string
+  workspace_id: string
+  title: string
+  url: string
+  short_url: string
+  relative_path: string
+}
+
 export interface EntityTextMatch {
   entity_id: string
   entity_title: string

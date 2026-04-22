@@ -164,6 +164,16 @@ export function useWebsocket() {
               }
             )
           }
+        } else if (data.type === 'knowledge.trending.changed') {
+          // Phase 60: live trending rerank
+          const payload = data.payload || {}
+          if (payload.workspace_id && Array.isArray(payload.items)) {
+            useKnowledgeStore.getState().applyTrendingChanged({
+              workspace_id: payload.workspace_id,
+              days: payload.days ?? 7,
+              items: payload.items,
+            })
+          }
         } else if (data.type === 'knowledge.digest.published') {
           const payload = data.payload || {}
           const channelId = payload.channel_id || payload.channel?.id

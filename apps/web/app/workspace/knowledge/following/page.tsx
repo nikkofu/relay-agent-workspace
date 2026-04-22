@@ -50,6 +50,8 @@ export default function FollowingPage() {
     updateFollowNotificationLevel,
     bulkUpdateFollowNotificationLevel,
     spikingEntityIds,
+    followedStats,
+    fetchFollowedStats,
   } = useKnowledgeStore()
 
   const [q, setQ] = useState("")
@@ -59,6 +61,11 @@ export default function FollowingPage() {
   useEffect(() => {
     fetchFollowedEntities()
   }, [fetchFollowedEntities])
+
+  // Phase 60: aggregate stats strip
+  useEffect(() => {
+    fetchFollowedStats()
+  }, [fetchFollowedStats, followedEntities.length, spikingEntityIds])
 
   const filtered = followedEntities.filter(fe =>
     !q || fe.entity.title.toLowerCase().includes(q.toLowerCase()) ||
@@ -171,6 +178,66 @@ export default function FollowingPage() {
           </Button>
         </div>
       </header>
+
+      {/* Phase 60: stats strip */}
+      {followedStats && followedStats.total_count > 0 && (
+        <div className="px-6 pt-3 shrink-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-purple-500/5 border border-purple-500/20">
+              <Bell className="w-3 h-3 text-purple-600" />
+              <span className="text-[10px] font-bold text-purple-700 dark:text-purple-400">
+                {followedStats.total_count} total
+              </span>
+            </div>
+            <div className={cn(
+              "flex items-center gap-1.5 px-2.5 py-1 rounded-md border",
+              followedStats.spiking_count > 0
+                ? "bg-amber-500/10 border-amber-400/40"
+                : "bg-muted/30 border-muted"
+            )}>
+              <Zap className={cn("w-3 h-3", followedStats.spiking_count > 0 ? "text-amber-600" : "text-muted-foreground")} />
+              <span className={cn(
+                "text-[10px] font-bold",
+                followedStats.spiking_count > 0 ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"
+              )}>
+                {followedStats.spiking_count} spiking
+              </span>
+            </div>
+            <div className={cn(
+              "flex items-center gap-1.5 px-2.5 py-1 rounded-md border",
+              followedStats.muted_count > 0
+                ? "bg-rose-500/5 border-rose-500/20"
+                : "bg-muted/30 border-muted"
+            )}>
+              <VolumeX className={cn("w-3 h-3", followedStats.muted_count > 0 ? "text-rose-600" : "text-muted-foreground")} />
+              <span className={cn(
+                "text-[10px] font-bold",
+                followedStats.muted_count > 0 ? "text-rose-700 dark:text-rose-400" : "text-muted-foreground"
+              )}>
+                {followedStats.muted_count} muted
+              </span>
+            </div>
+            {followedStats.by_kind.length > 0 && (
+              <div className="h-4 w-px bg-border mx-1" />
+            )}
+            {followedStats.by_kind.map(bk => {
+              const cfg = KIND_CONFIG[bk.kind]
+              const Icon = cfg?.icon || Tag
+              return (
+                <div
+                  key={bk.kind}
+                  className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted/30 border border-muted text-[10px] text-muted-foreground"
+                  title={`${bk.count} ${cfg?.label || bk.kind}`}
+                >
+                  <Icon className={cn("w-3 h-3", cfg?.color || "text-muted-foreground")} />
+                  <span className="font-bold">{bk.count}</span>
+                  <span>{cfg?.label || bk.kind}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Search */}
       <div className="px-6 py-3 border-b shrink-0">

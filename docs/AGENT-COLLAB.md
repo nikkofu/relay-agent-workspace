@@ -142,6 +142,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 59 Knowledge Ops APIs | Codex | 2026-04-22 | Added `PATCH /api/v1/users/me/knowledge/followed/bulk`, `GET|PATCH /api/v1/workspace/settings`, `GET /api/v1/knowledge/entities/:id/activity`, and `GET /api/v1/knowledge/trending`. Workspace spike detection now reads persisted threshold/cooldown settings. Released in `v0.6.4`. |
 | 🟢 Done | Phase 59 Knowledge Ops UI | Windsurf | 2026-04-22 | Consumed all four Phase 59 backend contracts. Mute All in Following Hub now uses `PATCH /users/me/knowledge/followed/bulk` (single request) and gains a **Restore alerts** counterpart when everything is silenced. `TrendingEntitiesCard` component mounted on `/workspace/knowledge` (inline above entity grid) and Home dashboard — ranked by `velocity_delta` with recent/previous deltas, related channels, last activity. `EntityActivitySparkline` SVG sparkline on entity detail page header reads `/knowledge/entities/:id/activity` (30-day default) with gradient fill + last-day dot. Settings page gains a new **Workspace** tab with `Flame` + `Timer` inputs for `spike_threshold` + `spike_cooldown_minutes`, hydrated via `GET /workspace/settings` and persisted via `PATCH /workspace/settings`. `v0.6.5` published. |
 | 🟢 Done | Phase 60 Knowledge Distribution APIs | Codex | 2026-04-22 | Added `GET /api/v1/users/me/knowledge/followed/stats`, `POST /api/v1/knowledge/entities/:id/share`, and websocket `knowledge.trending.changed` for live trend reranking. Released in `v0.6.6`. |
+| 🟢 Done | Phase 60 Knowledge Distribution UI | Windsurf | 2026-04-22 | Consumed all three Phase 60 backend contracts. Following Hub gains a compact stats strip (total / spiking / muted + by-kind chips) fed by `GET /users/me/knowledge/followed/stats`; re-fetches on follow/unfollow/spike. `TrendingEntitiesCard` gets per-row Share buttons (copy deeplink via `POST /knowledge/entities/:id/share` → `navigator.clipboard`), plus a header pulse + **Live** badge when websocket delivers a rerank. Entity detail page header gains a **Share** button. `use-websocket.ts` handles `knowledge.trending.changed` and routes it to new `applyTrendingChanged` store action (workspace-scoped guard). Store adds `followedStats`, `fetchFollowedStats`, `shareEntity`, `applyTrendingChanged`, and `trendingWorkspaceId`/`trendingLastUpdatedAt` tracking. `v0.6.7` published. |
 
 ---
 
@@ -152,7 +153,30 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
 | **Codex** | `api-architecture` | Phase 60 backend shipped: follow stats + entity share + trending realtime (v0.6.6) | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-ui-agent` | Phase 59 UI shipped: bulk mute, trending cards, entity sparkline, workspace alert tuning (v0.6.5) | 100% |
+| **Windsurf** | `web-ui-agent` | Phase 60 UI shipped: stats strip, entity share, live trending (v0.6.7) | 100% |
+
+### 2026-04-22 - Phase 60 Knowledge Distribution UI (v0.6.7)
+- **Windsurf**: Phase 60 UI complete and published as `v0.6.7`. Full consumer for Codex `v0.6.6` backend — all three new endpoints + the new websocket event are now wired.
+- **Windsurf**: **Following Hub stats strip**: new aggregated counter row below the header, fed by `GET /api/v1/users/me/knowledge/followed/stats`. Three pill counters (Total / Spiking / Muted) with themed colors, plus per-kind chips (`by_kind[]`) sorted by count. Re-fetches on mount, on `followedEntities.length` change, and when `spikingEntityIds` mutates, so Mute All / Spike events / Unfollow keep it live without a manual refresh.
+- **Windsurf**: **Entity share**: store action `shareEntity(entityId)` calls `POST /api/v1/knowledge/entities/:id/share` and returns `{ url, short_url, relative_path }`. Consumers use `navigator.clipboard.writeText(url)` and toast confirmation (graceful fallback when clipboard API denied).
+  - **Trending card rows**: hover-reveal `Share2` icon button per row; `e.stopPropagation()` so it doesn't navigate into the entity detail page.
+  - **Entity detail header**: dedicated **Share** button next to Follow and Edit, placed on every `/workspace/knowledge/[id]` page.
+- **Windsurf**: **Live trending**: `use-websocket.ts` handles `knowledge.trending.changed` events and forwards the payload to new store action `applyTrendingChanged({ workspace_id, days, items })`. The action is workspace-scoped (ignores payloads for other workspaces the user is not currently viewing) and bumps `trendingLastUpdatedAt`, which `TrendingEntitiesCard` watches to flash a **Live** badge + pulse the flame icon for 2.4s.
+- **Windsurf**: Store layer adds 3 actions and 4 state slices:
+  - `followedStats: FollowedEntityStats | null` + `fetchFollowedStats()`
+  - `shareEntity(entityId) → SharedEntityLink | null`
+  - `applyTrendingChanged(payload)` (websocket setter, state-diff-aware)
+  - `trendingWorkspaceId` + `trendingLastUpdatedAt` tracking so UI can reason about liveness
+- **Windsurf**: Types added to `types/index.ts`: `FollowedEntityStats`, `FollowedEntityStatsKindCount`, `SharedEntityLink`.
+- **Windsurf → Codex**: Recommended Phase 61 backend targets (AI-native leap):
+  - **`POST /api/v1/knowledge/entities/:id/brief`** — generate an AI-written entity brief (summary + key discussions + next actions) on demand, cached with ETag + regen button. Would make entity detail pages genuinely agent-written rather than metadata shells.
+  - **`POST /api/v1/knowledge/weekly-brief`** — per-user "this week in your followed knowledge" summary: combines followed-stats + trending + spike events into an AI-written digest. Email-friendly + inbox-friendly.
+  - **`GET /api/v1/knowledge/entities/:id/activity/backfill-status`** + a backfill worker — pre-Phase-57 entities have sparse sparklines; this is still the blocker for making historical activity meaningful across the whole workspace.
+  - **`websocket knowledge.followed.stats.changed`** — push follow-stat deltas so the new strip updates without the follow/spike-driven refetch I fell back to. Low-cost enhancement.
+  - **Carry-over**: `presence.bulk` for large workspace reconnects.
+- **Windsurf → Nikko Fu**: Try: (a) `/workspace/knowledge/following` → new stats strip (Total / Spiking / Muted + per-kind chips). (b) Hover any row on a Trending card → Share icon appears, one click copies a `/k/<id>` short URL. (c) Open any entity → **Share** button in the header. (d) Trending on Home/Knowledge now ticks **Live** and pulses the flame when new refs land anywhere in the workspace — no refresh.
+
+---
 
 ### 2026-04-22 - Phase 60 Knowledge Distribution API Completion (v0.6.6)
 - **Codex**: Phase 60 backend is complete and published as `v0.6.6`.
@@ -295,6 +319,13 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-22 - Phase 60 Knowledge Distribution UI
+- **Windsurf**: Phase 60 UI complete and published as `v0.6.7`. All three new Phase 60 contracts + the websocket event are now consumed.
+- **Windsurf**: Following Hub gains a compact stats strip (Total / Spiking / Muted + per-kind chips) fed by `GET /users/me/knowledge/followed/stats`.
+- **Windsurf**: `TrendingEntitiesCard` gets per-row **Share** buttons (copies entity deeplink via `POST /knowledge/entities/:id/share`) and a **Live** badge + flame pulse when `knowledge.trending.changed` arrives.
+- **Windsurf**: Entity detail page header gains a **Share** button next to Follow and Edit.
+- **Windsurf → Codex**: Recommended Phase 61: (1) `POST /knowledge/entities/:id/brief` for AI-written entity briefs. (2) `POST /knowledge/weekly-brief` per-user AI summary of followed activity. (3) Activity backfill worker + `activity/backfill-status` for older entities. (4) `knowledge.followed.stats.changed` websocket event so the new strip updates without polling. (5) Carry-over: `presence.bulk`.
 
 ### 2026-04-22 - Phase 60 Knowledge Distribution APIs
 - **Codex**: Phase 60 backend is complete and published as `v0.6.6`.

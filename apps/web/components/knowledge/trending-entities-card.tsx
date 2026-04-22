@@ -1,15 +1,17 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useKnowledgeStore } from "@/stores/knowledge-store"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import {
   TrendingUp, TrendingDown, Flame, Loader2, ChevronRight, Tag,
-  User2, BookOpen, Building2, FileText, Layout, Minus,
+  User2, BookOpen, Building2, FileText, Layout, Minus, Share2, Zap,
 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
+import { toast } from "sonner"
 
 const KIND_ICONS: Record<string, React.ElementType> = {
   person: User2, project: BookOpen, concept: Tag,
@@ -32,12 +34,49 @@ export function TrendingEntitiesCard({
   className,
 }: TrendingEntitiesCardProps) {
   const router = useRouter()
-  const { trendingEntities, isLoadingTrending, fetchTrendingEntities } = useKnowledgeStore()
+  const {
+    trendingEntities, isLoadingTrending, trendingLastUpdatedAt,
+    fetchTrendingEntities, shareEntity,
+  } = useKnowledgeStore()
+  const [livePulse, setLivePulse] = useState(false)
+  const [sharingId, setSharingId] = useState<string | null>(null)
+  const lastSeenTickRef = useRef<number | null>(null)
 
   useEffect(() => {
     if (!workspaceId) return
     fetchTrendingEntities(workspaceId, days, limit)
   }, [workspaceId, days, limit, fetchTrendingEntities])
+
+  // Phase 60: pulse the header briefly when the websocket delivers a live rerank
+  useEffect(() => {
+    if (!trendingLastUpdatedAt) return
+    if (lastSeenTickRef.current === null) {
+      lastSeenTickRef.current = trendingLastUpdatedAt
+      return
+    }
+    if (trendingLastUpdatedAt !== lastSeenTickRef.current) {
+      lastSeenTickRef.current = trendingLastUpdatedAt
+      setLivePulse(true)
+      const t = setTimeout(() => setLivePulse(false), 2400)
+      return () => clearTimeout(t)
+    }
+  }, [trendingLastUpdatedAt])
+
+  const handleShare = async (entityId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (sharingId) return
+    setSharingId(entityId)
+    const share = await shareEntity(entityId)
+    setSharingId(null)
+    if (share?.url) {
+      try {
+        await navigator.clipboard.writeText(share.url)
+        toast.success("Share link copied", { description: share.url })
+      } catch {
+        toast("Share link ready", { description: share.url })
+      }
+    }
+  }
 
   if (isLoadingTrending && trendingEntities.length === 0) {
     return (
@@ -63,10 +102,21 @@ export function TrendingEntitiesCard({
   return (
     <div className={cn("rounded-xl border bg-gradient-to-br from-orange-500/5 to-amber-500/5 dark:from-orange-950/20 dark:to-amber-950/20 overflow-hidden", className)}>
       <div className="flex items-center gap-2 px-4 py-2.5 border-b border-orange-500/10">
-        <div className="w-6 h-6 rounded-md bg-orange-500/15 flex items-center justify-center">
-          <Flame className="w-3.5 h-3.5 text-orange-600" />
+        <div className={cn(
+          "w-6 h-6 rounded-md flex items-center justify-center transition-colors",
+          livePulse ? "bg-orange-500/30" : "bg-orange-500/15"
+        )}>
+          <Flame className={cn(
+            "w-3.5 h-3.5 text-orange-600",
+            livePulse && "animate-pulse"
+          )} />
         </div>
         <p className="text-xs font-black tracking-tight uppercase">Trending in Knowledge</p>
+        {livePulse && (
+          <Badge className="text-[9px] h-4 px-1.5 gap-0.5 bg-orange-500/15 text-orange-700 border-orange-400 animate-pulse">
+            <Zap className="w-2 h-2" /> Live
+          </Badge>
+        )}
         <Badge className="text-[9px] h-4 px-1.5 bg-orange-500/10 text-orange-700 border-orange-300 ml-auto">
           Last {days}d
         </Badge>
@@ -120,6 +170,19 @@ export function TrendingEntitiesCard({
                 <TrendIcon className="w-2.5 h-2.5" />
                 {delta > 0 ? `+${delta}` : delta}
               </Badge>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground hover:text-orange-600 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Copy share link"
+                onClick={(e) => handleShare(item.entity.id, e)}
+                disabled={sharingId === item.entity.id}
+              >
+                {sharingId === item.entity.id
+                  ? <Loader2 className="w-3 h-3 animate-spin" />
+                  : <Share2 className="w-3 h-3" />
+                }
+              </Button>
               <ChevronRight className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
             </li>
           )
