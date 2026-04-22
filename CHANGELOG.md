@@ -2,6 +2,56 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.99] - 2026-04-22
+
+This release implements Phase 56: knowledge digest drill-down plus cross-device user settings sync. It closes the main backend gaps left after Windsurf's v0.5.98 UI work.
+
+### Added
+
+- **Knowledge inbox detail API**:
+  - `GET /api/v1/knowledge/inbox/:id`
+  - Returns the selected digest item plus `entity_contexts[]` with top-entity sample messages captured from the channel timeline.
+- **Digest schedule dry-run API**:
+  - `POST /api/v1/channels/:id/knowledge/digest/preview-schedule`
+  - Accepts the same scheduling fields as `PUT /channels/:id/knowledge/digest/schedule` plus optional `count`.
+  - Returns normalized `schedule`, `upcoming_runs[]`, and a current `digest` preview for confidence before saving.
+- **Settings hydration API**:
+  - `GET /api/v1/me/settings`
+  - Returns `provider`, `model`, `mode`, `theme`, `message_density`, `locale`, and `timezone`.
+
+### Changed
+
+- `PATCH /api/v1/me/settings` now supports partial updates for:
+  - `provider`
+  - `model`
+  - `mode`
+  - `theme`
+  - `message_density`
+  - `locale`
+  - `timezone`
+- Added persisted user preference fields for:
+  - `theme_preference`
+  - `message_density`
+  - `locale`
+- Settings validation now guards invalid `theme`, `message_density`, and `timezone` values instead of silently persisting bad data.
+
+### Windsurf Handoff
+
+- Use `GET /api/v1/me/settings` to hydrate the Settings page on load instead of relying on `localStorage` defaults.
+- Persist Appearance tab changes through `PATCH /api/v1/me/settings` with `theme`, `message_density`, `locale`, and `timezone`.
+- Use `GET /api/v1/knowledge/inbox/:id` for a real digest drill-down surface with entity sample messages.
+- Use `POST /api/v1/channels/:id/knowledge/digest/preview-schedule` inside the schedule dialog to show the next runs and current digest preview before save.
+- Remaining recommended backend target after this release:
+  - websocket `knowledge.entity.activity.spiked`
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./internal/handlers -run 'Test(GetMeSettingsReturnsHydratedPreferences|PatchMeSettingsPersistsPreferences|PreviewChannelKnowledgeDigestScheduleReturnsUpcomingRuns|GetKnowledgeInboxItemReturnsDigestContext)' -count=1`
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+- `pnpm --filter relay-agent-workspace exec tsc --noEmit`
+
 ## [0.5.97] - 2026-04-22
 
 This release implements the next knowledge-collaboration backend slice for Windsurf: per-user entity follow plus composer-side reverse entity lookup.

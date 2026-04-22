@@ -31,6 +31,9 @@ type User struct {
 	Status            string     `json:"status"`
 	StatusText        string     `json:"status_text"`
 	StatusEmoji       string     `json:"status_emoji"`
+	ThemePreference   string     `json:"theme_preference"`
+	MessageDensity    string     `json:"message_density"`
+	Locale            string     `json:"locale"`
 	StatusExpiresAt   *time.Time `json:"status_expires_at,omitempty"`
 	LastSeenAt        *time.Time `json:"last_seen_at,omitempty"`
 	PresenceExpiresAt *time.Time `json:"-"`

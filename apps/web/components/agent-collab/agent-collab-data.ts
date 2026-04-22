@@ -236,11 +236,26 @@ export const TASKS: Task[] = [
   { id: 't114', phase: 114, status: 'done',  task: 'Phase 54 Settings & Appearance', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'ThemeProvider wired into layout.tsx (defaultTheme=dark, enableSystem). /workspace/settings redesigned: 4-tab sidebar (Profile/Appearance/Notifications/Privacy). Profile tab: avatar display + editable title/dept/timezone/pronouns/location/phone/bio via updateProfile API. Appearance tab: Light/Dark/System theme picker (3 visual tiles, useTheme) + Comfortable/Compact density selector (localStorage). Nav theme toggle verified clean. v0.5.96 published.', type: 'frontend' },
   { id: 't115', phase: 115, status: 'done',  task: 'Phase 55 Knowledge Follow And Composer Match APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added GET /api/v1/users/me/knowledge/followed, POST|DELETE /api/v1/knowledge/entities/:id/follow, POST /api/v1/knowledge/entities/match-text, and persistent KnowledgeEntityFollow storage. Matching is deterministic, workspace-scoped, and longest-title-first. v0.5.97 published.', type: 'api' },
   { id: 't116', phase: 116, status: 'done',  task: 'Phase 55 Knowledge Follow And Composer Match UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'KnowledgeEntityFollow/FollowedEntity/EntityTextMatch types + store actions (fetchFollowedEntities/followEntity/unfollowEntity/matchEntitiesInText). EntityFollowButton reusable chip+default variants. Wired into EntityMentionChip hover card, entity detail header, and every card on /workspace/knowledge. Following (N) filter pill on knowledge listing. MessageComposer passive reverse-lookup: 500ms debounce, Knowledge detected hint row with purple chips, one-click convert to @Entity mention via tiptap deleteRange+insertContent, per-match dismiss, auto-clear on send, suppressed during @/@entity:/slash. v0.5.98 published.', type: 'frontend' },
+  { id: 't117', phase: 117, status: 'done',  task: 'Phase 56 Knowledge Inbox Detail And Settings Sync APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added GET /api/v1/knowledge/inbox/:id, POST /api/v1/channels/:id/knowledge/digest/preview-schedule, GET /api/v1/me/settings, and expanded PATCH /api/v1/me/settings for theme, density, locale, and timezone persistence with partial-update semantics. v0.5.99 published.', type: 'api' },
 ]
 
 // ─── Communication Log ────────────────────────────────────────────────────────
 
 export const COMM_SECTIONS: CommSection[] = [
+  {
+    id: 'cs23',
+    date: '2026-04-22',
+    title: 'Phase 56 Knowledge Inbox Detail And Settings Sync APIs',
+    messages: [
+      { id: 'cx59a', from: 'Codex', content: 'Phase 56 backend is complete and published as v0.5.99.' },
+      { id: 'cx59b', from: 'Codex', content: 'Added GET /api/v1/knowledge/inbox/:id for digest drill-down. It resolves knowledge-digest-<message_id>, verifies channel membership, returns the digest item, and includes entity_contexts[] with representative source messages for each top movement.' },
+      { id: 'cx59c', from: 'Codex', content: 'Added POST /api/v1/channels/:id/knowledge/digest/preview-schedule. It accepts the same schedule payload plus optional count and returns normalized schedule, upcoming_runs[], and a current digest preview.' },
+      { id: 'cx59d', from: 'Codex', content: 'Added GET /api/v1/me/settings and expanded PATCH /api/v1/me/settings for partial updates of theme, message_density, locale, and timezone alongside provider/model/mode.' },
+      { id: 'cx59e', from: 'Codex', to: 'Windsurf', content: 'Please hydrate /workspace/settings from GET /api/v1/me/settings, persist Appearance changes with PATCH /api/v1/me/settings, switch inbox detail view to GET /api/v1/knowledge/inbox/:id, and call POST /api/v1/channels/:id/knowledge/digest/preview-schedule inside the digest schedule dialog as the form changes.' },
+      { id: 'cx59f', from: 'Codex', to: 'Windsurf', content: 'Recommended next backend target after you consume this handoff: websocket knowledge.entity.activity.spiked so followed entities become proactive alerts.' },
+      { id: 'cx59g', from: 'Codex', to: 'Nikko Fu', content: 'This release moves two previously local-only experiences into shared backend state: cross-device settings sync and a true digest inbox drill-down instead of static preview-only cards.' },
+    ],
+  },
   {
     id: 'cs22',
     date: '2026-04-22',

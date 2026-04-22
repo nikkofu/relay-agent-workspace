@@ -704,6 +704,24 @@ func GetMe(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"user": enrichUser(user)})
 }
 
+func GetMeSettings(c *gin.Context) {
+	user, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"settings": gin.H{
+		"provider":        user.AIProvider,
+		"model":           user.AIModel,
+		"mode":            user.AIMode,
+		"theme":           defaultString(strings.TrimSpace(user.ThemePreference), "system"),
+		"message_density": defaultString(strings.TrimSpace(user.MessageDensity), "comfortable"),
+		"locale":          defaultString(strings.TrimSpace(user.Locale), "en-US"),
+		"timezone":        defaultString(strings.TrimSpace(user.Timezone), "UTC"),
+	}})
+}
+
 func PatchMeSettings(c *gin.Context) {
 	var user domain.User
 	if err := db.DB.First(&user).Error; err != nil {
@@ -712,18 +730,62 @@ func PatchMeSettings(c *gin.Context) {
 	}
 
 	var input struct {
-		Provider string `json:"provider"`
-		Model    string `json:"model"`
-		Mode     string `json:"mode"`
+		Provider       *string `json:"provider"`
+		Model          *string `json:"model"`
+		Mode           *string `json:"mode"`
+		Theme          *string `json:"theme"`
+		MessageDensity *string `json:"message_density"`
+		Locale         *string `json:"locale"`
+		Timezone       *string `json:"timezone"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	user.AIProvider = input.Provider
-	user.AIModel = input.Model
-	user.AIMode = input.Mode
+	if input.Provider != nil {
+		user.AIProvider = strings.TrimSpace(*input.Provider)
+	}
+	if input.Model != nil {
+		user.AIModel = strings.TrimSpace(*input.Model)
+	}
+	if input.Mode != nil {
+		user.AIMode = strings.TrimSpace(*input.Mode)
+	}
+	if input.Theme != nil {
+		theme := strings.TrimSpace(*input.Theme)
+		switch theme {
+		case "", "light", "dark", "system":
+			user.ThemePreference = defaultString(theme, "system")
+		default:
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid theme"})
+			return
+		}
+	}
+	if input.MessageDensity != nil {
+		density := strings.TrimSpace(*input.MessageDensity)
+		switch density {
+		case "", "comfortable", "compact":
+			user.MessageDensity = defaultString(density, "comfortable")
+		default:
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid message_density"})
+			return
+		}
+	}
+	if input.Locale != nil {
+		user.Locale = strings.TrimSpace(*input.Locale)
+	}
+	if input.Timezone != nil {
+		timezone := strings.TrimSpace(*input.Timezone)
+		if timezone == "" {
+			user.Timezone = "UTC"
+		} else if _, err := time.LoadLocation(timezone); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid timezone"})
+			return
+		} else {
+			user.Timezone = timezone
+		}
+	}
 
 	if err := db.DB.Save(&user).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update settings"})

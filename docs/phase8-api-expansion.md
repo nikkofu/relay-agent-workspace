@@ -502,6 +502,7 @@ Recommended sequence from here:
 3. Persist AI conversation state and summaries.
 4. Introduce artifact and file lifecycle APIs.
 5. Deepen the knowledge layer with entity-aware mentions, summaries, graph views, and semantic retrieval.
+   - Current delivered extensions now also include digest scheduling, digest inbox aggregation, inbox drill-down detail, entity follow, composer reverse lookup, and schedule dry-run preview.
 6. Add richer search layers such as suggestions and semantic retrieval.
 7. Move toward explicit agent runtime APIs once the collaboration foundation is stable.
 

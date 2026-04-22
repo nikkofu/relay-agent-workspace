@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.5.97` is the current release line and includes:
+`v0.5.99` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -58,10 +58,13 @@ For product, design, and marketing, the short version is:
 - channel-scoped knowledge digest preview via `GET /api/v1/channels/:id/knowledge/digest`
 - channel-scoped knowledge digest publish flow via `POST /api/v1/channels/:id/knowledge/digest/publish`
 - channel-scoped knowledge digest scheduling via `GET|PUT|DELETE /api/v1/channels/:id/knowledge/digest/schedule`
+- digest schedule dry-run preview via `POST /api/v1/channels/:id/knowledge/digest/preview-schedule`
 - scoped knowledge entity autocomplete via `GET /api/v1/knowledge/entities/suggest`
 - entity hover enrichment via `GET /api/v1/knowledge/entities/:id/hover`
 - entity-centric message discovery via `GET /api/v1/search/messages/by-entity`
 - cross-channel knowledge inbox via `GET /api/v1/knowledge/inbox`
+- knowledge inbox detail drill-down via `GET /api/v1/knowledge/inbox/:id`
+- `GET /api/v1/me/settings` for cross-device settings hydration
 - knowledge summary velocity/anomaly fields for channel-header trend badges
 - citation lookup entity hydration from canonical `KnowledgeEntityRef` message/file associations
 - channel-aware entity ranking for `@entity:` composer autocomplete and knowledge side-panel summary cards
@@ -72,7 +75,7 @@ For product, design, and marketing, the short version is:
 - `GET /api/v1/users`, thread-aware messages, and `POST /api/v1/ai/execute` SSE streaming
 - local LLM config merge fixes and real provider validation
 - `GET /api/v1/ai/config` for dynamic provider discovery
-- `PATCH /api/v1/me/settings` for persisted AI preferences
+- `GET|PATCH /api/v1/me/settings` for persisted AI and appearance preferences
 - parent thread metadata updates including `reply_count` and `last_reply_at`
 - persisted message interaction APIs for:
   - reactions
@@ -158,8 +161,11 @@ For product, design, and marketing, the short version is:
   - `POST /api/v1/channels/:id/knowledge/digest/publish`
   - `GET /api/v1/channels/:id/knowledge/digest/schedule`
   - `PUT /api/v1/channels/:id/knowledge/digest/schedule`
+  - `POST /api/v1/channels/:id/knowledge/digest/preview-schedule`
   - `DELETE /api/v1/channels/:id/knowledge/digest/schedule`
   - `GET /api/v1/knowledge/inbox`
+  - `GET /api/v1/knowledge/inbox/:id`
+  - `GET /api/v1/me/settings`
   - `GET /api/v1/users/me/knowledge/followed`
   - `GET /api/v1/knowledge/entities`
   - `GET /api/v1/knowledge/entities/suggest`

@@ -35,71 +35,32 @@ func GetDigestSchedule(database *gorm.DB, channelID string, now time.Time) (*Cha
 }
 
 func UpsertDigestSchedule(database *gorm.DB, input UpsertDigestScheduleInput) (ChannelKnowledgeDigestSchedule, error) {
-	channelID := strings.TrimSpace(input.ChannelID)
-	if channelID == "" {
-		return ChannelKnowledgeDigestSchedule{}, errors.New("channel_id is required")
-	}
-
-	var channel domain.Channel
-	if err := database.Select("id, workspace_id").First(&channel, "id = ?", channelID).Error; err != nil {
+	now := time.Now().UTC()
+	normalized, err := normalizeDigestScheduleInput(database, input, now)
+	if err != nil {
 		return ChannelKnowledgeDigestSchedule{}, err
 	}
-
-	window, _ := normalizeDigestWindow(input.Window)
-	timezone := defaultString(strings.TrimSpace(input.Timezone), "UTC")
-	if _, err := time.LoadLocation(timezone); err != nil {
-		return ChannelKnowledgeDigestSchedule{}, errors.New("invalid timezone")
-	}
-
-	dayOfWeek := input.DayOfWeek
-	if dayOfWeek < 0 || dayOfWeek > 6 {
-		dayOfWeek = 0
-	}
-	dayOfMonth := input.DayOfMonth
-	if dayOfMonth < 1 {
-		dayOfMonth = 1
-	}
-	if dayOfMonth > 28 {
-		dayOfMonth = 28
-	}
-	hour := input.Hour
-	if hour < 0 || hour > 23 {
-		return ChannelKnowledgeDigestSchedule{}, errors.New("hour must be between 0 and 23")
-	}
-	minute := input.Minute
-	if minute < 0 || minute > 59 {
-		return ChannelKnowledgeDigestSchedule{}, errors.New("minute must be between 0 and 59")
-	}
-	limit := input.Limit
-	if limit <= 0 {
-		limit = 5
-	}
-	if limit > 20 {
-		limit = 20
-	}
-
-	now := time.Now().UTC()
 	schedule := domain.KnowledgeDigestSchedule{
-		ID:          newKnowledgeID("kdsch"),
-		ChannelID:   channel.ID,
-		WorkspaceID: channel.WorkspaceID,
-		CreatedBy:   strings.TrimSpace(input.CreatedBy),
-		Window:      window,
-		Timezone:    timezone,
-		DayOfWeek:   dayOfWeek,
-		DayOfMonth:  dayOfMonth,
-		Hour:        hour,
-		Minute:      minute,
-		Limit:       limit,
-		Pin:         input.Pin,
-		IsEnabled:   input.IsEnabled,
+		ID:          normalized.ID,
+		ChannelID:   normalized.ChannelID,
+		WorkspaceID: normalized.WorkspaceID,
+		CreatedBy:   normalized.CreatedBy,
+		Window:      normalized.Window,
+		Timezone:    normalized.Timezone,
+		DayOfWeek:   normalized.DayOfWeek,
+		DayOfMonth:  normalized.DayOfMonth,
+		Hour:        normalized.Hour,
+		Minute:      normalized.Minute,
+		Limit:       normalized.Limit,
+		Pin:         normalized.Pin,
+		IsEnabled:   normalized.IsEnabled,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
 
-	if err := database.Where("channel_id = ?", channel.ID).
+	if err := database.Where("channel_id = ?", normalized.ChannelID).
 		Assign(domain.KnowledgeDigestSchedule{
-			WorkspaceID: channel.WorkspaceID,
+			WorkspaceID: normalized.WorkspaceID,
 			CreatedBy:   schedule.CreatedBy,
 			Window:      schedule.Window,
 			Timezone:    schedule.Timezone,
@@ -116,7 +77,7 @@ func UpsertDigestSchedule(database *gorm.DB, input UpsertDigestScheduleInput) (C
 		return ChannelKnowledgeDigestSchedule{}, err
 	}
 
-	if err := database.First(&schedule, "channel_id = ?", channel.ID).Error; err != nil {
+	if err := database.First(&schedule, "channel_id = ?", normalized.ChannelID).Error; err != nil {
 		return ChannelKnowledgeDigestSchedule{}, err
 	}
 	return hydrateDigestSchedule(schedule, now)
@@ -352,6 +313,93 @@ func ListKnowledgeInbox(database *gorm.DB, params KnowledgeInboxParams) ([]Knowl
 	return items, nil
 }
 
+func GetKnowledgeInboxItem(database *gorm.DB, userID, itemID string, sampleLimit int) (KnowledgeInboxDetail, error) {
+	userID = strings.TrimSpace(userID)
+	itemID = strings.TrimSpace(itemID)
+	if userID == "" {
+		return KnowledgeInboxDetail{}, errors.New("user_id is required")
+	}
+	messageID, ok := strings.CutPrefix(itemID, "knowledge-digest-")
+	if !ok || strings.TrimSpace(messageID) == "" {
+		return KnowledgeInboxDetail{}, gorm.ErrRecordNotFound
+	}
+
+	var message domain.Message
+	if err := database.First(&message, "id = ?", messageID).Error; err != nil {
+		return KnowledgeInboxDetail{}, err
+	}
+
+	var membership domain.ChannelMember
+	if err := database.First(&membership, "channel_id = ? AND user_id = ?", message.ChannelID, userID).Error; err != nil {
+		return KnowledgeInboxDetail{}, err
+	}
+
+	digest, ok := extractKnowledgeDigestFromMessage(message)
+	if !ok {
+		return KnowledgeInboxDetail{}, gorm.ErrRecordNotFound
+	}
+
+	var channel domain.Channel
+	if err := database.First(&channel, "id = ?", message.ChannelID).Error; err != nil {
+		return KnowledgeInboxDetail{}, err
+	}
+
+	item := KnowledgeInboxItem{
+		ID:         itemID,
+		Channel:    channel,
+		Message:    message,
+		Digest:     digest,
+		OccurredAt: message.CreatedAt,
+	}
+
+	var read domain.NotificationRead
+	if err := database.First(&read, "user_id = ? AND item_id = ?", userID, itemID).Error; err == nil {
+		item.IsRead = true
+	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return KnowledgeInboxDetail{}, err
+	}
+
+	entityContexts, err := buildKnowledgeInboxEntityContexts(database, item, sampleLimit)
+	if err != nil {
+		return KnowledgeInboxDetail{}, err
+	}
+
+	return KnowledgeInboxDetail{
+		Item:           item,
+		EntityContexts: entityContexts,
+	}, nil
+}
+
+func PreviewDigestSchedule(database *gorm.DB, input UpsertDigestScheduleInput, count int, now time.Time) (DigestSchedulePreview, error) {
+	schedule, err := normalizeDigestScheduleInput(database, input, now)
+	if err != nil {
+		return DigestSchedulePreview{}, err
+	}
+
+	if count <= 0 {
+		count = 3
+	}
+	if count > 10 {
+		count = 10
+	}
+
+	upcomingRuns, err := computeUpcomingDigestRuns(schedule, count, now)
+	if err != nil {
+		return DigestSchedulePreview{}, err
+	}
+
+	digest, err := BuildChannelKnowledgeDigest(database, schedule.ChannelID, schedule.Window, schedule.Limit)
+	if err != nil {
+		return DigestSchedulePreview{}, err
+	}
+
+	return DigestSchedulePreview{
+		Schedule:     schedule,
+		UpcomingRuns: upcomingRuns,
+		Digest:       digest,
+	}, nil
+}
+
 func hydrateDigestSchedule(schedule domain.KnowledgeDigestSchedule, now time.Time) (ChannelKnowledgeDigestSchedule, error) {
 	result := ChannelKnowledgeDigestSchedule{
 		ID:              schedule.ID,
@@ -411,6 +459,136 @@ func computeDigestScheduleDueAt(schedule domain.KnowledgeDigestSchedule, now tim
 		return &dueAt, false, nil
 	}
 	return &dueAt, true, nil
+}
+
+func normalizeDigestScheduleInput(database *gorm.DB, input UpsertDigestScheduleInput, now time.Time) (ChannelKnowledgeDigestSchedule, error) {
+	channelID := strings.TrimSpace(input.ChannelID)
+	if channelID == "" {
+		return ChannelKnowledgeDigestSchedule{}, errors.New("channel_id is required")
+	}
+
+	var channel domain.Channel
+	if err := database.Select("id, workspace_id").First(&channel, "id = ?", channelID).Error; err != nil {
+		return ChannelKnowledgeDigestSchedule{}, err
+	}
+
+	window, _ := normalizeDigestWindow(input.Window)
+	timezone := defaultString(strings.TrimSpace(input.Timezone), "UTC")
+	if _, err := time.LoadLocation(timezone); err != nil {
+		return ChannelKnowledgeDigestSchedule{}, errors.New("invalid timezone")
+	}
+
+	dayOfWeek := input.DayOfWeek
+	if dayOfWeek < 0 || dayOfWeek > 6 {
+		dayOfWeek = 0
+	}
+	dayOfMonth := input.DayOfMonth
+	if dayOfMonth < 1 {
+		dayOfMonth = 1
+	}
+	if dayOfMonth > 28 {
+		dayOfMonth = 28
+	}
+	hour := input.Hour
+	if hour < 0 || hour > 23 {
+		return ChannelKnowledgeDigestSchedule{}, errors.New("hour must be between 0 and 23")
+	}
+	minute := input.Minute
+	if minute < 0 || minute > 59 {
+		return ChannelKnowledgeDigestSchedule{}, errors.New("minute must be between 0 and 59")
+	}
+	limit := input.Limit
+	if limit <= 0 {
+		limit = 5
+	}
+	if limit > 20 {
+		limit = 20
+	}
+
+	schedule := ChannelKnowledgeDigestSchedule{
+		ID:          newKnowledgeID("kdsch"),
+		ChannelID:   channel.ID,
+		WorkspaceID: channel.WorkspaceID,
+		CreatedBy:   strings.TrimSpace(input.CreatedBy),
+		Window:      window,
+		Timezone:    timezone,
+		DayOfWeek:   dayOfWeek,
+		DayOfMonth:  dayOfMonth,
+		Hour:        hour,
+		Minute:      minute,
+		Limit:       limit,
+		Pin:         input.Pin,
+		IsEnabled:   input.IsEnabled,
+	}
+	nextRunAt, err := ComputeDigestScheduleNextRunAt(schedule, now)
+	if err != nil {
+		return ChannelKnowledgeDigestSchedule{}, err
+	}
+	schedule.NextRunAt = nextRunAt
+	return schedule, nil
+}
+
+func computeUpcomingDigestRuns(schedule ChannelKnowledgeDigestSchedule, count int, now time.Time) ([]DigestScheduleUpcomingRun, error) {
+	runAt, err := ComputeDigestScheduleNextRunAt(schedule, now)
+	if err != nil {
+		return nil, err
+	}
+
+	runs := make([]DigestScheduleUpcomingRun, 0, count)
+	current := *runAt
+	for len(runs) < count {
+		runs = append(runs, DigestScheduleUpcomingRun{RunAt: current.UTC()})
+		switch schedule.Window {
+		case "daily":
+			current = current.AddDate(0, 0, 1)
+		case "monthly":
+			loc, err := time.LoadLocation(defaultString(schedule.Timezone, "UTC"))
+			if err != nil {
+				return nil, err
+			}
+			nextMonth := current.In(loc).AddDate(0, 1, 0)
+			current = buildMonthlyScheduleCandidate(nextMonth.Year(), nextMonth.Month(), schedule.DayOfMonth, schedule.Hour, schedule.Minute, loc)
+		default:
+			current = current.AddDate(0, 0, 7)
+		}
+	}
+	return runs, nil
+}
+
+func buildKnowledgeInboxEntityContexts(database *gorm.DB, item KnowledgeInboxItem, sampleLimit int) ([]KnowledgeInboxEntityContext, error) {
+	if sampleLimit <= 0 {
+		sampleLimit = 3
+	}
+	if sampleLimit > 10 {
+		sampleLimit = 10
+	}
+
+	contexts := make([]KnowledgeInboxEntityContext, 0, len(item.Digest.TopMovements))
+	for _, movement := range item.Digest.TopMovements {
+		if strings.TrimSpace(movement.EntityID) == "" {
+			continue
+		}
+
+		var messages []domain.Message
+		if err := database.Model(&domain.Message{}).
+			Select("messages.*").
+			Joins("JOIN knowledge_entity_refs ON knowledge_entity_refs.ref_id = messages.id AND knowledge_entity_refs.ref_kind = ?", "message").
+			Where("knowledge_entity_refs.entity_id = ? AND messages.channel_id = ? AND messages.created_at <= ?", movement.EntityID, item.Channel.ID, item.Message.CreatedAt).
+			Order("messages.created_at desc").
+			Limit(sampleLimit).
+			Find(&messages).Error; err != nil {
+			return nil, err
+		}
+
+		contexts = append(contexts, KnowledgeInboxEntityContext{
+			EntityID:    movement.EntityID,
+			EntityTitle: movement.EntityTitle,
+			EntityKind:  movement.EntityKind,
+			Delta:       movement.Delta,
+			Messages:    messages,
+		})
+	}
+	return contexts, nil
 }
 
 func buildWeeklyScheduleCandidate(now time.Time, dayOfWeek int, hour int, minute int, loc *time.Location) time.Time {

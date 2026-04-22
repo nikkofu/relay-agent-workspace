@@ -523,6 +523,55 @@ func PutChannelKnowledgeDigestSchedule(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"schedule": schedule})
 }
 
+func PreviewChannelKnowledgeDigestSchedule(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var input struct {
+		Window     string `json:"window"`
+		Timezone   string `json:"timezone"`
+		DayOfWeek  int    `json:"day_of_week"`
+		DayOfMonth int    `json:"day_of_month"`
+		Hour       int    `json:"hour"`
+		Minute     int    `json:"minute"`
+		Limit      int    `json:"limit"`
+		Pin        bool   `json:"pin"`
+		IsEnabled  bool   `json:"is_enabled"`
+		Count      int    `json:"count"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	preview, err := knowledge.PreviewDigestSchedule(db.DB, knowledge.UpsertDigestScheduleInput{
+		ChannelID:  c.Param("id"),
+		CreatedBy:  currentUser.ID,
+		Window:     input.Window,
+		Timezone:   input.Timezone,
+		DayOfWeek:  input.DayOfWeek,
+		DayOfMonth: input.DayOfMonth,
+		Hour:       input.Hour,
+		Minute:     input.Minute,
+		Limit:      input.Limit,
+		Pin:        input.Pin,
+		IsEnabled:  input.IsEnabled,
+	}, input.Count, time.Now().UTC())
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "channel not found"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"preview": preview})
+}
+
 func DeleteChannelKnowledgeDigestSchedule(c *gin.Context) {
 	if err := knowledge.DeleteDigestSchedule(db.DB, c.Param("id")); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to delete digest schedule"})
@@ -549,6 +598,34 @@ func GetKnowledgeInbox(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"items": items})
+}
+
+func GetKnowledgeInboxItem(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	item, err := knowledge.GetKnowledgeInboxItem(db.DB, currentUser.ID, c.Param("id"), parseLimit(c.Query("sample_limit"), 3))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "knowledge inbox item not found"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to load knowledge inbox item"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"item": gin.H{
+		"id":              item.Item.ID,
+		"channel":         item.Item.Channel,
+		"message":         item.Item.Message,
+		"digest":          item.Item.Digest,
+		"is_read":         item.Item.IsRead,
+		"occurred_at":     item.Item.OccurredAt,
+		"entity_contexts": item.EntityContexts,
+	}})
 }
 
 func handleKnowledgeError(c *gin.Context, err error, fallback string) {

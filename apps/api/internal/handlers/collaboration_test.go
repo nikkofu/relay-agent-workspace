@@ -1025,7 +1025,7 @@ func TestPatchMeSettingsPersistsPreferences(t *testing.T) {
 	router := gin.New()
 	router.PATCH("/api/v1/me/settings", PatchMeSettings)
 
-	req := httptest.NewRequest(http.MethodPatch, "/api/v1/me/settings", bytes.NewBufferString(`{"provider":"gemini","model":"gemini-3-flash-preview","mode":"planning"}`))
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/me/settings", bytes.NewBufferString(`{"provider":"gemini","model":"gemini-3-flash-preview","mode":"planning","theme":"system","message_density":"compact","locale":"zh-CN","timezone":"Asia/Shanghai"}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
@@ -1038,8 +1038,55 @@ func TestPatchMeSettingsPersistsPreferences(t *testing.T) {
 	if err := db.DB.First(&refreshed, "id = ?", "user-1").Error; err != nil {
 		t.Fatalf("failed to reload user: %v", err)
 	}
-	if refreshed.AIProvider != "gemini" || refreshed.AIModel != "gemini-3-flash-preview" || refreshed.AIMode != "planning" {
+	if refreshed.AIProvider != "gemini" || refreshed.AIModel != "gemini-3-flash-preview" || refreshed.AIMode != "planning" || refreshed.ThemePreference != "system" || refreshed.MessageDensity != "compact" || refreshed.Locale != "zh-CN" || refreshed.Timezone != "Asia/Shanghai" {
 		t.Fatalf("settings were not persisted: %#v", refreshed)
+	}
+}
+
+func TestGetMeSettingsReturnsHydratedPreferences(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.User{
+		ID:              "user-1",
+		OrganizationID:  "org-1",
+		Name:            "Nikko Fu",
+		Email:           "nikko@example.com",
+		AIProvider:      "openrouter",
+		AIModel:         "nvidia/nemotron-3-super-120b-a12b:free",
+		AIMode:          "focus",
+		ThemePreference: "dark",
+		MessageDensity:  "compact",
+		Locale:          "zh-CN",
+		Timezone:        "Asia/Shanghai",
+	})
+
+	router := gin.New()
+	router.GET("/api/v1/me/settings", GetMeSettings)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/me/settings", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Settings struct {
+			Provider       string `json:"provider"`
+			Model          string `json:"model"`
+			Mode           string `json:"mode"`
+			Theme          string `json:"theme"`
+			MessageDensity string `json:"message_density"`
+			Locale         string `json:"locale"`
+			Timezone       string `json:"timezone"`
+		} `json:"settings"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if payload.Settings.Provider != "openrouter" || payload.Settings.Model != "nvidia/nemotron-3-super-120b-a12b:free" || payload.Settings.Mode != "focus" || payload.Settings.Theme != "dark" || payload.Settings.MessageDensity != "compact" || payload.Settings.Locale != "zh-CN" || payload.Settings.Timezone != "Asia/Shanghai" {
+		t.Fatalf("unexpected settings payload: %#v", payload.Settings)
 	}
 }
 
@@ -4196,6 +4243,46 @@ func TestDigestScheduleEndpointsSupportUpsertGetAndDelete(t *testing.T) {
 	}
 }
 
+func TestPreviewChannelKnowledgeDigestScheduleReturnsUpcomingRuns(t *testing.T) {
+	setupTestDB(t)
+	now := time.Now().UTC()
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Summary: "Main launch initiative", Status: "active", CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.Message{ID: "msg-1", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program is accelerating", CreatedAt: now})
+	db.DB.Create(&domain.KnowledgeEntityRef{ID: "kref-1", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-1", Role: "discussion", CreatedAt: now})
+
+	router := gin.New()
+	router.POST("/api/v1/channels/:id/knowledge/digest/preview-schedule", PreviewChannelKnowledgeDigestSchedule)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/channels/ch-1/knowledge/digest/preview-schedule", strings.NewReader(`{"window":"weekly","timezone":"Asia/Shanghai","day_of_week":1,"hour":9,"minute":30,"limit":3,"pin":true,"is_enabled":true,"count":3}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on digest schedule preview, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Preview struct {
+			UpcomingRuns []struct {
+				RunAt string `json:"run_at"`
+			} `json:"upcoming_runs"`
+			Digest struct {
+				ChannelID string `json:"channel_id"`
+				Window    string `json:"window"`
+			} `json:"digest"`
+		} `json:"preview"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode digest preview payload: %v", err)
+	}
+	if len(payload.Preview.UpcomingRuns) != 3 || payload.Preview.Digest.ChannelID != "ch-1" || payload.Preview.Digest.Window != "weekly" {
+		t.Fatalf("unexpected preview payload: %#v", payload.Preview)
+	}
+}
+
 func TestGetKnowledgeInboxReturnsDigestMessages(t *testing.T) {
 	setupTestDB(t)
 	now := time.Now().UTC()
@@ -4240,6 +4327,60 @@ func TestGetKnowledgeInboxReturnsDigestMessages(t *testing.T) {
 	}
 	if len(payload.Items) != 1 || payload.Items[0].Channel.ID != "ch-1" || payload.Items[0].Message.ID != "msg-digest-1" {
 		t.Fatalf("unexpected knowledge inbox payload: %#v", payload.Items)
+	}
+}
+
+func TestGetKnowledgeInboxItemReturnsDigestContext(t *testing.T) {
+	setupTestDB(t)
+	now := time.Now().UTC()
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public", IsStarred: true})
+	db.DB.Create(&domain.ChannelMember{ChannelID: "ch-1", UserID: "user-1", Role: "member"})
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Summary: "Main launch initiative", Status: "active", CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.Message{ID: "msg-source-1", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program is now blocked on QA sign-off", CreatedAt: now.Add(-10 * time.Minute)})
+	db.DB.Create(&domain.Message{ID: "msg-source-2", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program rollout window moved to Friday", CreatedAt: now.Add(-5 * time.Minute)})
+	db.DB.Create(&domain.KnowledgeEntityRef{ID: "kref-1", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-source-1", Role: "discussion", CreatedAt: now.Add(-10 * time.Minute)})
+	db.DB.Create(&domain.KnowledgeEntityRef{ID: "kref-2", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-source-2", Role: "decision", CreatedAt: now.Add(-5 * time.Minute)})
+	db.DB.Create(&domain.Message{
+		ID:        "msg-digest-1",
+		ChannelID: "ch-1",
+		UserID:    "user-1",
+		Content:   "Knowledge digest",
+		IsPinned:  true,
+		CreatedAt: now,
+		Metadata:  `{"knowledge_digest":{"channel_id":"ch-1","window":"weekly","window_days":7,"generated_at":"` + now.Format(time.RFC3339Nano) + `","total_refs":3,"recent_ref_count":2,"headline":"Digest","summary":"Summary","top_movements":[{"entity_id":"entity-1","entity_title":"Launch Program","entity_kind":"project","ref_count":2,"recent_ref_count":2,"previous_ref_count":0,"delta":2}]}}`,
+	})
+
+	router := gin.New()
+	router.GET("/api/v1/knowledge/inbox/:id", GetKnowledgeInboxItem)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/knowledge/inbox/knowledge-digest-msg-digest-1", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on knowledge inbox item detail, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Item struct {
+			ID      string `json:"id"`
+			Message struct {
+				ID string `json:"id"`
+			} `json:"message"`
+			EntityContexts []struct {
+				EntityID string `json:"entity_id"`
+				Messages []struct {
+					ID string `json:"id"`
+				} `json:"messages"`
+			} `json:"entity_contexts"`
+		} `json:"item"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode knowledge inbox item payload: %v", err)
+	}
+	if payload.Item.ID != "knowledge-digest-msg-digest-1" || payload.Item.Message.ID != "msg-digest-1" || len(payload.Item.EntityContexts) != 1 || len(payload.Item.EntityContexts[0].Messages) < 2 {
+		t.Fatalf("unexpected knowledge inbox detail payload: %#v", payload.Item)
 	}
 }
 

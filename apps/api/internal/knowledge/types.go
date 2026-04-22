@@ -312,3 +312,26 @@ type KnowledgeInboxItem struct {
 	IsRead     bool                   `json:"is_read"`
 	OccurredAt time.Time              `json:"occurred_at"`
 }
+
+type KnowledgeInboxEntityContext struct {
+	EntityID    string           `json:"entity_id"`
+	EntityTitle string           `json:"entity_title"`
+	EntityKind  string           `json:"entity_kind"`
+	Delta       int              `json:"delta"`
+	Messages    []domain.Message `json:"messages"`
+}
+
+type KnowledgeInboxDetail struct {
+	Item           KnowledgeInboxItem            `json:"item"`
+	EntityContexts []KnowledgeInboxEntityContext `json:"entity_contexts"`
+}
+
+type DigestSchedulePreview struct {
+	Schedule     ChannelKnowledgeDigestSchedule `json:"schedule"`
+	UpcomingRuns []DigestScheduleUpcomingRun    `json:"upcoming_runs"`
+	Digest       ChannelKnowledgeDigest         `json:"digest"`
+}
+
+type DigestScheduleUpcomingRun struct {
+	RunAt time.Time `json:"run_at"`
+}

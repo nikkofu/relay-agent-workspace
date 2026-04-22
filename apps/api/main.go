@@ -73,6 +73,7 @@ func main() {
 	{
 		v1.GET("/home", handlers.GetHome)
 		v1.GET("/me", handlers.GetMe)
+		v1.GET("/me/settings", handlers.GetMeSettings)
 		v1.PATCH("/me/settings", handlers.PatchMeSettings)
 		v1.GET("/users", handlers.GetUsers)
 		v1.GET("/users/:id", handlers.GetUserProfile)
@@ -124,6 +125,7 @@ func main() {
 		v1.POST("/channels/:id/knowledge/digest/publish", handlers.PublishChannelKnowledgeDigest)
 		v1.GET("/channels/:id/knowledge/digest/schedule", handlers.GetChannelKnowledgeDigestSchedule)
 		v1.PUT("/channels/:id/knowledge/digest/schedule", handlers.PutChannelKnowledgeDigestSchedule)
+		v1.POST("/channels/:id/knowledge/digest/preview-schedule", handlers.PreviewChannelKnowledgeDigestSchedule)
 		v1.DELETE("/channels/:id/knowledge/digest/schedule", handlers.DeleteChannelKnowledgeDigestSchedule)
 		v1.GET("/channels/:id/summary", handlers.GetChannelSummary)
 		v1.POST("/channels/:id/summary", handlers.GenerateChannelSummary)
@@ -151,6 +153,7 @@ func main() {
 		v1.GET("/search/messages/by-entity", handlers.SearchMessagesByEntity)
 		v1.GET("/citations/lookup", handlers.LookupCitations)
 		v1.GET("/knowledge/inbox", handlers.GetKnowledgeInbox)
+		v1.GET("/knowledge/inbox/:id", handlers.GetKnowledgeInboxItem)
 		v1.GET("/users/me/knowledge/followed", handlers.GetMyFollowedKnowledgeEntities)
 		v1.GET("/knowledge/entities", handlers.ListKnowledgeEntities)
 		v1.POST("/knowledge/entities", handlers.CreateKnowledgeEntity)

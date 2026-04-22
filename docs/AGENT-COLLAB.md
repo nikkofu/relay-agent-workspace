@@ -136,6 +136,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 54 Settings & Appearance | Windsurf | 2026-04-22 | (1) **ThemeProvider**: `next-themes` `ThemeProvider` wired into `app/layout.tsx` with `defaultTheme="dark"` and `enableSystem`; removed hardcoded `class="dark"` from `<html>`. (2) **Settings page redesign**: replaced single-section page with a 4-tab sidebar layout — **Profile** (avatar display, editable title/dept/timezone/pronouns/location/phone/bio via `updateProfile`), **Appearance** (light/dark/system theme picker with visual tile selection + message density comfortable/compact toggle stored in `localStorage`), **Notifications** (refactored from inline to table-driven switch list), **Privacy** (blocking/permissions/export/delete stubs). (3) **Primary nav**: verified theme toggle (`Sun`/`Moon` icon, `useTheme`) was already present and clean. `v0.5.96` published. |
 | 🟢 Done | Phase 55 Knowledge Follow And Composer Match APIs | Codex | 2026-04-22 | Added `GET /api/v1/users/me/knowledge/followed`, `POST|DELETE /api/v1/knowledge/entities/:id/follow`, `POST /api/v1/knowledge/entities/match-text`, and persistent `KnowledgeEntityFollow` storage. Matching is deterministic, workspace-scoped, and longest-title-first. `v0.5.97` published. |
 | 🟢 Done | Phase 55 Knowledge Follow And Composer Match UI | Windsurf | 2026-04-22 | (1) **Types**: added `KnowledgeEntityFollow`, `FollowedEntity`, `EntityTextMatch` to `types/index.ts`. (2) **Store**: `followedEntities`/`followedEntityIds`/`isLoadingFollowed` state + `fetchFollowedEntities`/`followEntity`/`unfollowEntity`/`matchEntitiesInText` actions with optimistic updates and full-list refresh. (3) **`EntityFollowButton`** (`components/knowledge/entity-follow-button.tsx`): shared reusable toggle with `chip` + `default` variants, `Bell`/`BellOff` icons, purple theme. (4) **Entity detail header** (`/workspace/knowledge/[id]`): Follow button placed alongside Edit. (5) **`EntityMentionChip`** hover card: Follow chip in footer next to Wiki/Messages actions. (6) **Knowledge listing** (`/workspace/knowledge`): `Following (N)` filter pill (purple ring), follow chip on every entity card, empty-state messaging for "not following anything yet". (7) **`MessageComposer`** passive reverse-lookup: 500ms debounce on draft text → `POST /knowledge/entities/match-text` (workspace-scoped); renders a purple **Knowledge detected** hint row above the editor with clickable chips; one-click converts matched span into explicit `@Entity Title ` via tiptap; individual dismiss (X) + auto-clears on send; skips while mid `@`/`@entity:`/`/`. `v0.5.98` published. |
+| 🟢 Done | Phase 56 Knowledge Inbox Detail And Settings Sync APIs | Codex | 2026-04-22 | Added `GET /api/v1/knowledge/inbox/:id`, `POST /api/v1/channels/:id/knowledge/digest/preview-schedule`, `GET /api/v1/me/settings`, and expanded `PATCH /api/v1/me/settings` to persist theme, density, locale, and timezone. `v0.5.99` published. |
 
 ---
 
@@ -144,9 +145,23 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
-| **Codex** | `api-architecture` | v0.5.95 composer lint hotfix complete | 100% |
+| **Codex** | `api-architecture` | Phase 56 backend shipped: digest drill-down + settings sync (v0.5.99) | 100% |
 | **Claude Code**| `idle` | - | - |
 | **Windsurf** | `web-ui-agent` | Phase 55 UI shipped: follow toggle everywhere + composer reverse-lookup hint (v0.5.98) | 100% |
+
+### 2026-04-22 - Phase 56 Knowledge Inbox Detail And Settings Sync API Completion
+- **Codex**: Phase 56 backend is complete and published as `v0.5.99`.
+- **Codex**: Added `GET /api/v1/knowledge/inbox/:id` so the Knowledge Inbox can open a real drill-down payload instead of relying on summary-only cards. Response includes the selected digest item plus `entity_contexts[]` with representative source messages for each top movement.
+- **Codex**: Added `POST /api/v1/channels/:id/knowledge/digest/preview-schedule` to dry-run digest cadence changes. The endpoint returns normalized `schedule`, `upcoming_runs[]`, and a current `digest` preview so the dialog can show what users are about to automate before saving.
+- **Codex**: Added `GET /api/v1/me/settings` and expanded `PATCH /api/v1/me/settings` to persist `theme`, `message_density`, `locale`, and `timezone` alongside the existing AI provider/model/mode fields. Patch semantics are partial-update, so separate settings tabs can save independently without wiping each other.
+- **Codex → Windsurf**: Please consume these contracts next:
+  - hydrate Settings from `GET /api/v1/me/settings`
+  - persist Appearance changes through `PATCH /api/v1/me/settings`
+  - switch Knowledge Inbox detail view to `GET /api/v1/knowledge/inbox/:id`
+  - call `POST /api/v1/channels/:id/knowledge/digest/preview-schedule` inside the digest schedule dialog for live preview/countdown
+- **Codex → Windsurf**: Remaining recommended backend target after this handoff:
+  - websocket `knowledge.entity.activity.spiked`
+- **Codex → Nikko Fu**: This release shifts two previously local-only experiences into shared backend state: settings are now syncable across devices, and digest inboxes can open into a true knowledge drill-down instead of a static preview.
 
 ### 2026-04-22 - Phase 55 Knowledge Follow And Composer Match API Completion
 - **Codex**: Phase 55 backend is complete and published as `v0.5.97`.
@@ -170,6 +185,15 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-22 - Phase 56 Knowledge Inbox Detail And Settings Sync APIs
+- **Codex**: Phase 56 backend is complete and published as `v0.5.99`.
+- **Codex**: Added `GET /api/v1/knowledge/inbox/:id`. It resolves a stable inbox item ID like `knowledge-digest-<message_id>`, verifies the current user belongs to that channel, returns the digest item, and includes `entity_contexts[]` with top-entity sample messages scoped to the digest's channel timeline.
+- **Codex**: Added `POST /api/v1/channels/:id/knowledge/digest/preview-schedule`. It accepts the same cadence payload as schedule save plus optional `count`, then returns a normalized schedule, the next upcoming run timestamps, and a current digest preview so the UI can show confidence-building feedback before persisting automation.
+- **Codex**: Added `GET /api/v1/me/settings` and expanded `PATCH /api/v1/me/settings` for partial updates of `theme`, `message_density`, `locale`, and `timezone` in addition to `provider`, `model`, and `mode`.
+- **Codex → Windsurf**: Please wire `/workspace/settings` to hydrate from `GET /api/v1/me/settings` on load and persist Appearance changes with `PATCH /api/v1/me/settings`. This lets theme/density/timezone move out of local-only storage.
+- **Codex → Windsurf**: Please update the Knowledge Inbox detail pane to load `GET /api/v1/knowledge/inbox/:id` on item open, and switch the digest schedule dialog to call `POST /api/v1/channels/:id/knowledge/digest/preview-schedule` while the form changes.
+- **Codex → Windsurf**: If you want a next phase after this, I still recommend `knowledge.entity.activity.spiked` so followed entities become proactive alerts instead of passive state.
 
 ### 2026-04-22 - Phase 55 Knowledge Follow And Composer Match UI
 - **Windsurf**: Phase 55 UI complete and published as `v0.5.98`. Full consumer for Codex's v0.5.97 backend contract.
