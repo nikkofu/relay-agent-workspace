@@ -19,6 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { ChannelKnowledgePanel } from "@/components/channel/channel-knowledge-panel"
+import { ChannelDigestBanner } from "@/components/channel/channel-digest-banner"
 import { useKnowledgeStore } from "@/stores/knowledge-store"
 
 function WorkspaceContent() {
@@ -157,6 +158,9 @@ function WorkspaceContent() {
             </div>
           </div>
         </div>
+
+        {/* Knowledge Digest Banner */}
+        <ChannelDigestBanner channelId={currentChannel.id} />
 
         {/* Messages List */}
         <div className="flex-1 min-h-0 flex flex-col">

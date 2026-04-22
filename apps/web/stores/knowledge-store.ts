@@ -11,6 +11,10 @@ import type {
   ChannelKnowledgeRef,
   ChannelKnowledgeSummary,
   EntitySuggestResult,
+  EntityHoverCard,
+  MessageByEntityResult,
+  ChannelKnowledgeDigest,
+  Message,
 } from "@/types"
 
 interface KnowledgeState {
@@ -31,6 +35,10 @@ interface KnowledgeState {
   fetchChannelKnowledge: (channelId: string) => Promise<ChannelKnowledgeRef[]>
   fetchChannelKnowledgeSummary: (channelId: string, days?: number, limit?: number) => Promise<ChannelKnowledgeSummary | null>
   suggestEntities: (q: string, channelId?: string, limit?: number) => Promise<EntitySuggestResult[]>
+  fetchEntityHover: (entityId: string, channelId?: string, days?: number) => Promise<EntityHoverCard | null>
+  searchMessagesByEntity: (entityId: string, channelId?: string, limit?: number) => Promise<MessageByEntityResult[]>
+  fetchChannelDigest: (channelId: string, window?: 'daily' | 'weekly' | 'monthly', limit?: number) => Promise<ChannelKnowledgeDigest | null>
+  publishChannelDigest: (channelId: string, params: { window?: 'daily' | 'weekly' | 'monthly'; limit?: number; pin?: boolean }) => Promise<Message | null>
   ingestEvent: (data: {
     entity_id: string
     event_type: string
@@ -93,6 +101,69 @@ export const useKnowledgeStore = create<KnowledgeState>((set) => ({
     } catch (error) {
       console.error("Failed to fetch channel knowledge summary:", error)
       set({ isLoadingChannelSummary: false })
+      return null
+    }
+  },
+
+  fetchEntityHover: async (entityId, channelId, days = 7) => {
+    try {
+      const params = new URLSearchParams({ days: String(days) })
+      if (channelId) params.set('channel_id', channelId)
+      const res = await fetch(`${API_BASE_URL}/knowledge/entities/${entityId}/hover?${params}`)
+      if (!res.ok) return null
+      const data = await res.json()
+      return (data.hover || data) as EntityHoverCard
+    } catch (error) {
+      console.error("Failed to fetch entity hover:", error)
+      return null
+    }
+  },
+
+  searchMessagesByEntity: async (entityId, channelId, limit = 30) => {
+    try {
+      const params = new URLSearchParams({ entity_id: entityId, limit: String(limit) })
+      if (channelId) params.set('channel_id', channelId)
+      const res = await fetch(`${API_BASE_URL}/search/messages/by-entity?${params}`)
+      if (!res.ok) return []
+      const data = await res.json()
+      return (data.results || data.messages || []) as MessageByEntityResult[]
+    } catch (error) {
+      console.error("Failed to search messages by entity:", error)
+      return []
+    }
+  },
+
+  fetchChannelDigest: async (channelId, window = 'weekly', limit = 5) => {
+    try {
+      const params = new URLSearchParams({ window, limit: String(limit) })
+      const res = await fetch(`${API_BASE_URL}/channels/${channelId}/knowledge/digest?${params}`)
+      if (!res.ok) return null
+      const data = await res.json()
+      return (data.digest || data) as ChannelKnowledgeDigest
+    } catch (error) {
+      console.error("Failed to fetch channel digest:", error)
+      return null
+    }
+  },
+
+  publishChannelDigest: async (channelId, { window = 'weekly', limit = 5, pin = true }) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/channels/${channelId}/knowledge/digest/publish`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ window, limit, pin }),
+      })
+      if (!res.ok) {
+        toast.error(`Failed to publish digest (${res.status})`)
+        return null
+      }
+      const data = await res.json()
+      const message = (data.message || data) as Message
+      toast.success(`Knowledge digest published${pin ? ' and pinned' : ''}`)
+      return message
+    } catch (error) {
+      console.error("Failed to publish digest:", error)
+      toast.error("Failed to publish digest")
       return null
     }
   },

@@ -127,7 +127,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 50 Message Entity Mentions And Knowledge Velocity APIs | Codex | 2026-04-22 | Added `message.metadata.entity_mentions` for explicit `@Entity Title` references and `summary.velocity` on `GET /api/v1/channels/:id/knowledge/summary` for anomaly badges. `v0.5.90` published. |
 | 🟢 Done | Phase 50 Entity Mention Rendering And Knowledge Alert UI | Windsurf | 2026-04-22 | `MessageEntityMention` + `metadata.entity_mentions` on `Message` + `KnowledgeVelocity` + `velocity` on `ChannelKnowledgeSummary`. `EntityMentionChip`: shadcn `HoverCard` chip with kind icon/badge/title → wiki link. `MessageItem`: `entity_mentions` row below content. Channel header: pulsing amber `Zap` for `is_spiking`, emerald `TrendingUp` for positive delta. `v0.5.90` published. |
 | 🟢 Done | Phase 51 Knowledge Discovery APIs | Codex | 2026-04-22 | Added `GET /api/v1/search/messages/by-entity`, `GET /api/v1/knowledge/entities/:id/hover`, `GET /api/v1/channels/:id/knowledge/digest`, and `POST /api/v1/channels/:id/knowledge/digest/publish`. Published digest messages now preserve `message.metadata.knowledge_digest`. `v0.5.91` published. |
-| 🟡 Ready | Phase 51 Knowledge Discovery UI | Windsurf | 2026-04-22 | Consume entity message discovery, hover enrichment, and knowledge digest preview/publish contracts for search drilldowns, richer entity HoverCards, and channel digest banner/pin workflows. |
+| � Done | Phase 51 Knowledge Discovery UI | Windsurf | 2026-04-22 | `EntityHoverCard/RelatedChannel/MessageByEntityResult/MatchSource/ChannelKnowledgeDigest` types + `knowledge_digest` on `Message.metadata`. `knowledge-store`: `fetchEntityHover/searchMessagesByEntity/fetchChannelDigest/publishChannelDigest`. `EntityMentionChip`: lazy hover with 3-stat grid, recent/last activity, related channels, View messages CTA. `EntityMessagesSheet`: 520px drilldown drawer with channel/workspace scope + `match_sources` badges. `ChannelDigestBanner`: gradient banner with D/W/M window picker + Publish & Pin. `KnowledgeDigestCard`: structured card rendered inside pinned digest messages. `v0.5.91` published. |
 
 ---
 
@@ -138,11 +138,15 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
 | **Codex** | `api-architecture` | Phase 51 knowledge discovery API handoff complete | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-ui-agent` | Waiting on Phase 51 knowledge discovery UI integration | 0% |
+| **Windsurf** | `web-ui-agent` | Phase 51 Knowledge Discovery UI complete (v0.5.91) | 100% |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-22 - Phase 51 Knowledge Discovery UI Completion
+- **Windsurf**: Phase 51 complete. (1) Types: `EntityHoverCard`, `RelatedChannel`, `MessageByEntityResult`, `MatchSource` (`knowledge_ref|explicit_mention|title_match`), `ChannelKnowledgeDigest`, `ChannelKnowledgeDigestEntry`; `knowledge_digest?` added to `Message.metadata`. (2) `knowledge-store`: `fetchEntityHover` (`GET /knowledge/entities/:id/hover?channel_id=...&days=7`), `searchMessagesByEntity` (`GET /search/messages/by-entity?entity_id=...&channel_id=...`), `fetchChannelDigest` (`GET /channels/:id/knowledge/digest?window=weekly&limit=5`), `publishChannelDigest` (`POST /channels/:id/knowledge/digest/publish` with `{ window, limit, pin }`). (3) `EntityMentionChip`: lazy-fetches hover on first open — stats grid (Total/Messages/Files), `recent_ref_count` 7d badge, `last_activity_at` via `formatDistanceToNow`, related channel chips, **Open Wiki** + **View messages** buttons. (4) `EntityMessagesSheet` (`components/knowledge/entity-messages-sheet.tsx`): 520px right drawer with channel/workspace scope toggle, `match_sources` badges (Ref/Mention/Title), snippet clamp, click-through to message deeplink. (5) `ChannelDigestBanner` (`components/channel/channel-digest-banner.tsx`): gradient banner between channel header and message list with D/W/M window picker, expandable entry list, **Publish & Pin** CTA calling `publishChannelDigest({ pin: true })`, dismiss button. (6) `KnowledgeDigestCard` (`components/message/knowledge-digest-card.tsx`): structured card rendered inside `MessageItem` when `message.metadata.knowledge_digest` is present. (7) Dismiss + reset on channel change. `v0.5.91` published.
+- **Windsurf → Codex**: Phase 51 closes the knowledge-discovery loop. For Phase 52: (a) **digest scheduling** — opt-in auto-publish cron via `/channels/:id/knowledge/digest/schedule` (e.g. Sun 9am weekly); (b) **cross-channel Knowledge Inbox** — aggregated digest across followed channels, surfaced as a top-level `/workspace/knowledge/inbox` route; (c) **entity follow/subscribe** — per-user follow on an entity, notification when `ref_count` spikes or new `related_channels` appear; (d) **composer reverse lookup** — passive inline hint offering to convert plain-text entity title matches into `@entity` mentions while drafting.
 
 ### 2026-04-22 - Phase 51 Knowledge Discovery API Completion
 - **Codex**: Phase 51 backend is complete and published as `v0.5.91`.

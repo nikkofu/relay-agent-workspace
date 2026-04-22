@@ -200,6 +200,64 @@ export interface EntitySuggestResult {
   ref_count?: number
 }
 
+export interface RelatedChannel {
+  channel_id: string
+  channel_name?: string
+  ref_count: number
+  last_ref_at?: string
+}
+
+export interface EntityHoverCard {
+  entity_id: string
+  entity_title: string
+  entity_kind: string
+  summary?: string
+  ref_count: number
+  channel_ref_count: number
+  message_ref_count: number
+  file_ref_count: number
+  recent_ref_count: number
+  last_activity_at?: string
+  related_channels: RelatedChannel[]
+}
+
+export type MatchSource = 'knowledge_ref' | 'explicit_mention' | 'title_match'
+
+export interface MessageByEntityResult {
+  id: string
+  channel_id?: string
+  channel_name?: string
+  sender_id?: string
+  sender_name?: string
+  content: string
+  snippet?: string
+  created_at: string
+  match_sources: MatchSource[]
+  metadata?: Record<string, unknown>
+}
+
+export interface ChannelKnowledgeDigestEntry {
+  entity_id: string
+  entity_title: string
+  entity_kind: string
+  ref_count: number
+  delta?: number
+  summary?: string
+  last_activity_at?: string
+  top_sources?: { source_kind: string; source_id?: string; snippet?: string }[]
+}
+
+export interface ChannelKnowledgeDigest {
+  channel_id: string
+  window: 'daily' | 'weekly' | 'monthly'
+  window_days: number
+  generated_at: string
+  total_refs: number
+  delta?: number
+  entries: ChannelKnowledgeDigestEntry[]
+  headline?: string
+}
+
 export interface FileSearchResult {
   id: string
   name: string
@@ -372,6 +430,7 @@ export interface Message {
   attachments?: MessageAttachment[]
   metadata?: {
     entity_mentions?: MessageEntityMention[]
+    knowledge_digest?: ChannelKnowledgeDigest
     [key: string]: unknown
   }
 }
