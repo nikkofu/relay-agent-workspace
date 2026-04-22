@@ -7,10 +7,10 @@ import { MessageArea } from "@/components/layout/message-area"
 import { HomeDashboard } from "@/components/layout/home-dashboard"
 import { AgentCollabPage } from "@/components/agent-collab/agent-collab-page"
 import { useSearchParams } from "next/navigation"
-import { Suspense, useEffect } from "react"
+import { Suspense, useEffect, useState } from "react"
 import { useArtifactStore } from "@/stores/artifact-store"
 import { useUIStore } from "@/stores/ui-store"
-import { FileCode, FileText, MoreVertical, Copy, ExternalLink } from "lucide-react"
+import { FileCode, FileText, MoreVertical, Copy, ExternalLink, Globe } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -18,14 +18,18 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { ChannelKnowledgePanel } from "@/components/channel/channel-knowledge-panel"
+import { useKnowledgeStore } from "@/stores/knowledge-store"
 
 function WorkspaceContent() {
   const { currentChannel, setCurrentChannelById, setCurrentChannel, channels } = useChannelStore()
   const { messages } = useMessageStore()
   const { artifacts, fetchArtifacts, duplicateArtifact } = useArtifactStore()
   const { openCanvas } = useUIStore()
+  const { fetchChannelKnowledge, channelKnowledge } = useKnowledgeStore()
   const searchParams = useSearchParams()
   const channelIdFromUrl = searchParams.get("c")
+  const [showKnowledgePanel, setShowKnowledgePanel] = useState(false)
 
   useEffect(() => {
     if (channelIdFromUrl) {
@@ -41,8 +45,9 @@ function WorkspaceContent() {
   useEffect(() => {
     if (currentChannel) {
       fetchArtifacts(currentChannel.id)
+      fetchChannelKnowledge(currentChannel.id)
     }
-  }, [currentChannel, fetchArtifacts])
+  }, [currentChannel, fetchArtifacts, fetchChannelKnowledge])
 
   if (!currentChannel) {
     return <HomeDashboard />
@@ -56,7 +61,8 @@ function WorkspaceContent() {
 
   return (
     <MessageArea>
-      <div className="flex flex-col h-full">
+      <div className="flex h-full overflow-hidden">
+        <div className="flex flex-col flex-1 min-w-0">
         {/* Channel Introduction & Artifacts */}
         <div className="p-4 border-b bg-muted/10">
           <div className="flex items-center justify-between">
@@ -72,6 +78,7 @@ function WorkspaceContent() {
               </div>
             </div>
             
+            <div className="flex items-center gap-2">
             {artifacts.length > 0 && (
               <div className="flex items-center gap-2">
                 {artifacts.slice(0, 3).map(a => (
@@ -110,6 +117,23 @@ function WorkspaceContent() {
                 ))}
               </div>
             )}
+            {/* Knowledge panel toggle */}
+            <Button
+              variant={showKnowledgePanel ? "secondary" : "ghost"}
+              size="sm"
+              className="h-8 gap-1.5 text-xs font-bold shrink-0"
+              onClick={() => setShowKnowledgePanel(v => !v)}
+              title="Channel Knowledge"
+            >
+              <Globe className="w-3.5 h-3.5 text-emerald-600" />
+              Knowledge
+              {channelKnowledge.length > 0 && (
+                <span className="text-[9px] font-black bg-emerald-500/15 text-emerald-700 rounded-full px-1.5 py-0.5">
+                  {channelKnowledge.length}
+                </span>
+              )}
+            </Button>
+            </div>
           </div>
         </div>
 
@@ -117,6 +141,12 @@ function WorkspaceContent() {
         <div className="flex-1 min-h-0 flex flex-col">
           <MessageList messages={channelMessages} className="flex-1" />
         </div>
+        </div>
+
+        {/* Channel Knowledge Panel */}
+        {showKnowledgePanel && (
+          <ChannelKnowledgePanel channelId={currentChannel.id} />
+        )}
       </div>
     </MessageArea>
   )

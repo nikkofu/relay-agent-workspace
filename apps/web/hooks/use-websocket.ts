@@ -8,6 +8,7 @@ import { useActivityStore } from '@/stores/activity-store'
 import { useDirectoryStore } from '@/stores/directory-store'
 import { useFileStore } from '@/stores/file-store'
 import { useKnowledgeStore } from '@/stores/knowledge-store'
+import { useChannelStore } from '@/stores/channel-store'
 
 export function useWebsocket() {
   const socketRef = useRef<WebSocket | null>(null)
@@ -101,6 +102,10 @@ export function useWebsocket() {
               payload: ref,
               ts: Date.now(),
             })
+          }
+          const activeChannelId = useChannelStore.getState().currentChannel?.id
+          if (activeChannelId) {
+            useKnowledgeStore.getState().fetchChannelKnowledge(activeChannelId)
           }
         } else if (data.type === 'knowledge.event.created') {
           const event = data.payload?.event || data.payload

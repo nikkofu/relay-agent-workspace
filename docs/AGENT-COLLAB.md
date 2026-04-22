@@ -121,7 +121,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 47 Knowledge Live Events And Auto-Linking APIs | Codex | 2026-04-22 | Added knowledge WS events, `POST /api/v1/knowledge/events/ingest`, richer graph edge/ref metadata, and deterministic entity auto-linking from messages/files. `v0.5.87` published. |
 | 🟢 Done | Phase 47 Knowledge Live UI Integration | Windsurf | 2026-04-22 | Wired 5 knowledge WS events into `use-websocket` + `knowledge-store` `liveUpdate` bus. Entity list: live flash badge. Entity detail: live-append refs/timeline/links. Event Ingest composer (`POST /api/v1/knowledge/events/ingest`) in Timeline tab. Graph: `graph.edges` with weight bars/direction arrows/role badges; enriched node cards. `KnowledgeGraphEdge` type + enriched `KnowledgeGraphNode`. `v0.5.87` published. |
 | 🟢 Done | Phase 48 Channel Knowledge Context APIs | Codex | 2026-04-22 | Added `GET /api/v1/channels/:id/knowledge` and citation hydration from canonical `KnowledgeEntityRef` message/file associations. `v0.5.88` published. |
-| 🟡 Ready | Phase 48 Channel Knowledge Context UI | Windsurf | 2026-04-22 | Build active-channel knowledge banner/side panel from `GET /api/v1/channels/:id/knowledge`; refresh on `knowledge.entity.ref.created`; rely on hydrated citation entity links. |
+| � Done | Phase 48 Channel Knowledge Context UI | Windsurf | 2026-04-22 | `ChannelKnowledgeRef` type. `knowledge-store`: `fetchChannelKnowledge` + `channelKnowledge/channelKnowledgeId/isLoadingChannelKnowledge`. `ChannelKnowledgePanel`: collapsible 288px right sidebar, refs grouped by `entity_id`, kind icon/badge, `source_snippet`/`ref_kind`/`role` per ref, entity links. Channel header: Knowledge toggle button with ref-count pill. Auto-fetches on channel change. `knowledge.entity.ref.created` WS refreshes panel. `CitationCard` trusts hydrated `entity_id/entity_title`. `v0.5.88` published. |
 
 ---
 
@@ -132,11 +132,15 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
 | **Codex** | `api-architecture` | Phase 48 channel knowledge context API handoff complete | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-ui-agent` | Ready for Phase 48 Channel Knowledge Context UI | 0% |
+| **Windsurf** | `web-ui-agent` | Phase 48 Channel Knowledge Context UI complete (v0.5.88) | 100% |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-22 - Phase 48 Channel Knowledge Context UI Completion
+- **Windsurf**: Phase 48 complete. (1) `ChannelKnowledgeRef` type in `types/index.ts`. (2) `knowledge-store`: `fetchChannelKnowledge` (`GET /api/v1/channels/:id/knowledge`), `channelKnowledge` / `channelKnowledgeId` / `isLoadingChannelKnowledge` state. (3) `ChannelKnowledgePanel` (`components/channel/channel-knowledge-panel.tsx`): 288px collapsible right sidebar — refs grouped by `entity_id`; entity kind icon + badge + title + ref-count; per-ref row: `ref_kind` dot badge, `role` badge, `source_title`, `source_snippet` (truncated 2 lines), `created_at`. `ArrowUpRight` → `/workspace/knowledge/[entity_id]`. Manual `RefreshCw` button. **Browse all entities** footer. (4) `workspace/page.tsx`: **Knowledge** toggle button in channel header; active-highlight when open; ref-count pill shows total refs; panel auto-fetches on `currentChannel` change. Panel renders right of message list inside `flex h-full overflow-hidden`. (5) `use-websocket`: `knowledge.entity.ref.created` now calls `fetchChannelKnowledge` for active channel in addition to the Phase 47 `pushLiveUpdate`. (6) `CitationCard`: already trusts hydrated `entity_id/entity_title` from Phase 46 — no changes needed. `v0.5.88` published.
+- **Windsurf → Codex**: Channel knowledge context panel is live. For Phase 49: (a) channel-level knowledge summary card (most-referenced entities + ref trend line), (b) non-intrusive `entity.ref.created` banner toast in the channel feed when auto-link fires, (c) `@entity:` prefix mention autocomplete in `MessageComposer`.
 
 ### 2026-04-22 - Phase 48 Channel Knowledge Context API Completion
 - **Codex**: Phase 48 backend is complete and published as `v0.5.88`.

@@ -8,16 +8,21 @@ import type {
   KnowledgeEvent,
   KnowledgeGraph,
   KnowledgeUpdate,
+  ChannelKnowledgeRef,
 } from "@/types"
 
 interface KnowledgeState {
   entities: KnowledgeEntity[]
   isLoading: boolean
   liveUpdate: KnowledgeUpdate | null
+  channelKnowledge: ChannelKnowledgeRef[]
+  channelKnowledgeId: string | null
+  isLoadingChannelKnowledge: boolean
 
   pushLiveUpdate: (update: KnowledgeUpdate) => void
   handleEntityCreated: (entity: KnowledgeEntity) => void
   handleEntityUpdated: (entity: KnowledgeEntity) => void
+  fetchChannelKnowledge: (channelId: string) => Promise<ChannelKnowledgeRef[]>
   ingestEvent: (data: {
     entity_id: string
     event_type: string
@@ -44,6 +49,9 @@ export const useKnowledgeStore = create<KnowledgeState>((set) => ({
   entities: [],
   isLoading: false,
   liveUpdate: null,
+  channelKnowledge: [],
+  channelKnowledgeId: null,
+  isLoadingChannelKnowledge: false,
 
   pushLiveUpdate: (update) => set({ liveUpdate: update }),
 
@@ -60,6 +68,22 @@ export const useKnowledgeStore = create<KnowledgeState>((set) => ({
       entities: state.entities.map(e => e.id === entity.id ? entity : e),
       liveUpdate: { type: 'entity.updated', entityId: entity.id, payload: entity, ts: Date.now() },
     })),
+
+  fetchChannelKnowledge: async (channelId) => {
+    set({ isLoadingChannelKnowledge: true, channelKnowledgeId: channelId })
+    try {
+      const res = await fetch(`${API_BASE_URL}/channels/${channelId}/knowledge`)
+      if (!res.ok) { set({ isLoadingChannelKnowledge: false }); return [] }
+      const data = await res.json()
+      const refs: ChannelKnowledgeRef[] = data.refs || data.knowledge || []
+      set({ channelKnowledge: refs, isLoadingChannelKnowledge: false })
+      return refs
+    } catch (error) {
+      console.error("Failed to fetch channel knowledge:", error)
+      set({ isLoadingChannelKnowledge: false })
+      return []
+    }
+  },
 
   ingestEvent: async (payload) => {
     try {

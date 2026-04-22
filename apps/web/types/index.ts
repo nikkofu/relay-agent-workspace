@@ -152,6 +152,18 @@ export type KnowledgeUpdate =
   | { type: 'event.created'; entityId: string; payload: KnowledgeEvent; ts: number }
   | { type: 'link.created'; entityId: string; payload: KnowledgeEntityLink; ts: number }
 
+export interface ChannelKnowledgeRef {
+  entity_id: string
+  entity_title: string
+  entity_kind: string
+  ref_kind: string
+  ref_id: string
+  role?: string
+  source_title?: string
+  source_snippet?: string
+  created_at: string
+}
+
 export interface FileSearchResult {
   id: string
   name: string
