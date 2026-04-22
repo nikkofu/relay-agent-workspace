@@ -9,6 +9,8 @@ import type {
   KnowledgeGraph,
   KnowledgeUpdate,
   ChannelKnowledgeRef,
+  ChannelKnowledgeSummary,
+  EntitySuggestResult,
 } from "@/types"
 
 interface KnowledgeState {
@@ -18,11 +20,17 @@ interface KnowledgeState {
   channelKnowledge: ChannelKnowledgeRef[]
   channelKnowledgeId: string | null
   isLoadingChannelKnowledge: boolean
+  channelSummary: ChannelKnowledgeSummary | null
+  isLoadingChannelSummary: boolean
+  entitySuggestions: EntitySuggestResult[]
+  isLoadingSuggestions: boolean
 
   pushLiveUpdate: (update: KnowledgeUpdate) => void
   handleEntityCreated: (entity: KnowledgeEntity) => void
   handleEntityUpdated: (entity: KnowledgeEntity) => void
   fetchChannelKnowledge: (channelId: string) => Promise<ChannelKnowledgeRef[]>
+  fetchChannelKnowledgeSummary: (channelId: string, days?: number, limit?: number) => Promise<ChannelKnowledgeSummary | null>
+  suggestEntities: (q: string, channelId?: string, limit?: number) => Promise<EntitySuggestResult[]>
   ingestEvent: (data: {
     entity_id: string
     event_type: string
@@ -52,6 +60,10 @@ export const useKnowledgeStore = create<KnowledgeState>((set) => ({
   channelKnowledge: [],
   channelKnowledgeId: null,
   isLoadingChannelKnowledge: false,
+  channelSummary: null,
+  isLoadingChannelSummary: false,
+  entitySuggestions: [],
+  isLoadingSuggestions: false,
 
   pushLiveUpdate: (update) => set({ liveUpdate: update }),
 
@@ -68,6 +80,41 @@ export const useKnowledgeStore = create<KnowledgeState>((set) => ({
       entities: state.entities.map(e => e.id === entity.id ? entity : e),
       liveUpdate: { type: 'entity.updated', entityId: entity.id, payload: entity, ts: Date.now() },
     })),
+
+  fetchChannelKnowledgeSummary: async (channelId, days = 7, limit = 5) => {
+    set({ isLoadingChannelSummary: true })
+    try {
+      const res = await fetch(`${API_BASE_URL}/channels/${channelId}/knowledge/summary?days=${days}&limit=${limit}`)
+      if (!res.ok) { set({ isLoadingChannelSummary: false }); return null }
+      const data = await res.json()
+      const summary: ChannelKnowledgeSummary = data.summary || data
+      set({ channelSummary: summary, isLoadingChannelSummary: false })
+      return summary
+    } catch (error) {
+      console.error("Failed to fetch channel knowledge summary:", error)
+      set({ isLoadingChannelSummary: false })
+      return null
+    }
+  },
+
+  suggestEntities: async (q, channelId, limit = 8) => {
+    if (!q.trim()) { set({ entitySuggestions: [] }); return [] }
+    set({ isLoadingSuggestions: true })
+    try {
+      const params = new URLSearchParams({ q, limit: String(limit) })
+      if (channelId) params.set('channel_id', channelId)
+      const res = await fetch(`${API_BASE_URL}/knowledge/entities/suggest?${params}`)
+      if (!res.ok) { set({ isLoadingSuggestions: false }); return [] }
+      const data = await res.json()
+      const suggestions: EntitySuggestResult[] = data.entities || data.suggestions || []
+      set({ entitySuggestions: suggestions, isLoadingSuggestions: false })
+      return suggestions
+    } catch (error) {
+      console.error("Failed to suggest entities:", error)
+      set({ isLoadingSuggestions: false })
+      return []
+    }
+  },
 
   fetchChannelKnowledge: async (channelId) => {
     set({ isLoadingChannelKnowledge: true, channelKnowledgeId: channelId })

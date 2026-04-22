@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useCallback, useMemo, useEffect } from "react"
 import { 
   Bold, Italic, Strikethrough, Link as LinkIcon, List, ListOrdered, 
-  Quote, Code, FileCode, Type, Smile, Paperclip, Send, Mic, Sparkles 
+  Quote, Code, FileCode, Type, Smile, Globe, Loader2, Paperclip, Send, Mic, Sparkles 
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -26,10 +26,11 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import TiptapLink from '@tiptap/extension-link'
-import { useMemo, useEffect, useCallback } from "react"
 import { useDraftStore } from "@/stores/draft-store"
 import { usePresenceStore } from "@/stores/presence-store"
 import { useFileStore } from "@/stores/file-store"
+import { useKnowledgeStore } from "@/stores/knowledge-store"
+import type { EntitySuggestResult } from "@/types"
 
 interface MessageComposerProps {
   placeholder?: string
@@ -49,10 +50,17 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
   const [showMentions, setShowMentions] = useState(false)
   const [showFormatting, setShowFormatting] = useState(false)
   const [uploadedFileIds, setUploadedFileIds] = useState<string[]>([])
+  const [showEntityMentions, setShowEntityMentions] = useState(false)
+  const [entityMentionQuery, setEntityMentionQuery] = useState("")
+  const [entitySuggestions, setEntitySuggestions] = useState<EntitySuggestResult[]>([])
+  const [isLoadingEntitySuggestions, setIsLoadingEntitySuggestions] = useState(false)
+  const entityMentionStartRef = useRef<number>(0)
+  const entitySuggestTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const { openCanvas } = useUIStore()
   const { saveDraft, deleteDraft, drafts, fetchDrafts } = useDraftStore()
   const { sendTyping } = usePresenceStore()
   const { uploadFile } = useFileStore()
+  const { suggestEntities } = useKnowledgeStore()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -144,8 +152,32 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
       if (lastChar === "@") {
         setShowMentions(true)
         setShowSlashCommands(false)
+        setShowEntityMentions(false)
       } else {
         if (!text.includes("@")) setShowMentions(false)
+      }
+
+      // @entity: autocomplete
+      const entityMatch = text.match(/@entity:([^\s]*)$/i)
+      if (entityMatch) {
+        setShowEntityMentions(true)
+        setShowMentions(false)
+        setShowSlashCommands(false)
+        const q = entityMatch[1]
+        setEntityMentionQuery(q)
+        const cursorPos = editor.state.selection.to
+        entityMentionStartRef.current = cursorPos - entityMatch[0].length
+        if (entitySuggestTimeoutRef.current) clearTimeout(entitySuggestTimeoutRef.current)
+        entitySuggestTimeoutRef.current = setTimeout(async () => {
+          setIsLoadingEntitySuggestions(true)
+          const channelId = scope?.startsWith('channel:') ? scope.split(':')[1] : undefined
+          const results = await suggestEntities(q, channelId)
+          setEntitySuggestions(results)
+          setIsLoadingEntitySuggestions(false)
+        }, 180)
+      } else {
+        setShowEntityMentions(false)
+        setEntityMentionQuery("")
       }
 
       // Autosave draft
@@ -228,6 +260,15 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
     editor?.commands.focus()
   }
 
+  const handleEntityMentionSelect = useCallback((entity: EntitySuggestResult) => {
+    if (!editor) return
+    const from = entityMentionStartRef.current
+    const to = editor.state.selection.to
+    editor.chain().focus().deleteRange({ from, to }).insertContent(`@${entity.entity_title} `).run()
+    setShowEntityMentions(false)
+    setEntitySuggestions([])
+  }, [editor])
+
   const handleEmojiSelect = (emoji: string) => {
     editor?.commands.insertContent(emoji)
     editor?.commands.focus()
@@ -281,6 +322,38 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
         )}
         {showMentions && (
           <MentionPopover onSelect={handleMentionSelect} />
+        )}
+        {showEntityMentions && (
+          <div className="absolute bottom-0 left-0 right-0 bg-white dark:bg-[#1a1d21] border rounded-xl shadow-xl overflow-hidden z-50 max-h-64">
+            <div className="px-3 py-2 border-b flex items-center gap-2">
+              <Globe className="w-3 h-3 text-emerald-600" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700">Entity Mention</span>
+              {entityMentionQuery && <span className="text-[10px] text-muted-foreground ml-1">&ldquo;{entityMentionQuery}&rdquo;</span>}
+              {isLoadingEntitySuggestions && <Loader2 className="w-3 h-3 animate-spin ml-auto text-muted-foreground" />}
+            </div>
+            {entitySuggestions.length === 0 && !isLoadingEntitySuggestions && (
+              <div className="px-3 py-4 text-xs text-muted-foreground text-center italic">
+                {entityMentionQuery ? 'No entities found' : 'Type to search entities...'}
+              </div>
+            )}
+            {entitySuggestions.map((ent) => (
+              <button
+                key={ent.entity_id}
+                className="w-full text-left px-3 py-2 hover:bg-muted/60 flex items-center gap-2 transition-colors"
+                onMouseDown={e => { e.preventDefault(); handleEntityMentionSelect(ent) }}
+              >
+                <Globe className="w-3 h-3 text-emerald-600 shrink-0" />
+                <span className="text-xs font-bold truncate">{ent.entity_title}</span>
+                <span className="text-[10px] text-muted-foreground uppercase shrink-0">{ent.entity_kind}</span>
+                {ent.ref_count !== undefined && ent.ref_count > 0 && (
+                  <span className="ml-auto text-[9px] text-muted-foreground shrink-0">{ent.ref_count} refs</span>
+                )}
+              </button>
+            ))}
+            <div className="px-3 py-1.5 border-t">
+              <p className="text-[9px] text-muted-foreground">Type <code className="font-mono">@entity:name</code> to mention a knowledge entity</p>
+            </div>
+          </div>
         )}
       </div>
       

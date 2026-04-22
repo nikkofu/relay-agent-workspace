@@ -26,7 +26,7 @@ function WorkspaceContent() {
   const { messages } = useMessageStore()
   const { artifacts, fetchArtifacts, duplicateArtifact } = useArtifactStore()
   const { openCanvas } = useUIStore()
-  const { fetchChannelKnowledge, channelKnowledge } = useKnowledgeStore()
+  const { fetchChannelKnowledge, channelKnowledge, fetchChannelKnowledgeSummary } = useKnowledgeStore()
   const searchParams = useSearchParams()
   const channelIdFromUrl = searchParams.get("c")
   const [showKnowledgePanel, setShowKnowledgePanel] = useState(false)
@@ -46,8 +46,9 @@ function WorkspaceContent() {
     if (currentChannel) {
       fetchArtifacts(currentChannel.id)
       fetchChannelKnowledge(currentChannel.id)
+      fetchChannelKnowledgeSummary(currentChannel.id)
     }
-  }, [currentChannel, fetchArtifacts, fetchChannelKnowledge])
+  }, [currentChannel, fetchArtifacts, fetchChannelKnowledge, fetchChannelKnowledgeSummary])
 
   if (!currentChannel) {
     return <HomeDashboard />

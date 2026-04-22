@@ -164,6 +164,33 @@ export interface ChannelKnowledgeRef {
   created_at: string
 }
 
+export interface ChannelKnowledgeTopEntity {
+  entity_id: string
+  entity_title: string
+  entity_kind: string
+  ref_count: number
+  message_ref_count: number
+  file_ref_count: number
+  last_ref_at: string
+  trend: { date: string; count: number }[]
+}
+
+export interface ChannelKnowledgeSummary {
+  channel_id: string
+  window_days: number
+  total_refs: number
+  recent_ref_count: number
+  top_entities: ChannelKnowledgeTopEntity[]
+}
+
+export interface EntitySuggestResult {
+  entity_id: string
+  entity_title: string
+  entity_kind: string
+  summary?: string
+  ref_count?: number
+}
+
 export interface FileSearchResult {
   id: string
   name: string

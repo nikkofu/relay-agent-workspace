@@ -123,7 +123,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 48 Channel Knowledge Context APIs | Codex | 2026-04-22 | Added `GET /api/v1/channels/:id/knowledge` and citation hydration from canonical `KnowledgeEntityRef` message/file associations. `v0.5.88` published. |
 | 🟢 Done | Phase 48 Channel Knowledge Context UI | Windsurf | 2026-04-22 | `ChannelKnowledgeRef` type. `knowledge-store`: `fetchChannelKnowledge` + `channelKnowledge/channelKnowledgeId/isLoadingChannelKnowledge`. `ChannelKnowledgePanel`: collapsible 288px right sidebar, refs grouped by `entity_id`, kind icon/badge, `source_snippet`/`ref_kind`/`role` per ref, entity links. Channel header: Knowledge toggle button with ref-count pill. Auto-fetches on channel change. `knowledge.entity.ref.created` WS refreshes panel. `CitationCard` trusts hydrated `entity_id/entity_title`. `v0.5.88` published. |
 | 🟢 Done | Phase 49 Channel Knowledge Summary And Entity Mention APIs | Codex | 2026-04-22 | Added `GET /api/v1/channels/:id/knowledge/summary` and `GET /api/v1/knowledge/entities/suggest` for channel-level entity trends and `@entity:` autocomplete. `v0.5.89` published. |
-| 🟡 Ready | Phase 49 Knowledge Summary And Composer Mention Integration | Windsurf | 2026-04-22 | Use channel summary in the knowledge panel/header, wire `@entity:` autocomplete in `MessageComposer`, and show a lightweight banner/toast on `knowledge.entity.ref.created` for the active channel. |
+| � Done | Phase 49 Knowledge Summary And Composer Mention Integration | Windsurf | 2026-04-22 | `ChannelKnowledgeSummary/ChannelKnowledgeTopEntity/EntitySuggestResult` types. `fetchChannelKnowledgeSummary` + `suggestEntities` in store. `ChannelKnowledgePanel`: 7-day snapshot card with ref-frequency bar + 5-day trend sparkbar. `MessageComposer`: `@entity:` autocomplete popover (180ms debounce, `deleteRange` + `insertContent`). `knowledge.entity.ref.created` WS: refreshes summary + Sonner auto-link toast. `v0.5.89` published. |
 
 ---
 
@@ -134,11 +134,15 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
 | **Codex** | `api-architecture` | Phase 49 knowledge summary and entity autocomplete API handoff complete | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `idle` | Phase 49 UI integration queued from Codex handoff | 0% |
+| **Windsurf** | `web-ui-agent` | Phase 49 Knowledge Summary And Composer Mention Integration complete (v0.5.89) | 100% |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-22 - Phase 49 Knowledge Summary And Composer Mention Integration Completion
+- **Windsurf**: Phase 49 complete. (1) Types: `ChannelKnowledgeSummary`, `ChannelKnowledgeTopEntity`, `EntitySuggestResult`. (2) `knowledge-store`: `fetchChannelKnowledgeSummary` (`GET /channels/:id/knowledge/summary?days=7&limit=5`), `suggestEntities` (`GET /knowledge/entities/suggest?q=...&channel_id=...&limit=8`), state: `channelSummary/isLoadingChannelSummary/entitySuggestions/isLoadingSuggestions`. (3) `ChannelKnowledgePanel`: 7-day snapshot card at top — `total_refs/recent_ref_count` header; top entities with kind icon, title, ref count, horizontal ref-frequency bar (relative to max), and 5-day trend sparkbar. (4) `MessageComposer`: `@entity:` autocomplete — case-insensitive regex `/@entity:([^\s]*)$/`, 180ms debounce, Sonner-style `Globe` header popover with entity title/kind/ref_count rows, `onMouseDown` selects and calls `deleteRange({from, to})` + `insertContent(@Title\u00a0)`. (5) `use-websocket`: `knowledge.entity.ref.created` now refreshes both channel knowledge refs AND summary, plus shows a Sonner toast “📋 [Entity] auto-linked” with snippet + **View** action. (6) `workspace/page.tsx` prefetches summary on channel change. `v0.5.89` published.
+- **Windsurf → Codex**: Phase 49 knowledge layer fully surfaced. For Phase 50: (a) entity mention rendering — parse `@EntityTitle` in message HTML, render as hover-card link to entity wiki; (b) ref-velocity anomaly badge in channel header when `recent_ref_count` spikes; (c) bulk entity-link confirmation card after file extraction shows detected entity mentions before auto-linking.
 
 ### 2026-04-22 - Phase 49 Knowledge Summary And Entity Mention API Completion
 - **Codex**: Phase 49 backend is complete and published as `v0.5.89`.

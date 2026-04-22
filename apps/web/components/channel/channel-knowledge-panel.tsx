@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import {
   Globe, Loader2, User2, Briefcase, Lightbulb,
   Building2, FileText, Layout, Tag, ArrowUpRight,
-  RefreshCw, Zap,
+  RefreshCw, Zap, TrendingUp,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
@@ -41,6 +41,7 @@ export function ChannelKnowledgePanel({ channelId }: ChannelKnowledgePanelProps)
   const router = useRouter()
   const {
     channelKnowledge, isLoadingChannelKnowledge, fetchChannelKnowledge, liveUpdate,
+    channelSummary, fetchChannelKnowledgeSummary, isLoadingChannelSummary,
   } = useKnowledgeStore()
   const prevLiveTs = useRef<number>(0)
   const didFetch = useRef<string>("")
@@ -49,8 +50,9 @@ export function ChannelKnowledgePanel({ channelId }: ChannelKnowledgePanelProps)
     if (didFetch.current !== channelId) {
       didFetch.current = channelId
       fetchChannelKnowledge(channelId)
+      fetchChannelKnowledgeSummary(channelId)
     }
-  }, [channelId, fetchChannelKnowledge])
+  }, [channelId, fetchChannelKnowledge, fetchChannelKnowledgeSummary])
 
   useEffect(() => {
     if (!liveUpdate || liveUpdate.ts === prevLiveTs.current) return
@@ -82,8 +84,8 @@ export function ChannelKnowledgePanel({ channelId }: ChannelKnowledgePanelProps)
           variant="ghost"
           size="icon"
           className="h-7 w-7 text-muted-foreground"
-          onClick={() => fetchChannelKnowledge(channelId)}
-          disabled={isLoadingChannelKnowledge}
+          onClick={() => { fetchChannelKnowledge(channelId); fetchChannelKnowledgeSummary(channelId) }}
+          disabled={isLoadingChannelKnowledge || isLoadingChannelSummary}
           title="Refresh"
         >
           {isLoadingChannelKnowledge
@@ -94,7 +96,77 @@ export function ChannelKnowledgePanel({ channelId }: ChannelKnowledgePanelProps)
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="p-3 space-y-2">
+        <div className="p-3 space-y-3">
+
+          {/* ── Summary Card ── */}
+          {(channelSummary || isLoadingChannelSummary) && (
+            <div className="rounded-xl border bg-emerald-500/5 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700">
+                    {channelSummary?.window_days ?? 7}-day snapshot
+                  </span>
+                </div>
+                {channelSummary && (
+                  <span className="text-[9px] text-muted-foreground">
+                    {channelSummary.total_refs} total · {channelSummary.recent_ref_count} recent
+                  </span>
+                )}
+              </div>
+              {isLoadingChannelSummary && !channelSummary && (
+                <div className="flex items-center gap-1.5 text-muted-foreground py-1">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  <span className="text-[10px]">Loading summary...</span>
+                </div>
+              )}
+              {channelSummary && channelSummary.top_entities.length > 0 && (
+                <div className="space-y-1.5">
+                  {(() => {
+                    const max = Math.max(...channelSummary.top_entities.map(e => e.ref_count), 1)
+                    return channelSummary.top_entities.map((ent) => {
+                      const cfg = getKindCfg(ent.entity_kind)
+                      const Icon = cfg.icon
+                      const pct = Math.round((ent.ref_count / max) * 100)
+                      const trendLast5 = ent.trend?.slice(-5) ?? []
+                      const trendMax = Math.max(...trendLast5.map(t => t.count), 1)
+                      return (
+                        <button
+                          key={ent.entity_id}
+                          className="w-full text-left space-y-1 group"
+                          onClick={() => router.push(`/workspace/knowledge/${ent.entity_id}`)}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <Icon className={cn("w-3 h-3 shrink-0", cfg.badgeClass.includes('sky') ? 'text-sky-600' : cfg.badgeClass.includes('violet') ? 'text-violet-600' : cfg.badgeClass.includes('amber') ? 'text-amber-600' : cfg.badgeClass.includes('emerald') ? 'text-emerald-600' : 'text-muted-foreground')} />
+                            <span className="text-[10px] font-bold truncate group-hover:text-blue-600 transition-colors">{ent.entity_title}</span>
+                            <span className="ml-auto text-[9px] text-muted-foreground shrink-0">{ent.ref_count}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <div className="flex-1 h-1 rounded-full bg-muted overflow-hidden">
+                              <div className="h-full rounded-full bg-emerald-500/60" style={{ width: `${pct}%` }} />
+                            </div>
+                            {trendLast5.length > 0 && (
+                              <div className="flex items-end gap-px ml-1">
+                                {trendLast5.map((t, i) => (
+                                  <div
+                                    key={i}
+                                    className="w-1 rounded-sm bg-emerald-400/70"
+                                    style={{ height: `${Math.max(2, Math.round((t.count / trendMax) * 12))}px` }}
+                                  />
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                      )
+                    })
+                  })()}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Refs ── */}
           {isLoadingChannelKnowledge && entityGroups.length === 0 && (
             <div className="py-10 flex flex-col items-center gap-2 text-muted-foreground">
               <Loader2 className="w-5 h-5 animate-spin" />

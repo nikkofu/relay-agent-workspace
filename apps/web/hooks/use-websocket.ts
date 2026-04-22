@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { toast } from 'sonner'
 import { API_BASE_URL } from '@/lib/constants'
 import { useMessageStore } from '@/stores/message-store'
 import { useCollabStore } from '@/stores/collab-store'
@@ -106,6 +107,18 @@ export function useWebsocket() {
           const activeChannelId = useChannelStore.getState().currentChannel?.id
           if (activeChannelId) {
             useKnowledgeStore.getState().fetchChannelKnowledge(activeChannelId)
+            useKnowledgeStore.getState().fetchChannelKnowledgeSummary(activeChannelId)
+            const entityTitle = ref?.entity_title
+            if (entityTitle) {
+              toast(
+                `📋 ${entityTitle} auto-linked`,
+                {
+                  description: ref?.source_snippet ? `"${(ref.source_snippet as string).slice(0, 80)}…"` : 'A message or file mentioned this entity.',
+                  duration: 4000,
+                  action: { label: 'View', onClick: () => window.location.href = `/workspace/knowledge/${ref.entity_id}` },
+                }
+              )
+            }
           }
         } else if (data.type === 'knowledge.event.created') {
           const event = data.payload?.event || data.payload
