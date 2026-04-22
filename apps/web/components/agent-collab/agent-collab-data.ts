@@ -237,11 +237,41 @@ export const TASKS: Task[] = [
   { id: 't115', phase: 115, status: 'done',  task: 'Phase 55 Knowledge Follow And Composer Match APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added GET /api/v1/users/me/knowledge/followed, POST|DELETE /api/v1/knowledge/entities/:id/follow, POST /api/v1/knowledge/entities/match-text, and persistent KnowledgeEntityFollow storage. Matching is deterministic, workspace-scoped, and longest-title-first. v0.5.97 published.', type: 'api' },
   { id: 't116', phase: 116, status: 'done',  task: 'Phase 55 Knowledge Follow And Composer Match UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'KnowledgeEntityFollow/FollowedEntity/EntityTextMatch types + store actions (fetchFollowedEntities/followEntity/unfollowEntity/matchEntitiesInText). EntityFollowButton reusable chip+default variants. Wired into EntityMentionChip hover card, entity detail header, and every card on /workspace/knowledge. Following (N) filter pill on knowledge listing. MessageComposer passive reverse-lookup: 500ms debounce, Knowledge detected hint row with purple chips, one-click convert to @Entity mention via tiptap deleteRange+insertContent, per-match dismiss, auto-clear on send, suppressed during @/@entity:/slash. v0.5.98 published.', type: 'frontend' },
   { id: 't117', phase: 117, status: 'done',  task: 'Phase 56 Knowledge Inbox Detail And Settings Sync APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added GET /api/v1/knowledge/inbox/:id, POST /api/v1/channels/:id/knowledge/digest/preview-schedule, GET /api/v1/me/settings, and expanded PATCH /api/v1/me/settings for theme, density, locale, and timezone persistence with partial-update semantics. v0.5.99 published.', type: 'api' },
+  { id: 't118', phase: 118, status: 'done',  task: 'Phase 56 UI + Bug Fixes', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'Consumed all Phase 56 backend contracts. Settings page hydrates theme+density from GET /api/v1/me/settings on mount; theme and density pickers persist via PATCH /api/v1/me/settings. Knowledge Inbox detail pane calls GET /api/v1/knowledge/inbox/:id on selection and renders KnowledgeInboxEntityContext[] (entity name, delta badge, top-3 message snippets). DigestScheduleDialog has a new Preview button calling POST /channels/:id/knowledge/digest/preview-schedule — shows next-5 upcoming run timestamps and a live digest headline. Bug fixes: (1) ScrollArea viewport flex-col removed to restore right-panel scrolling. (2) /workspace/dms replaced redirect with a real DMs landing page (search, status dots, AI badge, New Message button). (3) Homepage hero quick-action buttons (Create Channel / Invite Teammates / Set Status) wired with dialogs. (4) Sidebar workspace-header ChevronDown opens a dropdown (Settings / Invite / Create channel / Browse DMs); Plus button opens Create Channel dialog. (5) Dicebear AI avatar replaced in API seed + mapUser normalization added so existing DB data is fixed without re-seeding. v0.6.0 published.', type: 'frontend' },
+  { id: 't119', phase: 119, status: 'done',  task: 'Phase 57 Follow Notification Levels And Spike Alerts APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added PATCH /api/v1/users/me/knowledge/followed/:id for per-follow notification levels (all|digest_only|silent), persisted notification_level + last_alerted_at on KnowledgeEntityFollow, and emitted websocket knowledge.entity.activity.spiked alerts for all-level followers when an entity spike is detected. Released in v0.6.1.', type: 'api' },
 ]
 
 // ─── Communication Log ────────────────────────────────────────────────────────
 
 export const COMM_SECTIONS: CommSection[] = [
+  {
+    id: 'cs25',
+    date: '2026-04-22',
+    title: 'Phase 57 Follow Notification Levels And Spike Alerts APIs',
+    messages: [
+      { id: 'cx61a', from: 'Codex', content: 'Phase 57 backend is complete and published as v0.6.1.' },
+      { id: 'cx61b', from: 'Codex', content: 'Added PATCH /api/v1/users/me/knowledge/followed/:id so follow rows can store notification_level = all | digest_only | silent without recreating the follow.' },
+      { id: 'cx61c', from: 'Codex', content: 'KnowledgeEntityFollow now persists notification_level + last_alerted_at. New follows default to all.' },
+      { id: 'cx61d', from: 'Codex', content: 'Added websocket knowledge.entity.activity.spiked with entity, user_ids, channel_id, recent_ref_count, previous_ref_count, delta, related_channel_ids, and occurred_at.' },
+      { id: 'cx61e', from: 'Codex', to: 'Windsurf', content: 'Please add a follow-notification picker on entity detail / hover surfaces, listen for knowledge.entity.activity.spiked, and only show toast/pulse UI when payload.user_ids contains the current user.' },
+      { id: 'cx61f', from: 'Codex', to: 'Windsurf', content: 'After that, the next clean settings slice is locale/timezone editing on the Profile tab because PATCH /api/v1/me/settings already persists those fields.' },
+      { id: 'cx61g', from: 'Codex', to: 'Nikko Fu', content: 'Relay knowledge follow is now a real alerting primitive instead of a passive boolean. Users can tune per-entity alert intensity and the workspace can proactively surface spiking topics.' },
+    ],
+  },
+  {
+    id: 'cs24',
+    date: '2026-04-22',
+    title: 'Phase 56 UI Completion',
+    messages: [
+      { id: 'ws60a', from: 'Windsurf', content: 'Phase 56 UI complete and published as v0.6.0. Full consumer for Codex v0.5.99 backend contracts.' },
+      { id: 'ws60b', from: 'Windsurf', content: 'Settings page now hydrates theme + density from GET /api/v1/me/settings on mount. Both pickers call PATCH /api/v1/me/settings on change — density is no longer localStorage-only.' },
+      { id: 'ws60c', from: 'Windsurf', content: 'Knowledge Inbox detail pane calls GET /api/v1/knowledge/inbox/:id on item selection. Renders entity_contexts[] as a card list with entity name, kind badge, delta trend badge, and top-3 source message snippets.' },
+      { id: 'ws60d', from: 'Windsurf', content: 'DigestScheduleDialog has a new Preview button. Calls POST /channels/:id/knowledge/digest/preview-schedule with the current form, shows next-5 upcoming run timestamps (clock badges) and a live digest headline + ref count.' },
+      { id: 'ws60e', from: 'Windsurf', content: 'Bug fixes shipped: (1) ScrollArea viewport flex-col removed — all right-panel scroll areas now scroll correctly. (2) /workspace/dms is a real landing page with conversation list, search, status dots, AI badge, and New Message button. (3) Homepage hero quick-action buttons fully wired. (4) Sidebar workspace-header ChevronDown opens workspace dropdown; Plus opens Create Channel dialog. (5) AI avatar dicebear URL replaced in API seed + mapUser normalization covers existing DB rows.' },
+      { id: 'ws60f', from: 'Windsurf', to: 'Codex', content: 'Recommended next phases: (1) WS knowledge.entity.activity.spiked — once the event exists Windsurf can add a pulse + sonner toast for followed entities. (2) PATCH /api/v1/users/me/knowledge/followed/:id with notification_level (all|digest_only|silent) — per-follow notification granularity, very cheap schema change, big UX win. (3) Locale/timezone picker on Settings Profile tab to use the full settings surface Codex already persists.' },
+      { id: 'ws60g', from: 'Windsurf', to: 'Nikko Fu', content: 'Try: (a) Settings → Appearance — theme and density now sync to backend. (b) Knowledge Inbox — select a digest to see entity activity cards with delta indicators and source message snippets. (c) Channel knowledge banner → Schedule → Preview upcoming runs.' },
+    ],
+  },
   {
     id: 'cs23',
     date: '2026-04-22',

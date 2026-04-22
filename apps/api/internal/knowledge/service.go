@@ -820,6 +820,10 @@ func FollowEntity(database *gorm.DB, entityID, userID string) (domain.KnowledgeE
 	var existing domain.KnowledgeEntityFollow
 	err := database.Where("entity_id = ? AND user_id = ?", entity.ID, userID).First(&existing).Error
 	if err == nil {
+		if strings.TrimSpace(existing.NotificationLevel) == "" {
+			existing.NotificationLevel = "all"
+			_ = database.Model(&existing).Update("notification_level", existing.NotificationLevel).Error
+		}
 		return existing, nil
 	}
 	if err != gorm.ErrRecordNotFound {
@@ -827,13 +831,36 @@ func FollowEntity(database *gorm.DB, entityID, userID string) (domain.KnowledgeE
 	}
 
 	follow := domain.KnowledgeEntityFollow{
-		ID:          ids.NewPrefixedUUID("kfollow"),
-		WorkspaceID: entity.WorkspaceID,
-		EntityID:    entity.ID,
-		UserID:      userID,
-		CreatedAt:   time.Now().UTC(),
+		ID:                ids.NewPrefixedUUID("kfollow"),
+		WorkspaceID:       entity.WorkspaceID,
+		EntityID:          entity.ID,
+		UserID:            userID,
+		NotificationLevel: "all",
+		CreatedAt:         time.Now().UTC(),
 	}
 	if err := database.Create(&follow).Error; err != nil {
+		return domain.KnowledgeEntityFollow{}, err
+	}
+	return follow, nil
+}
+
+func UpdateFollowNotificationLevel(database *gorm.DB, entityID, userID, notificationLevel string) (domain.KnowledgeEntityFollow, error) {
+	entityID = strings.TrimSpace(entityID)
+	userID = strings.TrimSpace(userID)
+	notificationLevel = normalizeFollowNotificationLevel(notificationLevel)
+	if entityID == "" || userID == "" {
+		return domain.KnowledgeEntityFollow{}, errors.New("entity_id and user_id are required")
+	}
+	if notificationLevel == "" {
+		return domain.KnowledgeEntityFollow{}, errors.New("notification_level must be all, digest_only, or silent")
+	}
+
+	var follow domain.KnowledgeEntityFollow
+	if err := database.First(&follow, "entity_id = ? AND user_id = ?", entityID, userID).Error; err != nil {
+		return domain.KnowledgeEntityFollow{}, err
+	}
+	follow.NotificationLevel = notificationLevel
+	if err := database.Save(&follow).Error; err != nil {
 		return domain.KnowledgeEntityFollow{}, err
 	}
 	return follow, nil
@@ -877,6 +904,85 @@ func ListFollowedEntities(database *gorm.DB, userID string) ([]FollowedEntity, e
 		})
 	}
 	return items, nil
+}
+
+func DetectEntitySpikeAlerts(database *gorm.DB, entityID, channelID string, now time.Time) ([]EntitySpikeAlert, error) {
+	entityID = strings.TrimSpace(entityID)
+	channelID = strings.TrimSpace(channelID)
+	if entityID == "" {
+		return []EntitySpikeAlert{}, errors.New("entity_id is required")
+	}
+
+	var entity domain.KnowledgeEntity
+	if err := database.First(&entity, "id = ?", entityID).Error; err != nil {
+		return nil, err
+	}
+
+	windowStart := now.Add(-24 * time.Hour)
+	previousWindowStart := now.Add(-48 * time.Hour)
+
+	var recentRefCount int64
+	if err := database.Model(&domain.KnowledgeEntityRef{}).
+		Where("entity_id = ? AND created_at >= ? AND created_at <= ?", entityID, windowStart, now).
+		Count(&recentRefCount).Error; err != nil {
+		return nil, err
+	}
+	if recentRefCount < 3 {
+		return []EntitySpikeAlert{}, nil
+	}
+
+	var previousRefCount int64
+	if err := database.Model(&domain.KnowledgeEntityRef{}).
+		Where("entity_id = ? AND created_at >= ? AND created_at < ?", entityID, previousWindowStart, windowStart).
+		Count(&previousRefCount).Error; err != nil {
+		return nil, err
+	}
+
+	delta := int(recentRefCount - previousRefCount)
+	if delta < 2 && !(previousRefCount == 0 && recentRefCount >= 3) {
+		return []EntitySpikeAlert{}, nil
+	}
+
+	relatedChannelIDs, err := listEntityRelatedChannelIDs(database, entityID)
+	if err != nil {
+		return nil, err
+	}
+
+	var follows []domain.KnowledgeEntityFollow
+	if err := database.Where("entity_id = ?", entityID).Find(&follows).Error; err != nil {
+		return nil, err
+	}
+
+	notifiedUserIDs := make([]string, 0)
+	for _, follow := range follows {
+		if normalizeFollowNotificationLevel(follow.NotificationLevel) != "all" {
+			continue
+		}
+		if follow.LastAlertedAt != nil && follow.LastAlertedAt.After(now.Add(-6*time.Hour)) {
+			continue
+		}
+		notifiedUserIDs = append(notifiedUserIDs, follow.UserID)
+	}
+	if len(notifiedUserIDs) == 0 {
+		return []EntitySpikeAlert{}, nil
+	}
+
+	if err := database.Model(&domain.KnowledgeEntityFollow{}).
+		Where("entity_id = ? AND user_id IN ?", entityID, notifiedUserIDs).
+		Updates(map[string]any{"last_alerted_at": now.UTC()}).Error; err != nil {
+		return nil, err
+	}
+
+	return []EntitySpikeAlert{{
+		Entity:            entity,
+		UserIDs:           notifiedUserIDs,
+		ChannelID:         channelID,
+		RecentRefCount:    int(recentRefCount),
+		PreviousRefCount:  int(previousRefCount),
+		Delta:             delta,
+		RelatedChannelIDs: relatedChannelIDs,
+		OccurredAt:        now.UTC(),
+	}}, nil
 }
 
 func MatchEntitiesInText(database *gorm.DB, input MatchEntitiesInput) ([]EntityTextMatch, error) {
@@ -1953,4 +2059,55 @@ func firstLine(content string) string {
 		return line[:80]
 	}
 	return line
+}
+
+func normalizeFollowNotificationLevel(value string) string {
+	switch strings.TrimSpace(strings.ToLower(value)) {
+	case "", "all":
+		return "all"
+	case "digest_only":
+		return "digest_only"
+	case "silent":
+		return "silent"
+	default:
+		return ""
+	}
+}
+
+func listEntityRelatedChannelIDs(database *gorm.DB, entityID string) ([]string, error) {
+	var messageChannelIDs []string
+	if err := database.Model(&domain.Message{}).
+		Select("DISTINCT messages.channel_id").
+		Joins("JOIN knowledge_entity_refs ON knowledge_entity_refs.ref_id = messages.id AND knowledge_entity_refs.ref_kind = ?", "message").
+		Where("knowledge_entity_refs.entity_id = ?", entityID).
+		Order("messages.channel_id asc").
+		Pluck("messages.channel_id", &messageChannelIDs).Error; err != nil {
+		return nil, err
+	}
+
+	var fileChannelIDs []string
+	if err := database.Model(&domain.FileAsset{}).
+		Select("DISTINCT file_assets.channel_id").
+		Joins("JOIN knowledge_entity_refs ON knowledge_entity_refs.ref_id = file_assets.id AND knowledge_entity_refs.ref_kind = ?", "file").
+		Where("knowledge_entity_refs.entity_id = ?", entityID).
+		Order("file_assets.channel_id asc").
+		Pluck("file_assets.channel_id", &fileChannelIDs).Error; err != nil {
+		return nil, err
+	}
+
+	seen := make(map[string]struct{}, len(messageChannelIDs)+len(fileChannelIDs))
+	related := make([]string, 0, len(messageChannelIDs)+len(fileChannelIDs))
+	for _, channelID := range append(messageChannelIDs, fileChannelIDs...) {
+		channelID = strings.TrimSpace(channelID)
+		if channelID == "" {
+			continue
+		}
+		if _, exists := seen[channelID]; exists {
+			continue
+		}
+		seen[channelID] = struct{}{}
+		related = append(related, channelID)
+	}
+	sort.Strings(related)
+	return related, nil
 }

@@ -247,6 +247,56 @@ func TestFollowEntityAndListFollowedEntities(t *testing.T) {
 	}
 }
 
+func TestUpdateFollowNotificationLevelAndDetectSpikeAlerts(t *testing.T) {
+	database := setupKnowledgeTestDB(t)
+	now := time.Now().UTC()
+	database.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	database.Create(&domain.User{ID: "user-2", Name: "Jane Smith", Email: "jane@example.com"})
+	database.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Summary: "Main launch initiative", Status: "active", CreatedAt: now, UpdatedAt: now})
+	database.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	database.Create(&domain.Message{ID: "msg-1", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program is accelerating", CreatedAt: now.Add(-2 * time.Hour)})
+	database.Create(&domain.Message{ID: "msg-2", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program needs QA", CreatedAt: now.Add(-90 * time.Minute)})
+	database.Create(&domain.Message{ID: "msg-3", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program rollout confirmed", CreatedAt: now.Add(-30 * time.Minute)})
+	database.Create(&domain.KnowledgeEntityRef{ID: "kref-1", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-1", Role: "discussion", CreatedAt: now.Add(-2 * time.Hour)})
+	database.Create(&domain.KnowledgeEntityRef{ID: "kref-2", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-2", Role: "discussion", CreatedAt: now.Add(-90 * time.Minute)})
+	database.Create(&domain.KnowledgeEntityRef{ID: "kref-3", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-3", Role: "decision", CreatedAt: now.Add(-30 * time.Minute)})
+
+	follow, err := FollowEntity(database, "entity-1", "user-1")
+	if err != nil {
+		t.Fatalf("failed to follow entity for user-1: %v", err)
+	}
+	if _, err := FollowEntity(database, "entity-1", "user-2"); err != nil {
+		t.Fatalf("failed to follow entity for user-2: %v", err)
+	}
+
+	updated, err := UpdateFollowNotificationLevel(database, "entity-1", "user-2", "digest_only")
+	if err != nil {
+		t.Fatalf("failed to update notification level: %v", err)
+	}
+	if updated.NotificationLevel != "digest_only" {
+		t.Fatalf("expected digest_only level, got %#v", updated)
+	}
+
+	alerts, err := DetectEntitySpikeAlerts(database, "entity-1", "ch-1", now)
+	if err != nil {
+		t.Fatalf("failed to detect spike alerts: %v", err)
+	}
+	if len(alerts) != 1 {
+		t.Fatalf("expected one alert, got %#v", alerts)
+	}
+	if alerts[0].Entity.ID != "entity-1" || alerts[0].RecentRefCount != 3 || len(alerts[0].UserIDs) != 1 || alerts[0].UserIDs[0] != "user-1" {
+		t.Fatalf("unexpected alert payload: %#v", alerts[0])
+	}
+
+	var refreshed domain.KnowledgeEntityFollow
+	if err := database.First(&refreshed, "id = ?", follow.ID).Error; err != nil {
+		t.Fatalf("failed to reload follow: %v", err)
+	}
+	if refreshed.LastAlertedAt == nil {
+		t.Fatalf("expected last_alerted_at to be populated, got %#v", refreshed)
+	}
+}
+
 func TestMatchEntitiesInTextReturnsLongestNonOverlappingSpans(t *testing.T) {
 	database := setupKnowledgeTestDB(t)
 	now := time.Now().UTC()

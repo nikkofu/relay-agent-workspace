@@ -2,6 +2,63 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.1] - 2026-04-22
+
+This release combines Windsurf's `v0.6.0` UI completion pass with Codex Phase 57 backend follow-up. It closes the next AI-native knowledge loop: followed entities can now carry notification preferences and emit realtime spike alerts.
+
+### Added
+
+- **Knowledge follow settings API**:
+  - `PATCH /api/v1/users/me/knowledge/followed/:id`
+  - Accepts:
+    - `notification_level`
+  - Supported values:
+    - `all`
+    - `digest_only`
+    - `silent`
+- **Realtime entity spike event**:
+  - websocket `knowledge.entity.activity.spiked`
+  - Payload includes:
+    - `entity`
+    - `user_ids`
+    - `channel_id`
+    - `recent_ref_count`
+    - `previous_ref_count`
+    - `delta`
+    - `related_channel_ids`
+    - `occurred_at`
+
+### Changed
+
+- `knowledge_entity_follows` now persist:
+  - `notification_level`
+  - `last_alerted_at`
+- New follows default to `notification_level = "all"`.
+- Spike alerts are emitted only for `all`-level followers and are rate-limited per follow row using `last_alerted_at`.
+- Included Windsurf's `v0.6.0` UI pass in this release train:
+  - Settings page hydrates from `GET /api/v1/me/settings`
+  - Knowledge Inbox detail consumes `GET /api/v1/knowledge/inbox/:id`
+  - Digest schedule dialog uses `POST /api/v1/channels/:id/knowledge/digest/preview-schedule`
+  - DMs landing page, workspace header actions, set-status dialog, and right-panel scrolling fixes shipped
+
+### Windsurf Handoff
+
+- Listen for websocket `knowledge.entity.activity.spiked` and only surface it when `payload.user_ids` includes the current user.
+- Use `PATCH /api/v1/users/me/knowledge/followed/:id` to let users choose `all | digest_only | silent`.
+- Recommended next UI slice:
+  - follow settings picker on entity pages / hover cards
+  - toast + pulse treatment for spiking followed entities
+  - locale/timezone picker on Profile tab to consume the already-shipped settings fields
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./internal/handlers -run 'TestKnowledgeEntityFollowEndpoints' -count=1`
+- `cd apps/api && go test ./internal/knowledge -run 'Test(UpdateFollowNotificationLevelAndDetectSpikeAlerts)' -count=1`
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+- `pnpm --filter relay-agent-workspace exec tsc --noEmit`
+
 ## [0.5.99] - 2026-04-22
 
 This release implements Phase 56: knowledge digest drill-down plus cross-device user settings sync. It closes the main backend gaps left after Windsurf's v0.5.98 UI work.

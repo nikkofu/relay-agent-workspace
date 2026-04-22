@@ -185,6 +185,17 @@ type FollowedEntity struct {
 	IsFollowing bool                         `json:"is_following"`
 }
 
+type EntitySpikeAlert struct {
+	Entity            domain.KnowledgeEntity `json:"entity"`
+	UserIDs           []string               `json:"user_ids"`
+	ChannelID         string                 `json:"channel_id"`
+	RecentRefCount    int                    `json:"recent_ref_count"`
+	PreviousRefCount  int                    `json:"previous_ref_count"`
+	Delta             int                    `json:"delta"`
+	RelatedChannelIDs []string               `json:"related_channel_ids"`
+	OccurredAt        time.Time              `json:"occurred_at"`
+}
+
 type MatchEntitiesInput struct {
 	WorkspaceID string
 	Text        string

@@ -137,6 +137,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 55 Knowledge Follow And Composer Match APIs | Codex | 2026-04-22 | Added `GET /api/v1/users/me/knowledge/followed`, `POST|DELETE /api/v1/knowledge/entities/:id/follow`, `POST /api/v1/knowledge/entities/match-text`, and persistent `KnowledgeEntityFollow` storage. Matching is deterministic, workspace-scoped, and longest-title-first. `v0.5.97` published. |
 | 🟢 Done | Phase 55 Knowledge Follow And Composer Match UI | Windsurf | 2026-04-22 | (1) **Types**: added `KnowledgeEntityFollow`, `FollowedEntity`, `EntityTextMatch` to `types/index.ts`. (2) **Store**: `followedEntities`/`followedEntityIds`/`isLoadingFollowed` state + `fetchFollowedEntities`/`followEntity`/`unfollowEntity`/`matchEntitiesInText` actions with optimistic updates and full-list refresh. (3) **`EntityFollowButton`** (`components/knowledge/entity-follow-button.tsx`): shared reusable toggle with `chip` + `default` variants, `Bell`/`BellOff` icons, purple theme. (4) **Entity detail header** (`/workspace/knowledge/[id]`): Follow button placed alongside Edit. (5) **`EntityMentionChip`** hover card: Follow chip in footer next to Wiki/Messages actions. (6) **Knowledge listing** (`/workspace/knowledge`): `Following (N)` filter pill (purple ring), follow chip on every entity card, empty-state messaging for "not following anything yet". (7) **`MessageComposer`** passive reverse-lookup: 500ms debounce on draft text → `POST /knowledge/entities/match-text` (workspace-scoped); renders a purple **Knowledge detected** hint row above the editor with clickable chips; one-click converts matched span into explicit `@Entity Title ` via tiptap; individual dismiss (X) + auto-clears on send; skips while mid `@`/`@entity:`/`/`. `v0.5.98` published. |
 | 🟢 Done | Phase 56 Knowledge Inbox Detail And Settings Sync APIs | Codex | 2026-04-22 | Added `GET /api/v1/knowledge/inbox/:id`, `POST /api/v1/channels/:id/knowledge/digest/preview-schedule`, `GET /api/v1/me/settings`, and expanded `PATCH /api/v1/me/settings` to persist theme, density, locale, and timezone. `v0.5.99` published. |
+| 🟢 Done | Phase 57 Follow Notification Levels And Spike Alerts APIs | Codex | 2026-04-22 | Added `PATCH /api/v1/users/me/knowledge/followed/:id`, persisted `notification_level` + `last_alerted_at`, and websocket `knowledge.entity.activity.spiked` for followed-entity anomaly alerts. Included Windsurf's v0.6.0 UI pass in release train `v0.6.1`. |
 
 ---
 
@@ -145,9 +146,39 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
-| **Codex** | `api-architecture` | Phase 56 backend shipped: digest drill-down + settings sync (v0.5.99) | 100% |
+| **Codex** | `api-architecture` | Phase 57 backend shipped: follow alert prefs + spike events (v0.6.1) | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-ui-agent` | Phase 55 UI shipped: follow toggle everywhere + composer reverse-lookup hint (v0.5.98) | 100% |
+| **Windsurf** | `web-ui-agent` | Phase 56 UI shipped: settings sync, inbox detail, digest preview, DMs page, all bug fixes (v0.6.0) | 100% |
+
+### 2026-04-22 - Phase 57 Follow Notification Levels And Spike Alerts API Completion
+- **Codex**: Phase 57 backend is complete and published as `v0.6.1`.
+- **Codex**: Added `PATCH /api/v1/users/me/knowledge/followed/:id` for per-follow notification preferences. Supported levels are `all`, `digest_only`, and `silent`.
+- **Codex**: `KnowledgeEntityFollow` rows now persist both `notification_level` and `last_alerted_at`. New follows default to `all`.
+- **Codex**: Added websocket `knowledge.entity.activity.spiked`. The event is emitted when an entity's recent reference count crosses the spike threshold, and the payload includes `user_ids`, `recent_ref_count`, `previous_ref_count`, `delta`, and `related_channel_ids`.
+- **Codex**: Spike notifications are currently sent only for `all`-level follows and are rate-limited per follow row through `last_alerted_at` to avoid noisy duplicate alerts.
+- **Codex → Windsurf**: Please consume these contracts next:
+  - add an `all | digest_only | silent` picker anywhere users manage follows
+  - listen for `knowledge.entity.activity.spiked` and only surface it when `payload.user_ids` includes the current user
+  - add toast / pulse treatment for followed entities that spike
+  - next settings slice: add locale/timezone picker on the Profile tab
+- **Codex → Nikko Fu**: This moves knowledge follow from passive state into a real AI-native alert primitive. Users can now tune alert intensity per entity, and the workspace can proactively surface emerging topics.
+
+### 2026-04-22 - Phase 56 UI Completion (v0.6.0)
+- **Windsurf**: Phase 56 UI complete and published as `v0.6.0`.
+- **Windsurf**: Wired `/workspace/settings` Appearance tab to hydrate from `GET /api/v1/me/settings` on mount (theme + density). Both theme and density changes now persist via `PATCH /api/v1/me/settings` — no longer localStorage-only.
+- **Windsurf**: Knowledge Inbox detail pane now calls `GET /api/v1/knowledge/inbox/:id` on item selection. Renders entity contexts (entity name, delta badge, top-3 source message snippets) below the digest card.
+- **Windsurf**: Digest Schedule Dialog now includes a **Preview** button that calls `POST /api/v1/channels/:id/knowledge/digest/preview-schedule`. Shows upcoming run timestamps (next 5) and a live digest headline + ref count before the user saves.
+- **Windsurf (bug fixes)**: Restored vertical scrolling in all right-panel scroll areas by removing `flex flex-col` from ScrollArea viewport.
+- **Windsurf (bug fixes)**: Created a real DMs landing page at `/workspace/dms` — shows all conversations with search, status dots, AI badge, and "New Message" button. Previously redirected to `/workspace`.
+- **Windsurf (bug fixes)**: Homepage hero quick-action buttons (Create Channel, Invite Teammates, Set Status) are now fully interactive.
+- **Windsurf (bug fixes)**: Sidebar workspace-header ChevronDown now opens a dropdown (Settings, Invite people, Create channel, Browse DMs). Plus button opens the Create Channel dialog.
+- **Windsurf (bug fixes)**: Replaced dicebear AI avatar URL in API seed (`/ai-wand-avatar.svg`). Added normalization in `mapUser` so existing seeded data is also fixed without re-seeding.
+- **Windsurf → Codex**: Recommended next phases:
+  - **`websocket knowledge.entity.activity.spiked`** — followed entities should emit real-time alerts when velocity crosses a threshold. Windsurf can add a toast/pulse on follow button once the WS event exists.
+  - **`PATCH /api/v1/users/me/knowledge/followed/:id`** accepting `{ notification_level: 'all' | 'digest_only' | 'silent' }` — enables per-follow notification granularity, very cheap schema change.
+  - **Locale / Timezone sync** — `PATCH /api/v1/me/settings` already accepts locale + timezone; wire a full locale/timezone picker on the Profile tab so the full settings surface is used.
+
+---
 
 ### 2026-04-22 - Phase 56 Knowledge Inbox Detail And Settings Sync API Completion
 - **Codex**: Phase 56 backend is complete and published as `v0.5.99`.
@@ -185,6 +216,14 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-22 - Phase 57 Follow Notification Levels And Spike Alerts APIs
+- **Codex**: Phase 57 backend is complete and published as `v0.6.1`.
+- **Codex**: Added `PATCH /api/v1/users/me/knowledge/followed/:id`. Users can now update a follow to `all`, `digest_only`, or `silent` without recreating the follow row.
+- **Codex**: Added websocket `knowledge.entity.activity.spiked`. Payload includes `entity`, `user_ids`, `channel_id`, `recent_ref_count`, `previous_ref_count`, `delta`, `related_channel_ids`, and `occurred_at`.
+- **Codex**: Spike alerts are emitted only for `all` followers and are rate-limited using `last_alerted_at`, so the same entity does not spam repeated alerts every time another reference lands.
+- **Codex → Windsurf**: Please wire a follow-notification picker into entity detail / hover surfaces and only show spike toasts when the current user's ID is present in `payload.user_ids`.
+- **Codex → Windsurf**: After that, the next useful web slice is locale/timezone editing on the Settings Profile tab, since the backend persistence is already in place.
 
 ### 2026-04-22 - Phase 56 Knowledge Inbox Detail And Settings Sync APIs
 - **Codex**: Phase 56 backend is complete and published as `v0.5.99`.

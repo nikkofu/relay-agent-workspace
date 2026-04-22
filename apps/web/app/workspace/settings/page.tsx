@@ -5,6 +5,7 @@ import { useNotificationStore } from "@/stores/notification-store"
 import { useUserStore } from "@/stores/user-store"
 import { useTheme } from "next-themes"
 import { Bell, Shield, Settings, User, Palette, Sun, Moon, Monitor, Check } from "lucide-react"
+import { API_BASE_URL } from "@/lib/constants"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -61,9 +62,25 @@ export default function SettingsPage() {
   useEffect(() => {
     setMounted(true)
     fetchPreferences()
-    const saved = localStorage.getItem("relay-density")
-    if (saved) setDensity(saved)
-  }, [fetchPreferences])
+    const loadSettings = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/me/settings`)
+        if (res.ok) {
+          const data = await res.json()
+          const s = data.settings
+          if (s.theme) setTheme(s.theme)
+          if (s.message_density) {
+            setDensity(s.message_density)
+            localStorage.setItem("relay-density", s.message_density)
+          }
+        }
+      } catch {
+        const saved = localStorage.getItem("relay-density")
+        if (saved) setDensity(saved)
+      }
+    }
+    loadSettings()
+  }, [fetchPreferences, setTheme])
 
   useEffect(() => {
     if (currentUser) {
@@ -96,9 +113,27 @@ export default function SettingsPage() {
     toast.success("Profile updated")
   }
 
+  const patchSettings = async (patch: Record<string, string>) => {
+    try {
+      await fetch(`${API_BASE_URL}/me/settings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      })
+    } catch (e) {
+      console.error("Failed to persist settings", e)
+    }
+  }
+
+  const handleThemeChange = (val: string) => {
+    setTheme(val)
+    patchSettings({ theme: val })
+  }
+
   const handleDensityChange = (val: string) => {
     setDensity(val)
     localStorage.setItem("relay-density", val)
+    patchSettings({ message_density: val })
     toast.success(`Density set to ${val}`)
   }
 
@@ -280,7 +315,7 @@ export default function SettingsPage() {
                       {THEME_OPTIONS.map(opt => (
                         <button
                           key={opt.value}
-                          onClick={() => setTheme(opt.value)}
+                          onClick={() => handleThemeChange(opt.value)}
                           className={cn(
                             "relative flex flex-col items-center gap-2.5 p-4 rounded-xl border-2 transition-all",
                             theme === opt.value

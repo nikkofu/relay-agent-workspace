@@ -529,11 +529,13 @@ type KnowledgeEvent struct {
 }
 
 type KnowledgeEntityFollow struct {
-	ID          string    `gorm:"primaryKey" json:"id"`
-	WorkspaceID string    `gorm:"index" json:"workspace_id"`
-	EntityID    string    `gorm:"index;uniqueIndex:idx_knowledge_entity_follow" json:"entity_id"`
-	UserID      string    `gorm:"index;uniqueIndex:idx_knowledge_entity_follow" json:"user_id"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID                string     `gorm:"primaryKey" json:"id"`
+	WorkspaceID       string     `gorm:"index" json:"workspace_id"`
+	EntityID          string     `gorm:"index;uniqueIndex:idx_knowledge_entity_follow" json:"entity_id"`
+	UserID            string     `gorm:"index;uniqueIndex:idx_knowledge_entity_follow" json:"user_id"`
+	NotificationLevel string     `json:"notification_level"`
+	LastAlertedAt     *time.Time `json:"last_alerted_at,omitempty"`
+	CreatedAt         time.Time  `json:"created_at"`
 }
 
 type KnowledgeDigestSchedule struct {

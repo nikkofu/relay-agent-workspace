@@ -4482,6 +4482,7 @@ func TestKnowledgeEntityFollowEndpoints(t *testing.T) {
 	router := gin.New()
 	router.GET("/api/v1/users/me/knowledge/followed", GetMyFollowedKnowledgeEntities)
 	router.POST("/api/v1/knowledge/entities/:id/follow", FollowKnowledgeEntity)
+	router.PATCH("/api/v1/users/me/knowledge/followed/:id", PatchMyKnowledgeFollow)
 	router.DELETE("/api/v1/knowledge/entities/:id/follow", UnfollowKnowledgeEntity)
 
 	rec := httptest.NewRecorder()
@@ -4515,6 +4516,20 @@ func TestKnowledgeEntityFollowEndpoints(t *testing.T) {
 	}
 	if len(listPayload.Items) != 1 || listPayload.Items[0].Entity.ID != "entity-1" {
 		t.Fatalf("unexpected followed list: %#v", listPayload.Items)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPatch, "/api/v1/users/me/knowledge/followed/entity-1", strings.NewReader(`{"notification_level":"digest_only"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 follow patch, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if err := db.DB.First(&followPayload.Follow, "entity_id = ? AND user_id = ?", "entity-1", "user-1").Error; err != nil {
+		t.Fatalf("reload follow after patch: %v", err)
+	}
+	if followPayload.Follow.NotificationLevel != "digest_only" {
+		t.Fatalf("expected notification level to persist, got %#v", followPayload.Follow)
 	}
 
 	rec = httptest.NewRecorder()

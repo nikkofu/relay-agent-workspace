@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.5.99` is the current release line and includes:
+`v0.6.1` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -65,6 +65,8 @@ For product, design, and marketing, the short version is:
 - cross-channel knowledge inbox via `GET /api/v1/knowledge/inbox`
 - knowledge inbox detail drill-down via `GET /api/v1/knowledge/inbox/:id`
 - `GET /api/v1/me/settings` for cross-device settings hydration
+- per-follow notification settings via `PATCH /api/v1/users/me/knowledge/followed/:id`
+- realtime entity spike alerts via websocket `knowledge.entity.activity.spiked`
 - knowledge summary velocity/anomaly fields for channel-header trend badges
 - citation lookup entity hydration from canonical `KnowledgeEntityRef` message/file associations
 - channel-aware entity ranking for `@entity:` composer autocomplete and knowledge side-panel summary cards
@@ -166,6 +168,7 @@ For product, design, and marketing, the short version is:
   - `GET /api/v1/knowledge/inbox`
   - `GET /api/v1/knowledge/inbox/:id`
   - `GET /api/v1/me/settings`
+  - `PATCH /api/v1/users/me/knowledge/followed/:id`
   - `GET /api/v1/users/me/knowledge/followed`
   - `GET /api/v1/knowledge/entities`
   - `GET /api/v1/knowledge/entities/suggest`
@@ -196,6 +199,7 @@ For product, design, and marketing, the short version is:
   - `knowledge.event.created`
   - `knowledge.link.created`
   - `knowledge.digest.published`
+  - `knowledge.entity.activity.spiked`
 - Channel notification preferences and self-service leave-channel API
 - Structured workspace list APIs for shared checklists and operational tracking
 - Artifact template APIs and virtual `new-doc` bootstrap support for canvas-first creation

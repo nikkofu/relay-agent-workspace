@@ -50,7 +50,7 @@ func SeedData() {
 			OrganizationID: org.ID,
 			Name:           "AI Assistant",
 			Email:          "ai@acim.ai",
-			Avatar:         "https://api.dicebear.com/7.x/bottts/svg?seed=ai",
+			Avatar:         "/ai-wand-avatar.svg",
 			Title:          "Workspace AI",
 			Department:     "Automation",
 			Timezone:       "UTC",

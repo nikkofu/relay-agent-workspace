@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useKnowledgeStore } from "@/stores/knowledge-store"
 import { Button } from "@/components/ui/button"
@@ -8,20 +8,22 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Inbox, Hash, Star, Loader2, ChevronRight, CheckCheck, Pin, Newspaper, Clock,
-  TrendingUp, TrendingDown, Zap, Globe,
+  TrendingUp, TrendingDown, Zap, Globe, MessageSquare,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { format, formatDistanceToNow } from "date-fns"
 import { KnowledgeDigestCard } from "@/components/message/knowledge-digest-card"
-import type { KnowledgeInboxItem, KnowledgeInboxScope } from "@/types"
+import type { KnowledgeInboxItem, KnowledgeInboxScope, KnowledgeInboxDetail } from "@/types"
 
 export default function KnowledgeInboxPage() {
   const router = useRouter()
   const {
     knowledgeInbox, knowledgeInboxScope, knowledgeInboxUnreadCount, isLoadingInbox,
-    fetchKnowledgeInbox, markInboxRead, liveUpdate,
+    fetchKnowledgeInbox, fetchKnowledgeInboxItem, markInboxRead, liveUpdate,
   } = useKnowledgeStore()
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [detail, setDetail] = useState<KnowledgeInboxDetail | null>(null)
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false)
 
   useEffect(() => {
     fetchKnowledgeInbox(knowledgeInboxScope, 50)
@@ -39,12 +41,16 @@ export default function KnowledgeInboxPage() {
     [knowledgeInbox, selectedId]
   )
 
-  const handleSelect = (item: KnowledgeInboxItem) => {
+  const handleSelect = useCallback(async (item: KnowledgeInboxItem) => {
     setSelectedId(item.id)
     if (!item.is_read && item.message?.id) {
       markInboxRead([item.message.id])
     }
-  }
+    setIsLoadingDetail(true)
+    const d = await fetchKnowledgeInboxItem(item.id)
+    setDetail(d)
+    setIsLoadingDetail(false)
+  }, [markInboxRead, fetchKnowledgeInboxItem])
 
   const handleMarkAllRead = async () => {
     const unread = knowledgeInbox.filter(i => !i.is_read && i.message?.id).map(i => i.message.id!)
@@ -227,27 +233,81 @@ export default function KnowledgeInboxPage() {
               </div>
 
               <ScrollArea className="flex-1">
-                <div className="p-6 max-w-2xl">
-                  {selectedItem.digest ? (
-                    <KnowledgeDigestCard digest={selectedItem.digest} />
+                <div className="p-6 max-w-2xl space-y-6">
+                  {isLoadingDetail ? (
+                    <div className="py-8 flex items-center justify-center text-muted-foreground gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="text-xs">Loading detail…</span>
+                    </div>
                   ) : (
-                    <div className="text-muted-foreground italic text-sm">
-                      This digest payload is no longer available.
-                    </div>
-                  )}
+                    <>
+                      {selectedItem.digest ? (
+                        <KnowledgeDigestCard digest={selectedItem.digest} />
+                      ) : (
+                        <div className="text-muted-foreground italic text-sm">
+                          This digest payload is no longer available.
+                        </div>
+                      )}
 
-                  {/* Message snippet preview */}
-                  {selectedItem.message?.content && (
-                    <div className="mt-5 rounded-xl border bg-muted/20 p-4">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-1">
-                        <Globe className="w-3 h-3" />
-                        Published message
-                      </p>
-                      <div
-                        className="text-xs leading-relaxed text-muted-foreground prose prose-xs"
-                        dangerouslySetInnerHTML={{ __html: selectedItem.message.content }}
-                      />
-                    </div>
+                      {/* Entity contexts from API detail */}
+                      {detail?.entity_contexts && detail.entity_contexts.length > 0 && (
+                        <div className="space-y-3">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-1">
+                            <Zap className="w-3 h-3" /> Entity Activity
+                          </p>
+                          {detail.entity_contexts.map(ctx => (
+                            <div key={ctx.entity_id} className="rounded-xl border bg-muted/10 p-4 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-black">{ctx.entity_title}</span>
+                                <div className="flex items-center gap-1.5">
+                                  <Badge variant="outline" className="text-[8px] h-3.5 px-1 uppercase tracking-widest">
+                                    {ctx.entity_kind}
+                                  </Badge>
+                                  {ctx.delta !== 0 && (
+                                    <span className={cn(
+                                      "inline-flex items-center gap-0.5 text-[9px] font-black px-1.5 py-0.5 rounded-full",
+                                      ctx.delta > 0 ? "bg-emerald-500/10 text-emerald-700" : "bg-rose-500/10 text-rose-700"
+                                    )}>
+                                      {ctx.delta > 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
+                                      {ctx.delta > 0 ? '+' : ''}{ctx.delta}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              {ctx.messages.length > 0 && (
+                                <div className="space-y-1">
+                                  {ctx.messages.slice(0, 3).map(msg => (
+                                    <div key={msg.id} className="text-[11px] text-muted-foreground border-l-2 border-muted pl-2 leading-relaxed">
+                                      <MessageSquare className="w-2.5 h-2.5 inline mr-1" />
+                                      {msg.content ? msg.content.replace(/<[^>]*>/g, '').slice(0, 120) : '(no content)'}
+                                    </div>
+                                  ))}
+                                  {ctx.messages.length > 3 && (
+                                    <p className="text-[10px] text-muted-foreground italic pl-4">
+                                      +{ctx.messages.length - 3} more messages
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Message snippet preview */}
+                      {selectedItem.message?.content && (
+                        <div className="rounded-xl border bg-muted/20 p-4">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-1">
+                            <Globe className="w-3 h-3" />
+                            Published message
+                          </p>
+                          <div
+                            className="text-xs leading-relaxed text-muted-foreground prose prose-xs"
+                            dangerouslySetInnerHTML={{ __html: selectedItem.message.content }}
+                          />
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </ScrollArea>

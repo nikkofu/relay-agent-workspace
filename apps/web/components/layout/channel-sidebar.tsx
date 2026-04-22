@@ -1,6 +1,6 @@
 "use client"
 
-import { Hash, Lock, ChevronDown, Plus, Search, Sparkles } from "lucide-react"
+import { Hash, Lock, ChevronDown, Plus, Search, Sparkles, Settings, UserPlus, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -18,6 +18,13 @@ import type { Channel, DirectMessage } from "@/types"
 
 import { CreateChannelDialog } from "@/components/channel/create-channel-dialog"
 import { InviteMemberDialog } from "@/components/workspace/invite-member-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 export function ChannelSidebar() {
   const { currentWorkspace } = useWorkspaceStore()
@@ -61,15 +68,38 @@ export function ChannelSidebar() {
   return (
     <nav className="w-[260px] bg-[#3f0e40] dark:bg-[#19171d] flex flex-col h-full text-[#cfc3cf] dark:text-[#9b999b] shrink-0 border-r border-white/5 shadow-xl relative z-10">
       {/* Workspace Header */}
-      <div className="h-14 px-4 flex items-center justify-between hover:bg-white/10 cursor-pointer transition-colors border-b border-white/5">
-        <h2 className="font-bold text-lg text-white truncate flex items-center gap-1">
-          {mounted ? (currentWorkspace?.name || "Workspace") : "Workspace"}
-          <ChevronDown className="w-4 h-4" />
-        </h2>
-        <div className="bg-white rounded-full p-1.5 shrink-0">
-          <Plus className="w-4 h-4 text-[#3f0e40]" />
-        </div>
-      </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <div className="h-14 px-4 flex items-center justify-between hover:bg-white/10 cursor-pointer transition-colors border-b border-white/5">
+            <h2 className="font-bold text-lg text-white truncate flex items-center gap-1">
+              {mounted ? (currentWorkspace?.name || "Workspace") : "Workspace"}
+              <ChevronDown className="w-4 h-4" />
+            </h2>
+            <div
+              className="bg-white rounded-full p-1.5 shrink-0 hover:bg-purple-100 transition-colors"
+              onClick={(e) => { e.stopPropagation(); setShowCreateChannel(true) }}
+              title="New message / channel"
+            >
+              <Plus className="w-4 h-4 text-[#3f0e40]" />
+            </div>
+          </div>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="bottom" align="start" className="w-56">
+          <DropdownMenuItem onClick={() => router.push('/workspace/settings')}>
+            <Settings className="w-4 h-4 mr-2" /> Workspace settings
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setShowInviteMember(true)}>
+            <UserPlus className="w-4 h-4 mr-2" /> Invite people
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => setShowCreateChannel(true)}>
+            <Pencil className="w-4 h-4 mr-2" /> Create a channel
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => router.push('/workspace/dms')}>
+            <Sparkles className="w-4 h-4 mr-2" /> Browse direct messages
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <ScrollArea className="flex-1">
         <div className="px-2 py-4 flex flex-col gap-4">

@@ -282,6 +282,8 @@ export interface ChannelKnowledgeDigest {
   delta?: number
   entries: ChannelKnowledgeDigestEntry[]
   headline?: string
+  summary?: string
+  top_movements?: ChannelKnowledgeDigestEntry[]
 }
 
 export type DigestWindow = 'daily' | 'weekly' | 'monthly'
@@ -330,6 +332,29 @@ export interface KnowledgeInboxItem {
   digest: ChannelKnowledgeDigest
   is_read: boolean
   occurred_at: string
+}
+
+export interface KnowledgeInboxEntityContext {
+  entity_id: string
+  entity_title: string
+  entity_kind: string
+  delta: number
+  messages: Message[]
+}
+
+export interface KnowledgeInboxDetail {
+  item: KnowledgeInboxItem
+  entity_contexts: KnowledgeInboxEntityContext[]
+}
+
+export interface DigestScheduleUpcomingRun {
+  run_at: string
+}
+
+export interface DigestSchedulePreview {
+  schedule: DigestSchedule
+  upcoming_runs: DigestScheduleUpcomingRun[]
+  digest: ChannelKnowledgeDigest
 }
 
 export interface FileSearchResult {

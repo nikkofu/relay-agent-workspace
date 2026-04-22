@@ -18,7 +18,9 @@ import type {
   DigestSchedule,
   DigestScheduleInput,
   KnowledgeInboxItem,
+  KnowledgeInboxDetail,
   KnowledgeInboxScope,
+  DigestSchedulePreview,
   FollowedEntity,
   EntityTextMatch,
 } from "@/types"
@@ -57,6 +59,8 @@ interface KnowledgeState {
   upsertDigestSchedule: (channelId: string, input: DigestScheduleInput) => Promise<DigestSchedule | null>
   deleteDigestSchedule: (channelId: string) => Promise<boolean>
   fetchKnowledgeInbox: (scope?: KnowledgeInboxScope, limit?: number) => Promise<KnowledgeInboxItem[]>
+  fetchKnowledgeInboxItem: (id: string) => Promise<KnowledgeInboxDetail | null>
+  previewDigestSchedule: (channelId: string, input: DigestScheduleInput) => Promise<DigestSchedulePreview | null>
   markInboxRead: (messageIds: string[]) => Promise<void>
   applyDigestPublished: (payload: { channel_id?: string; message?: Message; digest?: ChannelKnowledgeDigest }) => void
   ingestEvent: (data: {
@@ -599,6 +603,35 @@ export const useKnowledgeStore = create<KnowledgeState>((set) => ({
       console.error("Failed to unfollow entity:", error)
       toast.error("Failed to unfollow entity")
       return false
+    }
+  },
+
+  // ── Phase 56: Inbox Detail + Digest Preview ─────────────────────────────
+  fetchKnowledgeInboxItem: async (id) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/knowledge/inbox/${id}`)
+      if (!res.ok) return null
+      const data = await res.json()
+      return (data.detail || data) as KnowledgeInboxDetail
+    } catch (error) {
+      console.error("Failed to fetch inbox item detail:", error)
+      return null
+    }
+  },
+
+  previewDigestSchedule: async (channelId, input) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/channels/${channelId}/knowledge/digest/preview-schedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      })
+      if (!res.ok) return null
+      const data = await res.json()
+      return (data.preview || data) as DigestSchedulePreview
+    } catch (error) {
+      console.error("Failed to preview digest schedule:", error)
+      return null
     }
   },
 

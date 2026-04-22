@@ -155,6 +155,7 @@ func main() {
 		v1.GET("/knowledge/inbox", handlers.GetKnowledgeInbox)
 		v1.GET("/knowledge/inbox/:id", handlers.GetKnowledgeInboxItem)
 		v1.GET("/users/me/knowledge/followed", handlers.GetMyFollowedKnowledgeEntities)
+		v1.PATCH("/users/me/knowledge/followed/:id", handlers.PatchMyKnowledgeFollow)
 		v1.GET("/knowledge/entities", handlers.ListKnowledgeEntities)
 		v1.POST("/knowledge/entities", handlers.CreateKnowledgeEntity)
 		v1.POST("/knowledge/entities/match-text", handlers.MatchKnowledgeEntitiesInText)

@@ -12,10 +12,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, Clock, Pin, Trash2, Loader2 } from "lucide-react"
+import { Calendar, Clock, Pin, Trash2, Loader2, Eye, TrendingUp } from "lucide-react"
 import { format } from "date-fns"
 import { useKnowledgeStore } from "@/stores/knowledge-store"
-import type { DigestScheduleInput, DigestWindow } from "@/types"
+import type { DigestScheduleInput, DigestWindow, DigestSchedulePreview } from "@/types"
 
 const DOW_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 
@@ -39,13 +39,15 @@ interface DigestScheduleDialogProps {
 }
 
 export function DigestScheduleDialog({ open, onOpenChange, channelId, channelName }: DigestScheduleDialogProps) {
-  const { digestSchedules, fetchDigestSchedule, upsertDigestSchedule, deleteDigestSchedule } = useKnowledgeStore()
+  const { digestSchedules, fetchDigestSchedule, upsertDigestSchedule, deleteDigestSchedule, previewDigestSchedule } = useKnowledgeStore()
   const existing = digestSchedules[channelId] || null
   const browserTz = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", [])
   const [form, setForm] = useState<DigestScheduleInput>(() => DEFAULT_INPUT(browserTz))
   const [isLoadingInit, setIsLoadingInit] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [preview, setPreview] = useState<DigestSchedulePreview | null>(null)
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -86,6 +88,13 @@ export function DigestScheduleDialog({ open, onOpenChange, channelId, channelNam
     const ok = await deleteDigestSchedule(channelId)
     setIsDeleting(false)
     if (ok) onOpenChange(false)
+  }
+
+  const handlePreview = async () => {
+    setIsLoadingPreview(true)
+    const p = await previewDigestSchedule(channelId, form)
+    setPreview(p)
+    setIsLoadingPreview(false)
   }
 
   const pad = (n: number) => String(n).padStart(2, '0')
@@ -252,6 +261,52 @@ export function DigestScheduleDialog({ open, onOpenChange, channelId, channelNam
                 )}
                 {existing.last_published_at && (
                   <p><span className="font-black uppercase tracking-widest text-muted-foreground">Last published:</span> {format(new Date(existing.last_published_at), "MMM d, yyyy h:mm a")}</p>
+                )}
+              </div>
+            )}
+
+            {/* Live preview */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full gap-1.5 text-xs"
+              onClick={handlePreview}
+              disabled={isLoadingPreview}
+            >
+              {isLoadingPreview
+                ? <Loader2 className="w-3 h-3 animate-spin" />
+                : <Eye className="w-3 h-3" />}
+              Preview upcoming runs &amp; digest
+            </Button>
+
+            {preview && (
+              <div className="rounded-lg border bg-muted/10 p-3 space-y-2">
+                {preview.upcoming_runs.length > 0 && (
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-1">Upcoming runs</p>
+                    <div className="flex flex-wrap gap-1">
+                      {preview.upcoming_runs.slice(0, 5).map((r, i) => (
+                        <Badge key={i} variant="secondary" className="text-[9px] h-5">
+                          <Clock className="w-2.5 h-2.5 mr-1" />
+                          {format(new Date(r.run_at), "MMM d, h:mm a")}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {preview.digest && (
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-1">
+                      <TrendingUp className="w-2.5 h-2.5 inline mr-1" />Digest preview
+                    </p>
+                    <p className="text-xs font-bold leading-tight">{preview.digest.headline || `${preview.digest.window} digest`}</p>
+                    {preview.digest.summary && (
+                      <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{preview.digest.summary}</p>
+                    )}
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      {preview.digest.total_refs ?? 0} refs · {preview.digest.top_movements?.length ?? 0} top entities
+                    </p>
+                  </div>
                 )}
               </div>
             )}

@@ -23,8 +23,11 @@ interface UserState {
   }) => Promise<void>
 }
 
+const AI_DICEBEAR_URL = "https://api.dicebear.com/7.x/bottts/svg?seed=ai"
+
 const mapUser = (u: any): User => ({
   ...u,
+  avatar: u.avatar === AI_DICEBEAR_URL ? "/ai-wand-avatar.svg" : u.avatar,
   statusText: u.status_text,
   statusEmoji: u.status_emoji,
   statusExpiresAt: u.status_expires_at,

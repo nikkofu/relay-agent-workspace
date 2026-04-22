@@ -24,6 +24,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Copy, ExternalLink, MoreVertical } from "lucide-react"
+import { CreateChannelDialog } from "@/components/channel/create-channel-dialog"
+import { InviteMemberDialog } from "@/components/workspace/invite-member-dialog"
+import { SetStatusDialog } from "@/components/workspace/set-status-dialog"
 
 function stripHtml(html: string): string {
   if (!html) return ""
@@ -39,6 +42,9 @@ export function HomeDashboard() {
   const { openCanvas } = useUIStore()
   const { duplicateArtifact } = useArtifactStore()
   const [mounted, setMounted] = useState(false)
+  const [showCreateChannel, setShowCreateChannel] = useState(false)
+  const [showInviteMember, setShowInviteMember] = useState(false)
+  const [showSetStatus, setShowSetStatus] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -87,13 +93,13 @@ export function HomeDashboard() {
                 </div>
                 
                 <div className="flex flex-col gap-3 min-w-[200px]">
-                  <Button className="bg-white text-purple-700 hover:bg-purple-50 font-bold shadow-xl border-none h-11 justify-start gap-3 px-5">
+                  <Button onClick={() => setShowCreateChannel(true)} className="bg-white text-purple-700 hover:bg-purple-50 font-bold shadow-xl border-none h-11 justify-start gap-3 px-5">
                     <Plus className="w-4 h-4" /> Create Channel
                   </Button>
-                  <Button variant="ghost" className="text-white hover:bg-white/10 font-bold h-11 justify-start gap-3 px-5 border border-white/20">
+                  <Button variant="ghost" onClick={() => setShowInviteMember(true)} className="text-white hover:bg-white/10 font-bold h-11 justify-start gap-3 px-5 border border-white/20">
                     <UserPlus className="w-4 h-4" /> Invite Teammates
                   </Button>
-                  <Button variant="ghost" className="text-white hover:bg-white/10 font-bold h-11 justify-start gap-3 px-5 border border-white/20">
+                  <Button variant="ghost" onClick={() => setShowSetStatus(true)} className="text-white hover:bg-white/10 font-bold h-11 justify-start gap-3 px-5 border border-white/20">
                     <Smile className="w-4 h-4" /> Set a Status
                   </Button>
                 </div>
@@ -359,6 +365,9 @@ export function HomeDashboard() {
           </div>
         </div>
       </ScrollArea>
+      <CreateChannelDialog open={showCreateChannel} onOpenChange={setShowCreateChannel} />
+      <InviteMemberDialog open={showInviteMember} onOpenChange={setShowInviteMember} />
+      <SetStatusDialog open={showSetStatus} onOpenChange={setShowSetStatus} />
     </div>
   )
 }

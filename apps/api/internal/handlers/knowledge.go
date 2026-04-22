@@ -100,6 +100,7 @@ func AddKnowledgeEntityRef(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to broadcast knowledge ref event"})
 		return
 	}
+	_ = emitKnowledgeEntitySpikeAlerts(ref.EntityID, "")
 	c.JSON(http.StatusCreated, gin.H{"ref": ref})
 }
 
@@ -302,6 +303,33 @@ func FollowKnowledgeEntity(c *gin.Context) {
 	follow, err := knowledge.FollowEntity(db.DB, c.Param("id"), currentUser.ID)
 	if err != nil {
 		handleKnowledgeNotFound(c, err, "knowledge entity not found")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"follow": follow, "is_following": true})
+}
+
+func PatchMyKnowledgeFollow(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var input struct {
+		NotificationLevel string `json:"notification_level"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	follow, err := knowledge.UpdateFollowNotificationLevel(db.DB, c.Param("id"), currentUser.ID, input.NotificationLevel)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "knowledge follow not found"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"follow": follow, "is_following": true})
@@ -711,6 +739,7 @@ func autoLinkKnowledgeForMessage(message domain.Message) {
 	}
 	for _, ref := range refs {
 		_ = broadcastKnowledgeEvent("knowledge.entity.ref.created", ref.WorkspaceID, channel.ID, ref.EntityID, gin.H{"ref": ref})
+		_ = emitKnowledgeEntitySpikeAlerts(ref.EntityID, channel.ID)
 	}
 }
 
@@ -726,7 +755,30 @@ func autoLinkKnowledgeForFile(asset domain.FileAsset, content string) {
 	}
 	for _, ref := range refs {
 		_ = broadcastKnowledgeEvent("knowledge.entity.ref.created", ref.WorkspaceID, channel.ID, ref.EntityID, gin.H{"ref": ref})
+		_ = emitKnowledgeEntitySpikeAlerts(ref.EntityID, channel.ID)
 	}
+}
+
+func emitKnowledgeEntitySpikeAlerts(entityID, channelID string) error {
+	alerts, err := knowledge.DetectEntitySpikeAlerts(db.DB, entityID, channelID, time.Now().UTC())
+	if err != nil {
+		return err
+	}
+	for _, alert := range alerts {
+		if err := broadcastKnowledgeEvent("knowledge.entity.activity.spiked", alert.Entity.WorkspaceID, alert.ChannelID, alert.Entity.ID, gin.H{
+			"entity":              alert.Entity,
+			"user_ids":            alert.UserIDs,
+			"channel_id":          alert.ChannelID,
+			"recent_ref_count":    alert.RecentRefCount,
+			"previous_ref_count":  alert.PreviousRefCount,
+			"delta":               alert.Delta,
+			"related_channel_ids": alert.RelatedChannelIDs,
+			"occurred_at":         alert.OccurredAt,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func broadcastKnowledgeEvent(eventType, workspaceID, channelID, entityID string, payload any) error {
