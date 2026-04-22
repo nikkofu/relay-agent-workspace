@@ -183,6 +183,18 @@ export function useWebsocket() {
           if (payload.stats) {
             useKnowledgeStore.getState().applyFollowedStatsChanged(payload.stats)
           }
+        } else if (data.type === 'knowledge.entity.brief.generated') {
+          // Phase 62: multi-tab sync of generated entity brief
+          const payload = data.payload || {}
+          if (payload.brief) {
+            useKnowledgeStore.getState().applyEntityBriefGenerated(payload.brief)
+          }
+        } else if (data.type === 'notifications.bulk_read') {
+          // Phase 62: multi-tab inbox read-state sync
+          const payload = data.payload || {}
+          if (Array.isArray(payload.item_ids)) {
+            useKnowledgeStore.getState().applyNotificationsBulkRead(payload.item_ids)
+          }
         } else if (data.type === 'knowledge.digest.published') {
           const payload = data.payload || {}
           const channelId = payload.channel_id || payload.channel?.id

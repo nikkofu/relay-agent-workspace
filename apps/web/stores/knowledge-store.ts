@@ -131,6 +131,11 @@ interface KnowledgeState {
   fetchBackfillStatus: (entityId: string) => Promise<ActivityBackfillStatus | null>
   triggerBackfill: (entityId: string) => Promise<{ refs_created: number; duration_ms: number } | null>
   applyFollowedStatsChanged: (stats: FollowedEntityStats) => void
+  // ── Phase 62 ─────────────────────────────────────────────────────────────
+  fetchEntityBrief: (entityId: string) => Promise<EntityBrief | null>
+  fetchWeeklyBrief: (workspaceId: string) => Promise<WeeklyBrief | null>
+  applyEntityBriefGenerated: (brief: EntityBrief) => void
+  applyNotificationsBulkRead: (itemIds: string[]) => void
 }
 
 export const useKnowledgeStore = create<KnowledgeState>((set) => ({
@@ -329,7 +334,8 @@ export const useKnowledgeStore = create<KnowledgeState>((set) => ({
       return { knowledgeInbox: next, knowledgeInboxUnreadCount: next.filter(i => !i.is_read).length }
     })
     try {
-      await fetch(`${API_BASE_URL}/notifications/read`, {
+      // Phase 62: atomic bulk read endpoint (de-duplicates + single transaction + broadcasts notifications.bulk_read)
+      await fetch(`${API_BASE_URL}/notifications/bulk-read`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ item_ids: itemIds }),
@@ -1008,4 +1014,63 @@ export const useKnowledgeStore = create<KnowledgeState>((set) => ({
 
   // ── Phase 61: Live followed-stats update from websocket ───────────────────
   applyFollowedStatsChanged: (stats) => set({ followedStats: stats }),
+
+  // ── Phase 62: Cached entity brief (no LLM call) ─────────────────────
+  fetchEntityBrief: async (entityId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/knowledge/entities/${entityId}/brief`)
+      if (!res.ok) return null
+      const data = await res.json()
+      const brief: EntityBrief | null = data.brief
+      if (brief) {
+        set(state => ({ entityBriefs: { ...state.entityBriefs, [entityId]: brief } }))
+      }
+      return brief
+    } catch (error) {
+      console.error("Failed to fetch cached entity brief:", error)
+      return null
+    }
+  },
+
+  // ── Phase 62: Cached weekly brief (no LLM call) ──────────────────────
+  fetchWeeklyBrief: async (workspaceId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/knowledge/weekly-brief?workspace_id=${encodeURIComponent(workspaceId)}`)
+      if (!res.ok) return null
+      const data = await res.json()
+      const brief: WeeklyBrief | null = data.brief
+      if (brief) set({ weeklyBrief: brief })
+      return brief
+    } catch (error) {
+      console.error("Failed to fetch cached weekly brief:", error)
+      return null
+    }
+  },
+
+  // ── Phase 62: Live brief-generated update from websocket (multi-tab sync) ──
+  applyEntityBriefGenerated: (brief) => set(state => ({
+    entityBriefs: { ...state.entityBriefs, [brief.entity_id]: brief },
+    isGeneratingBrief: { ...state.isGeneratingBrief, [brief.entity_id]: false },
+  })),
+
+  // ── Phase 62: Live bulk-read update from websocket (multi-tab inbox sync) ─
+  applyNotificationsBulkRead: (itemIds) => set(state => {
+    if (!itemIds || itemIds.length === 0) return state
+    // item_ids follow the `knowledge-digest-<messageId>` convention for inbox items
+    const msgIdSet = new Set<string>()
+    for (const id of itemIds) {
+      if (id.startsWith('knowledge-digest-')) {
+        msgIdSet.add(id.slice('knowledge-digest-'.length))
+      }
+    }
+    if (msgIdSet.size === 0) return state
+    const next = state.knowledgeInbox.map(item =>
+      item.message?.id && msgIdSet.has(item.message.id) ? { ...item, is_read: true } : item
+    )
+    return {
+      ...state,
+      knowledgeInbox: next,
+      knowledgeInboxUnreadCount: next.filter(i => !i.is_read).length,
+    }
+  }),
 }))

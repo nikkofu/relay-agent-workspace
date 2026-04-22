@@ -53,7 +53,7 @@ export default function FollowingPage() {
     spikingEntityIds,
     followedStats,
     fetchFollowedStats,
-    weeklyBrief, isGeneratingWeeklyBrief, generateWeeklyBrief,
+    weeklyBrief, isGeneratingWeeklyBrief, generateWeeklyBrief, fetchWeeklyBrief,
   } = useKnowledgeStore()
   const { currentWorkspace } = useWorkspaceStore()
 
@@ -65,6 +65,11 @@ export default function FollowingPage() {
   useEffect(() => {
     fetchFollowedEntities()
   }, [fetchFollowedEntities])
+
+  // Phase 62: hydrate cached weekly brief without invoking the LLM
+  useEffect(() => {
+    if (currentWorkspace?.id) fetchWeeklyBrief(currentWorkspace.id).catch(() => {})
+  }, [currentWorkspace?.id, fetchWeeklyBrief])
 
   // Phase 60: aggregate stats strip
   useEffect(() => {

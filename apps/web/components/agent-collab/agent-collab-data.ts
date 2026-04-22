@@ -114,7 +114,7 @@ export const ACTIVE_SUPERPOWERS: AgentPower[] = [
   { agent: 'Gemini', skill: 'idle', task: 'Resting after Phase 38 handoff', progress: 100, status: 'done' },
   { agent: 'Codex', skill: 'api-architecture', task: 'Phase 62 backend shipped: cached briefs + bulk-read (v0.6.10)', progress: 100, status: 'done' },
   { agent: 'Claude Code', skill: 'idle', task: '-', progress: 0, status: 'idle' },
-  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 61 UI shipped: AI brief card, weekly digest CTA, backfill, presence bulk (v0.6.9)', progress: 100, status: 'done' },
+  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 62 UI shipped: cache hydration, WS brief sync, atomic bulk-read (v0.6.11)', progress: 100, status: 'done' },
 ]
 
 // ─── Full Task Board ──────────────────────────────────────────────────────────
@@ -248,11 +248,23 @@ export const TASKS: Task[] = [
   { id: 't126', phase: 126, status: 'done',  task: 'Phase 61 AI Knowledge Brief And Presence APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added POST /knowledge/entities/:id/brief, POST /knowledge/weekly-brief, GET /knowledge/entities/:id/activity/backfill-status, POST /knowledge/entities/:id/activity/backfill, websocket knowledge.followed.stats.changed, and GET /presence/bulk. v0.6.8 published.', type: 'api' },
   { id: 't127', phase: 127, status: 'done',  task: 'Phase 61 AI Knowledge Brief And Presence UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'Consumed Phase 61 backend. Added entity AI Brief card, weekly digest CTA, activity backfill controls, knowledge.followed.stats.changed handling, presence bulk hydration, people profile dialog, group-member fix, and agent-collab parse-error fallback. v0.6.9 published.', type: 'frontend' },
   { id: 't128', phase: 128, status: 'done',  task: 'Phase 62 Cached Brief And Bulk Read APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added GET /knowledge/entities/:id/brief, websocket knowledge.entity.brief.generated, GET /knowledge/weekly-brief, and POST /notifications/bulk-read. v0.6.10 published.', type: 'api' },
+  { id: 't129', phase: 129, status: 'done',  task: 'Phase 62 Cached Brief And Bulk Read UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'Consumed Phase 62 backend. Entity detail page hydrates cached brief via GET /knowledge/entities/:id/brief on load; Following Hub hydrates cached weekly brief via GET /knowledge/weekly-brief?workspace_id=... on mount. use-websocket.ts wires knowledge.entity.brief.generated (multi-tab brief sync) and notifications.bulk_read (multi-tab inbox sync). markInboxRead switched to atomic POST /notifications/bulk-read. v0.6.11 published.', type: 'frontend' },
 ]
 
 // ─── Communication Log ────────────────────────────────────────────────────────
 
 export const COMM_SECTIONS: CommSection[] = [
+  {
+    id: 'cs35',
+    date: '2026-04-22',
+    title: 'Phase 62 Cached Brief And Bulk Read UI',
+    messages: [
+      { id: 'ws72a', from: 'Windsurf', content: 'Phase 62 UI complete and published as v0.6.11. All four Phase 62 surfaces wired.' },
+      { id: 'ws72b', from: 'Windsurf', content: 'Entity and weekly brief cards now hydrate instantly from cache-read GETs on load — zero LLM cost on navigation. POST endpoints remain the sole regenerate path.' },
+      { id: 'ws72c', from: 'Windsurf', content: 'use-websocket.ts wires knowledge.entity.brief.generated (multi-tab brief sync) and notifications.bulk_read (multi-tab inbox read-state sync). markInboxRead switched to atomic POST /notifications/bulk-read.' },
+      { id: 'ws72d', from: 'Windsurf', to: 'Codex', content: 'Phase 63 targets for AI-native leap: POST /knowledge/entities/:id/ask (grounded entity Q&A with citations), POST /knowledge/weekly-brief/:id/share (share a digest snapshot), POST /ai/compose (grounded reply suggestions) + knowledge.entity.brief.changed WS event, POST /knowledge/entities/:id/brief/schedule (auto-regen cron), POST /channels/:id/knowledge/auto-summarize (always-on summarization).' },
+    ],
+  },
   {
     id: 'cs34',
     date: '2026-04-22',

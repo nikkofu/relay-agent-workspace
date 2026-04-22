@@ -50,7 +50,7 @@ function EntityDetailContent({ id }: { id: string }) {
   const {
     fetchEntity, updateEntity, fetchEntityRefs, fetchEntityTimeline, fetchEntityLinks, fetchEntityGraph,
     ingestEvent, liveUpdate, spikingEntityIds, shareEntity,
-    entityBriefs, isGeneratingBrief, generateEntityBrief,
+    entityBriefs, isGeneratingBrief, generateEntityBrief, fetchEntityBrief,
     backfillStatuses, isBackfilling, fetchBackfillStatus, triggerBackfill,
   } = useKnowledgeStore()
   const [sharing, setSharing] = useState(false)
@@ -102,7 +102,9 @@ function EntityDetailContent({ id }: { id: string }) {
       if (e) { setEditTitle(e.title); setEditSummary(e.summary || ""); setEditTags((e.tags || []).join(", ")) }
     })
     fetchBackfillStatus(id).catch(() => {})
-  }, [id, fetchEntity, fetchBackfillStatus])
+    // Phase 62: hydrate cached brief without invoking the LLM
+    fetchEntityBrief(id).catch(() => {})
+  }, [id, fetchEntity, fetchBackfillStatus, fetchEntityBrief])
 
   useEffect(() => {
     if (!liveUpdate || liveUpdate.ts === prevLiveTs.current) return
