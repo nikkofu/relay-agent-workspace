@@ -52,9 +52,11 @@ type Agent struct {
 }
 
 type Workspace struct {
-	ID             string `gorm:"primaryKey" json:"id"`
-	OrganizationID string `json:"org_id"`
-	Name           string `json:"name"`
+	ID                         string `gorm:"primaryKey" json:"id"`
+	OrganizationID             string `json:"org_id"`
+	Name                       string `json:"name"`
+	KnowledgeSpikeThreshold    int    `json:"knowledge_spike_threshold"`
+	KnowledgeSpikeCooldownMins int    `json:"knowledge_spike_cooldown_mins"`
 }
 
 type WorkspaceInvite struct {

@@ -196,6 +196,40 @@ type EntitySpikeAlert struct {
 	OccurredAt        time.Time              `json:"occurred_at"`
 }
 
+type WorkspaceKnowledgeSettings struct {
+	WorkspaceID           string `json:"workspace_id"`
+	SpikeThreshold        int    `json:"spike_threshold"`
+	SpikeCooldownMinutes  int    `json:"spike_cooldown_minutes"`
+}
+
+type EntityActivityBucket struct {
+	Date     string `json:"date"`
+	RefCount int    `json:"ref_count"`
+}
+
+type EntityActivity struct {
+	EntityID   string                 `json:"entity_id"`
+	WorkspaceID string                `json:"workspace_id"`
+	Days       int                    `json:"days"`
+	Buckets    []EntityActivityBucket `json:"buckets"`
+}
+
+type TrendingEntitiesParams struct {
+	WorkspaceID string
+	Days        int
+	Limit       int
+	Now         time.Time
+}
+
+type TrendingEntity struct {
+	Entity            domain.KnowledgeEntity `json:"entity"`
+	RecentRefCount    int                    `json:"recent_ref_count"`
+	PreviousRefCount  int                    `json:"previous_ref_count"`
+	VelocityDelta     int                    `json:"velocity_delta"`
+	RelatedChannelIDs []string               `json:"related_channel_ids"`
+	LastRefAt         *time.Time             `json:"last_ref_at,omitempty"`
+}
+
 type MatchEntitiesInput struct {
 	WorkspaceID string
 	Text        string

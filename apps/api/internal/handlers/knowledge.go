@@ -335,6 +335,30 @@ func PatchMyKnowledgeFollow(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"follow": follow, "is_following": true})
 }
 
+func PatchMyKnowledgeFollowsBulk(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var input struct {
+		EntityIDs         []string `json:"entity_ids"`
+		NotificationLevel string   `json:"notification_level"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	items, err := knowledge.BulkUpdateFollowNotificationLevels(db.DB, currentUser.ID, input.EntityIDs, input.NotificationLevel)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items})
+}
+
 func UnfollowKnowledgeEntity(c *gin.Context) {
 	currentUser, err := getCurrentUser()
 	if err != nil {
@@ -347,6 +371,83 @@ func UnfollowKnowledgeEntity(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"entity_id": c.Param("id"), "is_following": false})
+}
+
+func GetWorkspaceSettings(c *gin.Context) {
+	workspaceID, err := resolveWorkspaceID(c.Query("workspace_id"))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "workspace not found"})
+		return
+	}
+
+	settings, err := knowledge.GetWorkspaceKnowledgeSettings(db.DB, workspaceID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "workspace not found"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to load workspace settings"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"settings": settings})
+}
+
+func PatchWorkspaceSettings(c *gin.Context) {
+	var input struct {
+		WorkspaceID          string `json:"workspace_id"`
+		SpikeThreshold       int    `json:"spike_threshold"`
+		SpikeCooldownMinutes int    `json:"spike_cooldown_minutes"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	workspaceID, err := resolveWorkspaceID(input.WorkspaceID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "workspace not found"})
+		return
+	}
+
+	settings, err := knowledge.UpdateWorkspaceKnowledgeSettings(db.DB, workspaceID, input.SpikeThreshold, input.SpikeCooldownMinutes)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "workspace not found"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"settings": settings})
+}
+
+func GetKnowledgeEntityActivity(c *gin.Context) {
+	activity, err := knowledge.GetEntityActivity(db.DB, c.Param("id"), parseWindowDays(c.Query("days"), 30), time.Now().UTC())
+	if err != nil {
+		handleKnowledgeNotFound(c, err, "knowledge entity not found")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"activity": activity})
+}
+
+func GetKnowledgeTrending(c *gin.Context) {
+	workspaceID, err := resolveWorkspaceID(c.Query("workspace_id"))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "workspace not found"})
+		return
+	}
+
+	items, err := knowledge.GetTrendingEntities(db.DB, knowledge.TrendingEntitiesParams{
+		WorkspaceID: workspaceID,
+		Days:        parseWindowDays(c.Query("days"), 7),
+		Limit:       parseLimit(c.Query("limit"), 5),
+		Now:         time.Now().UTC(),
+	})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to load knowledge trending"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items})
 }
 
 func SearchMessagesByEntity(c *gin.Context) {
@@ -670,6 +771,26 @@ func handleKnowledgeNotFound(c *gin.Context, err error, message string) {
 		return
 	}
 	c.JSON(http.StatusInternalServerError, gin.H{"error": message})
+}
+
+func resolveWorkspaceID(raw string) (string, error) {
+	if workspaceID := strings.TrimSpace(raw); workspaceID != "" {
+		return workspaceID, nil
+	}
+
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		return "", err
+	}
+
+	var workspace domain.Workspace
+	if err := db.DB.Where("organization_id = ?", currentUser.OrganizationID).Order("id asc").First(&workspace).Error; err == nil {
+		return workspace.ID, nil
+	}
+	if err := db.DB.Order("id asc").First(&workspace).Error; err != nil {
+		return "", err
+	}
+	return workspace.ID, nil
 }
 
 func parseLimit(raw string, fallback int) int {

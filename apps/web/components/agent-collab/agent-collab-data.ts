@@ -112,9 +112,9 @@ export const MEMBERS: Member[] = [
 
 export const ACTIVE_SUPERPOWERS: AgentPower[] = [
   { agent: 'Gemini', skill: 'idle', task: 'Resting after Phase 38 handoff', progress: 100, status: 'done' },
-  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 55 knowledge follow + composer match APIs complete (v0.5.97)', progress: 100, status: 'done' },
+  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 59 backend shipped: bulk follow ops + workspace knowledge settings + activity/trending (v0.6.4)', progress: 100, status: 'done' },
   { agent: 'Claude Code', skill: 'idle', task: '-', progress: 0, status: 'idle' },
-  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 55 UI shipped: follow toggle everywhere + composer reverse-lookup hint (v0.5.98)', progress: 100, status: 'done' },
+  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 58 UI shipped: Following Hub page, locale-aware formatting, Mute All (v0.6.3)', progress: 100, status: 'done' },
 ]
 
 // ─── Full Task Board ──────────────────────────────────────────────────────────
@@ -241,11 +241,25 @@ export const TASKS: Task[] = [
   { id: 't119', phase: 119, status: 'done',  task: 'Phase 57 Follow Notification Levels And Spike Alerts APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added PATCH /api/v1/users/me/knowledge/followed/:id for per-follow notification levels (all|digest_only|silent), persisted notification_level + last_alerted_at on KnowledgeEntityFollow, and emitted websocket knowledge.entity.activity.spiked alerts for all-level followers when an entity spike is detected. Released in v0.6.1.', type: 'api' },
   { id: 't120', phase: 120, status: 'done',  task: 'Phase 57 Follow Notification Levels And Spike Alerts UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'FollowNotificationLevel type (all|digest_only|silent) + notification_level/last_alerted_at on KnowledgeEntityFollow. EntityFollowButton reworked: chip and default variants both show chevron-opened dropdown with 3 alert levels (BellRing/Newspaper/VolumeX icons, description subtitles, current-level checkmark) + red Unfollow item. isSpiking prop adds purple ping animation and changes label to Spiking (Zap icon on default). updateFollowNotificationLevel(followId, entityId, level) in knowledge-store calls PATCH /api/v1/users/me/knowledge/followed/:id, optimistic update. markEntitySpiking(entityId, ttlMs=5min) in knowledge-store sets spikingEntityIds[id] with auto-clearing timer. use-websocket.ts handles knowledge.entity.activity.spiked: checks user_ids contains currentUser.id, calls markEntitySpiking, fires sonner toast with delta + View CTA. isSpiking wired on entity detail page, knowledge listing, and entity-mention-chip hover card. Settings Profile tab: Language & Timezone card with Select dropdowns for 9 locales and 18 IANA timezones, both hydrated from GET /api/v1/me/settings and persisted via PATCH /api/v1/me/settings immediately on change. v0.6.2 published.', type: 'frontend' },
   { id: 't121', phase: 121, status: 'done',  task: 'Phase 58 Following Hub + Locale Formatting UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'Proactive phase — no new backend required. (1) /workspace/knowledge/following: dedicated Following Hub page. Lists followedEntities[] sorted by spiking-first then alpha. Spiking entities floated to top section with amber pulse, Zap icon, Spiking badge. Each row: kind icon, title, kind badge, notification-level dropdown picker (All/Digest only/Silent with checkmark + Unfollow separator), and Following since timestamp. Mute All header button bulk-PATCHes all non-silent follows to silent via individual PATCH /api/v1/users/me/knowledge/followed/:id calls. Empty-state with guidance. (2) Knowledge listing header: Following (N) button linking to /following hub; active when any follows exist (purple border + count badge). (3) hooks/use-locale.ts: session-cached locale hook. First consumer calls GET /api/v1/me/settings, caches locale module-level so subsequent hooks share it. Exports formatLocaleDate(date, locale, opts?) using Intl.DateTimeFormat and formatRelativeTime(date, locale) using Intl.RelativeTimeFormat. (4) Knowledge Inbox: replaces date-fns format() with formatLocaleDate using user locale. v0.6.3 published.', type: 'frontend' },
+  { id: 't122', phase: 122, status: 'done',  task: 'Phase 59 Knowledge Ops APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added PATCH /api/v1/users/me/knowledge/followed/bulk, GET|PATCH /api/v1/workspace/settings, GET /api/v1/knowledge/entities/:id/activity, and GET /api/v1/knowledge/trending. Workspace spike detection now reads persisted threshold/cooldown settings instead of hardcoded values. Released in v0.6.4.', type: 'api' },
 ]
 
 // ─── Communication Log ────────────────────────────────────────────────────────
 
 export const COMM_SECTIONS: CommSection[] = [
+  {
+    id: 'cs28',
+    date: '2026-04-22',
+    title: 'Phase 59 Knowledge Ops APIs',
+    messages: [
+      { id: 'cx65a', from: 'Codex', content: 'Phase 59 backend is complete and published as v0.6.4.' },
+      { id: 'cx65b', from: 'Codex', content: 'Added PATCH /api/v1/users/me/knowledge/followed/bulk for one-request bulk follow notification updates such as Mute All.' },
+      { id: 'cx65c', from: 'Codex', content: 'Added GET|PATCH /api/v1/workspace/settings for persisted spike_threshold and spike_cooldown_minutes.' },
+      { id: 'cx65d', from: 'Codex', content: 'Added GET /api/v1/knowledge/entities/:id/activity (daily buckets) and GET /api/v1/knowledge/trending (workspace-ranked velocity feed).' },
+      { id: 'cx65e', from: 'Codex', to: 'Windsurf', content: 'Please switch Following Hub Mute All to the new bulk endpoint, add workspace spike tuning controls, and use activity/trending APIs for sparklines and dashboard sections.' },
+      { id: 'cx65f', from: 'Codex', to: 'Nikko Fu', content: 'Knowledge ops is now moving from passive wiki data toward a configurable intelligence layer: bulk follow controls, workspace-level sensitivity, entity history, and a trending feed are all live.' },
+    ],
+  },
   {
     id: 'cs27',
     date: '2026-04-22',

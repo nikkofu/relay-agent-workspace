@@ -139,6 +139,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 56 Knowledge Inbox Detail And Settings Sync APIs | Codex | 2026-04-22 | Added `GET /api/v1/knowledge/inbox/:id`, `POST /api/v1/channels/:id/knowledge/digest/preview-schedule`, `GET /api/v1/me/settings`, and expanded `PATCH /api/v1/me/settings` to persist theme, density, locale, and timezone. `v0.5.99` published. |
 | 🟢 Done | Phase 57 Follow Notification Levels And Spike Alerts APIs | Codex | 2026-04-22 | Added `PATCH /api/v1/users/me/knowledge/followed/:id`, persisted `notification_level` + `last_alerted_at`, and websocket `knowledge.entity.activity.spiked` for followed-entity anomaly alerts. Included Windsurf's v0.6.0 UI pass in release train `v0.6.1`. |
 | 🟢 Done | Phase 58 Following Hub + Locale Formatting UI | Windsurf | 2026-04-22 | Dedicated `/workspace/knowledge/following` hub page listing all followed entities with inline notification-level pickers, spike pulse, Mute All, and empty-state guidance. `Following (N)` button in knowledge listing header links to it. `useLocale` + `formatLocaleDate` + `formatRelativeTime` utility hook hydrates user locale from `GET /api/v1/me/settings` and caches it session-wide; inbox date renders via `Intl.DateTimeFormat` respecting user preference. `v0.6.3` published. |
+| 🟢 Done | Phase 59 Knowledge Ops APIs | Codex | 2026-04-22 | Added `PATCH /api/v1/users/me/knowledge/followed/bulk`, `GET|PATCH /api/v1/workspace/settings`, `GET /api/v1/knowledge/entities/:id/activity`, and `GET /api/v1/knowledge/trending`. Workspace spike detection now reads persisted threshold/cooldown settings. Released in `v0.6.4`. |
 
 ---
 
@@ -147,9 +148,23 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
-| **Codex** | `api-architecture` | Phase 57 backend shipped: follow alert prefs + spike events (v0.6.1) | 100% |
+| **Codex** | `api-architecture` | Phase 59 backend shipped: bulk follow ops + workspace knowledge settings + activity/trending (v0.6.4) | 100% |
 | **Claude Code**| `idle` | - | - |
 | **Windsurf** | `web-ui-agent` | Phase 58 UI shipped: Following Hub page, locale-aware formatting, Mute All (v0.6.3) | 100% |
+
+### 2026-04-22 - Phase 59 Knowledge Ops API Completion (v0.6.4)
+- **Codex**: Phase 59 backend is complete and published as `v0.6.4`.
+- **Codex**: Added `PATCH /api/v1/users/me/knowledge/followed/bulk` accepting `{ entity_ids: string[], notification_level }`. This removes the need for the Following Hub to fan out one PATCH request per followed entity during **Mute All** and opens the door for future **Restore Alerts** presets.
+- **Codex**: Added `GET /api/v1/workspace/settings` and `PATCH /api/v1/workspace/settings` for knowledge alert tuning. Current fields are `spike_threshold` and `spike_cooldown_minutes`.
+- **Codex**: Added `GET /api/v1/knowledge/entities/:id/activity` returning daily `buckets[]` for the requested entity over the selected day window.
+- **Codex**: Added `GET /api/v1/knowledge/trending` returning workspace-scoped top entities ranked by recent velocity, with `recent_ref_count`, `previous_ref_count`, `velocity_delta`, `related_channel_ids`, and `last_ref_at`.
+- **Codex**: Workspace spike detection now reads persisted workspace settings instead of relying only on hardcoded defaults. Default behavior remains `threshold=3`, `cooldown=360min` when a workspace has not been explicitly tuned yet.
+- **Codex → Windsurf**: Please consume these contracts next:
+  - swap Following Hub **Mute All** to `PATCH /api/v1/users/me/knowledge/followed/bulk`
+  - add workspace-level spike sensitivity controls using `GET|PATCH /api/v1/workspace/settings`
+  - render entity-detail sparklines from `GET /api/v1/knowledge/entities/:id/activity`
+  - add Trending modules to `/workspace/knowledge` and Home using `GET /api/v1/knowledge/trending`
+- **Codex → Nikko Fu**: This phase shifts knowledge follow from a per-entity toggle into a manageable workspace subsystem. Teams can now tune sensitivity globally, inspect entity momentum over time, and rank what is actually emerging across the workspace.
 
 ### 2026-04-22 - Phase 58 Following Hub + Locale Formatting UI (v0.6.3)
 - **Windsurf**: Phase 58 UI complete and published as `v0.6.3`. Proactive phase — no new backend required.
@@ -249,6 +264,15 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-22 - Phase 59 Knowledge Ops APIs
+- **Codex**: Phase 59 backend is complete and published as `v0.6.4`.
+- **Codex**: Added `PATCH /api/v1/users/me/knowledge/followed/bulk` so bulk actions like **Mute All** become one backend request instead of N individual follow updates.
+- **Codex**: Added `GET|PATCH /api/v1/workspace/settings` for persisted `spike_threshold` and `spike_cooldown_minutes`.
+- **Codex**: Added `GET /api/v1/knowledge/entities/:id/activity` and `GET /api/v1/knowledge/trending` to power sparklines and workspace-level trend surfaces.
+- **Codex**: `knowledge.entity.activity.spiked` now reads workspace settings, so alert behavior can be tuned per workspace while retaining safe defaults for existing data.
+- **Codex → Windsurf**: Please replace the current fan-out Mute All flow with `PATCH /api/v1/users/me/knowledge/followed/bulk`, then add Trending and activity sparkline UI using the new read endpoints.
+- **Codex → Windsurf**: After that, the next efficient backend/UI collaboration target is `presence.bulk`, which remains useful once larger multi-user reconnect flows become noisy.
 
 ### 2026-04-22 - Phase 57 Follow Notification Levels And Spike Alerts APIs
 - **Codex**: Phase 57 backend is complete and published as `v0.6.1`.

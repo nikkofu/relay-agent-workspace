@@ -89,8 +89,8 @@ func SeedData() {
 
 	// 3. Workspaces (from mock-data.ts)
 	workspaces := []domain.Workspace{
-		{ID: "ws-1", OrganizationID: org.ID, Name: "Relay"},
-		{ID: "ws-2", OrganizationID: org2.ID, Name: "Side Project"},
+		{ID: "ws-1", OrganizationID: org.ID, Name: "Relay", KnowledgeSpikeThreshold: 3, KnowledgeSpikeCooldownMins: 360},
+		{ID: "ws-2", OrganizationID: org2.ID, Name: "Side Project", KnowledgeSpikeThreshold: 3, KnowledgeSpikeCooldownMins: 360},
 	}
 
 	for _, w := range workspaces {

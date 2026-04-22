@@ -4540,6 +4540,138 @@ func TestKnowledgeEntityFollowEndpoints(t *testing.T) {
 	}
 }
 
+func TestPhase59KnowledgeOpsEndpoints(t *testing.T) {
+	setupTestDB(t)
+	now := time.Now().UTC()
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Workspace{ID: "ws-1", OrganizationID: "org-1", Name: "Relay", KnowledgeSpikeThreshold: 3, KnowledgeSpikeCooldownMins: 360})
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Status: "active", CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-2", WorkspaceID: "ws-1", Kind: "concept", Title: "Agent Mesh", Status: "active", CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	db.DB.Create(&domain.Channel{ID: "ch-2", WorkspaceID: "ws-1", Name: "ai-lab", Type: "public"})
+	db.DB.Create(&domain.Message{ID: "msg-1", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program kickoff", CreatedAt: now.Add(-40 * time.Hour)})
+	db.DB.Create(&domain.Message{ID: "msg-2", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program sprint", CreatedAt: now.Add(-20 * time.Hour)})
+	db.DB.Create(&domain.Message{ID: "msg-3", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program QA", CreatedAt: now.Add(-2 * time.Hour)})
+	db.DB.Create(&domain.Message{ID: "msg-4", ChannelID: "ch-2", UserID: "user-1", Content: "Agent Mesh design", CreatedAt: now.Add(-3 * time.Hour)})
+	db.DB.Create(&domain.Message{ID: "msg-5", ChannelID: "ch-2", UserID: "user-1", Content: "Agent Mesh rollout", CreatedAt: now.Add(-90 * time.Minute)})
+	db.DB.Create(&domain.KnowledgeEntityRef{ID: "kref-1", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-1", Role: "discussion", CreatedAt: now.Add(-40 * time.Hour)})
+	db.DB.Create(&domain.KnowledgeEntityRef{ID: "kref-2", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-2", Role: "discussion", CreatedAt: now.Add(-20 * time.Hour)})
+	db.DB.Create(&domain.KnowledgeEntityRef{ID: "kref-3", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-3", Role: "decision", CreatedAt: now.Add(-2 * time.Hour)})
+	db.DB.Create(&domain.KnowledgeEntityRef{ID: "kref-4", WorkspaceID: "ws-1", EntityID: "entity-2", RefKind: "message", RefID: "msg-4", Role: "discussion", CreatedAt: now.Add(-3 * time.Hour)})
+	db.DB.Create(&domain.KnowledgeEntityRef{ID: "kref-5", WorkspaceID: "ws-1", EntityID: "entity-2", RefKind: "message", RefID: "msg-5", Role: "decision", CreatedAt: now.Add(-90 * time.Minute)})
+
+	router := gin.New()
+	router.POST("/api/v1/knowledge/entities/:id/follow", FollowKnowledgeEntity)
+	router.PATCH("/api/v1/users/me/knowledge/followed/bulk", PatchMyKnowledgeFollowsBulk)
+	router.GET("/api/v1/workspace/settings", GetWorkspaceSettings)
+	router.PATCH("/api/v1/workspace/settings", PatchWorkspaceSettings)
+	router.GET("/api/v1/knowledge/entities/:id/activity", GetKnowledgeEntityActivity)
+	router.GET("/api/v1/knowledge/trending", GetKnowledgeTrending)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/entities/entity-1/follow", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 follow entity-1, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/entities/entity-2/follow", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 follow entity-2, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPatch, "/api/v1/users/me/knowledge/followed/bulk", strings.NewReader(`{"entity_ids":["entity-1","entity-2"],"notification_level":"silent"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 bulk follow patch, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var bulkPayload struct {
+		Items []domain.KnowledgeEntityFollow `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &bulkPayload); err != nil {
+		t.Fatalf("decode bulk follow payload: %v", err)
+	}
+	if len(bulkPayload.Items) != 2 || bulkPayload.Items[0].NotificationLevel != "silent" {
+		t.Fatalf("unexpected bulk follow payload: %#v", bulkPayload.Items)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/workspace/settings?workspace_id=ws-1", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 get workspace settings, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var settingsPayload struct {
+		Settings struct {
+			WorkspaceID           string `json:"workspace_id"`
+			SpikeThreshold        int    `json:"spike_threshold"`
+			SpikeCooldownMinutes  int    `json:"spike_cooldown_minutes"`
+		} `json:"settings"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &settingsPayload); err != nil {
+		t.Fatalf("decode workspace settings: %v", err)
+	}
+	if settingsPayload.Settings.SpikeThreshold != 3 || settingsPayload.Settings.SpikeCooldownMinutes != 360 {
+		t.Fatalf("unexpected workspace settings payload: %#v", settingsPayload.Settings)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPatch, "/api/v1/workspace/settings", strings.NewReader(`{"workspace_id":"ws-1","spike_threshold":5,"spike_cooldown_minutes":90}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 patch workspace settings, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/knowledge/entities/entity-1/activity?days=7", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 get entity activity, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var activityPayload struct {
+		Activity struct {
+			EntityID string `json:"entity_id"`
+			Buckets  []struct {
+				Date     string `json:"date"`
+				RefCount int    `json:"ref_count"`
+			} `json:"buckets"`
+		} `json:"activity"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &activityPayload); err != nil {
+		t.Fatalf("decode entity activity payload: %v", err)
+	}
+	if activityPayload.Activity.EntityID != "entity-1" || len(activityPayload.Activity.Buckets) != 7 {
+		t.Fatalf("unexpected entity activity payload: %#v", activityPayload.Activity)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/knowledge/trending?workspace_id=ws-1&days=7&limit=5", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 get knowledge trending, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var trendingPayload struct {
+		Items []struct {
+			Entity struct {
+				ID string `json:"id"`
+			} `json:"entity"`
+			VelocityDelta int `json:"velocity_delta"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &trendingPayload); err != nil {
+		t.Fatalf("decode trending payload: %v", err)
+	}
+	if len(trendingPayload.Items) < 2 || trendingPayload.Items[0].Entity.ID != "entity-1" {
+		t.Fatalf("unexpected trending payload: %#v", trendingPayload.Items)
+	}
+}
+
 func TestMatchKnowledgeEntitiesInTextEndpoint(t *testing.T) {
 	setupTestDB(t)
 	now := time.Now().UTC()

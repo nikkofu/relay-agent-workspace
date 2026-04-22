@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.6.1` is the current release line and includes:
+`v0.6.4` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -66,6 +66,10 @@ For product, design, and marketing, the short version is:
 - knowledge inbox detail drill-down via `GET /api/v1/knowledge/inbox/:id`
 - `GET /api/v1/me/settings` for cross-device settings hydration
 - per-follow notification settings via `PATCH /api/v1/users/me/knowledge/followed/:id`
+- bulk follow notification updates via `PATCH /api/v1/users/me/knowledge/followed/bulk`
+- workspace knowledge alert settings via `GET|PATCH /api/v1/workspace/settings`
+- per-entity activity timeseries via `GET /api/v1/knowledge/entities/:id/activity`
+- workspace trending knowledge entities via `GET /api/v1/knowledge/trending`
 - realtime entity spike alerts via websocket `knowledge.entity.activity.spiked`
 - knowledge summary velocity/anomaly fields for channel-header trend badges
 - citation lookup entity hydration from canonical `KnowledgeEntityRef` message/file associations
@@ -168,13 +172,18 @@ For product, design, and marketing, the short version is:
   - `GET /api/v1/knowledge/inbox`
   - `GET /api/v1/knowledge/inbox/:id`
   - `GET /api/v1/me/settings`
+  - `GET /api/v1/workspace/settings`
+  - `PATCH /api/v1/workspace/settings`
+  - `PATCH /api/v1/users/me/knowledge/followed/bulk`
   - `PATCH /api/v1/users/me/knowledge/followed/:id`
   - `GET /api/v1/users/me/knowledge/followed`
+  - `GET /api/v1/knowledge/trending`
   - `GET /api/v1/knowledge/entities`
   - `GET /api/v1/knowledge/entities/suggest`
   - `POST /api/v1/knowledge/entities/match-text`
   - `POST /api/v1/knowledge/entities`
   - `GET /api/v1/knowledge/entities/:id`
+  - `GET /api/v1/knowledge/entities/:id/activity`
   - `GET /api/v1/knowledge/entities/:id/hover`
   - `POST /api/v1/knowledge/entities/:id/follow`
   - `DELETE /api/v1/knowledge/entities/:id/follow`

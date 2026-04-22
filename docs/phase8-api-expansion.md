@@ -137,12 +137,16 @@ Current backend surface already available:
 - `PUT /api/v1/channels/:id/knowledge/digest/schedule`
 - `DELETE /api/v1/channels/:id/knowledge/digest/schedule`
 - `GET /api/v1/knowledge/inbox`
+- `GET|PATCH /api/v1/workspace/settings`
 - `GET /api/v1/users/me/knowledge/followed`
+- `PATCH /api/v1/users/me/knowledge/followed/bulk`
 - `GET /api/v1/knowledge/entities`
+- `GET /api/v1/knowledge/trending`
 - `GET /api/v1/knowledge/entities/suggest`
 - `POST /api/v1/knowledge/entities/match-text`
 - `POST /api/v1/knowledge/entities`
 - `GET /api/v1/knowledge/entities/:id`
+- `GET /api/v1/knowledge/entities/:id/activity`
 - `GET /api/v1/knowledge/entities/:id/hover`
 - `POST /api/v1/knowledge/entities/:id/follow`
 - `DELETE /api/v1/knowledge/entities/:id/follow`
@@ -417,12 +421,16 @@ Baseline support now exists for:
 - `PUT /api/v1/channels/:id/knowledge/digest/schedule`
 - `DELETE /api/v1/channels/:id/knowledge/digest/schedule`
 - `GET /api/v1/knowledge/inbox`
+- `GET|PATCH /api/v1/workspace/settings`
 - `GET /api/v1/users/me/knowledge/followed`
+- `PATCH /api/v1/users/me/knowledge/followed/bulk`
 - `GET /api/v1/knowledge/entities`
+- `GET /api/v1/knowledge/trending`
 - `GET /api/v1/knowledge/entities/suggest`
 - `POST /api/v1/knowledge/entities/match-text`
 - `POST /api/v1/knowledge/entities`
 - `GET /api/v1/knowledge/entities/:id`
+- `GET /api/v1/knowledge/entities/:id/activity`
 - `GET /api/v1/knowledge/entities/:id/hover`
 - `POST /api/v1/knowledge/entities/:id/follow`
 - `DELETE /api/v1/knowledge/entities/:id/follow`
@@ -503,7 +511,7 @@ Recommended sequence from here:
 4. Introduce artifact and file lifecycle APIs.
 5. Deepen the knowledge layer with entity-aware mentions, summaries, graph views, and semantic retrieval.
    - Current delivered extensions now also include digest scheduling, digest inbox aggregation, inbox drill-down detail, entity follow, composer reverse lookup, and schedule dry-run preview.
-   - The next delivered layer now also includes per-follow notification levels and realtime entity spike alerts for followed knowledge objects.
+   - The next delivered layer now also includes per-follow notification levels, realtime entity spike alerts, bulk follow operations, workspace-level spike tuning, entity activity timeseries, and a trending knowledge feed.
 6. Add richer search layers such as suggestions and semantic retrieval.
 7. Move toward explicit agent runtime APIs once the collaboration foundation is stable.
 

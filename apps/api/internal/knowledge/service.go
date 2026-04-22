@@ -866,6 +866,45 @@ func UpdateFollowNotificationLevel(database *gorm.DB, entityID, userID, notifica
 	return follow, nil
 }
 
+func BulkUpdateFollowNotificationLevels(database *gorm.DB, userID string, entityIDs []string, notificationLevel string) ([]domain.KnowledgeEntityFollow, error) {
+	userID = strings.TrimSpace(userID)
+	notificationLevel = normalizeFollowNotificationLevel(notificationLevel)
+	if userID == "" {
+		return nil, errors.New("user_id is required")
+	}
+	if notificationLevel == "" {
+		return nil, errors.New("notification_level must be all, digest_only, or silent")
+	}
+
+	normalizedIDs := make([]string, 0, len(entityIDs))
+	seen := map[string]bool{}
+	for _, entityID := range entityIDs {
+		entityID = strings.TrimSpace(entityID)
+		if entityID == "" || seen[entityID] {
+			continue
+		}
+		seen[entityID] = true
+		normalizedIDs = append(normalizedIDs, entityID)
+	}
+	if len(normalizedIDs) == 0 {
+		return []domain.KnowledgeEntityFollow{}, nil
+	}
+
+	if err := database.Model(&domain.KnowledgeEntityFollow{}).
+		Where("user_id = ? AND entity_id IN ?", userID, normalizedIDs).
+		Update("notification_level", notificationLevel).Error; err != nil {
+		return nil, err
+	}
+
+	var follows []domain.KnowledgeEntityFollow
+	if err := database.Where("user_id = ? AND entity_id IN ?", userID, normalizedIDs).
+		Order("created_at desc, id desc").
+		Find(&follows).Error; err != nil {
+		return nil, err
+	}
+	return follows, nil
+}
+
 func UnfollowEntity(database *gorm.DB, entityID, userID string) error {
 	entityID = strings.TrimSpace(entityID)
 	userID = strings.TrimSpace(userID)
@@ -906,6 +945,180 @@ func ListFollowedEntities(database *gorm.DB, userID string) ([]FollowedEntity, e
 	return items, nil
 }
 
+func GetWorkspaceKnowledgeSettings(database *gorm.DB, workspaceID string) (WorkspaceKnowledgeSettings, error) {
+	workspaceID = strings.TrimSpace(workspaceID)
+	if workspaceID == "" {
+		return WorkspaceKnowledgeSettings{}, errors.New("workspace_id is required")
+	}
+
+	var workspace domain.Workspace
+	if err := database.First(&workspace, "id = ?", workspaceID).Error; err != nil {
+		return WorkspaceKnowledgeSettings{}, err
+	}
+	return normalizeWorkspaceKnowledgeSettings(workspace), nil
+}
+
+func UpdateWorkspaceKnowledgeSettings(database *gorm.DB, workspaceID string, spikeThreshold, spikeCooldownMinutes int) (WorkspaceKnowledgeSettings, error) {
+	workspaceID = strings.TrimSpace(workspaceID)
+	if workspaceID == "" {
+		return WorkspaceKnowledgeSettings{}, errors.New("workspace_id is required")
+	}
+	if spikeThreshold <= 0 {
+		return WorkspaceKnowledgeSettings{}, errors.New("spike_threshold must be greater than 0")
+	}
+	if spikeCooldownMinutes <= 0 {
+		return WorkspaceKnowledgeSettings{}, errors.New("spike_cooldown_minutes must be greater than 0")
+	}
+
+	var workspace domain.Workspace
+	if err := database.First(&workspace, "id = ?", workspaceID).Error; err != nil {
+		return WorkspaceKnowledgeSettings{}, err
+	}
+	workspace.KnowledgeSpikeThreshold = spikeThreshold
+	workspace.KnowledgeSpikeCooldownMins = spikeCooldownMinutes
+	if err := database.Save(&workspace).Error; err != nil {
+		return WorkspaceKnowledgeSettings{}, err
+	}
+	return normalizeWorkspaceKnowledgeSettings(workspace), nil
+}
+
+func GetEntityActivity(database *gorm.DB, entityID string, days int, now time.Time) (EntityActivity, error) {
+	entityID = strings.TrimSpace(entityID)
+	if entityID == "" {
+		return EntityActivity{}, errors.New("entity_id is required")
+	}
+	if days <= 0 {
+		days = 30
+	}
+	if days > 90 {
+		days = 90
+	}
+
+	var entity domain.KnowledgeEntity
+	if err := database.First(&entity, "id = ?", entityID).Error; err != nil {
+		return EntityActivity{}, err
+	}
+
+	end := truncateToUTCDate(now)
+	start := end.AddDate(0, 0, -(days - 1))
+
+	var refs []domain.KnowledgeEntityRef
+	if err := database.Where("entity_id = ? AND created_at >= ? AND created_at < ?", entityID, start, end.AddDate(0, 0, 1)).
+		Order("created_at asc").
+		Find(&refs).Error; err != nil {
+		return EntityActivity{}, err
+	}
+
+	counts := map[string]int{}
+	for _, ref := range refs {
+		key := truncateToUTCDate(ref.CreatedAt).Format("2006-01-02")
+		counts[key]++
+	}
+
+	buckets := make([]EntityActivityBucket, 0, days)
+	for i := 0; i < days; i++ {
+		day := start.AddDate(0, 0, i)
+		key := day.Format("2006-01-02")
+		buckets = append(buckets, EntityActivityBucket{
+			Date:     key,
+			RefCount: counts[key],
+		})
+	}
+
+	return EntityActivity{
+		EntityID:    entity.ID,
+		WorkspaceID: entity.WorkspaceID,
+		Days:        days,
+		Buckets:     buckets,
+	}, nil
+}
+
+func GetTrendingEntities(database *gorm.DB, params TrendingEntitiesParams) ([]TrendingEntity, error) {
+	workspaceID := strings.TrimSpace(params.WorkspaceID)
+	if workspaceID == "" {
+		return nil, errors.New("workspace_id is required")
+	}
+	days := params.Days
+	if days <= 0 {
+		days = 7
+	}
+	if days > 30 {
+		days = 30
+	}
+	limit := params.Limit
+	if limit <= 0 {
+		limit = 5
+	}
+	now := params.Now
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+
+	recentStart := now.AddDate(0, 0, -days)
+	previousStart := recentStart.AddDate(0, 0, -days)
+
+	var entities []domain.KnowledgeEntity
+	if err := database.Where("workspace_id = ? AND status <> ?", workspaceID, "archived").Find(&entities).Error; err != nil {
+		return nil, err
+	}
+
+	items := make([]TrendingEntity, 0, len(entities))
+	for _, entity := range entities {
+		var recentCount int64
+		if err := database.Model(&domain.KnowledgeEntityRef{}).
+			Where("entity_id = ? AND created_at >= ? AND created_at <= ?", entity.ID, recentStart, now).
+			Count(&recentCount).Error; err != nil {
+			return nil, err
+		}
+		if recentCount == 0 {
+			continue
+		}
+
+		var previousCount int64
+		if err := database.Model(&domain.KnowledgeEntityRef{}).
+			Where("entity_id = ? AND created_at >= ? AND created_at < ?", entity.ID, previousStart, recentStart).
+			Count(&previousCount).Error; err != nil {
+			return nil, err
+		}
+
+		relatedChannelIDs, err := listEntityRelatedChannelIDs(database, entity.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		var lastRef domain.KnowledgeEntityRef
+		var lastRefAt *time.Time
+		if err := database.Where("entity_id = ?", entity.ID).Order("created_at desc").First(&lastRef).Error; err == nil {
+			ts := lastRef.CreatedAt
+			lastRefAt = &ts
+		}
+
+		items = append(items, TrendingEntity{
+			Entity:            entity,
+			RecentRefCount:    int(recentCount),
+			PreviousRefCount:  int(previousCount),
+			VelocityDelta:     int(recentCount - previousCount),
+			RelatedChannelIDs: relatedChannelIDs,
+			LastRefAt:         lastRefAt,
+		})
+	}
+
+	sort.SliceStable(items, func(i, j int) bool {
+		if items[i].VelocityDelta == items[j].VelocityDelta {
+			if items[i].RecentRefCount == items[j].RecentRefCount {
+				return items[i].Entity.Title < items[j].Entity.Title
+			}
+			return items[i].RecentRefCount > items[j].RecentRefCount
+		}
+		return items[i].VelocityDelta > items[j].VelocityDelta
+	})
+
+	if len(items) > limit {
+		items = items[:limit]
+	}
+	return items, nil
+}
+
 func DetectEntitySpikeAlerts(database *gorm.DB, entityID, channelID string, now time.Time) ([]EntitySpikeAlert, error) {
 	entityID = strings.TrimSpace(entityID)
 	channelID = strings.TrimSpace(channelID)
@@ -927,7 +1140,12 @@ func DetectEntitySpikeAlerts(database *gorm.DB, entityID, channelID string, now 
 		Count(&recentRefCount).Error; err != nil {
 		return nil, err
 	}
-	if recentRefCount < 3 {
+	settings, err := getWorkspaceKnowledgeSettingsOrDefault(database, entity.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+
+	if recentRefCount < int64(settings.SpikeThreshold) {
 		return []EntitySpikeAlert{}, nil
 	}
 
@@ -958,7 +1176,7 @@ func DetectEntitySpikeAlerts(database *gorm.DB, entityID, channelID string, now 
 		if normalizeFollowNotificationLevel(follow.NotificationLevel) != "all" {
 			continue
 		}
-		if follow.LastAlertedAt != nil && follow.LastAlertedAt.After(now.Add(-6*time.Hour)) {
+		if follow.LastAlertedAt != nil && follow.LastAlertedAt.After(now.Add(-time.Duration(settings.SpikeCooldownMinutes)*time.Minute)) {
 			continue
 		}
 		notifiedUserIDs = append(notifiedUserIDs, follow.UserID)
@@ -2072,6 +2290,50 @@ func normalizeFollowNotificationLevel(value string) string {
 	default:
 		return ""
 	}
+}
+
+func normalizeWorkspaceKnowledgeSettings(workspace domain.Workspace) WorkspaceKnowledgeSettings {
+	threshold := workspace.KnowledgeSpikeThreshold
+	if threshold <= 0 {
+		threshold = 3
+	}
+	cooldown := workspace.KnowledgeSpikeCooldownMins
+	if cooldown <= 0 {
+		cooldown = 360
+	}
+	return WorkspaceKnowledgeSettings{
+		WorkspaceID:          workspace.ID,
+		SpikeThreshold:       threshold,
+		SpikeCooldownMinutes: cooldown,
+	}
+}
+
+func getWorkspaceKnowledgeSettingsOrDefault(database *gorm.DB, workspaceID string) (WorkspaceKnowledgeSettings, error) {
+	workspaceID = strings.TrimSpace(workspaceID)
+	if workspaceID == "" {
+		return WorkspaceKnowledgeSettings{
+			SpikeThreshold:       3,
+			SpikeCooldownMinutes: 360,
+		}, nil
+	}
+
+	var workspace domain.Workspace
+	if err := database.First(&workspace, "id = ?", workspaceID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return WorkspaceKnowledgeSettings{
+				WorkspaceID:          workspaceID,
+				SpikeThreshold:       3,
+				SpikeCooldownMinutes: 360,
+			}, nil
+		}
+		return WorkspaceKnowledgeSettings{}, err
+	}
+	return normalizeWorkspaceKnowledgeSettings(workspace), nil
+}
+
+func truncateToUTCDate(ts time.Time) time.Time {
+	ts = ts.UTC()
+	return time.Date(ts.Year(), ts.Month(), ts.Day(), 0, 0, 0, 0, time.UTC)
 }
 
 func listEntityRelatedChannelIDs(database *gorm.DB, entityID string) ([]string, error) {

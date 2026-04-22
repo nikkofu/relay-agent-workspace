@@ -297,6 +297,122 @@ func TestUpdateFollowNotificationLevelAndDetectSpikeAlerts(t *testing.T) {
 	}
 }
 
+func TestBulkFollowUpdatesWorkspaceSettingsActivityAndTrending(t *testing.T) {
+	database := setupKnowledgeTestDB(t)
+	now := time.Now().UTC()
+
+	database.Create(&domain.Workspace{
+		ID:                         "ws-1",
+		OrganizationID:             "org-1",
+		Name:                       "Relay",
+		KnowledgeSpikeThreshold:    3,
+		KnowledgeSpikeCooldownMins: 360,
+	})
+	database.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	database.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Status: "active", CreatedAt: now, UpdatedAt: now})
+	database.Create(&domain.KnowledgeEntity{ID: "entity-2", WorkspaceID: "ws-1", Kind: "concept", Title: "Agent Mesh", Status: "active", CreatedAt: now, UpdatedAt: now})
+	database.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	database.Create(&domain.Channel{ID: "ch-2", WorkspaceID: "ws-1", Name: "ai-lab", Type: "public"})
+	database.Create(&domain.Message{ID: "msg-1", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program kickoff", CreatedAt: now.Add(-36 * time.Hour)})
+	database.Create(&domain.Message{ID: "msg-2", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program sprint", CreatedAt: now.Add(-25 * time.Hour)})
+	database.Create(&domain.Message{ID: "msg-3", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program QA", CreatedAt: now.Add(-20 * time.Hour)})
+	database.Create(&domain.Message{ID: "msg-4", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program launch", CreatedAt: now.Add(-2 * time.Hour)})
+	database.Create(&domain.Message{ID: "msg-5", ChannelID: "ch-2", UserID: "user-1", Content: "Agent Mesh design", CreatedAt: now.Add(-3 * time.Hour)})
+	database.Create(&domain.Message{ID: "msg-6", ChannelID: "ch-2", UserID: "user-1", Content: "Agent Mesh rollout", CreatedAt: now.Add(-90 * time.Minute)})
+	database.Create(&domain.KnowledgeEntityRef{ID: "kref-1", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-1", Role: "discussion", CreatedAt: now.Add(-36 * time.Hour)})
+	database.Create(&domain.KnowledgeEntityRef{ID: "kref-2", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-2", Role: "discussion", CreatedAt: now.Add(-25 * time.Hour)})
+	database.Create(&domain.KnowledgeEntityRef{ID: "kref-3", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-3", Role: "decision", CreatedAt: now.Add(-20 * time.Hour)})
+	database.Create(&domain.KnowledgeEntityRef{ID: "kref-4", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-4", Role: "decision", CreatedAt: now.Add(-2 * time.Hour)})
+	database.Create(&domain.KnowledgeEntityRef{ID: "kref-5", WorkspaceID: "ws-1", EntityID: "entity-2", RefKind: "message", RefID: "msg-5", Role: "discussion", CreatedAt: now.Add(-3 * time.Hour)})
+	database.Create(&domain.KnowledgeEntityRef{ID: "kref-6", WorkspaceID: "ws-1", EntityID: "entity-2", RefKind: "message", RefID: "msg-6", Role: "decision", CreatedAt: now.Add(-90 * time.Minute)})
+
+	follow1, err := FollowEntity(database, "entity-1", "user-1")
+	if err != nil {
+		t.Fatalf("failed to follow entity-1: %v", err)
+	}
+	follow2, err := FollowEntity(database, "entity-2", "user-1")
+	if err != nil {
+		t.Fatalf("failed to follow entity-2: %v", err)
+	}
+
+	updated, err := BulkUpdateFollowNotificationLevels(database, "user-1", []string{"entity-1", "entity-2"}, "silent")
+	if err != nil {
+		t.Fatalf("bulk update follows: %v", err)
+	}
+	if len(updated) != 2 {
+		t.Fatalf("expected two updated follows, got %#v", updated)
+	}
+	if updated[0].NotificationLevel != "silent" || updated[1].NotificationLevel != "silent" {
+		t.Fatalf("expected silent notification level, got %#v", updated)
+	}
+
+	settings, err := GetWorkspaceKnowledgeSettings(database, "ws-1")
+	if err != nil {
+		t.Fatalf("get workspace settings: %v", err)
+	}
+	if settings.SpikeThreshold != 3 || settings.SpikeCooldownMinutes != 360 {
+		t.Fatalf("unexpected workspace settings: %#v", settings)
+	}
+
+	settings, err = UpdateWorkspaceKnowledgeSettings(database, "ws-1", 5, 90)
+	if err != nil {
+		t.Fatalf("update workspace settings: %v", err)
+	}
+	if settings.SpikeThreshold != 5 || settings.SpikeCooldownMinutes != 90 {
+		t.Fatalf("unexpected updated settings: %#v", settings)
+	}
+
+	activity, err := GetEntityActivity(database, "entity-1", 7, now)
+	if err != nil {
+		t.Fatalf("get entity activity: %v", err)
+	}
+	if activity.EntityID != "entity-1" || len(activity.Buckets) != 7 {
+		t.Fatalf("unexpected activity payload: %#v", activity)
+	}
+	total := 0
+	nonZero := 0
+	for _, bucket := range activity.Buckets {
+		total += bucket.RefCount
+		if bucket.RefCount > 0 {
+			nonZero++
+		}
+	}
+	if total != 4 || nonZero < 2 {
+		t.Fatalf("expected 4 refs across multiple buckets, got total=%d nonZero=%d payload=%#v", total, nonZero, activity.Buckets)
+	}
+
+	trending, err := GetTrendingEntities(database, TrendingEntitiesParams{
+		WorkspaceID: "ws-1",
+		Days:        7,
+		Limit:       5,
+		Now:         now,
+	})
+	if err != nil {
+		t.Fatalf("get trending entities: %v", err)
+	}
+	if len(trending) != 2 {
+		t.Fatalf("expected two trending entities, got %#v", trending)
+	}
+	if trending[0].Entity.ID != "entity-1" || trending[0].VelocityDelta <= trending[1].VelocityDelta {
+		t.Fatalf("expected entity-1 to rank first by velocity delta, got %#v", trending)
+	}
+
+	var follow domain.KnowledgeEntityFollow
+	if err := database.First(&follow, "id = ?", follow1.ID).Error; err != nil {
+		t.Fatalf("reload follow1: %v", err)
+	}
+	if follow.NotificationLevel != "silent" {
+		t.Fatalf("expected follow1 to persist silent, got %#v", follow)
+	}
+	follow = domain.KnowledgeEntityFollow{}
+	if err := database.First(&follow, "id = ?", follow2.ID).Error; err != nil {
+		t.Fatalf("reload follow2: %v", err)
+	}
+	if follow.NotificationLevel != "silent" {
+		t.Fatalf("expected follow2 to persist silent, got %#v", follow)
+	}
+}
+
 func TestMatchEntitiesInTextReturnsLongestNonOverlappingSpans(t *testing.T) {
 	database := setupKnowledgeTestDB(t)
 	now := time.Now().UTC()
@@ -535,6 +651,7 @@ func setupKnowledgeTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("failed to open sqlite test db: %v", err)
 	}
 	if err := database.AutoMigrate(
+		&domain.Workspace{},
 		&domain.Channel{},
 		&domain.FileAsset{},
 		&domain.FileExtraction{},

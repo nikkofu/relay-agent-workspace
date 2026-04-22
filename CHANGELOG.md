@@ -2,6 +2,66 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.4] - 2026-04-22
+
+This release pairs Windsurf's `v0.6.3` Following Hub UI with Codex Phase 59 backend contracts. It turns the knowledge-follow loop into an operational surface with bulk controls, workspace-level spike tuning, entity activity history, and a trending feed for future Home/Knowledge panels.
+
+### Added
+
+- **Bulk knowledge follow settings API**:
+  - `PATCH /api/v1/users/me/knowledge/followed/bulk`
+  - Accepts:
+    - `entity_ids[]`
+    - `notification_level`
+- **Workspace knowledge settings APIs**:
+  - `GET /api/v1/workspace/settings`
+  - `PATCH /api/v1/workspace/settings`
+  - Fields:
+    - `workspace_id`
+    - `spike_threshold`
+    - `spike_cooldown_minutes`
+- **Knowledge entity activity API**:
+  - `GET /api/v1/knowledge/entities/:id/activity`
+  - Returns daily `buckets[]` for sparkline/mini-chart UI.
+- **Knowledge trending API**:
+  - `GET /api/v1/knowledge/trending`
+  - Returns ranked entities with:
+    - `recent_ref_count`
+    - `previous_ref_count`
+    - `velocity_delta`
+    - `related_channel_ids`
+    - `last_ref_at`
+
+### Changed
+
+- `knowledge.entity.activity.spiked` now reads workspace-level `spike_threshold` and `spike_cooldown_minutes` instead of relying only on hardcoded defaults.
+- `workspaces` now persist knowledge alert settings:
+  - `knowledge_spike_threshold`
+  - `knowledge_spike_cooldown_mins`
+- Seeded workspaces now default to:
+  - `spike_threshold = 3`
+  - `spike_cooldown_minutes = 360`
+- Included Windsurf's `v0.6.3` UI pass in this release line:
+  - `/workspace/knowledge/following`
+  - locale-aware inbox date formatting
+  - Following Hub inline notification pickers and Mute All flow
+
+### Windsurf Handoff
+
+- Replace the current N-request Mute All implementation with `PATCH /api/v1/users/me/knowledge/followed/bulk`.
+- Add workspace-level spike tuning controls using `GET|PATCH /api/v1/workspace/settings`.
+- Render entity sparklines from `GET /api/v1/knowledge/entities/:id/activity`.
+- Add Trending modules on Knowledge and Home using `GET /api/v1/knowledge/trending`.
+
+### Verification Used For This Release
+
+- `go test ./internal/knowledge -run 'Test(BulkFollowUpdatesWorkspaceSettingsActivityAndTrending|UpdateFollowNotificationLevelAndDetectSpikeAlerts)' -count=1`
+- `go test ./internal/handlers -run 'Test(Phase59KnowledgeOpsEndpoints|KnowledgeEntityFollowEndpoints)' -count=1`
+- `go test ./...`
+- `bash -lc 'GOCACHE=$(pwd)/.cache/go-build go build ./...'`
+- `pnpm --filter relay-agent-workspace lint`
+- `pnpm --filter relay-agent-workspace exec tsc --noEmit`
+
 ## [0.6.1] - 2026-04-22
 
 This release combines Windsurf's `v0.6.0` UI completion pass with Codex Phase 57 backend follow-up. It closes the next AI-native knowledge loop: followed entities can now carry notification preferences and emit realtime spike alerts.
