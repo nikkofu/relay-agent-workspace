@@ -17,7 +17,7 @@ import {
   BookOpen, Clock, Network, FileText, MessageSquare,
   Layout, Tag, ArrowRight, ArrowLeft, User2, Briefcase,
   Lightbulb, Building2, AlertCircle, Zap, Send, Plus, Share2,
-  Sparkles, RefreshCw, DatabaseZap, CheckCheck,
+  Sparkles, RefreshCw, DatabaseZap, CheckCheck, HelpCircle,
 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
@@ -52,8 +52,10 @@ function EntityDetailContent({ id }: { id: string }) {
     ingestEvent, liveUpdate, spikingEntityIds, shareEntity,
     entityBriefs, isGeneratingBrief, generateEntityBrief, fetchEntityBrief,
     backfillStatuses, isBackfilling, fetchBackfillStatus, triggerBackfill,
+    staleBriefs, entityAnswers, isAskingEntity, askEntity, clearEntityAnswers,
   } = useKnowledgeStore()
   const [sharing, setSharing] = useState(false)
+  const [askInput, setAskInput] = useState("")
 
   const handleShare = async () => {
     if (!id || sharing) return
@@ -265,59 +267,143 @@ function EntityDetailContent({ id }: { id: string }) {
                   {entity.updated_at && <div className="space-y-1"><p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Last Updated</p><p className="text-sm font-bold">{format(new Date(entity.updated_at), "PPp")}</p></div>}
                 </div>
 
-                {/* Phase 61: AI Brief Card */}
+                {/* Phase 61/63A: AI Brief Card with stale pulse */}
                 {(() => {
                   const brief = entityBriefs[id]
                   const generating = !!isGeneratingBrief[id]
+                  const stale = staleBriefs[id]
                   return (
-                    <div className="rounded-xl border bg-gradient-to-br from-violet-500/5 to-indigo-500/5 p-4 space-y-3">
+                    <div className={cn(
+                      "rounded-xl border bg-gradient-to-br from-violet-500/5 to-indigo-500/5 p-4 space-y-3 transition-shadow",
+                      stale && "ring-2 ring-amber-400/40 shadow-[0_0_0_4px_rgba(251,191,36,0.08)]"
+                    )}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Sparkles className="w-3.5 h-3.5 text-violet-500" />
                           <p className="text-[10px] font-black uppercase tracking-widest text-violet-600 dark:text-violet-400">AI Brief</p>
                           {brief && <span className="text-[9px] text-muted-foreground">{format(new Date(brief.generated_at), "MMM d")}</span>}
+                          {stale && (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-400/30 rounded px-1.5 py-0.5">
+                              <AlertCircle className="w-2.5 h-2.5" /> Stale
+                            </span>
+                          )}
                         </div>
                         <Button
                           variant="outline"
                           size="sm"
-                          className="h-6 text-[10px] gap-1 px-2 border-violet-400/40 text-violet-700 dark:text-violet-400 hover:bg-violet-500/10"
+                          className={cn(
+                            "h-6 text-[10px] gap-1 px-2",
+                            stale
+                              ? "border-amber-400/50 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10"
+                              : "border-violet-400/40 text-violet-700 dark:text-violet-400 hover:bg-violet-500/10"
+                          )}
                           disabled={generating}
                           onClick={() => generateEntityBrief(id, !!brief)}
                         >
                           {generating ? <Loader2 className="w-3 h-3 animate-spin" /> : brief ? <RefreshCw className="w-3 h-3" /> : <Sparkles className="w-3 h-3" />}
-                          {generating ? 'Generating…' : brief ? 'Regenerate' : 'Generate'}
+                          {generating ? 'Generating…' : stale ? 'Refresh' : brief ? 'Regenerate' : 'Generate'}
                         </Button>
                       </div>
+                      {stale?.reason && (
+                        <p className="text-[10px] text-amber-700 dark:text-amber-400 italic">
+                          Brief may be outdated: {stale.reason}
+                        </p>
+                      )}
                       {brief ? (
-                        <div className="space-y-2.5">
-                          <p className="text-xs text-foreground/90 leading-relaxed">{brief.summary}</p>
-                          {brief.key_discussions.length > 0 && (
-                            <div>
-                              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-1.5">Key Discussions</p>
-                              <ul className="space-y-1">
-                                {brief.key_discussions.map((d, i) => (
-                                  <li key={i} className="flex items-start gap-1.5 text-[11px] text-foreground/80">
-                                    <span className="text-violet-500 mt-0.5 shrink-0">•</span>{d}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                          {brief.next_actions.length > 0 && (
-                            <div>
-                              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-1.5">Next Actions</p>
-                              <ul className="space-y-1">
-                                {brief.next_actions.map((a, i) => (
-                                  <li key={i} className="flex items-start gap-1.5 text-[11px] text-foreground/80">
-                                    <span className="text-emerald-500 mt-0.5 shrink-0">→</span>{a}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
+                        <p className="text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap">{brief.content}</p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">Generate an AI-powered brief grounded in this entity&apos;s refs and timeline.</p>
+                      )}
+                      {brief && (brief.ref_count !== undefined || brief.event_count !== undefined) && (
+                        <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                          {brief.ref_count !== undefined && <span>{brief.ref_count} refs</span>}
+                          {brief.event_count !== undefined && <span>{brief.event_count} events</span>}
+                          {brief.provider && <span className="ml-auto font-mono">{brief.provider}{brief.model ? ` / ${brief.model}` : ''}</span>}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+
+                {/* Phase 63A: Ask AI module */}
+                {(() => {
+                  const answers = entityAnswers[id] || []
+                  const asking = !!isAskingEntity[id]
+                  const submit = async () => {
+                    const q = askInput.trim()
+                    if (!q || asking) return
+                    setAskInput("")
+                    await askEntity(id, q)
+                  }
+                  return (
+                    <div className="rounded-xl border bg-gradient-to-br from-sky-500/5 to-cyan-500/5 p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <HelpCircle className="w-3.5 h-3.5 text-sky-500" />
+                          <p className="text-[10px] font-black uppercase tracking-widest text-sky-600 dark:text-sky-400">Ask AI</p>
+                          {answers.length > 0 && (
+                            <span className="text-[9px] text-muted-foreground">{answers.length} answered</span>
                           )}
                         </div>
-                      ) : (
-                        <p className="text-xs text-muted-foreground italic">Generate an AI-powered brief that summarises key discussions and next actions for this entity.</p>
+                        {answers.length > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 text-[10px] px-2 text-muted-foreground"
+                            onClick={() => clearEntityAnswers(id)}
+                          >
+                            Clear
+                          </Button>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          placeholder="Ask a question grounded in this entity…"
+                          className="h-8 text-xs"
+                          value={askInput}
+                          onChange={e => setAskInput(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault()
+                              submit()
+                            }
+                          }}
+                          disabled={asking}
+                        />
+                        <Button
+                          size="sm"
+                          className="h-8 text-xs gap-1.5 font-bold"
+                          disabled={asking || !askInput.trim()}
+                          onClick={submit}
+                        >
+                          {asking ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                          Ask
+                        </Button>
+                      </div>
+                      {answers.length > 0 && (
+                        <div className="space-y-3 pt-1">
+                          {answers.map((a, i) => (
+                            <div key={i} className="rounded-lg border bg-background/60 p-3 space-y-2">
+                              <p className="text-[11px] font-bold text-sky-700 dark:text-sky-400">Q: {a.question}</p>
+                              <p className="text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap">{a.answer}</p>
+                              {a.citations && a.citations.length > 0 && (
+                                <div className="space-y-1 pt-1 border-t">
+                                  <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Citations ({a.citations.length})</p>
+                                  {a.citations.slice(0, 5).map((c, j) => (
+                                    <div key={c.id || j} className="flex items-start gap-1.5 text-[10px]">
+                                      <Badge variant="secondary" className="text-[9px] h-4 px-1.5 shrink-0">{c.source_kind || c.ref_kind}</Badge>
+                                      <span className="text-foreground/75 italic line-clamp-2">&ldquo;{c.snippet}&rdquo;</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              <div className="flex items-center gap-2 text-[9px] text-muted-foreground">
+                                <span>{format(new Date(a.answered_at), "MMM d, HH:mm")}</span>
+                                {a.provider && <span className="font-mono ml-auto">{a.provider}{a.model ? ` / ${a.model}` : ''}</span>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </div>
                   )
@@ -353,7 +439,7 @@ function EntityDetailContent({ id }: { id: string }) {
                   const bs = backfillStatuses[id]
                   const backfilling = !!isBackfilling[id]
                   if (!bs) return null
-                  return bs.is_complete ? (
+                  return bs.is_backfilled ? (
                     <div className="flex items-center gap-1 text-[9px] text-emerald-600 font-bold">
                       <CheckCheck className="w-3 h-3" /> Backfill complete
                     </div>
@@ -366,7 +452,7 @@ function EntityDetailContent({ id }: { id: string }) {
                       onClick={() => triggerBackfill(id)}
                     >
                       {backfilling ? <Loader2 className="w-3 h-3 animate-spin" /> : <DatabaseZap className="w-3 h-3" />}
-                      {backfilling ? 'Backfilling…' : `Backfill (${bs.missing_refs} missing)`}
+                      {backfilling ? 'Backfilling…' : `Backfill (${bs.missing_ref_count} missing)`}
                     </Button>
                   )
                 })()}

@@ -32,6 +32,9 @@ import type {
   EntityBrief,
   WeeklyBrief,
   ActivityBackfillStatus,
+  EntityAnswer,
+  SharedWeeklyBriefLink,
+  StaleBriefNotice,
 } from "@/types"
 
 interface KnowledgeState {
@@ -70,6 +73,11 @@ interface KnowledgeState {
   isGeneratingWeeklyBrief: boolean
   backfillStatuses: Record<string, ActivityBackfillStatus>
   isBackfilling: Record<string, boolean>
+  // ── Phase 63A ───────────────────────────────────────────────────────────
+  entityAnswers: Record<string, EntityAnswer[]>
+  isAskingEntity: Record<string, boolean>
+  isSharingWeeklyBrief: boolean
+  staleBriefs: Record<string, StaleBriefNotice>
 
   pushLiveUpdate: (update: KnowledgeUpdate) => void
   handleEntityCreated: (entity: KnowledgeEntity) => void
@@ -136,6 +144,11 @@ interface KnowledgeState {
   fetchWeeklyBrief: (workspaceId: string) => Promise<WeeklyBrief | null>
   applyEntityBriefGenerated: (brief: EntityBrief) => void
   applyNotificationsBulkRead: (itemIds: string[]) => void
+  // ── Phase 63A ───────────────────────────────────────────────────────────
+  askEntity: (entityId: string, question: string) => Promise<EntityAnswer | null>
+  shareWeeklyBrief: (briefId: string) => Promise<SharedWeeklyBriefLink | null>
+  applyEntityBriefChanged: (notice: StaleBriefNotice) => void
+  clearEntityAnswers: (entityId: string) => void
 }
 
 export const useKnowledgeStore = create<KnowledgeState>((set) => ({
@@ -171,6 +184,10 @@ export const useKnowledgeStore = create<KnowledgeState>((set) => ({
   isGeneratingWeeklyBrief: false,
   backfillStatuses: {},
   isBackfilling: {},
+  entityAnswers: {},
+  isAskingEntity: {},
+  isSharingWeeklyBrief: false,
+  staleBriefs: {},
 
   pushLiveUpdate: (update) => set({ liveUpdate: update }),
 
@@ -927,7 +944,14 @@ export const useKnowledgeStore = create<KnowledgeState>((set) => ({
       const data = await res.json()
       const brief: EntityBrief = data.brief
       if (brief) {
-        set(state => ({ entityBriefs: { ...state.entityBriefs, [entityId]: brief } }))
+        set(state => {
+          const nextStale = { ...state.staleBriefs }
+          delete nextStale[entityId]
+          return {
+            entityBriefs: { ...state.entityBriefs, [entityId]: brief },
+            staleBriefs: nextStale,
+          }
+        })
         toast.success(force ? "Brief regenerated" : "Brief generated")
       }
       return brief || null
@@ -993,16 +1017,22 @@ export const useKnowledgeStore = create<KnowledgeState>((set) => ({
       })
       if (!res.ok) { toast.error("Backfill failed"); return null }
       const data = await res.json()
-      toast.success(`Backfill complete — ${data.refs_created ?? 0} refs added`)
-      // Refresh backfill status after trigger
-      const statusRes = await fetch(`${API_BASE_URL}/knowledge/entities/${entityId}/activity/backfill-status`)
-      if (statusRes.ok) {
-        const sd = await statusRes.json()
-        if (sd.status) {
-          set(state => ({ backfillStatuses: { ...state.backfillStatuses, [entityId]: sd.status } }))
+      const status: ActivityBackfillStatus | undefined = data.status
+      const created = status?.created_ref_count ?? (Array.isArray(data.created_refs) ? data.created_refs.length : 0)
+      toast.success(`Backfill complete — ${created} refs added`)
+      if (status) {
+        set(state => ({ backfillStatuses: { ...state.backfillStatuses, [entityId]: status } }))
+      } else {
+        // Fallback: refresh backfill status separately
+        const statusRes = await fetch(`${API_BASE_URL}/knowledge/entities/${entityId}/activity/backfill-status`)
+        if (statusRes.ok) {
+          const sd = await statusRes.json()
+          if (sd.status) {
+            set(state => ({ backfillStatuses: { ...state.backfillStatuses, [entityId]: sd.status } }))
+          }
         }
       }
-      return { refs_created: data.refs_created ?? 0, duration_ms: data.duration_ms ?? 0 }
+      return { refs_created: created, duration_ms: 0 }
     } catch (error) {
       console.error("Failed to trigger backfill:", error)
       toast.error("Backfill failed")
@@ -1051,6 +1081,85 @@ export const useKnowledgeStore = create<KnowledgeState>((set) => ({
   applyEntityBriefGenerated: (brief) => set(state => ({
     entityBriefs: { ...state.entityBriefs, [brief.entity_id]: brief },
     isGeneratingBrief: { ...state.isGeneratingBrief, [brief.entity_id]: false },
+  })),
+
+  // ── Phase 63A: Grounded entity Q&A ───────────────────────────
+  askEntity: async (entityId, question) => {
+    const q = question.trim()
+    if (!q) return null
+    set(state => ({ isAskingEntity: { ...state.isAskingEntity, [entityId]: true } }))
+    try {
+      const res = await fetch(`${API_BASE_URL}/knowledge/entities/${entityId}/ask`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: q }),
+      })
+      if (!res.ok) {
+        toast.error(`Ask failed (${res.status})`)
+        return null
+      }
+      const data = await res.json()
+      const answer: EntityAnswer | undefined = data.answer
+      if (answer) {
+        set(state => ({
+          entityAnswers: {
+            ...state.entityAnswers,
+            [entityId]: [answer, ...(state.entityAnswers[entityId] || [])],
+          },
+        }))
+      }
+      return answer || null
+    } catch (error) {
+      console.error("Failed to ask entity:", error)
+      toast.error("Ask failed")
+      return null
+    } finally {
+      set(state => ({ isAskingEntity: { ...state.isAskingEntity, [entityId]: false } }))
+    }
+  },
+
+  clearEntityAnswers: (entityId) => set(state => {
+    const next = { ...state.entityAnswers }
+    delete next[entityId]
+    return { entityAnswers: next }
+  }),
+
+  // ── Phase 63A: Weekly brief share link ────────────────────────
+  shareWeeklyBrief: async (briefId) => {
+    if (!briefId) { toast.error("No brief snapshot to share"); return null }
+    set({ isSharingWeeklyBrief: true })
+    try {
+      const res = await fetch(`${API_BASE_URL}/knowledge/weekly-brief/${briefId}/share`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      if (!res.ok) {
+        toast.error(`Share failed (${res.status})`)
+        return null
+      }
+      const data = await res.json()
+      const share: SharedWeeklyBriefLink | undefined = data.share
+      if (share?.url) {
+        try {
+          await navigator.clipboard.writeText(share.url)
+          toast.success("Weekly brief link copied to clipboard")
+        } catch {
+          toast.success("Weekly brief share link ready")
+        }
+      }
+      return share || null
+    } catch (error) {
+      console.error("Failed to share weekly brief:", error)
+      toast.error("Share failed")
+      return null
+    } finally {
+      set({ isSharingWeeklyBrief: false })
+    }
+  },
+
+  // ── Phase 63A: Brief stale invalidation (websocket-driven) ─────────
+  applyEntityBriefChanged: (notice) => set(state => ({
+    staleBriefs: { ...state.staleBriefs, [notice.entity_id]: notice },
   })),
 
   // ── Phase 62: Live bulk-read update from websocket (multi-tab inbox sync) ─

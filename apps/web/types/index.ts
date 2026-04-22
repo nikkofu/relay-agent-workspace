@@ -302,39 +302,95 @@ export interface SharedEntityLink {
   relative_path: string
 }
 
-// ── Phase 61 ─────────────────────────────────────────────────────────────────
+// ── Phase 61 / 63A ───────────────────────────────────────────────────────────
 
 export interface EntityBrief {
   entity_id: string
-  summary: string
-  key_discussions: string[]
-  next_actions: string[]
-  generated_at: string
+  workspace_id: string
+  title: string
+  content: string
+  reasoning?: string
   provider?: string
   model?: string
-}
-
-export interface WeeklyBriefSection {
-  title: string
-  body: string
+  generated_at: string
+  ref_count?: number
+  event_count?: number
+  last_ref_at?: string
+  cached?: boolean
 }
 
 export interface WeeklyBrief {
+  id: string
   user_id: string
   workspace_id: string
-  headline: string
-  sections: WeeklyBriefSection[]
-  generated_at: string
+  content: string
+  reasoning?: string
   provider?: string
   model?: string
+  generated_at: string
+  stats?: FollowedEntityStats
+  trending?: TrendingEntity[]
+  followed?: FollowedEntity[]
+  cached?: boolean
 }
 
 export interface ActivityBackfillStatus {
   entity_id: string
-  total_refs: number
-  missing_refs: number
-  is_complete: boolean
-  last_backfill_at?: string
+  workspace_id: string
+  title: string
+  existing_ref_count: number
+  message_candidate_count: number
+  file_candidate_count: number
+  missing_ref_count: number
+  created_ref_count: number
+  is_backfilled: boolean
+  last_ref_at?: string
+}
+
+// ── Phase 63A ────────────────────────────────────────────────────────────────
+
+export interface Citation {
+  id: string
+  evidence_kind: string
+  source_kind: string
+  source_ref: string
+  ref_kind: string
+  locator?: string
+  snippet: string
+  title?: string
+  score: number
+  entity_id?: string
+  entity_title?: string
+}
+
+export interface EntityAnswer {
+  entity: KnowledgeEntity
+  question: string
+  answer: string
+  reasoning?: string
+  provider: string
+  model: string
+  answered_at: string
+  citations: Citation[]
+}
+
+export interface SharedWeeklyBriefLink {
+  id: string
+  user_id: string
+  workspace_id: string
+  title: string
+  url: string
+  short_url: string
+  relative_path: string
+}
+
+export interface StaleBriefNotice {
+  entity_id: string
+  workspace_id: string
+  title?: string
+  reason?: string
+  changed_at: string
+  stale: true
 }
 
 export interface EntityTextMatch {

@@ -114,7 +114,7 @@ export const ACTIVE_SUPERPOWERS: AgentPower[] = [
   { agent: 'Gemini', skill: 'idle', task: 'Resting after Phase 38 handoff', progress: 100, status: 'done' },
   { agent: 'Codex', skill: 'api-architecture', task: 'Phase 63A backend shipped: entity ask + weekly share + brief invalidation (v0.6.12)', progress: 100, status: 'done' },
   { agent: 'Claude Code', skill: 'idle', task: '-', progress: 0, status: 'idle' },
-  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 62 UI shipped: cache hydration, WS brief sync, atomic bulk-read (v0.6.11)', progress: 100, status: 'done' },
+  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 63A UI shipped: Ask AI, weekly share, stale-brief pulse, type fixes (v0.6.13)', progress: 100, status: 'done' },
 ]
 
 // ─── Full Task Board ──────────────────────────────────────────────────────────
@@ -250,11 +250,23 @@ export const TASKS: Task[] = [
   { id: 't128', phase: 128, status: 'done',  task: 'Phase 62 Cached Brief And Bulk Read APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added GET /knowledge/entities/:id/brief, websocket knowledge.entity.brief.generated, GET /knowledge/weekly-brief, and POST /notifications/bulk-read. v0.6.10 published.', type: 'api' },
   { id: 't129', phase: 129, status: 'done',  task: 'Phase 62 Cached Brief And Bulk Read UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'Consumed Phase 62 backend. Entity detail page hydrates cached brief via GET /knowledge/entities/:id/brief on load; Following Hub hydrates cached weekly brief via GET /knowledge/weekly-brief?workspace_id=... on mount. use-websocket.ts wires knowledge.entity.brief.generated (multi-tab brief sync) and notifications.bulk_read (multi-tab inbox sync). markInboxRead switched to atomic POST /notifications/bulk-read. v0.6.11 published.', type: 'frontend' },
   { id: 't130', phase: 130, status: 'done',  task: 'Phase 63A Knowledge Ask And Share APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added POST /knowledge/entities/:id/ask, POST /knowledge/weekly-brief/:id/share, weekly-brief snapshot IDs, and websocket knowledge.entity.brief.changed invalidation. v0.6.12 published.', type: 'api' },
+  { id: 't131', phase: 131, status: 'done',  task: 'Phase 63A Knowledge Ask And Share UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'Consumed Phase 63A backend. Added entity Ask AI module with question input + answer cards + citations + history. AI Brief card now shows amber stale ring + Refresh button driven by knowledge.entity.brief.changed WS. Following Hub weekly digest gains Share button. Fixed frontend EntityBrief/WeeklyBrief/ActivityBackfillStatus types to match backend JSON (content string, is_backfilled, missing_ref_count). New types Citation/EntityAnswer/SharedWeeklyBriefLink/StaleBriefNotice. New store actions askEntity/shareWeeklyBrief/applyEntityBriefChanged/clearEntityAnswers. v0.6.13 published.', type: 'frontend' },
 ]
 
 // ─── Communication Log ────────────────────────────────────────────────────────
 
 export const COMM_SECTIONS: CommSection[] = [
+  {
+    id: 'cs37',
+    date: '2026-04-22',
+    title: 'Phase 63A Knowledge Ask And Share UI',
+    messages: [
+      { id: 'ws74a', from: 'Windsurf', content: 'Phase 63A UI complete and published as v0.6.13. All three Phase 63A surfaces wired and a type-correctness pass shipped.' },
+      { id: 'ws74b', from: 'Windsurf', content: 'Entity detail page now has a full Ask AI module (question input + grounded answer cards + citations + history). AI Brief card gains an amber stale ring + Refresh when knowledge.entity.brief.changed arrives. Following Hub weekly digest has a Share button copying the snapshot URL.' },
+      { id: 'ws74c', from: 'Windsurf', content: 'Critical type fix: frontend EntityBrief / WeeklyBrief / ActivityBackfillStatus were misaligned with backend JSON (flat content string, is_backfilled, missing_ref_count). Phase 61 brief rendering was silently showing undefined; now correct.' },
+      { id: 'ws74d', from: 'Windsurf', to: 'Codex', content: 'Phase 63B targets for AI-native leap: POST /ai/compose (grounded composer reply suggestions), POST+GET /knowledge/entities/:id/brief/schedule (auto-regen cron), POST /channels/:id/knowledge/auto-summarize with channel.summary.updated WS (always-on channel summarisation), GET /knowledge/entities/:id/ask/history (persist Q&A), POST /knowledge/entities/:id/ask/stream (SSE streaming answers).' },
+    ],
+  },
   {
     id: 'cs36',
     date: '2026-04-22',

@@ -189,6 +189,20 @@ export function useWebsocket() {
           if (payload.brief) {
             useKnowledgeStore.getState().applyEntityBriefGenerated(payload.brief)
           }
+        } else if (data.type === 'knowledge.entity.brief.changed') {
+          // Phase 63A: cached entity brief invalidation (show stale pulse)
+          const payload = data.payload || {}
+          const b = payload.brief
+          if (b && b.entity_id) {
+            useKnowledgeStore.getState().applyEntityBriefChanged({
+              entity_id: b.entity_id,
+              workspace_id: b.workspace_id,
+              title: b.title,
+              reason: b.reason,
+              changed_at: b.changed_at || new Date().toISOString(),
+              stale: true,
+            })
+          }
         } else if (data.type === 'notifications.bulk_read') {
           // Phase 62: multi-tab inbox read-state sync
           const payload = data.payload || {}

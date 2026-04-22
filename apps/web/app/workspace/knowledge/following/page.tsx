@@ -19,7 +19,7 @@ import {
   Bell, BellOff, BellRing, Newspaper, VolumeX,
   Zap, ChevronDown, ChevronRight, Loader2, Search,
   Tag, User2, Building2, BookOpen, FileText, Layout,
-  BellMinus, BellPlus, Sparkles,
+  BellMinus, BellPlus, Sparkles, Share2,
 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import type { FollowNotificationLevel, FollowedEntity } from "@/types"
@@ -54,6 +54,7 @@ export default function FollowingPage() {
     followedStats,
     fetchFollowedStats,
     weeklyBrief, isGeneratingWeeklyBrief, generateWeeklyBrief, fetchWeeklyBrief,
+    shareWeeklyBrief, isSharingWeeklyBrief,
   } = useKnowledgeStore()
   const { currentWorkspace } = useWorkspaceStore()
 
@@ -212,6 +213,19 @@ export default function FollowingPage() {
                   {showWeeklyBrief ? 'Collapse' : 'View'}
                 </Button>
               )}
+              {weeklyBrief?.id && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-6 text-[10px] gap-1 px-2"
+                  disabled={isSharingWeeklyBrief}
+                  onClick={() => shareWeeklyBrief(weeklyBrief.id)}
+                  title="Copy weekly brief share link"
+                >
+                  {isSharingWeeklyBrief ? <Loader2 className="w-3 h-3 animate-spin" /> : <Share2 className="w-3 h-3" />}
+                  Share
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -228,13 +242,20 @@ export default function FollowingPage() {
           </div>
           {showWeeklyBrief && weeklyBrief && (
             <div className="mt-3 pt-3 border-t border-violet-400/20 space-y-2">
-              <p className="text-xs font-bold">{weeklyBrief.headline}</p>
-              {weeklyBrief.sections.map((s, i) => (
-                <div key={i}>
-                  <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-0.5">{s.title}</p>
-                  <p className="text-[11px] text-foreground/80 leading-relaxed">{s.body}</p>
+              <p className="text-[11px] text-foreground/85 leading-relaxed whitespace-pre-wrap">{weeklyBrief.content}</p>
+              {(weeklyBrief.stats || weeklyBrief.trending?.length || weeklyBrief.followed?.length) ? (
+                <div className="flex flex-wrap items-center gap-2 pt-1 text-[9px] text-muted-foreground">
+                  {weeklyBrief.stats && (
+                    <span>{weeklyBrief.stats.total_count} followed · {weeklyBrief.stats.spiking_count} spiking</span>
+                  )}
+                  {weeklyBrief.trending && weeklyBrief.trending.length > 0 && (
+                    <span>· {weeklyBrief.trending.length} trending</span>
+                  )}
+                  {weeklyBrief.provider && (
+                    <span className="ml-auto font-mono">{weeklyBrief.provider}{weeklyBrief.model ? ` / ${weeklyBrief.model}` : ''}</span>
+                  )}
                 </div>
-              ))}
+              ) : null}
             </div>
           )}
         </div>
