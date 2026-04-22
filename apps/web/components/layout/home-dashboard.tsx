@@ -27,6 +27,7 @@ import { Copy, ExternalLink, MoreVertical } from "lucide-react"
 import { CreateChannelDialog } from "@/components/channel/create-channel-dialog"
 import { InviteMemberDialog } from "@/components/workspace/invite-member-dialog"
 import { SetStatusDialog } from "@/components/workspace/set-status-dialog"
+import { TrendingEntitiesCard } from "@/components/knowledge/trending-entities-card"
 
 function stripHtml(html: string): string {
   if (!html) return ""
@@ -200,6 +201,28 @@ export function HomeDashboard() {
                     )}
                   </div>
                 </div>
+
+                {/* Trending Knowledge Entities (Phase 59) */}
+                {currentWorkspace?.id && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-black tracking-tight flex items-center gap-2">
+                        <Sparkles className="w-5 h-5 text-orange-500" />
+                        Trending Knowledge
+                      </h3>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-[10px] font-black text-orange-600 hover:text-orange-500"
+                        onClick={() => router.push('/workspace/knowledge')}
+                      >
+                        Open wiki
+                        <ArrowRight className="w-3 h-3 ml-1" />
+                      </Button>
+                    </div>
+                    <TrendingEntitiesCard workspaceId={currentWorkspace.id} limit={5} />
+                  </div>
+                )}
 
                 {/* Recent Knowledge Digests */}
                 {(homeData?.recent_knowledge_digests?.length || 0) > 0 && (

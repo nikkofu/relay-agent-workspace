@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 import type { KnowledgeEntity, KnowledgeEntityRef, KnowledgeEntityLink, KnowledgeEvent, KnowledgeGraph, KnowledgeGraphEdge } from "@/types"
 import { EntityFollowButton } from "@/components/knowledge/entity-follow-button"
+import { EntityActivitySparkline } from "@/components/knowledge/entity-activity-sparkline"
 
 const KIND_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string; badgeClass: string; bgClass: string }> = {
   person:       { label: "Person",       icon: User2,       color: "text-sky-600",    badgeClass: "bg-sky-500/10 text-sky-700 border-sky-300 dark:border-sky-700",         bgClass: "bg-sky-500/5" },
@@ -182,7 +183,8 @@ function EntityDetailContent({ id }: { id: string }) {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-3 shrink-0">
+            <EntityActivitySparkline entityId={entity.id} days={30} width={180} height={38} className="hidden md:flex" />
             <EntityFollowButton entityId={entity.id} isSpiking={!!spikingEntityIds[entity.id]} />
             <Button variant="outline" size="sm" className="text-xs gap-1.5" onClick={() => setIsEditing(!isEditing)}>
               {isEditing ? <X className="w-3.5 h-3.5" /> : <Edit2 className="w-3.5 h-3.5" />}

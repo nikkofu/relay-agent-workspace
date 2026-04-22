@@ -140,6 +140,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 57 Follow Notification Levels And Spike Alerts APIs | Codex | 2026-04-22 | Added `PATCH /api/v1/users/me/knowledge/followed/:id`, persisted `notification_level` + `last_alerted_at`, and websocket `knowledge.entity.activity.spiked` for followed-entity anomaly alerts. Included Windsurf's v0.6.0 UI pass in release train `v0.6.1`. |
 | 🟢 Done | Phase 58 Following Hub + Locale Formatting UI | Windsurf | 2026-04-22 | Dedicated `/workspace/knowledge/following` hub page listing all followed entities with inline notification-level pickers, spike pulse, Mute All, and empty-state guidance. `Following (N)` button in knowledge listing header links to it. `useLocale` + `formatLocaleDate` + `formatRelativeTime` utility hook hydrates user locale from `GET /api/v1/me/settings` and caches it session-wide; inbox date renders via `Intl.DateTimeFormat` respecting user preference. `v0.6.3` published. |
 | 🟢 Done | Phase 59 Knowledge Ops APIs | Codex | 2026-04-22 | Added `PATCH /api/v1/users/me/knowledge/followed/bulk`, `GET|PATCH /api/v1/workspace/settings`, `GET /api/v1/knowledge/entities/:id/activity`, and `GET /api/v1/knowledge/trending`. Workspace spike detection now reads persisted threshold/cooldown settings. Released in `v0.6.4`. |
+| 🟢 Done | Phase 59 Knowledge Ops UI | Windsurf | 2026-04-22 | Consumed all four Phase 59 backend contracts. Mute All in Following Hub now uses `PATCH /users/me/knowledge/followed/bulk` (single request) and gains a **Restore alerts** counterpart when everything is silenced. `TrendingEntitiesCard` component mounted on `/workspace/knowledge` (inline above entity grid) and Home dashboard — ranked by `velocity_delta` with recent/previous deltas, related channels, last activity. `EntityActivitySparkline` SVG sparkline on entity detail page header reads `/knowledge/entities/:id/activity` (30-day default) with gradient fill + last-day dot. Settings page gains a new **Workspace** tab with `Flame` + `Timer` inputs for `spike_threshold` + `spike_cooldown_minutes`, hydrated via `GET /workspace/settings` and persisted via `PATCH /workspace/settings`. `v0.6.5` published. |
 
 ---
 
@@ -150,7 +151,24 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
 | **Codex** | `api-architecture` | Phase 59 backend shipped: bulk follow ops + workspace knowledge settings + activity/trending (v0.6.4) | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-ui-agent` | Phase 58 UI shipped: Following Hub page, locale-aware formatting, Mute All (v0.6.3) | 100% |
+| **Windsurf** | `web-ui-agent` | Phase 59 UI shipped: bulk mute, trending cards, entity sparkline, workspace alert tuning (v0.6.5) | 100% |
+
+### 2026-04-22 - Phase 59 Knowledge Ops UI (v0.6.5)
+- **Windsurf**: Phase 59 UI complete and published as `v0.6.5`. Full consumer for Codex v0.6.4 backend — every one of the four new endpoints is now wired into the UI.
+- **Windsurf**: **Bulk Mute All**: Following Hub now calls `PATCH /api/v1/users/me/knowledge/followed/bulk` instead of fan-out PATCHes. New **Restore alerts** button appears when every follow is `silent` (same bulk endpoint, level `all`). Optimistic in-store update via `Set`-based lookup.
+- **Windsurf**: **Trending**: new reusable `TrendingEntitiesCard` component (`components/knowledge/trending-entities-card.tsx`). Gradient amber/orange header, kind-aware row icons, ranked #1–N, `velocity_delta` badge colored by sign, `recent_ref_count` + related-channel count + last-ref relative time per row, click-through to entity detail. Mounted on `/workspace/knowledge` above the entity grid (only when no filters active) and on the Home dashboard above Recent Knowledge Digests.
+- **Windsurf**: **Activity sparkline**: new `EntityActivitySparkline` component (`components/knowledge/entity-activity-sparkline.tsx`). Inline SVG with purple gradient area fill + stroke, last-day dot, total-refs caption, `+N today` callout. Placed on entity detail page header (`md:flex` only so it doesn't crowd mobile). Uses per-entity caching via `entityActivity` store slice.
+- **Windsurf**: **Workspace tab**: Settings page gains a 5th tab **Workspace** (Building2 icon) housing a **Knowledge Alert Tuning** card. Two `type="number"` inputs for `spike_threshold` (default 3) and `spike_cooldown_minutes` (default 360), hydrated on tab mount from `GET /api/v1/workspace/settings?workspace_id=...` and saved via `PATCH /api/v1/workspace/settings` with a single **Save settings** button. Input validation mirrors backend (> 0).
+- **Windsurf**: Store layer adds 5 actions: `bulkUpdateFollowNotificationLevel`, `fetchWorkspaceKnowledgeSettings`, `updateWorkspaceKnowledgeSettings`, `fetchEntityActivity` (cached in `entityActivity: Record<string, EntityActivity>`), `fetchTrendingEntities` (cached in `trendingEntities[]` with `isLoadingTrending`). Types added to `types/index.ts`: `WorkspaceKnowledgeSettings`, `EntityActivityBucket`, `EntityActivity`, `TrendingEntity`.
+- **Windsurf → Codex**: Recommended Phase 60 backend targets:
+  - **`websocket knowledge.trending.changed`** — push trending re-rankings in real time so the Trending card updates without polling. Payload = `{ workspace_id, days, items[] }` (same shape as GET response). Would make Home + Knowledge feel alive.
+  - **`POST /api/v1/knowledge/entities/:id/activity/backfill`** or an admin reindex job — existing entities with pre-Phase-57 refs have sparse buckets. A backfill step that walks historical `messages`/`entity_refs` and materialises daily counts would give the sparklines meaningful history on day one.
+  - **`GET /api/v1/users/me/knowledge/followed/stats`** — aggregated counts (total follows, follows spiking right now, muted count, per-kind breakdown). Would power a header strip on Following Hub and an AI-native weekly "Your knowledge follow digest" email.
+  - **`POST /api/v1/knowledge/entities/:id/share`** — generate a shareable deeplink/short URL for entity pages so Trending items and sparklines can be shared in DMs and external docs.
+  - **`websocket presence.bulk`** — still outstanding from Phase 58 asks, still useful for large workspace reconnects.
+- **Windsurf → Nikko Fu**: Try: (a) `/workspace/knowledge/following` → **Mute all** now completes instantly with one request; silence everything and the button flips to **Restore alerts**. (b) `/workspace/knowledge` → Trending card shows the hottest entities this week. (c) Open any entity detail → purple sparkline in the header shows 30-day ref velocity. (d) `/workspace/settings` → **Workspace** tab → tune spike threshold/cooldown — changes apply to all followers in this workspace.
+
+---
 
 ### 2026-04-22 - Phase 59 Knowledge Ops API Completion (v0.6.4)
 - **Codex**: Phase 59 backend is complete and published as `v0.6.4`.
@@ -264,6 +282,14 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-22 - Phase 59 Knowledge Ops UI
+- **Windsurf**: Phase 59 UI complete and published as `v0.6.5`. Every new Phase 59 backend contract is now consumed.
+- **Windsurf**: Following Hub **Mute All** swapped to single `PATCH /users/me/knowledge/followed/bulk` request; **Restore alerts** counterpart added when everything is silenced.
+- **Windsurf**: `TrendingEntitiesCard` mounted on `/workspace/knowledge` and Home dashboard — ranked by `velocity_delta`, colored delta badges, related channels, last activity.
+- **Windsurf**: `EntityActivitySparkline` SVG chart added to entity detail page header using `/knowledge/entities/:id/activity` (30-day default).
+- **Windsurf**: Settings page gains a **Workspace** tab with `spike_threshold` + `spike_cooldown_minutes` inputs wired to `GET|PATCH /workspace/settings`.
+- **Windsurf → Codex**: Recommended Phase 60: (1) `websocket knowledge.trending.changed` for live trend re-rankings. (2) Activity backfill for pre-Phase-57 entities so sparklines have history. (3) `GET /users/me/knowledge/followed/stats` for aggregate counts on Following Hub. (4) `POST /knowledge/entities/:id/share` for shareable entity deeplinks. (5) carry-over: `presence.bulk`.
 
 ### 2026-04-22 - Phase 59 Knowledge Ops APIs
 - **Codex**: Phase 59 backend is complete and published as `v0.6.4`.

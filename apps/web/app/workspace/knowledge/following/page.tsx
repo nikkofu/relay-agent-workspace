@@ -19,7 +19,7 @@ import {
   Bell, BellOff, BellRing, Newspaper, VolumeX,
   Zap, ChevronDown, ChevronRight, Loader2, Search,
   Tag, User2, Building2, BookOpen, FileText, Layout,
-  BellMinus,
+  BellMinus, BellPlus,
 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import type { FollowNotificationLevel, FollowedEntity } from "@/types"
@@ -48,6 +48,7 @@ export default function FollowingPage() {
     fetchFollowedEntities,
     unfollowEntity,
     updateFollowNotificationLevel,
+    bulkUpdateFollowNotificationLevel,
     spikingEntityIds,
   } = useKnowledgeStore()
 
@@ -92,15 +93,25 @@ export default function FollowingPage() {
   }
 
   const handleMuteAll = async () => {
+    const targetIds = followedEntities
+      .filter(fe => fe.follow?.notification_level !== 'silent')
+      .map(fe => fe.entity.id)
+    if (targetIds.length === 0) return
     setMutingAll(true)
-    await Promise.all(
-      followedEntities
-        .filter(fe => fe.follow?.notification_level !== 'silent')
-        .map(fe => fe.follow?.id
-          ? updateFollowNotificationLevel(fe.follow.id, fe.entity.id, 'silent')
-          : Promise.resolve(false)
-        )
-    )
+    const ok = await bulkUpdateFollowNotificationLevel(targetIds, 'silent')
+    setMutingAll(false)
+    if (ok) {
+      // toast provided by caller
+    }
+  }
+
+  const handleUnmuteAll = async () => {
+    const targetIds = followedEntities
+      .filter(fe => fe.follow?.notification_level === 'silent')
+      .map(fe => fe.entity.id)
+    if (targetIds.length === 0) return
+    setMutingAll(true)
+    await bulkUpdateFollowNotificationLevel(targetIds, 'all')
     setMutingAll(false)
   }
 
@@ -134,6 +145,19 @@ export default function FollowingPage() {
             >
               {mutingAll ? <Loader2 className="w-3 h-3 animate-spin" /> : <BellMinus className="w-3 h-3" />}
               Mute all
+            </Button>
+          )}
+          {followedEntities.length > 0 &&
+            followedEntities.every(fe => fe.follow?.notification_level === 'silent') && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs gap-1.5 h-7 border-purple-400/40 text-purple-700 dark:text-purple-400"
+              disabled={mutingAll}
+              onClick={handleUnmuteAll}
+            >
+              {mutingAll ? <Loader2 className="w-3 h-3 animate-spin" /> : <BellPlus className="w-3 h-3" />}
+              Restore alerts
             </Button>
           )}
           <Button

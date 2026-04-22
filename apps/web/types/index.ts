@@ -254,6 +254,33 @@ export interface FollowedEntity {
   is_following: boolean
 }
 
+export interface WorkspaceKnowledgeSettings {
+  workspace_id: string
+  spike_threshold: number
+  spike_cooldown_minutes: number
+}
+
+export interface EntityActivityBucket {
+  date: string
+  ref_count: number
+}
+
+export interface EntityActivity {
+  entity_id: string
+  workspace_id: string
+  days: number
+  buckets: EntityActivityBucket[]
+}
+
+export interface TrendingEntity {
+  entity: KnowledgeEntity
+  recent_ref_count: number
+  previous_ref_count: number
+  velocity_delta: number
+  related_channel_ids: string[]
+  last_ref_at?: string
+}
+
 export interface EntityTextMatch {
   entity_id: string
   entity_title: string

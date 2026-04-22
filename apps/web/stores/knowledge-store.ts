@@ -24,6 +24,9 @@ import type {
   FollowedEntity,
   EntityTextMatch,
   FollowNotificationLevel,
+  WorkspaceKnowledgeSettings,
+  EntityActivity,
+  TrendingEntity,
 } from "@/types"
 
 interface KnowledgeState {
@@ -46,6 +49,11 @@ interface KnowledgeState {
   followedEntities: FollowedEntity[]
   followedEntityIds: Record<string, boolean>
   isLoadingFollowed: boolean
+  // ── Phase 59 ─────────────────────────────────────────────────────────────
+  workspaceKnowledgeSettings: Record<string, WorkspaceKnowledgeSettings>
+  trendingEntities: TrendingEntity[]
+  isLoadingTrending: boolean
+  entityActivity: Record<string, EntityActivity>
 
   pushLiveUpdate: (update: KnowledgeUpdate) => void
   handleEntityCreated: (entity: KnowledgeEntity) => void
@@ -90,7 +98,13 @@ interface KnowledgeState {
   followEntity: (entityId: string) => Promise<boolean>
   unfollowEntity: (entityId: string) => Promise<boolean>
   updateFollowNotificationLevel: (followId: string, entityId: string, level: FollowNotificationLevel) => Promise<boolean>
+  bulkUpdateFollowNotificationLevel: (entityIds: string[], level: FollowNotificationLevel) => Promise<boolean>
   matchEntitiesInText: (workspaceId: string, text: string, limit?: number) => Promise<EntityTextMatch[]>
+  // ── Phase 59 ─────────────────────────────────────────────────────────────
+  fetchWorkspaceKnowledgeSettings: (workspaceId: string) => Promise<WorkspaceKnowledgeSettings | null>
+  updateWorkspaceKnowledgeSettings: (workspaceId: string, spikeThreshold: number, spikeCooldownMinutes: number) => Promise<WorkspaceKnowledgeSettings | null>
+  fetchEntityActivity: (entityId: string, days?: number) => Promise<EntityActivity | null>
+  fetchTrendingEntities: (workspaceId: string, days?: number, limit?: number) => Promise<TrendingEntity[]>
 }
 
 export const useKnowledgeStore = create<KnowledgeState>((set) => ({
@@ -113,6 +127,10 @@ export const useKnowledgeStore = create<KnowledgeState>((set) => ({
   followedEntities: [],
   followedEntityIds: {},
   isLoadingFollowed: false,
+  workspaceKnowledgeSettings: {},
+  trendingEntities: [],
+  isLoadingTrending: false,
+  entityActivity: {},
 
   pushLiveUpdate: (update) => set({ liveUpdate: update }),
 
@@ -609,6 +627,109 @@ export const useKnowledgeStore = create<KnowledgeState>((set) => ({
       console.error("Failed to update follow notification level:", error)
       toast.error("Failed to update alert preference")
       return false
+    }
+  },
+
+  // ── Phase 59: Bulk follow notification level update ─────────────────────
+  bulkUpdateFollowNotificationLevel: async (entityIds, level) => {
+    if (entityIds.length === 0) return true
+    try {
+      const res = await fetch(`${API_BASE_URL}/users/me/knowledge/followed/bulk`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entity_ids: entityIds, notification_level: level }),
+      })
+      if (!res.ok) { toast.error("Failed to update alert preferences"); return false }
+      const set_ = new Set(entityIds)
+      set(state => ({
+        followedEntities: state.followedEntities.map(f =>
+          set_.has(f.entity.id)
+            ? { ...f, follow: { ...f.follow, notification_level: level } }
+            : f
+        ),
+      }))
+      return true
+    } catch (error) {
+      console.error("Failed to bulk update follow notification levels:", error)
+      toast.error("Failed to update alert preferences")
+      return false
+    }
+  },
+
+  // ── Phase 59: Workspace knowledge settings ──────────────────────────────
+  fetchWorkspaceKnowledgeSettings: async (workspaceId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/workspace/settings?workspace_id=${encodeURIComponent(workspaceId)}`)
+      if (!res.ok) return null
+      const data = await res.json()
+      const settings: WorkspaceKnowledgeSettings = data.settings
+      if (!settings) return null
+      set(state => ({ workspaceKnowledgeSettings: { ...state.workspaceKnowledgeSettings, [workspaceId]: settings } }))
+      return settings
+    } catch (error) {
+      console.error("Failed to fetch workspace knowledge settings:", error)
+      return null
+    }
+  },
+
+  updateWorkspaceKnowledgeSettings: async (workspaceId, spikeThreshold, spikeCooldownMinutes) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/workspace/settings`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspace_id: workspaceId,
+          spike_threshold: spikeThreshold,
+          spike_cooldown_minutes: spikeCooldownMinutes,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err?.error || "Failed to save workspace settings")
+        return null
+      }
+      const data = await res.json()
+      const settings: WorkspaceKnowledgeSettings = data.settings
+      set(state => ({ workspaceKnowledgeSettings: { ...state.workspaceKnowledgeSettings, [workspaceId]: settings } }))
+      return settings
+    } catch (error) {
+      console.error("Failed to update workspace knowledge settings:", error)
+      toast.error("Failed to save workspace settings")
+      return null
+    }
+  },
+
+  // ── Phase 59: Entity activity sparkline data ────────────────────────────
+  fetchEntityActivity: async (entityId, days = 30) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/knowledge/entities/${entityId}/activity?days=${days}`)
+      if (!res.ok) return null
+      const data = await res.json()
+      const activity: EntityActivity = data.activity
+      if (!activity) return null
+      set(state => ({ entityActivity: { ...state.entityActivity, [entityId]: activity } }))
+      return activity
+    } catch (error) {
+      console.error("Failed to fetch entity activity:", error)
+      return null
+    }
+  },
+
+  // ── Phase 59: Trending entities for workspace ───────────────────────────
+  fetchTrendingEntities: async (workspaceId, days = 7, limit = 5) => {
+    set({ isLoadingTrending: true })
+    try {
+      const url = `${API_BASE_URL}/knowledge/trending?workspace_id=${encodeURIComponent(workspaceId)}&days=${days}&limit=${limit}`
+      const res = await fetch(url)
+      if (!res.ok) { set({ isLoadingTrending: false }); return [] }
+      const data = await res.json()
+      const items: TrendingEntity[] = data.items || []
+      set({ trendingEntities: items, isLoadingTrending: false })
+      return items
+    } catch (error) {
+      console.error("Failed to fetch trending entities:", error)
+      set({ isLoadingTrending: false })
+      return []
     }
   },
 

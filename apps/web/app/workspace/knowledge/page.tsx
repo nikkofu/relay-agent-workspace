@@ -17,6 +17,8 @@ import {
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 import { EntityFollowButton } from "@/components/knowledge/entity-follow-button"
+import { TrendingEntitiesCard } from "@/components/knowledge/trending-entities-card"
+import { useWorkspaceStore } from "@/stores/workspace-store"
 
 const KIND_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string; badgeClass: string }> = {
   person:       { label: 'Person',       icon: User2,       color: 'text-sky-600',    badgeClass: 'bg-sky-500/10 text-sky-700 border-sky-300 dark:border-sky-700' },
@@ -35,6 +37,7 @@ const KIND_OPTIONS = ['person', 'project', 'concept', 'organization', 'file', 'a
 export default function KnowledgePage() {
   const router = useRouter()
   const { entities, isLoading, fetchEntities, createEntity, liveUpdate, fetchFollowedEntities, followedEntityIds, followedEntities, spikingEntityIds } = useKnowledgeStore()
+  const { currentWorkspace } = useWorkspaceStore()
   const [q, setQ] = useState("")
   const [filterKind, setFilterKind] = useState("all")
   const [onlyFollowed, setOnlyFollowed] = useState(false)
@@ -203,6 +206,11 @@ export default function KnowledgePage() {
                 <Plus className="w-3.5 h-3.5" /> New Entity
               </Button>
             )}
+          </div>
+        )}
+        {!isLoading && filtered.length > 0 && currentWorkspace?.id && !onlyFollowed && !q && filterKind === 'all' && (
+          <div className="px-6 pt-6">
+            <TrendingEntitiesCard workspaceId={currentWorkspace.id} limit={5} />
           </div>
         )}
         {!isLoading && filtered.length > 0 && (

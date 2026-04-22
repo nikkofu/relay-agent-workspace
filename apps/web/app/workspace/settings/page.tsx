@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { useNotificationStore } from "@/stores/notification-store"
 import { useUserStore } from "@/stores/user-store"
 import { useTheme } from "next-themes"
-import { Bell, Shield, Settings, User, Palette, Sun, Moon, Monitor, Check, Globe2 } from "lucide-react"
+import { Bell, Shield, Settings, User, Palette, Sun, Moon, Monitor, Check, Globe2, Building2, Flame, Timer, Save } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { API_BASE_URL } from "@/lib/constants"
 import { Switch } from "@/components/ui/switch"
@@ -19,13 +19,16 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
+import { useKnowledgeStore } from "@/stores/knowledge-store"
+import { useWorkspaceStore } from "@/stores/workspace-store"
 
-type Tab = "profile" | "appearance" | "notifications" | "privacy"
+type Tab = "profile" | "appearance" | "notifications" | "workspace" | "privacy"
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: "profile", label: "Profile", icon: User },
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "notifications", label: "Notifications", icon: Bell },
+  { id: "workspace", label: "Workspace", icon: Building2 },
   { id: "privacy", label: "Privacy", icon: Shield },
 ]
 
@@ -71,6 +74,14 @@ export default function SettingsPage() {
   const [settingsTz, setSettingsTz] = useState("")
   const [isSaving, setIsSaving] = useState(false)
 
+  // ── Phase 59: Workspace knowledge settings ────────────────────────────
+  const { currentWorkspace } = useWorkspaceStore()
+  const { fetchWorkspaceKnowledgeSettings, updateWorkspaceKnowledgeSettings } = useKnowledgeStore()
+  const [spikeThreshold, setSpikeThreshold] = useState(3)
+  const [spikeCooldown, setSpikeCooldown] = useState(360)
+  const [wsLoaded, setWsLoaded] = useState(false)
+  const [isSavingWs, setIsSavingWs] = useState(false)
+
   const [profileForm, setProfileForm] = useState({
     name: "",
     title: "",
@@ -106,6 +117,34 @@ export default function SettingsPage() {
     }
     loadSettings()
   }, [fetchPreferences, setTheme])
+
+  // Phase 59: load workspace knowledge settings
+  useEffect(() => {
+    if (!currentWorkspace?.id || wsLoaded) return
+    fetchWorkspaceKnowledgeSettings(currentWorkspace.id).then(s => {
+      if (s) {
+        setSpikeThreshold(s.spike_threshold)
+        setSpikeCooldown(s.spike_cooldown_minutes)
+      }
+      setWsLoaded(true)
+    })
+  }, [currentWorkspace?.id, wsLoaded, fetchWorkspaceKnowledgeSettings])
+
+  const handleSaveWorkspaceSettings = async () => {
+    if (!currentWorkspace?.id) return
+    if (spikeThreshold <= 0 || spikeCooldown <= 0) {
+      toast.error("Threshold and cooldown must be greater than 0")
+      return
+    }
+    setIsSavingWs(true)
+    const result = await updateWorkspaceKnowledgeSettings(
+      currentWorkspace.id,
+      spikeThreshold,
+      spikeCooldown,
+    )
+    setIsSavingWs(false)
+    if (result) toast.success("Workspace knowledge alerts saved")
+  }
 
   useEffect(() => {
     if (currentUser) {
@@ -503,6 +542,90 @@ export default function SettingsPage() {
                     </CardContent>
                   </Card>
                 )}
+              </div>
+            )}
+
+            {/* ── Workspace Tab (Phase 59) ── */}
+            {activeTab === "workspace" && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-lg font-black">Workspace</h2>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    Admin-level controls for <span className="font-bold">{currentWorkspace?.name || "this workspace"}</span>. Changes apply to everyone in the workspace.
+                  </p>
+                </div>
+
+                {/* Knowledge Alerts card */}
+                <Card className="shadow-none border-border/50">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-black flex items-center gap-2">
+                      <Flame className="w-4 h-4 text-orange-500" />
+                      Knowledge Alert Tuning
+                    </CardTitle>
+                    <CardDescription className="text-[11px]">
+                      Control how sensitive entity spike detection is for this workspace. Lower threshold = more frequent alerts. Higher cooldown = fewer repeat alerts for the same entity.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-5">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="spike-threshold" className="text-xs font-bold flex items-center gap-1.5">
+                          <Flame className="w-3 h-3 text-orange-500" />
+                          Spike Threshold
+                        </Label>
+                        <Input
+                          id="spike-threshold"
+                          type="number"
+                          min={1}
+                          max={100}
+                          value={spikeThreshold}
+                          onChange={e => setSpikeThreshold(Number(e.target.value))}
+                          className="h-9 text-sm"
+                          disabled={!wsLoaded || isSavingWs}
+                        />
+                        <p className="text-[10px] text-muted-foreground leading-relaxed">
+                          Minimum new refs in the recent window to trigger a spike alert.
+                          <span className="block font-bold text-muted-foreground mt-0.5">Default: 3</span>
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="spike-cooldown" className="text-xs font-bold flex items-center gap-1.5">
+                          <Timer className="w-3 h-3 text-blue-500" />
+                          Cooldown (minutes)
+                        </Label>
+                        <Input
+                          id="spike-cooldown"
+                          type="number"
+                          min={1}
+                          max={10080}
+                          value={spikeCooldown}
+                          onChange={e => setSpikeCooldown(Number(e.target.value))}
+                          className="h-9 text-sm"
+                          disabled={!wsLoaded || isSavingWs}
+                        />
+                        <p className="text-[10px] text-muted-foreground leading-relaxed">
+                          Minimum time between repeat alerts for the same entity.
+                          <span className="block font-bold text-muted-foreground mt-0.5">Default: 360 (6 hours)</span>
+                        </p>
+                      </div>
+                    </div>
+                    <Separator />
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] text-muted-foreground italic">
+                        Applies to all followed entities in this workspace.
+                      </p>
+                      <Button
+                        size="sm"
+                        className="text-xs gap-1.5 font-bold"
+                        onClick={handleSaveWorkspaceSettings}
+                        disabled={!wsLoaded || isSavingWs}
+                      >
+                        {isSavingWs ? <Check className="w-3.5 h-3.5 animate-pulse" /> : <Save className="w-3.5 h-3.5" />}
+                        Save settings
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             )}
 
