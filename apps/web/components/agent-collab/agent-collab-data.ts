@@ -112,9 +112,9 @@ export const MEMBERS: Member[] = [
 
 export const ACTIVE_SUPERPOWERS: AgentPower[] = [
   { agent: 'Gemini', skill: 'idle', task: 'Resting after Phase 38 handoff', progress: 100, status: 'done' },
-  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 51 knowledge discovery API handoff complete', progress: 100, status: 'done' },
+  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 52 digest automation and inbox API handoff complete', progress: 100, status: 'done' },
   { agent: 'Claude Code', skill: 'idle', task: '-', progress: 0, status: 'idle' },
-  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 51 Knowledge Discovery UI complete (v0.5.91)', progress: 100, status: 'done' },
+  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Waiting on Phase 52 digest automation and inbox UI integration', progress: 0, status: 'idle' },
 ]
 
 // ─── Full Task Board ──────────────────────────────────────────────────────────
@@ -228,11 +228,28 @@ export const TASKS: Task[] = [
   { id: 't106', phase: 106, status: 'done',  task: 'Phase 50 Entity Mention Rendering And Knowledge Alert UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'MessageEntityMention type + metadata.entity_mentions on Message + KnowledgeVelocity + velocity on ChannelKnowledgeSummary. EntityMentionChip (HoverCard: entity kind icon/badge, title, ArrowUpRight to wiki page). MessageItem: entity_mentions row below content. Channel header: pulsing amber Zap badge for is_spiking, emerald TrendingUp badge for non-spiking positive delta. v0.5.90 published.', type: 'frontend' },
   { id: 't107', phase: 107, status: 'done',  task: 'Phase 51 Knowledge Discovery APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added GET /api/v1/search/messages/by-entity, GET /api/v1/knowledge/entities/:id/hover, GET /api/v1/channels/:id/knowledge/digest, and POST /api/v1/channels/:id/knowledge/digest/publish. Published digest messages now preserve message.metadata.knowledge_digest. v0.5.91 published.', type: 'api' },
   { id: 't108', phase: 108, status: 'done',  task: 'Phase 51 Knowledge Discovery UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'EntityHoverCard/RelatedChannel/MessageByEntityResult/MatchSource/ChannelKnowledgeDigest types + knowledge_digest on Message.metadata. knowledge-store: fetchEntityHover/searchMessagesByEntity/fetchChannelDigest/publishChannelDigest. EntityMentionChip: lazy hover fetch with stats grid (total/messages/files), recent+last activity, related channels, Open Wiki + View messages actions. EntityMessagesSheet: slide-in drilldown with channel/workspace scope toggle and match_sources badges. ChannelDigestBanner: gradient banner with window picker (daily/weekly/monthly), Publish & Pin CTA, expandable entry list. KnowledgeDigestCard: structured digest card rendered inside pinned digest messages via message.metadata.knowledge_digest. v0.5.91 published.', type: 'frontend' },
+  { id: 't109', phase: 109, status: 'done',  task: 'Phase 52 Digest Automation And Knowledge Inbox APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added GET|PUT|DELETE /api/v1/channels/:id/knowledge/digest/schedule, background auto-publish scheduler, GET /api/v1/knowledge/inbox, home.knowledge_inbox_count, home.recent_knowledge_digests, and knowledge.digest.published websocket broadcasts. v0.5.92 published.', type: 'api' },
+  { id: 't110', phase: 110, status: 'ready',  task: 'Phase 52 Digest Automation And Knowledge Inbox UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'Consume digest schedule endpoints, top-level knowledge inbox data, home digest aggregation, and knowledge.digest.published realtime invalidation in the web workspace.', type: 'frontend' },
 ]
 
 // ─── Communication Log ────────────────────────────────────────────────────────
 
 export const COMM_SECTIONS: CommSection[] = [
+  {
+    id: 'cs17',
+    date: '2026-04-22',
+    title: 'Phase 52 Digest Automation And Knowledge Inbox API Completion',
+    messages: [
+      { id: 'cx52a', from: 'Codex', content: 'Phase 52 backend is complete and published as v0.5.92.' },
+      { id: 'cx52b', from: 'Codex', content: 'Added digest schedule persistence and CRUD through GET, PUT, and DELETE /api/v1/channels/:id/knowledge/digest/schedule. Schedule payloads include window, timezone, day_of_week/day_of_month, hour, minute, limit, pin, is_enabled, last_published_at, and next_run_at.' },
+      { id: 'cx52c', from: 'Codex', content: 'Added an in-process scheduler that checks enabled digest schedules every minute and automatically publishes due channel digest messages. New websocket event: knowledge.digest.published.' },
+      { id: 'cx52d', from: 'Codex', content: 'Added GET /api/v1/knowledge/inbox?scope=all|starred&limit=... for cross-channel digest aggregation. Inbox items expose channel, message, digest, is_read, and occurred_at.' },
+      { id: 'cx52e', from: 'Codex', content: 'GET /api/v1/home now also returns knowledge_inbox_count and recent_knowledge_digests, so Home can show digest badges/cards without inventing a parallel aggregation path.' },
+      { id: 'cx52f', from: 'Codex', to: 'Windsurf', content: 'Please implement the Phase 52 UI slice next: add digest schedule controls with GET/PUT/DELETE /channels/:id/knowledge/digest/schedule, add a top-level /workspace/knowledge/inbox route backed by GET /api/v1/knowledge/inbox, surface home.knowledge_inbox_count and home.recent_knowledge_digests, and listen for knowledge.digest.published to invalidate digest surfaces.' },
+      { id: 'cx52g', from: 'Codex', to: 'Windsurf', content: 'The inbox reuses stable notification IDs like knowledge-digest-<message_id>, so the existing POST /api/v1/notifications/read path can be reused instead of creating a second read-state API.' },
+      { id: 'cx52h', from: 'Codex', to: 'Nikko Fu', content: 'Relay has moved from manual knowledge summaries toward ambient AI delivery. Teams can now schedule digest drops per channel and consume them again through a cross-channel knowledge inbox.' },
+    ],
+  },
   {
     id: 'cs16',
     date: '2026-04-22',

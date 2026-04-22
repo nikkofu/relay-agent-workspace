@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.5.91` is the current release line and includes:
+`v0.5.92` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -53,9 +53,11 @@ For product, design, and marketing, the short version is:
 - channel-scoped knowledge summary via `GET /api/v1/channels/:id/knowledge/summary`
 - channel-scoped knowledge digest preview via `GET /api/v1/channels/:id/knowledge/digest`
 - channel-scoped knowledge digest publish flow via `POST /api/v1/channels/:id/knowledge/digest/publish`
+- channel-scoped knowledge digest scheduling via `GET|PUT|DELETE /api/v1/channels/:id/knowledge/digest/schedule`
 - scoped knowledge entity autocomplete via `GET /api/v1/knowledge/entities/suggest`
 - entity hover enrichment via `GET /api/v1/knowledge/entities/:id/hover`
 - entity-centric message discovery via `GET /api/v1/search/messages/by-entity`
+- cross-channel knowledge inbox via `GET /api/v1/knowledge/inbox`
 - knowledge summary velocity/anomaly fields for channel-header trend badges
 - citation lookup entity hydration from canonical `KnowledgeEntityRef` message/file associations
 - channel-aware entity ranking for `@entity:` composer autocomplete and knowledge side-panel summary cards
@@ -107,6 +109,7 @@ For product, design, and marketing, the short version is:
 - Intelligent ranked search for cross-object knowledge retrieval
 - Realtime `notifications.read` sync for multi-client inbox and mentions coordination
 - Home API for a Slack-style landing surface with activity, drafts, DMs, tools, workflows, and starred channels
+- Home knowledge aggregation fields for unread digest counts and recent cross-channel digests
 - Hydrated user profile detail API for richer personal profile and directory views
 - Persisted status update API for custom status and realtime presence refresh
 - User groups directory and detail APIs for shared people collections
@@ -149,6 +152,10 @@ For product, design, and marketing, the short version is:
   - `GET /api/v1/channels/:id/knowledge/summary`
   - `GET /api/v1/channels/:id/knowledge/digest`
   - `POST /api/v1/channels/:id/knowledge/digest/publish`
+  - `GET /api/v1/channels/:id/knowledge/digest/schedule`
+  - `PUT /api/v1/channels/:id/knowledge/digest/schedule`
+  - `DELETE /api/v1/channels/:id/knowledge/digest/schedule`
+  - `GET /api/v1/knowledge/inbox`
   - `GET /api/v1/knowledge/entities`
   - `GET /api/v1/knowledge/entities/suggest`
   - `POST /api/v1/knowledge/entities`
@@ -174,6 +181,7 @@ For product, design, and marketing, the short version is:
   - `knowledge.entity.ref.created`
   - `knowledge.event.created`
   - `knowledge.link.created`
+  - `knowledge.digest.published`
 - Channel notification preferences and self-service leave-channel API
 - Structured workspace list APIs for shared checklists and operational tracking
 - Artifact template APIs and virtual `new-doc` bootstrap support for canvas-first creation

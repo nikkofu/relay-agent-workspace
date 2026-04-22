@@ -129,6 +129,10 @@ Current backend surface already available:
 - `GET /api/v1/channels/:id/knowledge/summary`
 - `GET /api/v1/channels/:id/knowledge/digest`
 - `POST /api/v1/channels/:id/knowledge/digest/publish`
+- `GET /api/v1/channels/:id/knowledge/digest/schedule`
+- `PUT /api/v1/channels/:id/knowledge/digest/schedule`
+- `DELETE /api/v1/channels/:id/knowledge/digest/schedule`
+- `GET /api/v1/knowledge/inbox`
 - `GET /api/v1/knowledge/entities`
 - `GET /api/v1/knowledge/entities/suggest`
 - `POST /api/v1/knowledge/entities`
@@ -401,6 +405,10 @@ Baseline support now exists for:
 - `GET /api/v1/channels/:id/knowledge/summary`
 - `GET /api/v1/channels/:id/knowledge/digest`
 - `POST /api/v1/channels/:id/knowledge/digest/publish`
+- `GET /api/v1/channels/:id/knowledge/digest/schedule`
+- `PUT /api/v1/channels/:id/knowledge/digest/schedule`
+- `DELETE /api/v1/channels/:id/knowledge/digest/schedule`
+- `GET /api/v1/knowledge/inbox`
 - `GET /api/v1/knowledge/entities`
 - `GET /api/v1/knowledge/entities/suggest`
 - `POST /api/v1/knowledge/entities`
@@ -430,6 +438,7 @@ Baseline support now exists for:
   - `knowledge.entity.ref.created`
   - `knowledge.event.created`
   - `knowledge.link.created`
+  - `knowledge.digest.published`
 
 Likely follow-ups:
 
@@ -437,6 +446,8 @@ Likely follow-ups:
 - entity-centric search UX and channel/header drilldowns using `/api/v1/search/messages/by-entity`
 - richer hover-card UI that consumes `/api/v1/knowledge/entities/:id/hover`
 - digest review/publish UX for weekly or daily channel summaries using `/api/v1/channels/:id/knowledge/digest`
+- entity follow or subscription APIs for per-user knowledge watchlists
+- passive composer reverse-lookup hints that convert plain-text entity matches into `@entity` mentions
 - richer entity disambiguation and alias support beyond exact title matching
 - entity-aware search ranking that blends citations, refs, files, and channel-local activity
 - knowledge summaries that merge static wiki state with external live business signals

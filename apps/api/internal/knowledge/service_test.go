@@ -269,6 +269,147 @@ func TestBuildChannelKnowledgeDigestRanksRecentMovements(t *testing.T) {
 	}
 }
 
+func TestUpsertDigestScheduleAndComputeNextRunAt(t *testing.T) {
+	database := setupKnowledgeTestDB(t)
+	now := time.Date(2026, 4, 22, 8, 30, 0, 0, time.UTC)
+
+	database.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+
+	schedule, err := UpsertDigestSchedule(database, UpsertDigestScheduleInput{
+		ChannelID: "ch-1",
+		CreatedBy: "user-1",
+		Window:    "weekly",
+		Timezone:  "Asia/Shanghai",
+		DayOfWeek: 0,
+		Hour:      9,
+		Minute:    0,
+		Limit:     5,
+		Pin:       true,
+		IsEnabled: true,
+	})
+	if err != nil {
+		t.Fatalf("upsert digest schedule failed: %v", err)
+	}
+	if schedule.ChannelID != "ch-1" || schedule.Window != "weekly" || !schedule.Pin {
+		t.Fatalf("unexpected stored schedule: %#v", schedule)
+	}
+
+	nextRunAt, err := ComputeDigestScheduleNextRunAt(schedule, now)
+	if err != nil {
+		t.Fatalf("compute next run failed: %v", err)
+	}
+	if nextRunAt == nil || nextRunAt.Location().String() != "Asia/Shanghai" {
+		t.Fatalf("expected localized next run time, got %#v", nextRunAt)
+	}
+	if nextRunAt.Weekday() != time.Sunday || nextRunAt.Hour() != 9 || nextRunAt.Minute() != 0 {
+		t.Fatalf("expected next run on Sunday 09:00 Asia/Shanghai, got %v", nextRunAt)
+	}
+}
+
+func TestProcessDigestSchedulesPublishesDueDigestOnce(t *testing.T) {
+	database := setupKnowledgeTestDB(t)
+	now := time.Date(2026, 4, 26, 1, 5, 0, 0, time.UTC)
+
+	database.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	database.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	database.Create(&domain.Message{ID: "msg-1", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program kickoff", CreatedAt: now.Add(-2 * time.Hour)})
+	database.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Status: "active", CreatedAt: now, UpdatedAt: now})
+	database.Create(&domain.KnowledgeEntityRef{ID: "kref-1", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-1", Role: "discussion", CreatedAt: now.Add(-90 * time.Minute)})
+
+	_, err := UpsertDigestSchedule(database, UpsertDigestScheduleInput{
+		ChannelID: "ch-1",
+		CreatedBy: "user-1",
+		Window:    "weekly",
+		Timezone:  "Asia/Shanghai",
+		DayOfWeek: 0,
+		Hour:      9,
+		Minute:    0,
+		Limit:     5,
+		Pin:       true,
+		IsEnabled: true,
+	})
+	if err != nil {
+		t.Fatalf("upsert digest schedule failed: %v", err)
+	}
+
+	published, err := ProcessDigestSchedules(database, now)
+	if err != nil {
+		t.Fatalf("process digest schedules failed: %v", err)
+	}
+	if len(published) != 1 || published[0].Message.ChannelID != "ch-1" || !published[0].Message.IsPinned {
+		t.Fatalf("expected one pinned digest publish, got %#v", published)
+	}
+
+	var count int64
+	database.Model(&domain.Message{}).Where("channel_id = ? AND is_pinned = ?", "ch-1", true).Count(&count)
+	if count != 1 {
+		t.Fatalf("expected exactly one published digest message, got %d", count)
+	}
+
+	published, err = ProcessDigestSchedules(database, now.Add(10*time.Minute))
+	if err != nil {
+		t.Fatalf("re-process digest schedules failed: %v", err)
+	}
+	if len(published) != 0 {
+		t.Fatalf("expected second pass in same slot to skip duplicate publish, got %#v", published)
+	}
+}
+
+func TestListKnowledgeInboxReturnsDigestMessagesAndReadState(t *testing.T) {
+	database := setupKnowledgeTestDB(t)
+	now := time.Now().UTC()
+
+	database.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	database.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public", IsStarred: true})
+	database.Create(&domain.Channel{ID: "ch-2", WorkspaceID: "ws-1", Name: "ops", Type: "public"})
+	database.Create(&domain.ChannelMember{ChannelID: "ch-1", UserID: "user-1", Role: "member"})
+	database.Create(&domain.ChannelMember{ChannelID: "ch-2", UserID: "user-1", Role: "member"})
+
+	firstDigest, err := PublishChannelDigest(database, PublishChannelDigestInput{
+		ChannelID:  "ch-1",
+		UserID:     "user-1",
+		Window:     "weekly",
+		Limit:      5,
+		Pin:        true,
+		OccurredAt: now.Add(-2 * time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("publish digest failed: %v", err)
+	}
+	secondDigest, err := PublishChannelDigest(database, PublishChannelDigestInput{
+		ChannelID:  "ch-2",
+		UserID:     "user-1",
+		Window:     "daily",
+		Limit:      5,
+		Pin:        false,
+		OccurredAt: now,
+	})
+	if err != nil {
+		t.Fatalf("publish second digest failed: %v", err)
+	}
+
+	database.Create(&domain.NotificationRead{UserID: "user-1", ItemID: "knowledge-digest-" + firstDigest.Message.ID, ReadAt: now})
+
+	items, err := ListKnowledgeInbox(database, KnowledgeInboxParams{UserID: "user-1", Scope: "all", Limit: 10})
+	if err != nil {
+		t.Fatalf("list knowledge inbox failed: %v", err)
+	}
+	if len(items) != 2 || items[0].Message.ID != secondDigest.Message.ID {
+		t.Fatalf("expected newest digest first, got %#v", items)
+	}
+	if items[0].IsRead || !items[1].IsRead {
+		t.Fatalf("expected read state from notification reads, got %#v", items)
+	}
+
+	starredOnly, err := ListKnowledgeInbox(database, KnowledgeInboxParams{UserID: "user-1", Scope: "starred", Limit: 10})
+	if err != nil {
+		t.Fatalf("list starred knowledge inbox failed: %v", err)
+	}
+	if len(starredOnly) != 1 || starredOnly[0].Channel.ID != "ch-1" {
+		t.Fatalf("expected starred scope to keep only starred-channel digest, got %#v", starredOnly)
+	}
+}
+
 func setupKnowledgeTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
@@ -289,6 +430,10 @@ func setupKnowledgeTestDB(t *testing.T) *gorm.DB {
 		&domain.KnowledgeEntityRef{},
 		&domain.KnowledgeEntityLink{},
 		&domain.KnowledgeEvent{},
+		&domain.KnowledgeDigestSchedule{},
+		&domain.NotificationRead{},
+		&domain.User{},
+		&domain.ChannelMember{},
 	); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}

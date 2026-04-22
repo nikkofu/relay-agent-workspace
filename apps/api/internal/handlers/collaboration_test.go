@@ -4124,6 +4124,142 @@ func TestPublishChannelKnowledgeDigestCreatesPinnedMessage(t *testing.T) {
 	}
 }
 
+func TestDigestScheduleEndpointsSupportUpsertGetAndDelete(t *testing.T) {
+	setupTestDB(t)
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+
+	router := gin.New()
+	router.GET("/api/v1/channels/:id/knowledge/digest/schedule", GetChannelKnowledgeDigestSchedule)
+	router.PUT("/api/v1/channels/:id/knowledge/digest/schedule", PutChannelKnowledgeDigestSchedule)
+	router.DELETE("/api/v1/channels/:id/knowledge/digest/schedule", DeleteChannelKnowledgeDigestSchedule)
+
+	putReq := httptest.NewRequest(http.MethodPut, "/api/v1/channels/ch-1/knowledge/digest/schedule", strings.NewReader(`{"window":"weekly","timezone":"Asia/Shanghai","day_of_week":0,"hour":9,"minute":0,"limit":5,"pin":true,"is_enabled":true}`))
+	putReq.Header.Set("Content-Type", "application/json")
+	putRec := httptest.NewRecorder()
+	router.ServeHTTP(putRec, putReq)
+	if putRec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on put digest schedule, got %d body=%s", putRec.Code, putRec.Body.String())
+	}
+
+	getRec := httptest.NewRecorder()
+	getReq := httptest.NewRequest(http.MethodGet, "/api/v1/channels/ch-1/knowledge/digest/schedule", nil)
+	router.ServeHTTP(getRec, getReq)
+	if getRec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on get digest schedule, got %d body=%s", getRec.Code, getRec.Body.String())
+	}
+
+	var payload struct {
+		Schedule struct {
+			ChannelID string `json:"channel_id"`
+			Window    string `json:"window"`
+			Timezone  string `json:"timezone"`
+			Pin       bool   `json:"pin"`
+		} `json:"schedule"`
+	}
+	if err := json.Unmarshal(getRec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode digest schedule payload: %v", err)
+	}
+	if payload.Schedule.ChannelID != "ch-1" || payload.Schedule.Window != "weekly" || payload.Schedule.Timezone != "Asia/Shanghai" || !payload.Schedule.Pin {
+		t.Fatalf("unexpected schedule payload: %#v", payload.Schedule)
+	}
+
+	delRec := httptest.NewRecorder()
+	delReq := httptest.NewRequest(http.MethodDelete, "/api/v1/channels/ch-1/knowledge/digest/schedule", nil)
+	router.ServeHTTP(delRec, delReq)
+	if delRec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on delete digest schedule, got %d body=%s", delRec.Code, delRec.Body.String())
+	}
+}
+
+func TestGetKnowledgeInboxReturnsDigestMessages(t *testing.T) {
+	setupTestDB(t)
+	now := time.Now().UTC()
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public", IsStarred: true})
+	db.DB.Create(&domain.ChannelMember{ChannelID: "ch-1", UserID: "user-1", Role: "member"})
+	db.DB.Create(&domain.Message{
+		ID:        "msg-digest-1",
+		ChannelID: "ch-1",
+		UserID:    "user-1",
+		Content:   "Knowledge digest",
+		IsPinned:  true,
+		CreatedAt: now,
+		Metadata:  `{"knowledge_digest":{"channel_id":"ch-1","window":"weekly","window_days":7,"generated_at":"` + now.Format(time.RFC3339Nano) + `","total_refs":3,"recent_ref_count":2,"headline":"Digest","summary":"Summary","top_movements":[]}}`,
+	})
+
+	router := gin.New()
+	router.GET("/api/v1/knowledge/inbox", GetKnowledgeInbox)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/knowledge/inbox?scope=all&limit=10", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on knowledge inbox, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Items []struct {
+			ID      string `json:"id"`
+			IsRead  bool   `json:"is_read"`
+			Channel struct {
+				ID string `json:"id"`
+			} `json:"channel"`
+			Message struct {
+				ID string `json:"id"`
+			} `json:"message"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode knowledge inbox payload: %v", err)
+	}
+	if len(payload.Items) != 1 || payload.Items[0].Channel.ID != "ch-1" || payload.Items[0].Message.ID != "msg-digest-1" {
+		t.Fatalf("unexpected knowledge inbox payload: %#v", payload.Items)
+	}
+}
+
+func TestGetHomeIncludesKnowledgeDigestSummary(t *testing.T) {
+	setupTestDB(t)
+	now := time.Now().UTC()
+
+	db.DB.Create(&domain.User{ID: "user-1", OrganizationID: "org-1", Name: "Nikko Fu", Email: "nikko@example.com", Status: "online"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public", IsStarred: true})
+	db.DB.Create(&domain.ChannelMember{ChannelID: "ch-1", UserID: "user-1", Role: "member"})
+	db.DB.Create(&domain.Message{
+		ID:        "msg-digest-1",
+		ChannelID: "ch-1",
+		UserID:    "user-1",
+		Content:   "Knowledge digest",
+		IsPinned:  true,
+		CreatedAt: now,
+		Metadata:  `{"knowledge_digest":{"channel_id":"ch-1","window":"weekly","window_days":7,"generated_at":"` + now.Format(time.RFC3339Nano) + `","total_refs":3,"recent_ref_count":2,"headline":"Digest","summary":"Summary","top_movements":[]}}`,
+	})
+
+	router := gin.New()
+	router.GET("/api/v1/home", GetHome)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/home", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on home, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Home struct {
+			KnowledgeInboxCount    int   `json:"knowledge_inbox_count"`
+			RecentKnowledgeDigests []any `json:"recent_knowledge_digests"`
+		} `json:"home"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode home knowledge payload: %v", err)
+	}
+	if payload.Home.KnowledgeInboxCount != 1 || len(payload.Home.RecentKnowledgeDigests) != 1 {
+		t.Fatalf("expected home knowledge digest aggregation, got %#v", payload.Home)
+	}
+}
+
 func TestSuggestKnowledgeEntitiesReturnsScopedAutocompleteResults(t *testing.T) {
 	setupTestDB(t)
 	now := time.Now().UTC()
@@ -4453,7 +4589,7 @@ func setupTestDB(t *testing.T) {
 	if err := db.DB.AutoMigrate(&domain.Organization{}, &domain.Team{}, &domain.User{}, &domain.Agent{}, &domain.Workspace{}, &domain.WorkspaceInvite{}, &domain.UserGroup{}, &domain.UserGroupMember{}, &domain.WorkflowDefinition{}, &domain.WorkflowRunStep{}, &domain.WorkflowRunLog{}, &domain.ToolDefinition{}, &domain.ToolRun{}, &domain.ToolRunLog{}, &domain.Channel{}, &domain.ChannelMember{}, &domain.ChannelPreference{}, &domain.WorkspaceList{}, &domain.WorkspaceListItem{}, &domain.Message{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
-	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.NotificationPreference{}, &domain.NotificationMuteRule{}, &domain.AIFeedback{}, &domain.AIConversation{}, &domain.AIConversationMessage{}, &domain.AISummary{}, &domain.Artifact{}, &domain.ArtifactVersion{}, &domain.FileAsset{}, &domain.FileAssetEvent{}, &domain.FileExtraction{}, &domain.FileExtractionChunk{}, &domain.FileComment{}, &domain.FileShare{}, &domain.StarredFile{}, &domain.MessageArtifactReference{}, &domain.MessageFileAttachment{}, &domain.KnowledgeEvidenceLink{}, &domain.KnowledgeEvidenceEntityRef{}, &domain.KnowledgeEntity{}, &domain.KnowledgeEntityRef{}, &domain.KnowledgeEntityLink{}, &domain.KnowledgeEvent{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}, &domain.WorkflowRun{}); err != nil {
+	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.NotificationPreference{}, &domain.NotificationMuteRule{}, &domain.AIFeedback{}, &domain.AIConversation{}, &domain.AIConversationMessage{}, &domain.AISummary{}, &domain.Artifact{}, &domain.ArtifactVersion{}, &domain.FileAsset{}, &domain.FileAssetEvent{}, &domain.FileExtraction{}, &domain.FileExtractionChunk{}, &domain.FileComment{}, &domain.FileShare{}, &domain.StarredFile{}, &domain.MessageArtifactReference{}, &domain.MessageFileAttachment{}, &domain.KnowledgeEvidenceLink{}, &domain.KnowledgeEvidenceEntityRef{}, &domain.KnowledgeEntity{}, &domain.KnowledgeEntityRef{}, &domain.KnowledgeEntityLink{}, &domain.KnowledgeEvent{}, &domain.KnowledgeDigestSchedule{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}, &domain.WorkflowRun{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 }

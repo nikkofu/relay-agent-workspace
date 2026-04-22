@@ -525,6 +525,25 @@ type KnowledgeEvent struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
+type KnowledgeDigestSchedule struct {
+	ID              string     `gorm:"primaryKey" json:"id"`
+	ChannelID       string     `gorm:"uniqueIndex;index" json:"channel_id"`
+	WorkspaceID     string     `gorm:"index" json:"workspace_id"`
+	CreatedBy       string     `gorm:"index" json:"created_by"`
+	Window          string     `gorm:"index" json:"window"`
+	Timezone        string     `json:"timezone"`
+	DayOfWeek       int        `json:"day_of_week"`
+	DayOfMonth      int        `json:"day_of_month"`
+	Hour            int        `json:"hour"`
+	Minute          int        `json:"minute"`
+	Limit           int        `json:"limit"`
+	Pin             bool       `json:"pin"`
+	IsEnabled       bool       `gorm:"index" json:"is_enabled"`
+	LastPublishedAt *time.Time `json:"last_published_at,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
+}
+
 type MessageArtifactReference struct {
 	ID         uint      `gorm:"primaryKey" json:"id"`
 	MessageID  string    `gorm:"index;uniqueIndex:idx_message_artifact_ref" json:"message_id"`

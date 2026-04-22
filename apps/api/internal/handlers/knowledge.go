@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -356,12 +355,14 @@ func PublishChannelKnowledgeDigest(c *gin.Context) {
 		return
 	}
 
-	digest, err := knowledge.BuildChannelKnowledgeDigest(
-		db.DB,
-		c.Param("id"),
-		defaultString(strings.TrimSpace(input.Window), "weekly"),
-		parseLimit(strconv.Itoa(input.Limit), 5),
-	)
+	published, err := knowledge.PublishChannelDigest(db.DB, knowledge.PublishChannelDigestInput{
+		ChannelID:  c.Param("id"),
+		UserID:     currentUser.ID,
+		Window:     defaultString(strings.TrimSpace(input.Window), "weekly"),
+		Limit:      parseLimit(strconv.Itoa(input.Limit), 5),
+		Pin:        input.Pin,
+		OccurredAt: time.Now().UTC(),
+	})
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "channel not found"})
@@ -371,40 +372,111 @@ func PublishChannelKnowledgeDigest(c *gin.Context) {
 		return
 	}
 
-	meta := messageMetadata{
-		KnowledgeDigest: &digest,
-	}
-	metadataJSON, err := json.Marshal(meta)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to encode digest metadata"})
-		return
-	}
-
-	message := domain.Message{
-		ID:        ids.NewPrefixedUUID("msg"),
-		ChannelID: c.Param("id"),
-		UserID:    currentUser.ID,
-		Content:   buildKnowledgeDigestMessageContent(digest),
-		IsPinned:  input.Pin,
-		CreatedAt: time.Now().UTC(),
-		Metadata:  string(metadataJSON),
-	}
-	if err := db.DB.Create(&message).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create digest message"})
-		return
-	}
-
 	if RealtimeHub != nil {
-		if err := broadcastRealtimeEvent("message.created", message, message); err != nil {
+		if err := broadcastRealtimeEvent("message.created", published.Message, published.Message); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to broadcast digest message"})
+			return
+		}
+		if err := broadcastKnowledgeDigestPublished(published); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to broadcast digest event"})
 			return
 		}
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"message": message,
-		"digest":  digest,
+		"message": published.Message,
+		"digest":  published.Digest,
 	})
+}
+
+func GetChannelKnowledgeDigestSchedule(c *gin.Context) {
+	schedule, err := knowledge.GetDigestSchedule(db.DB, c.Param("id"), time.Now().UTC())
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "channel not found"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to load digest schedule"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"schedule": schedule})
+}
+
+func PutChannelKnowledgeDigestSchedule(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var input struct {
+		Window     string `json:"window"`
+		Timezone   string `json:"timezone"`
+		DayOfWeek  int    `json:"day_of_week"`
+		DayOfMonth int    `json:"day_of_month"`
+		Hour       int    `json:"hour"`
+		Minute     int    `json:"minute"`
+		Limit      int    `json:"limit"`
+		Pin        bool   `json:"pin"`
+		IsEnabled  bool   `json:"is_enabled"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	schedule, err := knowledge.UpsertDigestSchedule(db.DB, knowledge.UpsertDigestScheduleInput{
+		ChannelID:  c.Param("id"),
+		CreatedBy:  currentUser.ID,
+		Window:     input.Window,
+		Timezone:   input.Timezone,
+		DayOfWeek:  input.DayOfWeek,
+		DayOfMonth: input.DayOfMonth,
+		Hour:       input.Hour,
+		Minute:     input.Minute,
+		Limit:      input.Limit,
+		Pin:        input.Pin,
+		IsEnabled:  input.IsEnabled,
+	})
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "channel not found"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"schedule": schedule})
+}
+
+func DeleteChannelKnowledgeDigestSchedule(c *gin.Context) {
+	if err := knowledge.DeleteDigestSchedule(db.DB, c.Param("id")); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to delete digest schedule"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"deleted": true, "channel_id": c.Param("id")})
+}
+
+func GetKnowledgeInbox(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	items, err := knowledge.ListKnowledgeInbox(db.DB, knowledge.KnowledgeInboxParams{
+		UserID: currentUser.ID,
+		Scope:  c.DefaultQuery("scope", "all"),
+		Limit:  parseLimit(c.Query("limit"), 20),
+	})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to load knowledge inbox"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"items": items})
 }
 
 func handleKnowledgeError(c *gin.Context, err error, fallback string) {
@@ -458,6 +530,24 @@ func buildKnowledgeDigestMessageContent(digest knowledge.ChannelKnowledgeDigest)
 		lines = append(lines, fmt.Sprintf("- %s: %d recent refs (%+d vs previous window)", movement.EntityTitle, movement.RecentRefCount, movement.Delta))
 	}
 	return strings.Join(lines, "\n")
+}
+
+func broadcastKnowledgeDigestPublished(published knowledge.PublishedDigest) error {
+	if RealtimeHub == nil {
+		return nil
+	}
+	return RealtimeHub.Broadcast(realtime.Event{
+		ID:          ids.NewPrefixedUUID("evt"),
+		Type:        "knowledge.digest.published",
+		WorkspaceID: published.Channel.WorkspaceID,
+		ChannelID:   published.Channel.ID,
+		TS:          time.Now().UTC().Format(time.RFC3339Nano),
+		Payload: gin.H{
+			"channel": published.Channel,
+			"message": published.Message,
+			"digest":  published.Digest,
+		},
+	})
 }
 
 func autoLinkKnowledgeForMessage(message domain.Message) {

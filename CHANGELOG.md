@@ -2,6 +2,72 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.92] - 2026-04-22
+
+This release implements Phase 52: Digest Automation and Knowledge Inbox APIs. Relay can now auto-publish scheduled channel digests, surface them in a cross-channel knowledge inbox, and expose knowledge digest aggregates through the Home API.
+
+### Added
+
+- **Digest Schedule APIs**:
+  - `GET /api/v1/channels/:id/knowledge/digest/schedule`
+  - `PUT /api/v1/channels/:id/knowledge/digest/schedule`
+  - `DELETE /api/v1/channels/:id/knowledge/digest/schedule`
+  - Schedule fields include:
+    - `window`
+    - `timezone`
+    - `day_of_week`
+    - `day_of_month`
+    - `hour`
+    - `minute`
+    - `limit`
+    - `pin`
+    - `is_enabled`
+    - `last_published_at`
+    - `next_run_at`
+- **Knowledge Inbox API**:
+  - `GET /api/v1/knowledge/inbox`
+  - Query params:
+    - `scope=all|starred`
+    - `limit`
+  - Inbox items return:
+    - `id`
+    - `channel`
+    - `message`
+    - `digest`
+    - `is_read`
+    - `occurred_at`
+- **Background Digest Scheduler**:
+  - The API server now runs an in-process digest scheduler that checks persisted schedules every minute and publishes due digest messages automatically.
+- **Realtime Digest Event**:
+  - New websocket event: `knowledge.digest.published`
+
+### Changed
+
+- **Shared Digest Publish Path**:
+  - Manual and scheduled digest publishing now use the same backend publish flow, keeping `message.metadata.knowledge_digest` consistent across both paths.
+- **Home Aggregation**:
+  - `GET /api/v1/home` now also returns:
+    - `knowledge_inbox_count`
+    - `recent_knowledge_digests`
+- **Notification Compatibility**:
+  - Knowledge inbox entries use stable notification item IDs (`knowledge-digest-<message_id>`) so the existing `POST /api/v1/notifications/read` flow can mark digest items read without a new notification subsystem.
+
+### Windsurf Handoff
+
+- Use `GET /api/v1/channels/:id/knowledge/digest/schedule` plus `PUT`/`DELETE` to add channel-level scheduling controls in the digest banner or channel settings.
+- Use `GET /api/v1/knowledge/inbox?scope=all` for a top-level cross-channel knowledge inbox route and `scope=starred` for a tighter “followed channels” mode.
+- Consume `home.knowledge_inbox_count` and `home.recent_knowledge_digests` for Home dashboard cards or badges.
+- Listen for `knowledge.digest.published` if the UI wants to live-refresh cross-channel digest surfaces without waiting for a manual fetch.
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./internal/knowledge -run 'Test(UpsertDigestScheduleAndComputeNextRunAt|ProcessDigestSchedulesPublishesDueDigestOnce|ListKnowledgeInboxReturnsDigestMessagesAndReadState)' -count=1`
+- `cd apps/api && go test ./internal/handlers -run 'Test(DigestScheduleEndpointsSupportUpsertGetAndDelete|GetKnowledgeInboxReturnsDigestMessages|GetHomeIncludesKnowledgeDigestSummary)' -count=1`
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+- `pnpm --filter relay-agent-workspace exec tsc --noEmit`
+
 ## [0.5.91] - 2026-04-22
 
 This release implements Phase 51: Knowledge Discovery APIs. Relay now exposes entity-centric message discovery, live hover-card activity summaries, and channel knowledge digests that can be previewed or published as pinned messages.

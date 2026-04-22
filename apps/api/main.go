@@ -39,6 +39,7 @@ func main() {
 	hub := realtime.NewHub()
 	go hub.Run()
 	handlers.SetRealtimeHub(hub)
+	handlers.StartKnowledgeDigestScheduler()
 
 	llmConfig, err := config.LoadLLMConfig(filepath.Join("config"))
 	if err != nil {
@@ -121,6 +122,9 @@ func main() {
 		v1.GET("/channels/:id/knowledge/summary", handlers.GetChannelKnowledgeSummary)
 		v1.GET("/channels/:id/knowledge/digest", handlers.GetChannelKnowledgeDigest)
 		v1.POST("/channels/:id/knowledge/digest/publish", handlers.PublishChannelKnowledgeDigest)
+		v1.GET("/channels/:id/knowledge/digest/schedule", handlers.GetChannelKnowledgeDigestSchedule)
+		v1.PUT("/channels/:id/knowledge/digest/schedule", handlers.PutChannelKnowledgeDigestSchedule)
+		v1.DELETE("/channels/:id/knowledge/digest/schedule", handlers.DeleteChannelKnowledgeDigestSchedule)
 		v1.GET("/channels/:id/summary", handlers.GetChannelSummary)
 		v1.POST("/channels/:id/summary", handlers.GenerateChannelSummary)
 		v1.GET("/dms", handlers.GetDMConversations)
@@ -146,6 +150,7 @@ func main() {
 		v1.GET("/search", handlers.SearchWorkspace)
 		v1.GET("/search/messages/by-entity", handlers.SearchMessagesByEntity)
 		v1.GET("/citations/lookup", handlers.LookupCitations)
+		v1.GET("/knowledge/inbox", handlers.GetKnowledgeInbox)
 		v1.GET("/knowledge/entities", handlers.ListKnowledgeEntities)
 		v1.POST("/knowledge/entities", handlers.CreateKnowledgeEntity)
 		v1.GET("/knowledge/entities/suggest", handlers.SuggestKnowledgeEntities)

@@ -2,6 +2,8 @@ package knowledge
 
 import (
 	"time"
+
+	"github.com/nikkofu/relay-agent-workspace/api/internal/domain"
 )
 
 type Citation struct {
@@ -225,4 +227,66 @@ type ChannelKnowledgeDigestMovement struct {
 	PreviousRefCount int        `json:"previous_ref_count"`
 	Delta            int        `json:"delta"`
 	LastActivityAt   *time.Time `json:"last_activity_at,omitempty"`
+}
+
+type UpsertDigestScheduleInput struct {
+	ChannelID  string
+	CreatedBy  string
+	Window     string `json:"window"`
+	Timezone   string `json:"timezone"`
+	DayOfWeek  int    `json:"day_of_week"`
+	DayOfMonth int    `json:"day_of_month"`
+	Hour       int    `json:"hour"`
+	Minute     int    `json:"minute"`
+	Limit      int    `json:"limit"`
+	Pin        bool   `json:"pin"`
+	IsEnabled  bool   `json:"is_enabled"`
+}
+
+type ChannelKnowledgeDigestSchedule struct {
+	ID              string     `json:"id"`
+	ChannelID       string     `json:"channel_id"`
+	WorkspaceID     string     `json:"workspace_id"`
+	CreatedBy       string     `json:"created_by"`
+	Window          string     `json:"window"`
+	Timezone        string     `json:"timezone"`
+	DayOfWeek       int        `json:"day_of_week"`
+	DayOfMonth      int        `json:"day_of_month"`
+	Hour            int        `json:"hour"`
+	Minute          int        `json:"minute"`
+	Limit           int        `json:"limit"`
+	Pin             bool       `json:"pin"`
+	IsEnabled       bool       `json:"is_enabled"`
+	LastPublishedAt *time.Time `json:"last_published_at,omitempty"`
+	NextRunAt       *time.Time `json:"next_run_at,omitempty"`
+}
+
+type PublishChannelDigestInput struct {
+	ChannelID  string
+	UserID     string
+	Window     string
+	Limit      int
+	Pin        bool
+	OccurredAt time.Time
+}
+
+type PublishedDigest struct {
+	Channel domain.Channel         `json:"channel"`
+	Message domain.Message         `json:"message"`
+	Digest  ChannelKnowledgeDigest `json:"digest"`
+}
+
+type KnowledgeInboxParams struct {
+	UserID string
+	Scope  string
+	Limit  int
+}
+
+type KnowledgeInboxItem struct {
+	ID         string                 `json:"id"`
+	Channel    domain.Channel         `json:"channel"`
+	Message    domain.Message         `json:"message"`
+	Digest     ChannelKnowledgeDigest `json:"digest"`
+	IsRead     bool                   `json:"is_read"`
+	OccurredAt time.Time              `json:"occurred_at"`
 }

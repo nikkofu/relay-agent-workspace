@@ -12,6 +12,7 @@ import (
 	"github.com/nikkofu/relay-agent-workspace/api/internal/db"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/domain"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/ids"
+	"github.com/nikkofu/relay-agent-workspace/api/internal/knowledge"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/realtime"
 )
 
@@ -434,6 +435,11 @@ func GetHome(c *gin.Context) {
 	drafts := listRecentDrafts(currentUser.ID, 5)
 	tools := listEnabledTools()
 	workflows := listActiveWorkflows()
+	knowledgeDigests, _ := knowledge.ListKnowledgeInbox(db.DB, knowledge.KnowledgeInboxParams{
+		UserID: currentUser.ID,
+		Scope:  "all",
+		Limit:  5,
+	})
 
 	var groupCount int64
 	db.DB.Model(&domain.UserGroupMember{}).Where("user_id = ?", currentUser.ID).Count(&groupCount)
@@ -451,23 +457,31 @@ func GetHome(c *gin.Context) {
 		ActiveThreads:  countActiveThreadsForHome(currentUser.ID),
 	}
 	recentArtifacts := buildUserProfileSummary(currentUser).RecentArtifacts
+	knowledgeInboxCount := 0
+	for _, item := range knowledgeDigests {
+		if !item.IsRead {
+			knowledgeInboxCount++
+		}
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"home": gin.H{
-			"user":             currentUser,
-			"profile":          buildUserProfileSummary(currentUser),
-			"activity":         activity,
-			"stats":            stats,
-			"starred_channels": starredChannels,
-			"recent_dms":       recentDMs,
-			"drafts":           drafts,
-			"tools":            tools,
-			"workflows":        workflows,
-			"recent_activity":  listRecentChannelActivity(currentUser.ID, 6),
-			"recent_artifacts": recentArtifacts,
-			"recent_lists":     listRecentWorkspaceLists(currentUser.ID, 5),
-			"recent_tool_runs": listRecentToolRunsForHome(currentUser.ID, 5),
-			"recent_files":     listRecentFilesForHome(currentUser.ID, 5),
+			"user":                     currentUser,
+			"profile":                  buildUserProfileSummary(currentUser),
+			"activity":                 activity,
+			"stats":                    stats,
+			"starred_channels":         starredChannels,
+			"recent_dms":               recentDMs,
+			"drafts":                   drafts,
+			"tools":                    tools,
+			"workflows":                workflows,
+			"recent_activity":          listRecentChannelActivity(currentUser.ID, 6),
+			"recent_artifacts":         recentArtifacts,
+			"recent_lists":             listRecentWorkspaceLists(currentUser.ID, 5),
+			"recent_tool_runs":         listRecentToolRunsForHome(currentUser.ID, 5),
+			"recent_files":             listRecentFilesForHome(currentUser.ID, 5),
+			"knowledge_inbox_count":    knowledgeInboxCount,
+			"recent_knowledge_digests": knowledgeDigests,
 		},
 	})
 }
