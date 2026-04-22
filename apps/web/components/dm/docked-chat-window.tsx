@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { X, Minus } from "lucide-react"
+import { X, Minus, Maximize2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { UserAvatar } from "@/components/common/user-avatar"
 import { MessageComposer } from "@/components/message/message-composer"
@@ -10,6 +10,7 @@ import { useUserStore } from "@/stores/user-store"
 import { useDMStore } from "@/stores/dm-store"
 import { useMessageStore } from "@/stores/message-store"
 import { useUIStore } from "@/stores/ui-store"
+import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { TypingIndicator } from "@/components/message/typing-indicator"
 
@@ -23,6 +24,7 @@ export function DockedChatWindow({ userId, index }: DockedChatWindowProps) {
   const { conversations, createConversation } = useDMStore()
   const { messages, fetchDMMessages, sendDMMessage } = useMessageStore()
   const { closeDockedChat } = useUIStore()
+  const router = useRouter()
   const [isMinimized, setIsMinimized] = useState(false)
   const [conversation, setConversation] = useState(
     conversations.find(c => c.userIds.includes(userId) && c.userIds.includes(currentUser?.id || ""))
@@ -65,6 +67,16 @@ export function DockedChatWindow({ userId, index }: DockedChatWindowProps) {
           <span className="text-sm font-bold truncate text-foreground">{user.name}</span>
         </div>
         <div className="flex items-center gap-0.5">
+          <Button variant="ghost" size="icon" className="h-6 w-6" title="Open full conversation" onClick={(e) => {
+            e.stopPropagation()
+            if (conversation) {
+              router.push(`/workspace/dms/${conversation.id}`)
+            } else {
+              router.push(`/workspace/dms?u=${userId}`)
+            }
+          }}>
+            <Maximize2 className="h-3 w-3" />
+          </Button>
           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => {
             e.stopPropagation()
             setIsMinimized(!isMinimized)

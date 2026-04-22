@@ -25,6 +25,11 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Copy, ExternalLink, MoreVertical } from "lucide-react"
 
+function stripHtml(html: string): string {
+  if (!html) return ""
+  return html.replace(/<[^>]*>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/&nbsp;/g, " ").trim()
+}
+
 export function HomeDashboard() {
   const router = useRouter()
   const { userGroups, workflows, tools, fetchUserGroups, fetchWorkflows, fetchTools } = useDirectoryStore()
@@ -46,7 +51,7 @@ export function HomeDashboard() {
   if (!mounted) return null
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-white dark:bg-[#1a1d21] overflow-hidden">
+    <div className="h-full w-full flex flex-col bg-white dark:bg-[#1a1d21] overflow-hidden">
       {/* Slack-style Floating Header */}
       <header className="h-14 px-6 flex items-center border-b shrink-0 bg-white/80 dark:bg-[#1a1d21]/80 backdrop-blur-md sticky top-0 z-10">
         <div className="flex items-center gap-2">
@@ -178,7 +183,7 @@ export function HomeDashboard() {
                               Jump to <ArrowRight className="w-2.5 h-2.5" />
                             </span>
                           </div>
-                          <p className="text-sm text-muted-foreground line-clamp-1 mt-1 font-medium">{item.last_message}</p>
+                          <p className="text-sm text-muted-foreground line-clamp-1 mt-1 font-medium">{stripHtml(item.last_message || '')}</p>
                         </div>
                       </button>
                     ))}

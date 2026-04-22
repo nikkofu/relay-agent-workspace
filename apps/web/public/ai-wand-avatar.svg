@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" fill="none">
+  <rect width="80" height="80" rx="16" fill="url(#bg)"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="80" y2="80" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#6d28d9"/>
+      <stop offset="100%" stop-color="#4f46e5"/>
+    </linearGradient>
+  </defs>
+  <!-- Wand body -->
+  <line x1="22" y1="58" x2="52" y2="28" stroke="white" stroke-width="4" stroke-linecap="round"/>
+  <!-- Wand tip star -->
+  <circle cx="53" cy="27" r="3.5" fill="#f9a8d4"/>
+  <!-- Sparkles -->
+  <circle cx="62" cy="20" r="2" fill="#e9d5ff" opacity="0.9"/>
+  <circle cx="58" cy="34" r="1.5" fill="#e9d5ff" opacity="0.7"/>
+  <circle cx="47" cy="18" r="1.5" fill="#e9d5ff" opacity="0.7"/>
+  <!-- Star sparkle top-right -->
+  <path d="M62 14 L63.2 17.8 L67 19 L63.2 20.2 L62 24 L60.8 20.2 L57 19 L60.8 17.8 Z" fill="#f9a8d4" opacity="0.9"/>
+</svg>

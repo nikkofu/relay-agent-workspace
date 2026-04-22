@@ -13,7 +13,7 @@ export const USERS: User[] = [
     id: "user-2",
     name: "AI Assistant",
     email: "ai@acim.ai",
-    avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=ai",
+    avatar: "/ai-wand-avatar.svg",
     status: "online",
     statusText: "Ready to help",
   },

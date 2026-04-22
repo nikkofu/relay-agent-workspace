@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Sparkles, MessageCircle, Mail, Clock, Calendar, Users, MapPin, Phone } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { useRouter } from "next/navigation"
+import { useUIStore } from "@/stores/ui-store"
 import { format, formatDistanceToNow } from "date-fns"
 import { useUserStore } from "@/stores/user-store"
 import { useState } from "react"
@@ -34,8 +34,8 @@ interface UserProfileProps {
 }
 
 export function UserProfile({ user }: UserProfileProps) {
-  const router = useRouter()
   const { currentUser, updateStatus, updateProfile } = useUserStore()
+  const { openDockedChat } = useUIStore()
   const [isEditingStatus, setIsEditingStatus] = useState(false)
   const [isEditingProfile, setIsEditingProfile] = useState(false)
   const [newStatusText, setNewStatusText] = useState(user.statusText || "")
@@ -60,7 +60,7 @@ export function UserProfile({ user }: UserProfileProps) {
   }
 
   const handleMessageClick = () => {
-    router.push(`/workspace/dms?u=${user.id}`)
+    openDockedChat(user.id)
   }
 
   const handleStatusUpdate = async () => {

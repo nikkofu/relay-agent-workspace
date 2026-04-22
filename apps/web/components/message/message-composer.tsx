@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useCallback, useMemo, useEffect } from "react"
+import { useState, useRef, useCallback, useMemo, useEffect, useLayoutEffect } from "react"
 import { 
   Bold, Italic, Strikethrough, Link as LinkIcon, List, ListOrdered, 
   Quote, Code, FileCode, Type, Smile, Globe, Loader2, Paperclip, Send, Mic, Sparkles 
@@ -63,6 +63,7 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
   const { suggestEntities } = useKnowledgeStore()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const draftsRef = useRef(drafts)
 
   const broadcastTyping = useCallback((isTyping: boolean) => {
     if (!scope) return
@@ -196,19 +197,25 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
     },
   })
 
-  // Restore draft when scope changes
+  // Keep draftsRef current so scope-change effect doesn't need drafts in its deps
+  useLayoutEffect(() => {
+    draftsRef.current = drafts
+  })
+
+  // Restore draft when scope changes (NOT when drafts change, to avoid re-populating after send)
   useEffect(() => {
     if (editor && scope) {
-      const draftContent = drafts[scope]?.content
+      const draftContent = draftsRef.current[scope]?.content
       const currentContent = editor.getHTML()
-      
+
       if (draftContent && draftContent !== currentContent) {
         editor.commands.setContent(draftContent)
       } else if (!draftContent && currentContent !== "<p></p>") {
         editor.commands.clearContent()
       }
     }
-  }, [scope, editor, drafts])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scope, editor])
 
   // Initial fetch of drafts
   useEffect(() => {

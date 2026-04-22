@@ -239,7 +239,7 @@ function TypeBreakdown() {
 }
 
 function AssigneeBreakdown() {
-  const agents = ['Gemini', 'Codex', 'Nikko Fu']
+  const agents = ['Windsurf', 'Gemini', 'Codex', 'Nikko Fu']
   return (
     <div className="space-y-4">
       <h3 className="text-sm font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2">
@@ -270,6 +270,61 @@ function AssigneeBreakdown() {
   )
 }
 
+function ContributionHeatmap() {
+  const byDate = TASKS.reduce<Record<string, { done: number; total: number }>>((acc, t) => {
+    if (!acc[t.deadline]) acc[t.deadline] = { done: 0, total: 0 }
+    acc[t.deadline].total++
+    if (t.status === 'done') acc[t.deadline].done++
+    return acc
+  }, {})
+  const dates = Object.keys(byDate).sort()
+  const maxTotal = Math.max(...Object.values(byDate).map(d => d.total), 1)
+
+  const getColor = (total: number, done: number) => {
+    if (total === 0) return 'bg-muted/30'
+    const pct = done / total
+    const intensity = total / maxTotal
+    if (pct === 1) return intensity > 0.6 ? 'bg-emerald-600' : intensity > 0.3 ? 'bg-emerald-500' : 'bg-emerald-400'
+    if (pct > 0.5) return intensity > 0.6 ? 'bg-blue-500' : 'bg-blue-400'
+    return intensity > 0.6 ? 'bg-amber-500' : 'bg-amber-400/70'
+  }
+
+  return (
+    <div className="space-y-4">
+      <h3 className="text-sm font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+        <Activity className="w-4 h-4" /> Contribution Heatmap
+      </h3>
+      <div className="bg-white dark:bg-[#222529] rounded-2xl border border-border/60 p-5">
+        <div className="flex flex-wrap gap-3">
+          {dates.map(date => {
+            const d = byDate[date]
+            const fDate = new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+            return (
+              <div key={date} title={`${fDate}: ${d.done}/${d.total} tasks done`}
+                className="flex flex-col items-center gap-1">
+                <div className={cn('w-9 h-9 rounded-lg transition-all cursor-default border border-border/20', getColor(d.total, d.done))} />
+                <span className="text-[8px] text-muted-foreground font-bold leading-none">{fDate}</span>
+              </div>
+            )
+          })}
+        </div>
+        <div className="flex items-center gap-2 mt-4 pt-3 border-t border-border/40">
+          <span className="text-[10px] text-muted-foreground font-bold">Less</span>
+          {['bg-muted/30', 'bg-amber-400/70', 'bg-blue-400', 'bg-emerald-400', 'bg-emerald-600'].map((c, i) => (
+            <div key={i} className={cn('w-4 h-4 rounded-sm border border-border/20', c)} />
+          ))}
+          <span className="text-[10px] text-muted-foreground font-bold">More</span>
+          <span className="ml-auto text-[10px] text-muted-foreground">
+            <span className="inline-block w-3 h-3 rounded-sm bg-emerald-500 mr-1" />All done
+            <span className="inline-block w-3 h-3 rounded-sm bg-blue-400 mx-1" />Partial
+            <span className="inline-block w-3 h-3 rounded-sm bg-amber-400/70 mx-1" />Pending
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Stats Tab ────────────────────────────────────────────────────────────────
 
 function StatsTab() {
@@ -290,7 +345,7 @@ function StatsTab() {
             <BarChart3 className="w-4 h-4" /> Daily Task Velocity
           </h3>
           <div className="bg-white dark:bg-[#222529] rounded-2xl border border-border/60 p-5">
-            <div className="flex items-end gap-2 h-32">
+            <div className="relative flex items-end gap-2 h-32">
               {dates.map(date => {
                 const d = byDate[date]
                 const barH = Math.round((d.total / maxTotal) * 100)
@@ -308,10 +363,36 @@ function StatsTab() {
                   </div>
                 )
               })}
+              {/* Cumulative done-rate trend line */}
+              {dates.length > 1 && (() => {
+                let cumDone = 0, cumTotal = 0
+                const pts = dates.map((date, i) => {
+                  cumDone += byDate[date].done
+                  cumTotal += byDate[date].total
+                  const pct = cumTotal > 0 ? (cumDone / cumTotal) * 100 : 0
+                  const x = dates.length === 1 ? 50 : (i / (dates.length - 1)) * 100
+                  const y = 100 - pct
+                  return { x, y, date }
+                })
+                return (
+                  <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none" viewBox="0 0 100 100">
+                    <polyline
+                      points={pts.map(p => `${p.x},${p.y}`).join(' ')}
+                      fill="none" stroke="#8b5cf6" strokeWidth="2"
+                      strokeLinecap="round" strokeLinejoin="round"
+                      vectorEffect="non-scaling-stroke"
+                    />
+                    {pts.map(p => (
+                      <circle key={p.date} cx={p.x} cy={p.y} r="2.5" fill="#8b5cf6" vectorEffect="non-scaling-stroke" />
+                    ))}
+                  </svg>
+                )
+              })()}
             </div>
             <div className="flex items-center gap-4 mt-4 pt-3 border-t border-border/40">
               <span className="flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground"><span className="w-3 h-3 rounded-sm bg-emerald-500 inline-block" /> Done</span>
-              <span className="flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground"><span className="w-3 h-3 rounded-sm bg-amber-400/40 inline-block" /> Ready</span>
+              <span className="flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground"><span className="w-3 h-3 rounded-sm bg-amber-400/40 inline-block" /> Pending</span>
+              <span className="flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground"><span className="w-5 h-0.5 bg-purple-500 inline-block rounded-full" /> Cumulative rate</span>
             </div>
           </div>
         </div>
@@ -319,6 +400,7 @@ function StatsTab() {
           <TypeBreakdown />
         </div>
       </div>
+      <ContributionHeatmap />
       <AssigneeBreakdown />
     </div>
   )

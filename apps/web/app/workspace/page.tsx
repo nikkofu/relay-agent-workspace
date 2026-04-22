@@ -179,8 +179,10 @@ function WorkspaceContent() {
 
 export default function WorkspacePage() {
   return (
-    <Suspense fallback={<div className="flex-1 flex items-center justify-center bg-white dark:bg-[#1a1d21] text-muted-foreground">Loading workspace...</div>}>
-      <WorkspaceContent />
-    </Suspense>
+    <div className="h-full w-full flex flex-col overflow-hidden">
+      <Suspense fallback={<div className="flex-1 flex items-center justify-center bg-white dark:bg-[#1a1d21] text-muted-foreground">Loading workspace...</div>}>
+        <WorkspaceContent />
+      </Suspense>
+    </div>
   )
 }
