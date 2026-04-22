@@ -101,6 +101,10 @@ Current backend surface already available:
 - `POST /api/v1/channels/:id/members`
 - `DELETE /api/v1/channels/:id/members/:userId`
 - `PATCH /api/v1/channels/:id`
+- `POST /api/v1/channels`
+  - validates `workspace_id`
+  - rejects unknown workspace IDs
+  - channel rows with legacy mock `workspace_id=ws_1` are repaired to `ws-1` on API startup
 - `GET /api/v1/dms`
 - `POST /api/v1/dms`
 - `GET /api/v1/dms/:id/messages`

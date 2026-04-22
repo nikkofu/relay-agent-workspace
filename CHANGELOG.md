@@ -2,6 +2,33 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.93] - 2026-04-22
+
+This release implements Phase 53: Channel Persistence Hardening. It fixes a refresh-loss bug where newly created channels could appear locally, then disappear after reload because the frontend posted a legacy mock workspace ID (`ws_1`) instead of the persisted workspace ID (`ws-1`).
+
+### Fixed
+
+- **Channel creation persistence**:
+  - `apps/web/stores/channel-store.ts` now creates channels with `workspace-store.currentWorkspace.id` instead of deriving the workspace from an unmapped channel payload or falling back to `ws_1`.
+  - Channel API payloads are now mapped from backend snake_case into frontend camelCase (`workspace_id` -> `workspaceId`, `member_count` -> `memberCount`, `is_starred` -> `isStarred`, etc.).
+  - `POST /api/v1/channels` now rejects unknown `workspace_id` values instead of silently creating orphan channels.
+
+### Changed
+
+- **Legacy DB repair**:
+  - API startup now repairs old channel rows with `workspace_id = "ws_1"` by moving them to the canonical Relay workspace `ws-1` when that workspace exists.
+  - Empty duplicate legacy channels with the same name are cleaned up during repair to avoid duplicate sidebar entries after recovery.
+  - This should recover channels such as `#game` that were created through the previous frontend fallback and then disappeared from `GET /api/v1/channels?workspace_id=ws-1`.
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./internal/handlers -run 'TestCreateChannel(RejectsUnknownWorkspace|CreatesChannelAndOwnerMembership)' -count=1`
+- `cd apps/api && go test ./internal/db -run TestRepairLegacyWorkspaceIDsMovesMockWorkspaceChannels -count=1`
+- `cd apps/api && go test ./...`
+- `cd apps/api && GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+- `pnpm --filter relay-agent-workspace exec tsc --noEmit`
+
 ## [0.5.92] - 2026-04-22
 
 This release implements Phase 52: Digest Automation and Knowledge Inbox APIs. Relay can now auto-publish scheduled channel digests, surface them in a cross-channel knowledge inbox, and expose knowledge digest aggregates through the Home API.

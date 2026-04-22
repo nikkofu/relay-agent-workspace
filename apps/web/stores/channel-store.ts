@@ -2,6 +2,21 @@ import { create } from "zustand"
 import { Channel, ChannelMember } from "@/types"
 import { API_BASE_URL } from "@/lib/constants"
 import { toast } from "sonner"
+import { useWorkspaceStore } from "@/stores/workspace-store"
+
+const mapChannel = (raw: any): Channel => ({
+  id: raw.id,
+  name: raw.name,
+  description: raw.description,
+  topic: raw.topic,
+  purpose: raw.purpose,
+  type: raw.type,
+  workspaceId: raw.workspaceId ?? raw.workspace_id,
+  isStarred: raw.isStarred ?? raw.is_starred,
+  unreadCount: raw.unreadCount ?? raw.unread_count,
+  memberCount: raw.memberCount ?? raw.member_count ?? 0,
+  isArchived: raw.isArchived ?? raw.is_archived,
+})
 
 interface ChannelState {
   channels: Channel[]
@@ -45,7 +60,7 @@ export const useChannelStore = create<ChannelState>((set, get) => ({
       const response = await fetch(`${API_BASE_URL}/channels?workspace_id=${workspaceId}`)
       const data = await response.json()
       set({ 
-        channels: data.channels
+        channels: (data.channels || []).map(mapChannel)
       })
     } catch (error) {
       console.error("Failed to fetch channels:", error)
@@ -53,7 +68,10 @@ export const useChannelStore = create<ChannelState>((set, get) => ({
   },
   addChannel: (channel) => set((state) => ({ channels: [...state.channels, channel] })),
   createChannel: async (name: string, description: string, isPrivate: boolean) => {
-    const workspaceId = get().channels[0]?.workspaceId || "ws_1"
+    const workspaceId = useWorkspaceStore.getState().currentWorkspace?.id || get().channels[0]?.workspaceId
+    if (!workspaceId) {
+      throw new Error("No active workspace selected")
+    }
     try {
       const response = await fetch(`${API_BASE_URL}/channels`, {
         method: "POST",
@@ -66,7 +84,10 @@ export const useChannelStore = create<ChannelState>((set, get) => ({
         })
       })
       const data = await response.json()
-      const newChannel = data.channel
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to create channel")
+      }
+      const newChannel = mapChannel(data.channel)
       set((state) => ({ 
         channels: [...state.channels, newChannel]
       }))

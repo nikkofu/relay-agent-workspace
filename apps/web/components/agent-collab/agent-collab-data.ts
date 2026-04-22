@@ -112,7 +112,7 @@ export const MEMBERS: Member[] = [
 
 export const ACTIVE_SUPERPOWERS: AgentPower[] = [
   { agent: 'Gemini', skill: 'idle', task: 'Resting after Phase 38 handoff', progress: 100, status: 'done' },
-  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 52 digest automation and inbox API handoff complete', progress: 100, status: 'done' },
+  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 53 channel persistence hardening complete', progress: 100, status: 'done' },
   { agent: 'Claude Code', skill: 'idle', task: '-', progress: 0, status: 'idle' },
   { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 52 Digest Automation And Knowledge Inbox UI complete (v0.5.92)', progress: 100, status: 'done' },
 ]
@@ -230,11 +230,26 @@ export const TASKS: Task[] = [
   { id: 't108', phase: 108, status: 'done',  task: 'Phase 51 Knowledge Discovery UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'EntityHoverCard/RelatedChannel/MessageByEntityResult/MatchSource/ChannelKnowledgeDigest types + knowledge_digest on Message.metadata. knowledge-store: fetchEntityHover/searchMessagesByEntity/fetchChannelDigest/publishChannelDigest. EntityMentionChip: lazy hover fetch with stats grid (total/messages/files), recent+last activity, related channels, Open Wiki + View messages actions. EntityMessagesSheet: slide-in drilldown with channel/workspace scope toggle and match_sources badges. ChannelDigestBanner: gradient banner with window picker (daily/weekly/monthly), Publish & Pin CTA, expandable entry list. KnowledgeDigestCard: structured digest card rendered inside pinned digest messages via message.metadata.knowledge_digest. v0.5.91 published.', type: 'frontend' },
   { id: 't109', phase: 109, status: 'done',  task: 'Phase 52 Digest Automation And Knowledge Inbox APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added GET|PUT|DELETE /api/v1/channels/:id/knowledge/digest/schedule, background auto-publish scheduler, GET /api/v1/knowledge/inbox, home.knowledge_inbox_count, home.recent_knowledge_digests, and knowledge.digest.published websocket broadcasts. v0.5.92 published.', type: 'api' },
   { id: 't110', phase: 110, status: 'done',  task: 'Phase 52 Digest Automation And Knowledge Inbox UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'DigestSchedule/DigestScheduleInput/KnowledgeInboxItem/KnowledgeInboxScope types + digest.published KnowledgeUpdate variant. knowledge-store: fetchDigestSchedule/upsertDigestSchedule/deleteDigestSchedule/fetchKnowledgeInbox/markInboxRead/applyDigestPublished; digestSchedules/knowledgeInbox/knowledgeInboxScope/knowledgeInboxUnreadCount state. DigestScheduleDialog: window/day_of_week/day_of_month/hour/minute/timezone/limit/pin with enable toggle + remove schedule. ChannelDigestBanner: CalendarClock schedule button (auto-loads current schedule; green dot + next-run indicator). /workspace/knowledge/inbox two-pane page: scope toggle (all/starred), unread dot + Mark all read, selected digest preview via KnowledgeDigestCard + jump-to-message. Home: 4th stat card Knowledge Inbox (clickable) + Recent Knowledge Digests section. primary-nav: unread badge on Knowledge icon. use-websocket: knowledge.digest.published refreshes inbox + home + channel summary + sonner toast with View. AI Summarize bug fix: ai-chat-panel injects last 50 channel messages with user names into prompt via promptOverride in use-ai-chat append. v0.5.92 published.', type: 'frontend' },
+  { id: 't111', phase: 111, status: 'done',  task: 'Phase 53 Channel Persistence Hardening', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Fixed newly created channels disappearing after refresh by removing the frontend ws_1 fallback, mapping channel API payloads into camelCase, validating workspace_id in POST /channels, and repairing legacy workspace_id=ws_1 rows on API startup. v0.5.93 published.', type: 'api' },
 ]
 
 // ─── Communication Log ────────────────────────────────────────────────────────
 
 export const COMM_SECTIONS: CommSection[] = [
+  {
+    id: 'cs18',
+    date: '2026-04-22',
+    title: 'Phase 53 Channel Persistence Hardening Completion',
+    messages: [
+      { id: 'cx53a', from: 'Codex', content: 'Phase 53 is complete and published as v0.5.93.' },
+      { id: 'cx53b', from: 'Codex', content: 'Root cause for #game disappearing after refresh: channel-store derived workspaceId from backend channel objects, but the backend returns workspace_id. That made workspaceId undefined and triggered the old ws_1 mock fallback. The backend then accepted ws_1, creating an orphan channel outside ws-1.' },
+      { id: 'cx53c', from: 'Codex', content: 'Backend hardening: POST /api/v1/channels now rejects unknown workspace_id values, and API startup repairs legacy channel rows with workspace_id=ws_1 by moving them to ws-1 when the Relay workspace exists. Empty duplicate legacy channels with the same name are cleaned up to avoid duplicate sidebar entries.' },
+      { id: 'cx53d', from: 'Codex', content: 'Frontend hardening: channel-store now uses workspace-store.currentWorkspace.id for channel creation and maps snake_case API fields to camelCase Channel fields at the store boundary.' },
+      { id: 'cx53e', from: 'Codex', to: 'Windsurf', content: 'Please pull v0.5.93 before more channel UI work. After restarting the API, verify creating #game or #test-persist survives browser refresh and comes from GET /api/v1/channels?workspace_id=ws-1.' },
+      { id: 'cx53f', from: 'Codex', to: 'Windsurf', content: 'For similar mock/API sync risks, avoid deriving IDs from unmapped API payloads. If a store consumes Go snake_case responses but UI types are camelCase, add a mapper before optimistic UI updates or later API writes.' },
+      { id: 'cx53g', from: 'Codex', to: 'Nikko Fu', content: 'This fixes the created-channel-visible-until-refresh problem and recovers earlier affected rows on API restart.' },
+    ],
+  },
   {
     id: 'cs17',
     date: '2026-04-22',

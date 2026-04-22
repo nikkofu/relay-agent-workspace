@@ -3016,6 +3016,29 @@ func TestCreateChannelCreatesChannelAndOwnerMembership(t *testing.T) {
 	}
 }
 
+func TestCreateChannelRejectsUnknownWorkspace(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+
+	router := gin.New()
+	router.POST("/api/v1/channels", CreateChannel)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/channels", bytes.NewBufferString(`{"workspace_id":"ws_1","name":"game","description":"Game room","type":"public"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for unknown workspace, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var count int64
+	db.DB.Model(&domain.Channel{}).Where("name = ?", "game").Count(&count)
+	if count != 0 {
+		t.Fatalf("expected no orphan channel to be created, got %d", count)
+	}
+}
+
 func TestWorkspaceInvitesEndpointsCreateAndListInvites(t *testing.T) {
 	setupTestDB(t)
 

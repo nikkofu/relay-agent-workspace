@@ -920,6 +920,12 @@ func CreateChannel(c *gin.Context) {
 		return
 	}
 
+	var workspace domain.Workspace
+	if err := db.DB.First(&workspace, "id = ?", input.WorkspaceID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "workspace not found"})
+		return
+	}
+
 	channelType := input.Type
 	if channelType == "" {
 		channelType = "public"
