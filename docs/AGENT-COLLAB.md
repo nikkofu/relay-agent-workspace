@@ -119,7 +119,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 46 Knowledge Entities And Wiki APIs | Codex | 2026-04-21 | Added first-class knowledge entities, refs, links, timeline, graph preview, and citation `entity_title` hydration. |
 | 🟢 Done | Phase 46 Knowledge Entity Wiki Integration | Windsurf | 2026-04-21 | `/workspace/knowledge` entity list (search, kind filters, create dialog). `/workspace/knowledge/[id]` detail (Overview/Refs/Timeline/Graph, inline edit). `knowledge-store` full CRUD. `KnowledgeEntity/Ref/Link/Event/Graph` types. `CitationCard` entity badge → entity detail link. `Knowledge` nav item (Globe). `layout.tsx` Suspense wrappers for `cacheComponents` dynamic route. `v0.5.86` published. |
 | 🟢 Done | Phase 47 Knowledge Live Events And Auto-Linking APIs | Codex | 2026-04-22 | Added knowledge WS events, `POST /api/v1/knowledge/events/ingest`, richer graph edge/ref metadata, and deterministic entity auto-linking from messages/files. `v0.5.87` published. |
-| 🟡 Ready | Phase 47 Knowledge Live UI Integration | Windsurf | 2026-04-22 | Listen for knowledge WS events, refresh entity wiki views live, expose event ingest UI/debug flow, and render weighted/directional graph metadata. |
+| � Done | Phase 47 Knowledge Live UI Integration | Windsurf | 2026-04-22 | Wired 5 knowledge WS events into `use-websocket` + `knowledge-store` `liveUpdate` bus. Entity list: live flash badge. Entity detail: live-append refs/timeline/links. Event Ingest composer (`POST /api/v1/knowledge/events/ingest`) in Timeline tab. Graph: `graph.edges` with weight bars/direction arrows/role badges; enriched node cards. `KnowledgeGraphEdge` type + enriched `KnowledgeGraphNode`. `v0.5.87` published. |
 
 ---
 
@@ -130,11 +130,15 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
 | **Codex** | `api-architecture` | Phase 47 knowledge live events and auto-linking API handoff complete | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-ui-agent` | Ready for Phase 47 Knowledge Live UI Integration | 0% |
+| **Windsurf** | `web-ui-agent` | Phase 47 Knowledge Live UI Integration complete (v0.5.87) | 100% |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-22 - Phase 47 Knowledge Live UI Integration Completion
+- **Windsurf**: Phase 47 complete. (1) `knowledge-store`: `liveUpdate` bus — `pushLiveUpdate`, `handleEntityCreated`, `handleEntityUpdated`, `ingestEvent` (`POST /api/v1/knowledge/events/ingest`). (2) `use-websocket`: 5 knowledge WS events — `knowledge.entity.created/updated` → `handleEntity*`; `knowledge.entity.ref.created / event.created / link.created` → `pushLiveUpdate`. (3) `/workspace/knowledge` list: animating **Live** `Zap` badge on `entity.created/updated`. (4) `/workspace/knowledge/[id]` detail: `liveUpdate` subscription auto-appends refs/timeline/links/entity without re-fetch; live flash badge in header + `Zap` on Timeline tab trigger. (5) **Event Ingest composer** in Timeline tab: `event_type` Select, title, body, source_kind → `POST /api/v1/knowledge/events/ingest`. (6) **Graph tab**: `graph.edges` rendered with weight bar (1–10 block), direction arrows, role badges; falls back to legacy `links` when `edges` absent; node cards show `role`, `source_kind`, `weight`. (7) Types: `KnowledgeGraphEdge` added; `KnowledgeGraphNode` enriched with `role/source_kind/ref_kind/ref_id/weight`; `KnowledgeEntityRef` enriched with `ref_kind/ref_id/role`. `v0.5.87` published.
+- **Windsurf → Codex**: Live knowledge layer fully wired. For Phase 48: (a) channel banner when `knowledge.entity.ref.created` fires for the active channel's messages, (b) cross-link citation search results to entity wiki pages, (c) WS-driven entity badge refresh in `CitationCard` on `entity.updated`.
 
 ### 2026-04-22 - Phase 47 Knowledge Live Events And Auto-Linking API Completion
 - **Codex**: Phase 47 backend is complete and published as `v0.5.87`.

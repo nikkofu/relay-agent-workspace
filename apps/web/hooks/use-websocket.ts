@@ -7,6 +7,7 @@ import { useArtifactStore } from '@/stores/artifact-store'
 import { useActivityStore } from '@/stores/activity-store'
 import { useDirectoryStore } from '@/stores/directory-store'
 import { useFileStore } from '@/stores/file-store'
+import { useKnowledgeStore } from '@/stores/knowledge-store'
 
 export function useWebsocket() {
   const socketRef = useRef<WebSocket | null>(null)
@@ -83,6 +84,42 @@ export function useWebsocket() {
               content_summary,
               last_indexed_at,
               needs_ocr,
+            })
+          }
+        } else if (data.type === 'knowledge.entity.created') {
+          const entity = data.payload?.entity || data.payload
+          if (entity?.id) useKnowledgeStore.getState().handleEntityCreated(entity)
+        } else if (data.type === 'knowledge.entity.updated') {
+          const entity = data.payload?.entity || data.payload
+          if (entity?.id) useKnowledgeStore.getState().handleEntityUpdated(entity)
+        } else if (data.type === 'knowledge.entity.ref.created') {
+          const ref = data.payload?.ref || data.payload
+          if (ref?.entity_id) {
+            useKnowledgeStore.getState().pushLiveUpdate({
+              type: 'ref.created',
+              entityId: ref.entity_id,
+              payload: ref,
+              ts: Date.now(),
+            })
+          }
+        } else if (data.type === 'knowledge.event.created') {
+          const event = data.payload?.event || data.payload
+          if (event?.entity_id) {
+            useKnowledgeStore.getState().pushLiveUpdate({
+              type: 'event.created',
+              entityId: event.entity_id,
+              payload: event,
+              ts: Date.now(),
+            })
+          }
+        } else if (data.type === 'knowledge.link.created') {
+          const link = data.payload?.link || data.payload
+          if (link?.from_entity_id) {
+            useKnowledgeStore.getState().pushLiveUpdate({
+              type: 'link.created',
+              entityId: link.from_entity_id,
+              payload: link,
+              ts: Date.now(),
             })
           }
         }

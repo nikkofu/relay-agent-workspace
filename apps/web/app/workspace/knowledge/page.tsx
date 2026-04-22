@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useKnowledgeStore } from "@/stores/knowledge-store"
 import { Input } from "@/components/ui/input"
@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Globe, Search, Plus, Loader2, User2, Briefcase, Lightbulb, Building2,
-  FileText, Layout, Tag, Hash, ChevronRight, BookOpen,
+  FileText, Layout, Tag, Hash, ChevronRight, BookOpen, Zap,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
@@ -33,7 +33,7 @@ const KIND_OPTIONS = ['person', 'project', 'concept', 'organization', 'file', 'a
 
 export default function KnowledgePage() {
   const router = useRouter()
-  const { entities, isLoading, fetchEntities, createEntity } = useKnowledgeStore()
+  const { entities, isLoading, fetchEntities, createEntity, liveUpdate } = useKnowledgeStore()
   const [q, setQ] = useState("")
   const [filterKind, setFilterKind] = useState("all")
   const [showCreate, setShowCreate] = useState(false)
@@ -42,8 +42,20 @@ export default function KnowledgePage() {
   const [newSummary, setNewSummary] = useState("")
   const [newTags, setNewTags] = useState("")
   const [isCreating, setIsCreating] = useState(false)
+  const [liveFlash, setLiveFlash] = useState(false)
+  const prevLiveUpdate = useRef<number>(0)
 
   useEffect(() => { fetchEntities() }, [fetchEntities])
+
+  useEffect(() => {
+    if (!liveUpdate) return
+    if (liveUpdate.ts === prevLiveUpdate.current) return
+    if (liveUpdate.type === 'entity.created' || liveUpdate.type === 'entity.updated') {
+      prevLiveUpdate.current = liveUpdate.ts
+      setLiveFlash(true)
+      setTimeout(() => setLiveFlash(false), 2000)
+    }
+  }, [liveUpdate])
 
   const filtered = entities.filter(e => {
     const matchesQ = !q || e.title.toLowerCase().includes(q.toLowerCase()) || e.summary?.toLowerCase().includes(q.toLowerCase())
@@ -81,6 +93,11 @@ export default function KnowledgePage() {
           <h1 className="text-lg font-black tracking-tight uppercase">Knowledge</h1>
           {entities.length > 0 && (
             <Badge variant="secondary" className="text-[9px] font-black h-5 px-2">{entities.length} entities</Badge>
+          )}
+          {liveFlash && (
+            <Badge className="text-[9px] font-black h-5 px-2 gap-1 bg-emerald-500/10 text-emerald-700 border-emerald-300 animate-pulse">
+              <Zap className="w-2.5 h-2.5" /> Live
+            </Badge>
           )}
         </div>
         <Button size="sm" className="text-xs font-bold gap-1.5" onClick={() => setShowCreate(true)}>

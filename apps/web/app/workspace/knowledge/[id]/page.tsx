@@ -1,6 +1,6 @@
 "use client"
 
-import { use, useEffect, useState, Suspense } from "react"
+import { use, useEffect, useRef, useState, Suspense } from "react"
 import { useRouter } from "next/navigation"
 import { useKnowledgeStore } from "@/stores/knowledge-store"
 import { Input } from "@/components/ui/input"
@@ -10,15 +10,17 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Globe, ChevronLeft, Loader2, Edit2, CheckCircle2, X,
   BookOpen, Clock, Network, FileText, MessageSquare,
   Layout, Tag, ArrowRight, ArrowLeft, User2, Briefcase,
-  Lightbulb, Building2, AlertCircle,
+  Lightbulb, Building2, AlertCircle, Zap, Send, Plus,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
-import type { KnowledgeEntity, KnowledgeEntityRef, KnowledgeEntityLink, KnowledgeEvent, KnowledgeGraph } from "@/types"
+import type { KnowledgeEntity, KnowledgeEntityRef, KnowledgeEntityLink, KnowledgeEvent, KnowledgeGraph, KnowledgeGraphEdge } from "@/types"
 
 const KIND_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string; badgeClass: string; bgClass: string }> = {
   person:       { label: "Person",       icon: User2,       color: "text-sky-600",    badgeClass: "bg-sky-500/10 text-sky-700 border-sky-300 dark:border-sky-700",         bgClass: "bg-sky-500/5" },
@@ -41,7 +43,7 @@ const EVENT_KIND_COLOR: Record<string, string> = {
 
 function EntityDetailContent({ id }: { id: string }) {
   const router = useRouter()
-  const { fetchEntity, updateEntity, fetchEntityRefs, fetchEntityTimeline, fetchEntityLinks, fetchEntityGraph } = useKnowledgeStore()
+  const { fetchEntity, updateEntity, fetchEntityRefs, fetchEntityTimeline, fetchEntityLinks, fetchEntityGraph, ingestEvent, liveUpdate } = useKnowledgeStore()
 
   const [entity, setEntity] = useState<KnowledgeEntity | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -58,6 +60,14 @@ function EntityDetailContent({ id }: { id: string }) {
   const [isLoadingRefs, setIsLoadingRefs] = useState(false)
   const [isLoadingTimeline, setIsLoadingTimeline] = useState(false)
   const [isLoadingGraph, setIsLoadingGraph] = useState(false)
+  const [liveFlash, setLiveFlash] = useState<string | null>(null)
+  const prevLiveTs = useRef<number>(0)
+  const [showIngest, setShowIngest] = useState(false)
+  const [ingestEventType, setIngestEventType] = useState("updated")
+  const [ingestTitle, setIngestTitle] = useState("")
+  const [ingestBody, setIngestBody] = useState("")
+  const [ingestSourceKind, setIngestSourceKind] = useState("")
+  const [isIngesting, setIsIngesting] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -67,6 +77,38 @@ function EntityDetailContent({ id }: { id: string }) {
       if (e) { setEditTitle(e.title); setEditSummary(e.summary || ""); setEditTags((e.tags || []).join(", ")) }
     })
   }, [id, fetchEntity])
+
+  useEffect(() => {
+    if (!liveUpdate || liveUpdate.ts === prevLiveTs.current) return
+    prevLiveTs.current = liveUpdate.ts
+    if (liveUpdate.entityId !== id) return
+    setLiveFlash(liveUpdate.type)
+    setTimeout(() => setLiveFlash(null), 2500)
+    if (liveUpdate.type === 'entity.updated') {
+      setEntity(liveUpdate.payload)
+    } else if (liveUpdate.type === 'ref.created') {
+      setRefs(prev => prev.some(r => r.id === liveUpdate.payload.id) ? prev : [liveUpdate.payload, ...prev])
+    } else if (liveUpdate.type === 'event.created') {
+      setTimeline(prev => prev.some(e => e.id === liveUpdate.payload.id) ? prev : [...prev, liveUpdate.payload])
+    } else if (liveUpdate.type === 'link.created') {
+      setLinks(prev => prev.some(l => l.id === liveUpdate.payload.id) ? prev : [...prev, liveUpdate.payload])
+    }
+  }, [liveUpdate, id])
+
+  const handleIngestEvent = async () => {
+    if (!ingestTitle.trim()) return
+    setIsIngesting(true)
+    await ingestEvent({
+      entity_id: id,
+      event_type: ingestEventType,
+      title: ingestTitle.trim(),
+      body: ingestBody.trim() || undefined,
+      source_kind: ingestSourceKind || undefined,
+    })
+    setIsIngesting(false)
+    setShowIngest(false)
+    setIngestTitle(""); setIngestBody(""); setIngestSourceKind("")
+  }
 
   const handleTabChange = async (value: string) => {
     setTab(value)
@@ -131,6 +173,11 @@ function EntityDetailContent({ id }: { id: string }) {
                 <Badge className={cn("text-[9px] h-4 px-1.5", cfg.badgeClass)}>{cfg.label}</Badge>
                 {entity.source_kind && <span className="text-[9px] text-muted-foreground uppercase font-black tracking-wider">{entity.source_kind}</span>}
                 <span className="text-[9px] text-muted-foreground">Created {format(new Date(entity.created_at), "MMM d, yyyy")}</span>
+                {liveFlash && (
+                  <Badge className="text-[9px] h-4 px-1.5 gap-1 bg-emerald-500/10 text-emerald-700 border-emerald-300 animate-pulse">
+                    <Zap className="w-2 h-2" /> Live
+                  </Badge>
+                )}
               </div>
             </div>
           </div>
@@ -150,7 +197,7 @@ function EntityDetailContent({ id }: { id: string }) {
         <TabsList className="mx-6 mt-3 mb-0 h-8 shrink-0 bg-muted/40 w-fit">
           <TabsTrigger value="overview" className="text-xs h-7 px-3 gap-1"><Globe className="w-3 h-3" />Overview</TabsTrigger>
           <TabsTrigger value="refs" className="text-xs h-7 px-3 gap-1"><BookOpen className="w-3 h-3" />Refs{refs.length > 0 && <span className="ml-0.5 text-[10px] font-black">{refs.length}</span>}</TabsTrigger>
-          <TabsTrigger value="timeline" className="text-xs h-7 px-3 gap-1"><Clock className="w-3 h-3" />Timeline{timeline.length > 0 && <span className="ml-0.5 text-[10px] font-black">{timeline.length}</span>}</TabsTrigger>
+          <TabsTrigger value="timeline" className="text-xs h-7 px-3 gap-1"><Clock className="w-3 h-3" />Timeline{timeline.length > 0 && <span className="ml-0.5 text-[10px] font-black">{timeline.length}</span>}{liveFlash === 'event.created' && <Zap className="w-2.5 h-2.5 text-emerald-500 ml-0.5" />}</TabsTrigger>
           <TabsTrigger value="graph" className="text-xs h-7 px-3 gap-1"><Network className="w-3 h-3" />Graph</TabsTrigger>
         </TabsList>
 
@@ -204,6 +251,12 @@ function EntityDetailContent({ id }: { id: string }) {
           </TabsContent>
 
           <TabsContent value="timeline" className="p-6 m-0">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Event Log</p>
+              <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5 font-bold" onClick={() => setShowIngest(true)}>
+                <Plus className="w-3 h-3" /> Log Event
+              </Button>
+            </div>
             {isLoadingTimeline && <div className="flex items-center gap-2 text-xs text-muted-foreground py-4"><Loader2 className="w-4 h-4 animate-spin" />Loading...</div>}
             {!isLoadingTimeline && timeline.length === 0 && <div className="py-12 text-center space-y-2"><Clock className="w-8 h-8 text-muted-foreground/20 mx-auto" /><p className="text-xs text-muted-foreground italic">No timeline events yet.</p></div>}
             {timeline.length > 0 && (
@@ -242,7 +295,44 @@ function EntityDetailContent({ id }: { id: string }) {
                     <Badge className={cn("text-[9px] h-4 px-1.5 ml-1", cfg.badgeClass)}>{cfg.label}</Badge>
                   </div>
                 </div>
-                {links.filter(l => l.from_entity_id === id).length > 0 && (
+
+                {/* Phase 47: graph.edges — richer weighted directional edges */}
+                {graph?.edges && graph.edges.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-1"><Network className="w-3 h-3" /> Edges</p>
+                    {graph.edges.map((edge: KnowledgeGraphEdge, i: number) => {
+                      const isOut = edge.from_id === id
+                      const otherId = isOut ? edge.to_id : edge.from_id
+                      const otherNode = graph.nodes.find(n => n.entity.id === otherId)
+                      const weight = edge.weight ?? 1
+                      const weightBar = Math.min(Math.round(weight * 10), 10)
+                      return (
+                        <div key={`edge-${i}`} className="flex items-center gap-2 rounded-lg border bg-muted/10 p-2.5">
+                          {!isOut && <ArrowLeft className="w-3 h-3 text-muted-foreground shrink-0" />}
+                          <button className="text-xs font-bold text-blue-600 hover:underline truncate" onClick={() => router.push("/workspace/knowledge/" + otherId)}>
+                            {otherNode?.entity.title || otherId}
+                          </button>
+                          {isOut && <ArrowRight className="w-3 h-3 text-muted-foreground shrink-0" />}
+                          <div className="flex items-center gap-1 ml-auto flex-wrap">
+                            <Badge variant="secondary" className="text-[9px] h-4 px-1.5 shrink-0">{edge.rel}</Badge>
+                            {edge.role && <Badge variant="outline" className="text-[9px] h-4 px-1.5 shrink-0">{edge.role}</Badge>}
+                            {edge.direction && <Badge variant="outline" className="text-[9px] h-4 px-1 shrink-0">{edge.direction}</Badge>}
+                            {weight !== 1 && (
+                              <div className="flex items-center gap-0.5" title={`weight: ${weight}`}>
+                                {Array.from({ length: weightBar }).map((_, j) => (
+                                  <div key={j} className="w-1 h-2.5 rounded-sm bg-emerald-500/60" />
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Legacy links */}
+                {!graph?.edges && links.filter(l => l.from_entity_id === id).length > 0 && (
                   <div className="space-y-2">
                     <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-1"><ArrowRight className="w-3 h-3" /> Outgoing</p>
                     {links.filter(l => l.from_entity_id === id).map((link, i) => (
@@ -256,7 +346,7 @@ function EntityDetailContent({ id }: { id: string }) {
                     ))}
                   </div>
                 )}
-                {links.filter(l => l.to_entity_id === id).length > 0 && (
+                {!graph?.edges && links.filter(l => l.to_entity_id === id).length > 0 && (
                   <div className="space-y-2">
                     <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-1"><ArrowLeft className="w-3 h-3" /> Incoming</p>
                     {links.filter(l => l.to_entity_id === id).map((link, i) => (
@@ -270,6 +360,7 @@ function EntityDetailContent({ id }: { id: string }) {
                     ))}
                   </div>
                 )}
+
                 {graph && graph.nodes.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-1"><Network className="w-3 h-3" /> Related Entities</p>
@@ -283,6 +374,11 @@ function EntityDetailContent({ id }: { id: string }) {
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <Badge className={cn("text-[8px] h-3.5 px-1", nodeCfg.badgeClass)}>{nodeCfg.label}</Badge>
                               {node.rel && <span className="text-[9px] text-muted-foreground">{node.rel}</span>}
+                              {node.role && <Badge variant="outline" className="text-[8px] h-3.5 px-1">{node.role}</Badge>}
+                              {node.source_kind && <span className="text-[9px] text-muted-foreground font-mono">{node.source_kind}</span>}
+                              {node.weight !== undefined && node.weight !== 1 && (
+                                <span className="text-[9px] text-muted-foreground">w:{node.weight.toFixed(1)}</span>
+                              )}
                             </div>
                           </button>
                         )
@@ -295,6 +391,54 @@ function EntityDetailContent({ id }: { id: string }) {
           </TabsContent>
         </ScrollArea>
       </Tabs>
+
+      {/* Event Ingest Dialog */}
+      <Dialog open={showIngest} onOpenChange={setShowIngest}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle className="text-base font-black flex items-center gap-2">
+              <Zap className="w-4 h-4 text-emerald-600" /> Log Live Event
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold uppercase tracking-wider">Event Type</Label>
+              <Select value={ingestEventType} onValueChange={setIngestEventType}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {["created", "updated", "linked", "referenced", "archived", "milestone", "alert"].map(t => (
+                    <SelectItem key={t} value={t} className="text-sm">{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold uppercase tracking-wider">Title</Label>
+              <Input
+                placeholder="Event title..."
+                value={ingestTitle}
+                onChange={e => setIngestTitle(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && handleIngestEvent()}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold uppercase tracking-wider">Body <span className="font-normal text-muted-foreground normal-case">(optional)</span></Label>
+              <Textarea className="resize-none h-20 text-sm" placeholder="Event details..." value={ingestBody} onChange={e => setIngestBody(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold uppercase tracking-wider">Source Kind <span className="font-normal text-muted-foreground normal-case">(optional)</span></Label>
+              <Input placeholder="message / file / artifact..." value={ingestSourceKind} onChange={e => setIngestSourceKind(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" size="sm" onClick={() => setShowIngest(false)}>Cancel</Button>
+            <Button size="sm" className="font-bold gap-1.5" disabled={!ingestTitle.trim() || isIngesting} onClick={handleIngestEvent}>
+              {isIngesting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+              Ingest
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

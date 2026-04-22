@@ -89,6 +89,9 @@ export interface KnowledgeEntityRef {
   source_kind: string
   source_id: string
   snippet?: string
+  ref_kind?: string
+  ref_id?: string
+  role?: string
   created_at: string
 }
 
@@ -114,11 +117,41 @@ export interface KnowledgeGraphNode {
   entity: KnowledgeEntity
   rel?: string
   direction?: 'in' | 'out'
+  source_kind?: string
+  ref_kind?: string
+  ref_id?: string
+  role?: string
+  weight?: number
+}
+
+export interface KnowledgeGraphEdge {
+  from_id: string
+  to_id: string
+  rel: string
+  weight?: number
+  direction?: 'in' | 'out' | 'both'
+  role?: string
 }
 
 export interface KnowledgeGraph {
   center: KnowledgeEntity
   nodes: KnowledgeGraphNode[]
+  edges?: KnowledgeGraphEdge[]
+}
+
+export type KnowledgeUpdateType =
+  | 'entity.created'
+  | 'entity.updated'
+  | 'ref.created'
+  | 'event.created'
+  | 'link.created'
+
+export interface KnowledgeUpdate {
+  type: KnowledgeUpdateType
+  entityId: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  payload: any
+  ts: number
 }
 
 export interface FileSearchResult {

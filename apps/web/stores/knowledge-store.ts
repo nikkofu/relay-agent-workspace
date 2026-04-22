@@ -7,12 +7,26 @@ import type {
   KnowledgeEntityLink,
   KnowledgeEvent,
   KnowledgeGraph,
+  KnowledgeUpdate,
 } from "@/types"
 
 interface KnowledgeState {
   entities: KnowledgeEntity[]
   isLoading: boolean
+  liveUpdate: KnowledgeUpdate | null
 
+  pushLiveUpdate: (update: KnowledgeUpdate) => void
+  handleEntityCreated: (entity: KnowledgeEntity) => void
+  handleEntityUpdated: (entity: KnowledgeEntity) => void
+  ingestEvent: (data: {
+    entity_id: string
+    event_type: string
+    title: string
+    body?: string
+    actor_user_id?: string
+    source_kind?: string
+    source_ref?: string
+  }) => Promise<KnowledgeEvent | null>
   fetchEntities: (q?: string) => Promise<KnowledgeEntity[]>
   createEntity: (data: { title: string; kind: string; summary?: string; tags?: string[] }) => Promise<KnowledgeEntity | null>
   fetchEntity: (id: string) => Promise<KnowledgeEntity | null>
@@ -29,6 +43,41 @@ interface KnowledgeState {
 export const useKnowledgeStore = create<KnowledgeState>((set) => ({
   entities: [],
   isLoading: false,
+  liveUpdate: null,
+
+  pushLiveUpdate: (update) => set({ liveUpdate: update }),
+
+  handleEntityCreated: (entity) =>
+    set(state => ({
+      entities: state.entities.some(e => e.id === entity.id)
+        ? state.entities
+        : [entity, ...state.entities],
+      liveUpdate: { type: 'entity.created', entityId: entity.id, payload: entity, ts: Date.now() },
+    })),
+
+  handleEntityUpdated: (entity) =>
+    set(state => ({
+      entities: state.entities.map(e => e.id === entity.id ? entity : e),
+      liveUpdate: { type: 'entity.updated', entityId: entity.id, payload: entity, ts: Date.now() },
+    })),
+
+  ingestEvent: async (payload) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/knowledge/events/ingest`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) { toast.error("Failed to ingest event"); return null }
+      const data = await res.json()
+      toast.success("Event ingested")
+      return data.event || data
+    } catch (error) {
+      console.error("Failed to ingest event:", error)
+      toast.error("Failed to ingest event")
+      return null
+    }
+  },
 
   fetchEntities: async (q) => {
     set({ isLoading: true })
