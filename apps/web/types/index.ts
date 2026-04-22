@@ -175,12 +175,21 @@ export interface ChannelKnowledgeTopEntity {
   trend: { date: string; count: number }[]
 }
 
+export interface KnowledgeVelocity {
+  recent_window_days: number
+  previous_ref_count: number
+  recent_ref_count: number
+  delta: number
+  is_spiking: boolean
+}
+
 export interface ChannelKnowledgeSummary {
   channel_id: string
   window_days: number
   total_refs: number
   recent_ref_count: number
   top_entities: ChannelKnowledgeTopEntity[]
+  velocity?: KnowledgeVelocity
 }
 
 export interface EntitySuggestResult {
@@ -339,6 +348,14 @@ export interface Reaction {
   userIds: string[]
 }
 
+export interface MessageEntityMention {
+  entity_id: string
+  entity_title: string
+  entity_kind: string
+  source_kind?: string
+  mention_text: string
+}
+
 export interface Message {
   id: string
   content: string
@@ -353,6 +370,10 @@ export interface Message {
   lastReplyAt?: string
   isPinned?: boolean
   attachments?: MessageAttachment[]
+  metadata?: {
+    entity_mentions?: MessageEntityMention[]
+    [key: string]: unknown
+  }
 }
 
 export interface MessageAttachmentPreview {

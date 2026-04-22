@@ -10,7 +10,7 @@ import { useSearchParams } from "next/navigation"
 import { Suspense, useEffect, useState } from "react"
 import { useArtifactStore } from "@/stores/artifact-store"
 import { useUIStore } from "@/stores/ui-store"
-import { FileCode, FileText, MoreVertical, Copy, ExternalLink, Globe } from "lucide-react"
+import { FileCode, FileText, MoreVertical, Copy, ExternalLink, Globe, TrendingUp, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -26,7 +26,7 @@ function WorkspaceContent() {
   const { messages } = useMessageStore()
   const { artifacts, fetchArtifacts, duplicateArtifact } = useArtifactStore()
   const { openCanvas } = useUIStore()
-  const { fetchChannelKnowledge, channelKnowledge, fetchChannelKnowledgeSummary } = useKnowledgeStore()
+  const { fetchChannelKnowledge, channelKnowledge, fetchChannelKnowledgeSummary, channelSummary } = useKnowledgeStore()
   const searchParams = useSearchParams()
   const channelIdFromUrl = searchParams.get("c")
   const [showKnowledgePanel, setShowKnowledgePanel] = useState(false)
@@ -72,7 +72,27 @@ function WorkspaceContent() {
                 #
               </div>
               <div>
-                <h1 className="text-sm font-bold text-foreground leading-tight">Welcome to #{currentChannel.name}</h1>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-sm font-bold text-foreground leading-tight">Welcome to #{currentChannel.name}</h1>
+                  {channelSummary?.velocity?.is_spiking && (
+                    <span
+                      className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full border bg-amber-500/10 border-amber-400/40 text-amber-700 dark:text-amber-400 animate-pulse"
+                      title={`Knowledge velocity spiking: +${channelSummary.velocity.delta} refs vs previous period`}
+                    >
+                      <Zap className="w-2.5 h-2.5" />
+                      +{channelSummary.velocity.delta} refs
+                    </span>
+                  )}
+                  {channelSummary?.velocity && !channelSummary.velocity.is_spiking && channelSummary.velocity.delta > 0 && (
+                    <span
+                      className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full border bg-emerald-500/10 border-emerald-400/40 text-emerald-700 dark:text-emerald-400"
+                      title={`Knowledge activity: +${channelSummary.velocity.delta} refs vs previous period`}
+                    >
+                      <TrendingUp className="w-2.5 h-2.5" />
+                      +{channelSummary.velocity.delta}
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground truncate max-w-md mt-0.5">
                   {currentChannel.description || `This is the start of the #${currentChannel.name} channel.`}
                 </p>

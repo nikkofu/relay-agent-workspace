@@ -14,6 +14,7 @@ import { useState, useEffect } from "react"
 import { toast } from "sonner"
 import { Pin, FileCode, FileText, MoreVertical, Copy } from "lucide-react"
 import { FileAttachmentCard } from "./file-attachment-card"
+import { EntityMentionChip } from "./entity-mention-chip"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -89,6 +90,15 @@ export function MessageItem({ message, sender, isCompact, showActions = true }: 
           )}
           dangerouslySetInnerHTML={{ __html: message.content }}
         />
+
+        {/* Entity Mentions */}
+        {message.metadata?.entity_mentions && message.metadata.entity_mentions.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1.5">
+            {message.metadata.entity_mentions.map((mention, i) => (
+              <EntityMentionChip key={`${mention.entity_id}-${i}`} mention={mention} />
+            ))}
+          </div>
+        )}
 
         {/* Attachments */}
         {message.attachments && message.attachments.length > 0 && (
