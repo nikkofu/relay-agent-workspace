@@ -4,12 +4,15 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
 	"github.com/nikkofu/relay-agent-workspace/api/internal/db"
+	"github.com/nikkofu/relay-agent-workspace/api/internal/domain"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/knowledge"
+	"github.com/nikkofu/relay-agent-workspace/api/internal/realtime"
 )
 
 func ListKnowledgeEntities(c *gin.Context) {
@@ -30,6 +33,10 @@ func CreateKnowledgeEntity(c *gin.Context) {
 	entity, err := knowledge.CreateEntity(db.DB, input)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := broadcastKnowledgeEvent("knowledge.entity.created", entity.WorkspaceID, "", entity.ID, gin.H{"entity": entity}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to broadcast knowledge entity event"})
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"entity": entity})
@@ -53,6 +60,10 @@ func UpdateKnowledgeEntity(c *gin.Context) {
 	entity, err := knowledge.UpdateEntity(db.DB, c.Param("id"), input)
 	if err != nil {
 		handleKnowledgeNotFound(c, err, "knowledge entity not found")
+		return
+	}
+	if err := broadcastKnowledgeEvent("knowledge.entity.updated", entity.WorkspaceID, "", entity.ID, gin.H{"entity": entity}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to broadcast knowledge entity event"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"entity": entity})
@@ -80,6 +91,10 @@ func AddKnowledgeEntityRef(c *gin.Context) {
 	ref, err := knowledge.AddEntityRef(db.DB, c.Param("id"), input)
 	if err != nil {
 		handleKnowledgeError(c, err, "failed to add knowledge ref")
+		return
+	}
+	if err := broadcastKnowledgeEvent("knowledge.entity.ref.created", ref.WorkspaceID, "", ref.EntityID, gin.H{"ref": ref}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to broadcast knowledge ref event"})
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"ref": ref})
@@ -112,6 +127,31 @@ func AddKnowledgeEntityEvent(c *gin.Context) {
 		handleKnowledgeError(c, err, "failed to add knowledge event")
 		return
 	}
+	if err := broadcastKnowledgeEvent("knowledge.event.created", event.WorkspaceID, "", event.EntityID, gin.H{"event": event}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to broadcast knowledge event"})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"event": event})
+}
+
+func IngestKnowledgeEvent(c *gin.Context) {
+	var input knowledge.IngestEventInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if currentUser, err := getCurrentUser(); err == nil && strings.TrimSpace(input.ActorUserID) == "" {
+		input.ActorUserID = currentUser.ID
+	}
+	event, err := knowledge.IngestEvent(db.DB, input)
+	if err != nil {
+		handleKnowledgeError(c, err, "failed to ingest knowledge event")
+		return
+	}
+	if err := broadcastKnowledgeEvent("knowledge.event.created", event.WorkspaceID, "", event.EntityID, gin.H{"event": event}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to broadcast knowledge event"})
+		return
+	}
 	c.JSON(http.StatusCreated, gin.H{"event": event})
 }
 
@@ -137,6 +177,10 @@ func AddKnowledgeEntityLink(c *gin.Context) {
 	link, err := knowledge.AddEntityLink(db.DB, input)
 	if err != nil {
 		handleKnowledgeError(c, err, "failed to add knowledge link")
+		return
+	}
+	if err := broadcastKnowledgeEvent("knowledge.link.created", link.WorkspaceID, "", link.FromEntityID, gin.H{"link": link}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to broadcast knowledge link event"})
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"link": link})
@@ -165,4 +209,50 @@ func handleKnowledgeNotFound(c *gin.Context, err error, message string) {
 		return
 	}
 	c.JSON(http.StatusInternalServerError, gin.H{"error": message})
+}
+
+func autoLinkKnowledgeForMessage(message domain.Message) {
+	var channel domain.Channel
+	if err := db.DB.First(&channel, "id = ?", message.ChannelID).Error; err != nil {
+		return
+	}
+
+	refs, err := knowledge.AutoLinkEntitiesForMessage(db.DB, channel.WorkspaceID, message.ID, message.Content)
+	if err != nil {
+		return
+	}
+	for _, ref := range refs {
+		_ = broadcastKnowledgeEvent("knowledge.entity.ref.created", ref.WorkspaceID, channel.ID, ref.EntityID, gin.H{"ref": ref})
+	}
+}
+
+func autoLinkKnowledgeForFile(asset domain.FileAsset, content string) {
+	var channel domain.Channel
+	if asset.ChannelID == "" || db.DB.First(&channel, "id = ?", asset.ChannelID).Error != nil {
+		return
+	}
+
+	refs, err := knowledge.AutoLinkEntitiesForFile(db.DB, channel.WorkspaceID, asset.ID, content)
+	if err != nil {
+		return
+	}
+	for _, ref := range refs {
+		_ = broadcastKnowledgeEvent("knowledge.entity.ref.created", ref.WorkspaceID, channel.ID, ref.EntityID, gin.H{"ref": ref})
+	}
+}
+
+func broadcastKnowledgeEvent(eventType, workspaceID, channelID, entityID string, payload any) error {
+	if RealtimeHub == nil {
+		return nil
+	}
+
+	return RealtimeHub.Broadcast(realtime.Event{
+		ID:          "evt_" + time.Now().Format("20060102150405.000000"),
+		Type:        eventType,
+		WorkspaceID: workspaceID,
+		ChannelID:   channelID,
+		EntityID:    entityID,
+		TS:          time.Now().UTC().Format(time.RFC3339Nano),
+		Payload:     payload,
+	})
 }

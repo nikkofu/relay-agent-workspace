@@ -151,6 +151,7 @@ func main() {
 		v1.POST("/knowledge/entities/:id/events", handlers.AddKnowledgeEntityEvent)
 		v1.GET("/knowledge/entities/:id/links", handlers.ListKnowledgeEntityLinks)
 		v1.POST("/knowledge/links", handlers.AddKnowledgeEntityLink)
+		v1.POST("/knowledge/events/ingest", handlers.IngestKnowledgeEvent)
 		v1.GET("/knowledge/entities/:id/graph", handlers.GetKnowledgeEntityGraph)
 		v1.GET("/search/files", handlers.SearchFiles)
 		v1.GET("/search/intelligent", handlers.IntelligentSearch)

@@ -70,17 +70,34 @@ type AddEntityEventInput struct {
 	SourceRef   string `json:"source_ref"`
 }
 
+type IngestEventInput struct {
+	EntityID    string `json:"entity_id"`
+	EventType   string `json:"event_type"`
+	Title       string `json:"title"`
+	Body        string `json:"body"`
+	ActorUserID string `json:"actor_user_id"`
+	SourceKind  string `json:"source_kind"`
+	SourceRef   string `json:"source_ref"`
+}
+
 type GraphNode struct {
-	ID    string `json:"id"`
-	Kind  string `json:"kind"`
-	Title string `json:"title"`
+	ID         string `json:"id"`
+	Kind       string `json:"kind"`
+	Title      string `json:"title"`
+	SourceKind string `json:"source_kind,omitempty"`
+	RefKind    string `json:"ref_kind,omitempty"`
+	RefID      string `json:"ref_id,omitempty"`
+	Role       string `json:"role,omitempty"`
 }
 
 type GraphEdge struct {
-	ID       string `json:"id"`
-	From     string `json:"from"`
-	To       string `json:"to"`
-	Relation string `json:"relation"`
+	ID        string  `json:"id"`
+	From      string  `json:"from"`
+	To        string  `json:"to"`
+	Relation  string  `json:"relation"`
+	Weight    float64 `json:"weight"`
+	Direction string  `json:"direction,omitempty"`
+	Role      string  `json:"role,omitempty"`
 }
 
 type EntityGraph struct {

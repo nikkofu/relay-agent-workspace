@@ -3701,11 +3701,20 @@ func TestKnowledgeEntityGraphEndpoint(t *testing.T) {
 	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-2", WorkspaceID: "ws-1", Kind: "service", Title: "Billing Service", Status: "active", SourceKind: "manual", CreatedAt: now, UpdatedAt: now})
 
 	router := gin.New()
+	router.POST("/api/v1/knowledge/entities/:id/refs", AddKnowledgeEntityRef)
 	router.POST("/api/v1/knowledge/links", AddKnowledgeEntityLink)
 	router.GET("/api/v1/knowledge/entities/:id/graph", GetKnowledgeEntityGraph)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/links", strings.NewReader(`{"from_entity_id":"entity-1","to_entity_id":"entity-2","relation":"depends_on"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/entities/entity-1/refs", strings.NewReader(`{"ref_kind":"message","ref_id":"msg-1","role":"discussion"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on add graph ref, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/links", strings.NewReader(`{"from_entity_id":"entity-1","to_entity_id":"entity-2","relation":"depends_on","weight":2.5}`))
 	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusCreated {
@@ -3717,6 +3726,234 @@ func TestKnowledgeEntityGraphEndpoint(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "depends_on") {
 		t.Fatalf("expected graph with depends_on edge, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Graph struct {
+			Nodes []knowledgeGraphNodePayload `json:"nodes"`
+			Edges []knowledgeGraphEdgePayload `json:"edges"`
+		} `json:"graph"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode graph payload: %v", err)
+	}
+	if !graphHasRefNode(payload.Graph.Nodes, "message", "msg-1", "discussion") {
+		t.Fatalf("expected graph ref node metadata, got %#v", payload.Graph.Nodes)
+	}
+	if !graphHasWeightedEdge(payload.Graph.Edges, "depends_on", 2.5, "out") {
+		t.Fatalf("expected weighted directional graph edge, got %#v", payload.Graph.Edges)
+	}
+}
+
+type knowledgeGraphNodePayload struct {
+	Kind    string `json:"kind"`
+	RefKind string `json:"ref_kind"`
+	RefID   string `json:"ref_id"`
+	Role    string `json:"role"`
+}
+
+type knowledgeGraphEdgePayload struct {
+	Relation  string  `json:"relation"`
+	Weight    float64 `json:"weight"`
+	Direction string  `json:"direction"`
+}
+
+func graphHasRefNode(nodes []knowledgeGraphNodePayload, kind, refID, role string) bool {
+	for _, node := range nodes {
+		if node.Kind == kind && node.RefKind == kind && node.RefID == refID && node.Role == role {
+			return true
+		}
+	}
+	return false
+}
+
+func graphHasWeightedEdge(edges []knowledgeGraphEdgePayload, relation string, weight float64, direction string) bool {
+	for _, edge := range edges {
+		if edge.Relation == relation && edge.Weight == weight && edge.Direction == direction {
+			return true
+		}
+	}
+	return false
+}
+
+func TestKnowledgeEntityEndpointsBroadcastRealtimeEvents(t *testing.T) {
+	setupTestDB(t)
+
+	hub := realtime.NewHub()
+	go hub.Run()
+	SetRealtimeHub(hub)
+	defer SetRealtimeHub(nil)
+
+	client := realtime.NewTestClient(8)
+	hub.RegisterTestClient(client)
+	defer hub.UnregisterTestClient(client)
+
+	router := gin.New()
+	router.POST("/api/v1/knowledge/entities", CreateKnowledgeEntity)
+	router.PATCH("/api/v1/knowledge/entities/:id", UpdateKnowledgeEntity)
+	router.POST("/api/v1/knowledge/entities/:id/refs", AddKnowledgeEntityRef)
+	router.POST("/api/v1/knowledge/entities/:id/events", AddKnowledgeEntityEvent)
+	router.POST("/api/v1/knowledge/links", AddKnowledgeEntityLink)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/entities", strings.NewReader(`{"workspace_id":"ws-1","kind":"project","title":"Launch Program"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on entity create, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	assertRealtimeEventType(t, client, "knowledge.entity.created")
+
+	var createPayload struct {
+		Entity domain.KnowledgeEntity `json:"entity"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &createPayload); err != nil {
+		t.Fatalf("decode entity create: %v", err)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPatch, "/api/v1/knowledge/entities/"+createPayload.Entity.ID, strings.NewReader(`{"summary":"Updated"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on entity update, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	assertRealtimeEventType(t, client, "knowledge.entity.updated")
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/entities/"+createPayload.Entity.ID+"/refs", strings.NewReader(`{"ref_kind":"message","ref_id":"msg-1","role":"discussion"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on entity ref, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	assertRealtimeEventType(t, client, "knowledge.entity.ref.created")
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/entities/"+createPayload.Entity.ID+"/events", strings.NewReader(`{"event_type":"live_update","title":"Live update"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on entity event, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	assertRealtimeEventType(t, client, "knowledge.event.created")
+
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-2", WorkspaceID: "ws-1", Kind: "service", Title: "Billing Service", Status: "active", SourceKind: "manual", CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()})
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/links", strings.NewReader(`{"from_entity_id":"`+createPayload.Entity.ID+`","to_entity_id":"entity-2","relation":"depends_on","weight":2}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on entity link, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	assertRealtimeEventType(t, client, "knowledge.link.created")
+}
+
+func TestKnowledgeEventIngestCreatesTimelineEventAndBroadcasts(t *testing.T) {
+	setupTestDB(t)
+
+	hub := realtime.NewHub()
+	go hub.Run()
+	SetRealtimeHub(hub)
+	defer SetRealtimeHub(nil)
+
+	client := realtime.NewTestClient(4)
+	hub.RegisterTestClient(client)
+	defer hub.UnregisterTestClient(client)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "customer", Title: "ACME", Status: "active", SourceKind: "manual", CreatedAt: now, UpdatedAt: now})
+
+	router := gin.New()
+	router.POST("/api/v1/knowledge/events/ingest", IngestKnowledgeEvent)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/events/ingest", strings.NewReader(`{"entity_id":"entity-1","event_type":"live_update","title":"CRM account updated","body":"ACME moved to renewal risk","source_kind":"live","source_ref":"crm:account:acme"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on ingest, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	assertRealtimeEventType(t, client, "knowledge.event.created")
+}
+
+func TestCreateMessageAutoLinksMentionedKnowledgeEntity(t *testing.T) {
+	setupTestDB(t)
+
+	hub := realtime.NewHub()
+	go hub.Run()
+	SetRealtimeHub(hub)
+	defer SetRealtimeHub(nil)
+
+	client := realtime.NewTestClient(8)
+	hub.RegisterTestClient(client)
+	defer hub.UnregisterTestClient(client)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Status: "active", SourceKind: "manual", CreatedAt: now, UpdatedAt: now})
+
+	router := gin.New()
+	router.POST("/api/v1/messages", CreateMessage)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/messages", strings.NewReader(`{"channel_id":"ch-1","user_id":"user-1","content":"Launch Program is ready for review"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on message create, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	assertRealtimeEventType(t, client, "message.created")
+	assertRealtimeEventType(t, client, "knowledge.entity.ref.created")
+
+	var count int64
+	db.DB.Model(&domain.KnowledgeEntityRef{}).Where("entity_id = ? AND ref_kind = ? AND role = ?", "entity-1", "message", "discussion").Count(&count)
+	if count != 1 {
+		t.Fatalf("expected one auto-linked message ref, got %d", count)
+	}
+}
+
+func TestUploadFileAutoLinksMentionedKnowledgeEntity(t *testing.T) {
+	setupTestDB(t)
+
+	hub := realtime.NewHub()
+	go hub.Run()
+	SetRealtimeHub(hub)
+	defer SetRealtimeHub(nil)
+
+	client := realtime.NewTestClient(8)
+	hub.RegisterTestClient(client)
+	defer hub.UnregisterTestClient(client)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Status: "active", SourceKind: "manual", CreatedAt: now, UpdatedAt: now})
+
+	_ = os.RemoveAll("uploads")
+	t.Cleanup(func() {
+		_ = os.RemoveAll("uploads")
+	})
+
+	router := gin.New()
+	router.POST("/api/v1/files/upload", UploadFile)
+
+	body, contentType := buildMultipartFileUpload(t, "channel_id", "ch-1", "launch-program.txt", []byte("Launch Program file notes"))
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/files/upload", body)
+	req.Header.Set("Content-Type", contentType)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on file upload, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	assertRealtimeEventType(t, client, "file.extraction.updated")
+	assertRealtimeEventType(t, client, "knowledge.entity.ref.created")
+
+	var count int64
+	db.DB.Model(&domain.KnowledgeEntityRef{}).Where("entity_id = ? AND ref_kind = ? AND role = ?", "entity-1", "file", "evidence").Count(&count)
+	if count != 1 {
+		t.Fatalf("expected one auto-linked file ref, got %d", count)
 	}
 }
 

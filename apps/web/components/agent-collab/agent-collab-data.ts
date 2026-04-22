@@ -112,9 +112,9 @@ export const MEMBERS: Member[] = [
 
 export const ACTIVE_SUPERPOWERS: AgentPower[] = [
   { agent: 'Gemini', skill: 'idle', task: 'Resting after Phase 38 handoff', progress: 100, status: 'done' },
-  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 46 Knowledge Entity/Wiki API handoff complete', progress: 100, status: 'done' },
+  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 47 Knowledge Live Events API handoff complete', progress: 100, status: 'done' },
   { agent: 'Claude Code', skill: 'idle', task: '-', progress: 0, status: 'idle' },
-  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 46 Knowledge Entity Wiki Integration complete (v0.5.86)', progress: 100, status: 'done' },
+  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Ready for Phase 47 Knowledge Live UI Integration', progress: 0, status: 'idle' },
 ]
 
 // ─── Full Task Board ──────────────────────────────────────────────────────────
@@ -218,11 +218,25 @@ export const TASKS: Task[] = [
   { id: 't96', phase: 96, status: 'done',  task: 'Phase 45 Citation Lookup Integration',               assignedTo: ['Windsurf'],        deadline: '2026-04-21', description: 'Built EvidenceKind type and CitationEvidence interface. citation-store with lookupCitations (GET /api/v1/citations/lookup). Shared CitationCard component switching on evidence_kind (file_chunk/message/thread/artifact_section) with snippet/locator/ref_kind/entity_id. New /workspace/search page with kind filter pills. Search nav item (Quote icon). files/page.tsx citations updated to CitationCard. v0.5.85 published.', type: 'frontend' },
   { id: 't97', phase: 97, status: 'done',  task: 'Phase 46 Knowledge Entities And Wiki APIs',         assignedTo: ['Codex'],           deadline: '2026-04-21', description: 'Added first-class knowledge entities, refs, links, timeline, graph preview, and citation entity_title hydration. New /api/v1/knowledge/entities API family powers wiki-style entity pages.', type: 'api' },
   { id: 't98', phase: 98, status: 'done',  task: 'Phase 46 Knowledge Entity Wiki Integration',         assignedTo: ['Windsurf'],        deadline: '2026-04-21', description: 'Built /workspace/knowledge (entity list: search, kind filter pills, entity cards) and /workspace/knowledge/[id] (detail: Overview/Refs/Timeline/Graph tabs, inline edit). knowledge-store with full entity/refs/timeline/links/graph API. KnowledgeEntity + related types in types/index.ts. CitationCard entity_id badge now links to entity detail. Knowledge nav item (Globe). layout.tsx Suspense wrappers for cacheComponents dynamic route compat. v0.5.86 published.', type: 'frontend' },
+  { id: 't99', phase: 99, status: 'done',  task: 'Phase 47 Knowledge Live Events And Auto-Linking APIs', assignedTo: ['Codex'],          deadline: '2026-04-22', description: 'Added knowledge websocket events, POST /api/v1/knowledge/events/ingest, richer graph edge/ref metadata, and deterministic entity auto-linking from messages/files. v0.5.87 published.', type: 'api' },
+  { id: 't100', phase: 100, status: 'ready', task: 'Phase 47 Knowledge Live UI Integration',           assignedTo: ['Windsurf'],        deadline: '2026-04-22', description: 'Listen for knowledge websocket events, refresh entity wiki views live, expose live event ingest UI/debug flow, and render weighted/directional graph metadata.', type: 'frontend' },
 ]
 
 // ─── Communication Log ────────────────────────────────────────────────────────
 
 export const COMM_SECTIONS: CommSection[] = [
+  {
+    id: 'cs12',
+    date: '2026-04-22',
+    title: 'Phase 47 Knowledge Live Events And Auto-Linking API Completion',
+    messages: [
+      { id: 'cx47a', from: 'Codex', content: 'Phase 47 backend is complete and published as v0.5.87. Added websocket events: knowledge.entity.created, knowledge.entity.updated, knowledge.entity.ref.created, knowledge.event.created, and knowledge.link.created.' },
+      { id: 'cx47b', from: 'Codex', content: 'Added POST /api/v1/knowledge/events/ingest for live business/domain signals. Request fields: entity_id, event_type, title, body, actor_user_id, source_kind, source_ref.' },
+      { id: 'cx47c', from: 'Codex', content: 'New messages and uploaded files now deterministically auto-link to knowledge entities when content or filename/extracted text mentions the entity title. Backend creates KnowledgeEntityRef and broadcasts knowledge.entity.ref.created.' },
+      { id: 'cx47d', from: 'Codex', to: 'Windsurf', content: 'Please wire Phase 47 UI integration next: listen for the five knowledge WS events, refresh /workspace/knowledge plus entity detail refs/timeline/graph, add a lightweight live-event ingest action or debug composer, and render edge.weight/edge.direction/edge.role plus ref-node metadata.' },
+      { id: 'cx47e', from: 'Codex', to: 'Nikko Fu', content: 'Relay now supports static wiki objects plus dynamic live events in one knowledge model. This is the foundation for business-domain realtime data flowing into channels/messages/entities later.' },
+    ],
+  },
   {
     id: 'cs11',
     date: '2026-04-21',

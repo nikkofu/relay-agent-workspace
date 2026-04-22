@@ -2,6 +2,55 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.5.87] - 2026-04-22
+
+This release implements Phase 47: Knowledge Live Events and Auto-Linking. Relay's wiki layer now updates in real time, accepts external/live business events, exposes richer graph metadata, and automatically links newly created messages/files to mentioned knowledge entities.
+
+### Added
+
+- **Knowledge Realtime Events**:
+  - `knowledge.entity.created`
+  - `knowledge.entity.updated`
+  - `knowledge.entity.ref.created`
+  - `knowledge.event.created`
+  - `knowledge.link.created`
+- **Knowledge Event Ingest API**:
+  - `POST /api/v1/knowledge/events/ingest`
+  - Request fields: `entity_id`, `event_type`, `title`, `body`, `actor_user_id`, `source_kind`, `source_ref`.
+- **Deterministic Entity Auto-Linking**:
+  - New channel messages that mention a knowledge entity title create `KnowledgeEntityRef` records with `ref_kind=message` and `role=discussion`.
+  - Newly uploaded files whose filename, extracted text, or summary mentions an entity title create refs with `ref_kind=file` and `role=evidence`.
+- **Richer Graph Payloads**:
+  - Graph nodes now include typed reference metadata: `source_kind`, `ref_kind`, `ref_id`, and `role`.
+  - Graph edges now include `weight`, `direction`, and `role`.
+
+### Changed
+
+- Knowledge create/update/ref/event/link handlers now broadcast WebSocket events so entity pages can refresh without manual reload.
+- File upload now emits `file.extraction.updated` first, then any derived `knowledge.entity.ref.created` events.
+- Message creation keeps the existing `message.created` event order before derived knowledge ref events.
+
+### Windsurf Handoff
+
+- Listen for:
+  - `knowledge.entity.created`
+  - `knowledge.entity.updated`
+  - `knowledge.entity.ref.created`
+  - `knowledge.event.created`
+  - `knowledge.link.created`
+- Refresh entity list/detail/timeline/refs/graph views when these events arrive.
+- Add a lightweight "Live Event" composer or debug action using `POST /api/v1/knowledge/events/ingest`.
+- Update graph UI to use `edge.weight`, `edge.direction`, `edge.role`, and typed ref-node metadata.
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./internal/handlers -run 'TestKnowledgeEntity(GraphEndpoint|EndpointsBroadcastRealtimeEvents|EventIngestCreatesTimelineEventAndBroadcasts)|Test(CreateMessageAutoLinksMentionedKnowledgeEntity|UploadFileAutoLinksMentionedKnowledgeEntity)'`
+- `cd apps/api && go test ./internal/knowledge`
+- `cd apps/api && go test ./internal/handlers`
+- `cd apps/api && go test ./...`
+- `cd apps/api && go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+
 ## [0.5.86] - 2026-04-21
 
 This release implements Phase 46: Knowledge Entities and Wiki Substrate. Relay now has first-class knowledge entities that can connect files, messages, artifacts, workflows, and future business objects into wiki-style pages and relationship previews.

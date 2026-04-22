@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.5.86` is the current release line and includes:
+`v0.5.87` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -44,6 +44,10 @@ For product, design, and marketing, the short version is:
 - unified AI citation lookup across file chunks, messages, threads, and artifact sections
 - `apps/api/internal/knowledge/` evidence lookup layer for later wiki and graph phases
 - first-class knowledge entity APIs for wiki-style entity pages, refs, timeline, links, and graph previews
+- realtime knowledge entity/wiki websocket events for live entity, ref, event, and link refresh
+- live knowledge event ingestion via `POST /api/v1/knowledge/events/ingest`
+- deterministic knowledge entity auto-linking from newly created messages and uploaded files
+- richer knowledge graph payloads with edge weight, direction, role, and typed reference-node metadata
 - real extraction support for `txt`, `md`, `pdf`, `docx`, `xlsx`, and `pptx`
 - OCR provider abstraction for image files with a mock OCR implementation
 - provider-based LLM gateway with OpenAI, OpenAI-compatible, OpenRouter, and Gemini configuration
@@ -139,7 +143,14 @@ For product, design, and marketing, the short version is:
   - `POST /api/v1/knowledge/entities/:id/events`
   - `GET /api/v1/knowledge/entities/:id/links`
   - `POST /api/v1/knowledge/links`
+  - `POST /api/v1/knowledge/events/ingest`
   - `GET /api/v1/knowledge/entities/:id/graph`
+- Knowledge realtime websocket events:
+  - `knowledge.entity.created`
+  - `knowledge.entity.updated`
+  - `knowledge.entity.ref.created`
+  - `knowledge.event.created`
+  - `knowledge.link.created`
 - Channel notification preferences and self-service leave-channel API
 - Structured workspace list APIs for shared checklists and operational tracking
 - Artifact template APIs and virtual `new-doc` bootstrap support for canvas-first creation

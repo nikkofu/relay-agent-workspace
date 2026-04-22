@@ -18,7 +18,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 ## 📋 Task Board
 
 | Status | Task | Assigned To | Deadline | Description |
-| :--- | : :--- | :--- | :--- | :--- |
+| :--- | :--- | :--- | :--- | :--- |
 | 🟢 Done | Monorepo Migration | Gemini/Codex | 2026-04-16 | Moved all frontend to `apps/web`, created `apps/api`. |
 | 🟢 Done | Core API v0.2.0 | Codex | 2026-04-16 | Auth, Workspace, Channel, and Message REST APIs. |
 | 🟢 Done | Initial Frontend Integration | Gemini | 2026-04-16 | Connected stores to backend, fixed Hydration/CORS. |
@@ -117,7 +117,9 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 45 AI Citation Lookup APIs | Codex | 2026-04-21 | Added unified citation lookup across file chunks, messages, threads, and artifact sections; reserved entity-aware evidence fields for later wiki/graph phases. |
 | 🟢 Done | Phase 45 Citation Lookup Integration | Windsurf | 2026-04-21 | `EvidenceKind` + `CitationEvidence` types. `citation-store` with `lookupCitations`. Shared `CitationCard` switching on `evidence_kind`. New `/workspace/search` page + `Quote` nav item. Files Indexing citations use `CitationCard`. `v0.5.85` published. |
 | 🟢 Done | Phase 46 Knowledge Entities And Wiki APIs | Codex | 2026-04-21 | Added first-class knowledge entities, refs, links, timeline, graph preview, and citation `entity_title` hydration. |
-| � Done | Phase 46 Knowledge Entity Wiki Integration | Windsurf | 2026-04-21 | `/workspace/knowledge` entity list (search, kind filters, create dialog). `/workspace/knowledge/[id]` detail (Overview/Refs/Timeline/Graph, inline edit). `knowledge-store` full CRUD. `KnowledgeEntity/Ref/Link/Event/Graph` types. `CitationCard` entity badge → entity detail link. `Knowledge` nav item (Globe). `layout.tsx` Suspense wrappers for `cacheComponents` dynamic route. `v0.5.86` published. |
+| 🟢 Done | Phase 46 Knowledge Entity Wiki Integration | Windsurf | 2026-04-21 | `/workspace/knowledge` entity list (search, kind filters, create dialog). `/workspace/knowledge/[id]` detail (Overview/Refs/Timeline/Graph, inline edit). `knowledge-store` full CRUD. `KnowledgeEntity/Ref/Link/Event/Graph` types. `CitationCard` entity badge → entity detail link. `Knowledge` nav item (Globe). `layout.tsx` Suspense wrappers for `cacheComponents` dynamic route. `v0.5.86` published. |
+| 🟢 Done | Phase 47 Knowledge Live Events And Auto-Linking APIs | Codex | 2026-04-22 | Added knowledge WS events, `POST /api/v1/knowledge/events/ingest`, richer graph edge/ref metadata, and deterministic entity auto-linking from messages/files. `v0.5.87` published. |
+| 🟡 Ready | Phase 47 Knowledge Live UI Integration | Windsurf | 2026-04-22 | Listen for knowledge WS events, refresh entity wiki views live, expose event ingest UI/debug flow, and render weighted/directional graph metadata. |
 
 ---
 
@@ -126,13 +128,27 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
-| **Codex** | `api-architecture` | Phase 46 knowledge entity/wiki API handoff complete | 100% |
+| **Codex** | `api-architecture` | Phase 47 knowledge live events and auto-linking API handoff complete | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-ui-agent` | Phase 46 Knowledge Entity Wiki Integration complete (v0.5.86) | 100% |
+| **Windsurf** | `web-ui-agent` | Ready for Phase 47 Knowledge Live UI Integration | 0% |
 
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-22 - Phase 47 Knowledge Live Events And Auto-Linking API Completion
+- **Codex**: Phase 47 backend is complete and published as `v0.5.87`.
+- **Codex**: Added websocket events for the knowledge wiki layer:
+  - `knowledge.entity.created`
+  - `knowledge.entity.updated`
+  - `knowledge.entity.ref.created`
+  - `knowledge.event.created`
+  - `knowledge.link.created`
+- **Codex**: Added `POST /api/v1/knowledge/events/ingest` for live business/domain signals. Request fields: `entity_id`, `event_type`, `title`, `body`, `actor_user_id`, `source_kind`, `source_ref`.
+- **Codex**: Added deterministic auto-linking from new messages and uploaded files. If content or filename/extracted text mentions a knowledge entity title, backend creates a `KnowledgeEntityRef` and broadcasts `knowledge.entity.ref.created`.
+- **Codex**: Graph payloads now include `edge.weight`, `edge.direction`, `edge.role`, plus ref-node metadata `source_kind`, `ref_kind`, `ref_id`, and `role`.
+- **Codex → Windsurf**: Please wire Phase 47 UI integration next. Listen for the five knowledge WS events and refresh `/workspace/knowledge`, entity detail refs/timeline/graph, and citation/entity badges as needed. Add a lightweight live event ingest action or dev/debug composer using `POST /api/v1/knowledge/events/ingest`. Update graph rendering to make weighted/directional relationships visible. Keep using opaque IDs; message/file auto-linking is backend-driven.
+- **Codex → Nikko Fu**: Relay's knowledge layer now supports static wiki objects plus dynamic live events in one model. This is the intended foundation for later business-domain realtime data flowing into channels/messages/entities without splitting the product into separate wiki and ops systems.
 
 ### 2026-04-21 - Phase 46 Knowledge Entity Wiki Integration Completion
 - **Windsurf**: Phase 46 complete. (1) `KnowledgeEntity`, `KnowledgeEntityRef`, `KnowledgeEntityLink`, `KnowledgeEvent`, `KnowledgeGraph`/`KnowledgeGraphNode` types. (2) `knowledge-store`: `fetchEntities`, `createEntity`, `fetchEntity`, `updateEntity`, `fetchEntityRefs`, `addEntityRef`, `fetchEntityTimeline`, `addEntityEvent`, `fetchEntityLinks`, `createLink`, `fetchEntityGraph`. (3) `/workspace/knowledge`: entity list — search bar, kind filter pills, entity cards (kind icon/badge, summary, tags, ref count), create dialog. (4) `/workspace/knowledge/[id]`: entity detail — tinted header (kind-aware bg), `Overview` (summary + inline edit, metadata grid) / `Refs` (source_kind badge + snippet) / `Timeline` (colored dot timeline) / `Graph` (center entity pill, outgoing/incoming links, related entity cards). (5) `CitationCard` `entity_id` badge → `Link` to `/workspace/knowledge/[entity_id]`, shows `entity_title` when hydrated, `ExternalLink` icon. (6) `primary-nav`: `Knowledge` item (`Globe` icon). (7) `layout.tsx`: `Suspense` wrappers on `PrimaryNav` and `ChannelSidebar` — required for `cacheComponents: true` + dynamic route partial prerender. `v0.5.86` published.

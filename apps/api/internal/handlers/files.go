@@ -132,6 +132,7 @@ func UploadFile(c *gin.Context) {
 	}
 	_ = db.DB.First(&asset, "id = ?", asset.ID).Error
 	_ = broadcastFileExtractionEvent(asset, extraction)
+	autoLinkKnowledgeForFile(asset, strings.Join([]string{asset.Name, extraction.ContentSummary, extraction.ContentText}, " "))
 	recordFileEvent(asset.ID, currentUser.ID, "uploaded", "Uploaded "+asset.Name)
 
 	c.JSON(http.StatusCreated, gin.H{"file": hydrateFileAssetResponse(asset)})

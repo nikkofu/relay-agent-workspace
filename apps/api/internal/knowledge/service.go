@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"gorm.io/gorm"
 
@@ -418,6 +419,73 @@ func AppendEntityEvent(database *gorm.DB, entityID string, input AddEntityEventI
 	return event, nil
 }
 
+func IngestEvent(database *gorm.DB, input IngestEventInput) (domain.KnowledgeEvent, error) {
+	return AppendEntityEvent(database, strings.TrimSpace(input.EntityID), AddEntityEventInput{
+		EventType:   input.EventType,
+		Title:       input.Title,
+		Body:        input.Body,
+		ActorUserID: input.ActorUserID,
+		SourceKind:  defaultString(strings.TrimSpace(input.SourceKind), "live"),
+		SourceRef:   input.SourceRef,
+	})
+}
+
+func AutoLinkEntitiesForMessage(database *gorm.DB, workspaceID, messageID, content string) ([]domain.KnowledgeEntityRef, error) {
+	return autoLinkEntities(database, workspaceID, "message", messageID, "discussion", content)
+}
+
+func AutoLinkEntitiesForFile(database *gorm.DB, workspaceID, fileID, content string) ([]domain.KnowledgeEntityRef, error) {
+	return autoLinkEntities(database, workspaceID, "file", fileID, "evidence", content)
+}
+
+func autoLinkEntities(database *gorm.DB, workspaceID, refKind, refID, role, content string) ([]domain.KnowledgeEntityRef, error) {
+	workspaceID = strings.TrimSpace(workspaceID)
+	refID = strings.TrimSpace(refID)
+	if workspaceID == "" || refID == "" || strings.TrimSpace(content) == "" {
+		return []domain.KnowledgeEntityRef{}, nil
+	}
+
+	haystack := normalizeKnowledgeText(content)
+	if haystack == "" {
+		return []domain.KnowledgeEntityRef{}, nil
+	}
+
+	var entities []domain.KnowledgeEntity
+	if err := database.Where("workspace_id = ? AND status <> ?", workspaceID, "archived").Order("title asc").Find(&entities).Error; err != nil {
+		return nil, err
+	}
+
+	created := make([]domain.KnowledgeEntityRef, 0)
+	for _, entity := range entities {
+		needle := normalizeKnowledgeText(entity.Title)
+		if len(needle) < 3 || !strings.Contains(haystack, needle) {
+			continue
+		}
+
+		var count int64
+		if err := database.Model(&domain.KnowledgeEntityRef{}).
+			Where("entity_id = ? AND ref_kind = ? AND ref_id = ?", entity.ID, refKind, refID).
+			Count(&count).Error; err != nil {
+			return nil, err
+		}
+		if count > 0 {
+			continue
+		}
+
+		ref, err := AddEntityRef(database, entity.ID, AddEntityRefInput{
+			RefKind: refKind,
+			RefID:   refID,
+			Role:    role,
+		})
+		if err != nil {
+			return nil, err
+		}
+		created = append(created, ref)
+	}
+
+	return created, nil
+}
+
 func ListEntityTimeline(database *gorm.DB, entityID string) ([]domain.KnowledgeEvent, error) {
 	var events []domain.KnowledgeEvent
 	if err := database.Where("entity_id = ?", entityID).Order("occurred_at desc, created_at desc").Find(&events).Error; err != nil {
@@ -432,7 +500,7 @@ func BuildEntityGraph(database *gorm.DB, entityID string) (EntityGraph, error) {
 		return EntityGraph{}, err
 	}
 	graph := EntityGraph{
-		Nodes: []GraphNode{{ID: entity.ID, Kind: entity.Kind, Title: entity.Title}},
+		Nodes: []GraphNode{{ID: entity.ID, Kind: entity.Kind, Title: entity.Title, SourceKind: entity.SourceKind}},
 		Edges: []GraphEdge{},
 	}
 	seen := map[string]bool{entity.ID: true}
@@ -444,10 +512,18 @@ func BuildEntityGraph(database *gorm.DB, entityID string) (EntityGraph, error) {
 	for _, ref := range refs {
 		nodeID := ref.RefKind + ":" + ref.RefID
 		if !seen[nodeID] {
-			graph.Nodes = append(graph.Nodes, GraphNode{ID: nodeID, Kind: ref.RefKind, Title: ref.RefID})
+			graph.Nodes = append(graph.Nodes, GraphNode{
+				ID:         nodeID,
+				Kind:       ref.RefKind,
+				Title:      ref.RefID,
+				SourceKind: "ref",
+				RefKind:    ref.RefKind,
+				RefID:      ref.RefID,
+				Role:       ref.Role,
+			})
 			seen[nodeID] = true
 		}
-		graph.Edges = append(graph.Edges, GraphEdge{ID: ref.ID, From: entity.ID, To: nodeID, Relation: ref.Role})
+		graph.Edges = append(graph.Edges, GraphEdge{ID: ref.ID, From: entity.ID, To: nodeID, Relation: ref.Role, Weight: 1, Direction: "out", Role: ref.Role})
 	}
 
 	links, err := ListEntityLinks(database, entityID)
@@ -461,13 +537,17 @@ func BuildEntityGraph(database *gorm.DB, entityID string) (EntityGraph, error) {
 		}
 		if !seen[otherID] {
 			if other, err := GetEntity(database, otherID); err == nil {
-				graph.Nodes = append(graph.Nodes, GraphNode{ID: other.ID, Kind: other.Kind, Title: other.Title})
+				graph.Nodes = append(graph.Nodes, GraphNode{ID: other.ID, Kind: other.Kind, Title: other.Title, SourceKind: other.SourceKind})
 			} else {
 				graph.Nodes = append(graph.Nodes, GraphNode{ID: otherID, Kind: "entity", Title: otherID})
 			}
 			seen[otherID] = true
 		}
-		graph.Edges = append(graph.Edges, GraphEdge{ID: link.ID, From: link.FromEntityID, To: link.ToEntityID, Relation: link.Relation})
+		direction := "out"
+		if link.ToEntityID == entityID {
+			direction = "in"
+		}
+		graph.Edges = append(graph.Edges, GraphEdge{ID: link.ID, From: link.FromEntityID, To: link.ToEntityID, Relation: link.Relation, Weight: link.Weight, Direction: direction, Role: link.Relation})
 	}
 
 	return graph, nil
@@ -482,6 +562,29 @@ func defaultString(value, fallback string) string {
 
 func newKnowledgeID(prefix string) string {
 	return ids.NewPrefixedUUID(prefix)
+}
+
+func normalizeKnowledgeText(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
+		return ""
+	}
+
+	var builder strings.Builder
+	builder.Grow(len(value))
+	lastWasSpace := true
+	for _, r := range value {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			builder.WriteRune(r)
+			lastWasSpace = false
+			continue
+		}
+		if !lastWasSpace {
+			builder.WriteByte(' ')
+			lastWasSpace = true
+		}
+	}
+	return strings.Join(strings.Fields(builder.String()), " ")
 }
 
 func includeKind(params LookupParams, kind string) bool {

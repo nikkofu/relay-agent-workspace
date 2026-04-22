@@ -2454,6 +2454,7 @@ func CreateMessage(c *gin.Context) {
 			return
 		}
 	}
+	autoLinkKnowledgeForMessage(msg)
 
 	c.JSON(http.StatusCreated, gin.H{"message": msg})
 }
