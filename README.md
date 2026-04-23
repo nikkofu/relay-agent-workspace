@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.6.30` is the current release line and includes:
+`v0.6.32` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -113,6 +113,8 @@ For product, design, and marketing, the short version is:
 - recent cross-entity ask feed via `GET /api/v1/knowledge/ask/recent`
 - recent cross-entity ask feed rows include `entity_title` and `entity_kind` for stable UI rendering
 - realtime entity ask answer broadcasts via websocket `knowledge.entity.ask.answered`
+- unified workspace activity feed via `GET /api/v1/activity/feed`
+- unified activity feed sources currently include messages, file uploads, schedule bookings, compose activity, knowledge asks, and automation jobs
 - weekly brief snapshot sharing via `POST /api/v1/knowledge/weekly-brief/:id/share`
 - historical knowledge activity backfill status and execution via `GET /api/v1/knowledge/entities/:id/activity/backfill-status` and `POST /api/v1/knowledge/entities/:id/activity/backfill`
 - realtime followed-stats deltas via websocket `knowledge.followed.stats.changed`

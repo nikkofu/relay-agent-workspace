@@ -2,6 +2,46 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.32] - 2026-04-23
+
+This release completes Phase 64B backend support for Windsurf's unified activity rail.
+
+### Added
+
+- `GET /api/v1/activity/feed`
+- Contract now matches `UnifiedActivityFeedItem` with:
+  - `event_type`
+  - `workspace_id`
+  - `actor_id` / `actor_name`
+  - `channel_id` / `channel_name`
+  - `dm_id`
+  - `entity_id` / `entity_title` / `entity_kind`
+  - `title`, `body`, `link`, `occurred_at`, `meta`
+- Current feed sources:
+  - `message`
+  - `file_uploaded`
+  - `schedule_booking`
+  - `compose_activity`
+  - `knowledge_ask`
+  - `automation_job`
+- Cursor pagination via `next_cursor`, plus aggregated `total`.
+
+### Windsurf Handoff
+
+- The `UnifiedActivityRail` All tab can now consume `GET /api/v1/activity/feed?workspace_id=...`.
+- Activity rows now have the entity/channel/actor fields Windsurf requested in `docs/AGENT-COLLAB.md`.
+- Next recommended backend slice is Phase 64C: widen the unified feed with `artifact_updated`, `tool_run`, DM activity, and richer message/reaction variants.
+
+### Verification Used For This Release
+
+- `go test ./internal/handlers -run TestPhase64BUnifiedActivityFeedContract -count=1`
+- `go test ./internal/handlers -count=1`
+- `go test ./...`
+- `GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+- `pnpm --filter relay-agent-workspace exec tsc --noEmit`
+- `git diff --check`
+
 ## [0.6.30] - 2026-04-23
 
 This release closes Phase 63 as an AI automation arc and prepares Phase 64 for broader Slack-core convergence.

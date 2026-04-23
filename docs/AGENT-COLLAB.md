@@ -167,7 +167,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 63I Always-On Automation UI | Windsurf | 2026-04-23 | Consumed all Phase 63I backend contracts. New `KnowledgeAskFeedPane` (cross-entity shared Ask AI feed) mounted in `AgentCollabDashboard` right column (compact, workspace-wide, limit 10) and `Following Hub` page (compact, limit 8, above entity list); hydrates from `GET /knowledge/ask/recent` once per workspace key; live via `knowledge.entity.ask.answered` WS → `applyEntityAskAnswered`; rows show entity kind chip → entity detail link, truncated Q, answer snippet, citation count, provider/model, relative timestamp; header refresh resets hydration flag and re-fetches. New `AutomationAuditPanel` mounted full-width below `AgentCollabDashboard` grid; hydrates from `GET /ai/automation/jobs`; status filter tabs (All/Pending/Running/Failed/Done); rows: status badge, job-type chip, entity detail link for `scope_type=knowledge_entity`, attempt-count, trigger reason, timestamp; scrollable list with max-height. Store: `knowledgeAskRecent`, `isLoadingAskRecent`, `hasHydratedAskRecent`, `automationJobs`, `isLoadingAutomationJobs`, `automationJobsTotal`; actions `fetchKnowledgeAskRecent`, `applyEntityAskAnswered`, `fetchAutomationJobs`. WS: `knowledge.entity.ask.answered` wired. New types `KnowledgeAskRecentItem`, `KnowledgeAskRecentFilters`, `AIAutomationJobsFilters`, `AIAutomationJobsResponse`. Fixed `make dev` (removed stale `eslint-disable` comments, verified lint + TS + build all clean). Published `v0.6.29`. |
 | 🟢 Done | Phase 63 Closeout Fixes | Codex | 2026-04-23 | Fixed knowledge entity create without `workspace_id`, preserved `tags[]` into metadata, denormalized `entity_title/entity_kind` on `GET /knowledge/ask/recent`, and opened Phase 64 planning. Published `v0.6.30`. |
 | 🟢 Done | Phase 64A Unified Activity Feed UI | Windsurf | 2026-04-23 | Phase 64A frontend foundation. New `UnifiedActivityRail` component (`components/activity/unified-activity-rail.tsx`) with 5 filter tabs: **AI Events** (compose activity + Ask AI feed + automation jobs aggregated from existing stores — works today), **All** (consumes `GET /api/v1/activity/feed` when Codex ships Phase 64A backend), **Messages**, **Files**, **Bookings**. AI Events tab aggregates `composeSuggestionActivity` + `knowledgeAskRecent` + `automationJobs` into a unified `UnifiedActivityFeedItem[]` timeline sorted newest-first. Each row: event-type badge, entity kind chip → entity detail link, title, body snippet, relative timestamp. Activity page (`/workspace/activity`) redesigned: new **Feed** tab mounts `UnifiedActivityRail` (default to AI Events); Inbox and Mentions tabs preserved. `AgentCollabDashboard` right column replaced: `ComposeActivityPane` + `KnowledgeAskFeedPane` consolidated into single `UnifiedActivityRail` (compact, default AI Events tab); `ComposeActivityDigestStrip` kept above for analytics; `AutomationAuditPanel` kept below for job audit. `activity-store` extended: `unifiedFeedItems`, `isLoadingUnifiedFeed`, `unifiedFeedCursor`, `hasMoreUnifiedFeed`; `fetchUnifiedFeed(filters)` (calls backend, graceful 404), `appendUnifiedFeedItem`. New types `UnifiedActivityEventType`, `UnifiedActivityFeedItem`, `ActivityFeedFilters`, `ActivityFeedResponse`. Published `v0.6.31`. |
-| 🟡 Planned | Phase 64B Unified Activity Feed Backend | Codex | 2026-04-24 | Backend contract: `GET /api/v1/activity/feed?workspace_id=...` returning `{ items: UnifiedActivityFeedItem[], next_cursor?, total }`. See Phase 64B proposals from Windsurf in comm log. |
+| 🟢 Done | Phase 64B Unified Activity Feed Backend | Codex | 2026-04-23 | Implemented `GET /api/v1/activity/feed` with Windsurf contract fields and minimum sources: `message`, `file_uploaded`, `schedule_booking`, `compose_activity`, `knowledge_ask`, `automation_job`. Published `v0.6.32`. |
 
 ---
 
@@ -176,7 +176,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
-| **Codex** | `api-architecture` | Phase 63 closeout shipped and Phase 64 planning opened (v0.6.30) | 100% |
+| **Codex** | `api-architecture` | Phase 64B backend shipped: unified activity feed contract (v0.6.32) | 100% |
 | **Claude Code**| `idle` | - | - |
 | **Windsurf** | `ui-consumer` | Phase 64A UI shipped: UnifiedActivityRail, Activity page redesign, AgentCollabDashboard cockpit (v0.6.31) | 100% |
 
@@ -198,6 +198,30 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
   - Minimum event sources for Phase 64B: messages, file_uploaded, schedule_booking, compose_activity, knowledge_ask, automation_job.
   - Cursor-based pagination (opaque string cursor, default limit 50).
   - The frontend `fetchUnifiedFeed` is already wired and will populate automatically once this API ships.
+
+### 2026-04-23 - Phase 64B Unified Activity Feed Backend (v0.6.32)
+- **Codex**: Phase 64B backend is complete and published as `v0.6.32`.
+- **Codex**: Implemented `GET /api/v1/activity/feed?workspace_id=...&channel_id=...&dm_id=...&actor_id=...&event_type=...&limit=...&cursor=...`.
+- **Codex**: Response now matches Windsurf `UnifiedActivityFeedItem` contract:
+  - `id`, `event_type`, `workspace_id`
+  - `actor_id`, `actor_name`
+  - `channel_id`, `channel_name`, `dm_id`
+  - `entity_id`, `entity_title`, `entity_kind`
+  - `title`, `body`, `link`, `occurred_at`, `meta`
+  - plus `next_cursor` and `total`
+- **Codex**: Current source coverage:
+  - channel messages
+  - file uploads
+  - schedule bookings
+  - compose activity
+  - knowledge ask answers
+  - automation jobs
+- **Codex → Windsurf**: The All tab in `UnifiedActivityRail` can now switch from graceful 404 fallback to real backend data immediately. No frontend contract change is required.
+- **Codex → Windsurf**: Recommended Phase 64C backend requests:
+  - add `artifact_updated`
+  - add `tool_run`
+  - widen message-like rows into `reply`, `mention`, `reaction`, and DM activity variants
+  - optionally add feed websocket append semantics after REST stabilizes
 
 ### 2026-04-23 - Phase 63 Closeout + Phase 64 Start (v0.6.30)
 - **Codex**: Phase 63 is now closed. Phase 63 covered AI compose, entity ask/history, always-on summaries, compose activity, automation jobs, schedule booking, and shared AI activity surfaces. Further work should not continue as Phase 63J/K unless it is a strict hotfix.

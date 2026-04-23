@@ -693,144 +693,379 @@ func CreateWorkflowDefinition(c *gin.Context) {
 
 func GetActivityFeed(c *gin.Context) {
 	workspaceID := strings.TrimSpace(c.Query("workspace_id"))
-	limitStr := strings.TrimSpace(c.Query("limit"))
+	channelID := strings.TrimSpace(c.Query("channel_id"))
+	dmID := strings.TrimSpace(c.Query("dm_id"))
+	actorID := strings.TrimSpace(c.Query("actor_id"))
+	eventType := strings.TrimSpace(c.Query("event_type"))
 	cursor := strings.TrimSpace(c.Query("cursor"))
 	limit := 20
-	if n, err := strconv.Atoi(limitStr); err == nil && n > 0 && n <= 100 {
+	if n, err := strconv.Atoi(strings.TrimSpace(c.Query("limit"))); err == nil && n > 0 && n <= 100 {
 		limit = n
 	}
 
 	type feedItem struct {
 		ID          string         `json:"id"`
-		Type        string         `json:"type"`
-		WorkspaceID string         `json:"workspace_id"`
-		ActorID     string         `json:"actor_id"`
-		Actor       domain.User    `json:"actor"`
-		Content     string         `json:"content"`
-		Metadata    map[string]any `json:"metadata"`
-		CreatedAt   time.Time      `json:"created_at"`
+		EventType   string         `json:"event_type"`
+		WorkspaceID string         `json:"workspace_id,omitempty"`
+		ActorID     string         `json:"actor_id,omitempty"`
+		ActorName   string         `json:"actor_name,omitempty"`
+		ChannelID   string         `json:"channel_id,omitempty"`
+		ChannelName string         `json:"channel_name,omitempty"`
+		DMID        string         `json:"dm_id,omitempty"`
+		EntityID    string         `json:"entity_id,omitempty"`
+		EntityTitle string         `json:"entity_title,omitempty"`
+		EntityKind  string         `json:"entity_kind,omitempty"`
+		Title       string         `json:"title"`
+		Body        string         `json:"body,omitempty"`
+		Link        string         `json:"link,omitempty"`
+		OccurredAt  string         `json:"occurred_at"`
+		Meta        map[string]any `json:"meta,omitempty"`
 	}
 
-	items := make([]feedItem, 0, limit*4)
+	if workspaceID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "workspace_id is required"})
+		return
+	}
+
+	items := make([]feedItem, 0, limit*6)
 	var cursorTime time.Time
 	if cursor != "" {
 		cursorTime, _ = time.Parse(time.RFC3339Nano, cursor)
 	}
 
-	// 1. Channel messages
-	var messages []domain.Message
-	msgQ := db.DB.Order("created_at desc").Limit(limit)
-	if workspaceID != "" {
-		var channelIDs []string
-		db.DB.Model(&domain.Channel{}).Where("workspace_id = ?", workspaceID).Pluck("id", &channelIDs)
-		if len(channelIDs) > 0 {
-			msgQ = msgQ.Where("channel_id IN ? AND thread_id = ''", channelIDs)
-		} else {
-			msgQ = msgQ.Where("1=0")
+	channelNames := map[string]string{}
+	entityMeta := map[string]domain.KnowledgeEntity{}
+	userNames := map[string]string{}
+
+	loadChannelName := func(id string) string {
+		if id == "" {
+			return ""
 		}
+		if name, ok := channelNames[id]; ok {
+			return name
+		}
+		var channel domain.Channel
+		if err := db.DB.Select("id", "name").First(&channel, "id = ?", id).Error; err == nil {
+			channelNames[id] = channel.Name
+			return channel.Name
+		}
+		channelNames[id] = ""
+		return ""
 	}
-	if !cursorTime.IsZero() {
-		msgQ = msgQ.Where("created_at < ?", cursorTime)
+	loadEntity := func(id string) domain.KnowledgeEntity {
+		if id == "" {
+			return domain.KnowledgeEntity{}
+		}
+		if entity, ok := entityMeta[id]; ok {
+			return entity
+		}
+		var entity domain.KnowledgeEntity
+		if err := db.DB.First(&entity, "id = ?", id).Error; err == nil {
+			entityMeta[id] = entity
+			return entity
+		}
+		entityMeta[id] = domain.KnowledgeEntity{}
+		return domain.KnowledgeEntity{}
 	}
-	_ = msgQ.Find(&messages).Error
-	for _, m := range messages {
-		var actor domain.User
-		_ = db.DB.First(&actor, "id = ?", m.UserID).Error
-		items = append(items, feedItem{
-			ID: m.ID, Type: "message", WorkspaceID: workspaceID,
-			ActorID: m.UserID, Actor: enrichUser(actor),
-			Content: m.Content, Metadata: map[string]any{"channel_id": m.ChannelID},
-			CreatedAt: m.CreatedAt,
-		})
+	loadUserName := func(id string) string {
+		if id == "" {
+			return ""
+		}
+		if name, ok := userNames[id]; ok {
+			return name
+		}
+		var user domain.User
+		if err := db.DB.First(&user, "id = ?", id).Error; err == nil {
+			userNames[id] = enrichUser(user).Name
+			return userNames[id]
+		}
+		userNames[id] = ""
+		return ""
+	}
+	includeEvent := func(t string) bool {
+		return eventType == "" || eventType == t
+	}
+	appendItem := func(item feedItem) {
+		if actorID != "" && item.ActorID != actorID {
+			return
+		}
+		if channelID != "" && item.ChannelID != channelID {
+			return
+		}
+		if dmID != "" && item.DMID != dmID {
+			return
+		}
+		items = append(items, item)
+	}
+
+	// 1. Channel messages
+	if includeEvent("message") {
+		var messages []domain.Message
+		msgQ := db.DB.Order("created_at desc").Limit(limit).Where("thread_id = ''")
+		if channelID != "" {
+			msgQ = msgQ.Where("channel_id = ?", channelID)
+		} else {
+			var channelIDs []string
+			db.DB.Model(&domain.Channel{}).Where("workspace_id = ?", workspaceID).Pluck("id", &channelIDs)
+			if len(channelIDs) == 0 {
+				msgQ = msgQ.Where("1=0")
+			} else {
+				msgQ = msgQ.Where("channel_id IN ?", channelIDs)
+			}
+		}
+		if !cursorTime.IsZero() {
+			msgQ = msgQ.Where("created_at < ?", cursorTime)
+		}
+		_ = msgQ.Find(&messages).Error
+		for _, m := range messages {
+			appendItem(feedItem{
+				ID:          "message:" + m.ID,
+				EventType:   "message",
+				WorkspaceID: workspaceID,
+				ActorID:     m.UserID,
+				ActorName:   loadUserName(m.UserID),
+				ChannelID:   m.ChannelID,
+				ChannelName: loadChannelName(m.ChannelID),
+				Title:       "Message in #" + defaultString(loadChannelName(m.ChannelID), "channel"),
+				Body:        m.Content,
+				Link:        "/workspace?c=" + m.ChannelID,
+				OccurredAt:  m.CreatedAt.Format(time.RFC3339Nano),
+				Meta:        map[string]any{"message_id": m.ID},
+			})
+		}
 	}
 
 	// 2. Compose activities
-	var composeActivities []domain.AIComposeActivity
-	compQ := db.DB.Order("created_at desc").Limit(limit)
-	if workspaceID != "" {
+	if includeEvent("compose_activity") {
+		var composeActivities []domain.AIComposeActivity
+		compQ := db.DB.Order("created_at desc").Limit(limit)
 		compQ = compQ.Where("workspace_id = ?", workspaceID)
-	}
-	if !cursorTime.IsZero() {
-		compQ = compQ.Where("created_at < ?", cursorTime)
-	}
-	_ = compQ.Find(&composeActivities).Error
-	for _, a := range composeActivities {
-		var actor domain.User
-		_ = db.DB.First(&actor, "id = ?", a.UserID).Error
-		items = append(items, feedItem{
-			ID: a.ID, Type: "compose_activity", WorkspaceID: a.WorkspaceID,
-			ActorID: a.UserID, Actor: enrichUser(actor),
-			Content:   "Used AI Compose (" + a.Intent + ")",
-			Metadata:  map[string]any{"intent": a.Intent, "channel_id": a.ChannelID, "provider": a.Provider, "model": a.Model},
-			CreatedAt: a.CreatedAt,
-		})
-	}
-
-	// 3. Knowledge ask answers
-	var askAnswers []domain.KnowledgeEntityAskAnswer
-	askQ := db.DB.Order("created_at desc").Limit(limit)
-	if workspaceID != "" {
-		askQ = askQ.Where("workspace_id = ?", workspaceID)
-	}
-	if !cursorTime.IsZero() {
-		askQ = askQ.Where("created_at < ?", cursorTime)
-	}
-	_ = askQ.Find(&askAnswers).Error
-	for _, a := range askAnswers {
-		var actor domain.User
-		_ = db.DB.First(&actor, "id = ?", a.UserID).Error
-		items = append(items, feedItem{
-			ID: a.ID, Type: "knowledge_ask", WorkspaceID: a.WorkspaceID,
-			ActorID: a.UserID, Actor: enrichUser(actor),
-			Content:   "Asked knowledge: " + a.Question,
-			Metadata:  map[string]any{"entity_id": a.EntityID},
-			CreatedAt: a.CreatedAt,
-		})
-	}
-
-	// 4. Workflow runs (automation_job)
-	var runs []domain.WorkflowRun
-	runQ := db.DB.Order("started_at desc").Limit(limit)
-	if !cursorTime.IsZero() {
-		runQ = runQ.Where("started_at < ?", cursorTime)
-	}
-	_ = runQ.Find(&runs).Error
-	for _, r := range runs {
-		var actor domain.User
-		_ = db.DB.First(&actor, "id = ?", r.StartedBy).Error
-		var wf domain.WorkflowDefinition
-		_ = db.DB.First(&wf, "id = ?", r.WorkflowID).Error
-		items = append(items, feedItem{
-			ID: r.ID, Type: "automation_job", WorkspaceID: workspaceID,
-			ActorID: r.StartedBy, Actor: enrichUser(actor),
-			Content:   "Triggered workflow: " + wf.Name,
-			Metadata:  map[string]any{"workflow_id": r.WorkflowID, "status": r.Status},
-			CreatedAt: r.StartedAt,
-		})
-	}
-
-	// Sort all items by created_at desc
-	sortFeedItems := func(a, b feedItem) bool { return a.CreatedAt.After(b.CreatedAt) }
-	for i := 1; i < len(items); i++ {
-		for j := i; j > 0 && sortFeedItems(items[j], items[j-1]); j-- {
-			items[j], items[j-1] = items[j-1], items[j]
+		if channelID != "" {
+			compQ = compQ.Where("channel_id = ?", channelID)
+		}
+		if dmID != "" {
+			compQ = compQ.Where("dm_conversation_id = ?", dmID)
+		}
+		if !cursorTime.IsZero() {
+			compQ = compQ.Where("created_at < ?", cursorTime)
+		}
+		_ = compQ.Find(&composeActivities).Error
+		for _, a := range composeActivities {
+			appendItem(feedItem{
+				ID:          "compose_activity:" + a.ID,
+				EventType:   "compose_activity",
+				WorkspaceID: a.WorkspaceID,
+				ActorID:     a.UserID,
+				ActorName:   loadUserName(a.UserID),
+				ChannelID:   a.ChannelID,
+				ChannelName: loadChannelName(a.ChannelID),
+				DMID:        a.DMConversationID,
+				Title:       "AI Compose · " + defaultString(a.Intent, "reply"),
+				Body:        a.Provider + " / " + a.Model,
+				Link:        activityFeedLink(a.ChannelID, a.DMConversationID, ""),
+				OccurredAt:  a.CreatedAt.Format(time.RFC3339Nano),
+				Meta:        map[string]any{"compose_id": a.ComposeID, "intent": a.Intent, "suggestion_count": a.SuggestionCount, "provider": a.Provider, "model": a.Model},
+			})
 		}
 	}
 
-	// Trim to limit
+	// 3. Knowledge ask answers
+	if includeEvent("knowledge_ask") {
+		var askAnswers []domain.KnowledgeEntityAskAnswer
+		askQ := db.DB.Order("created_at desc").Limit(limit)
+		askQ = askQ.Where("workspace_id = ?", workspaceID)
+		if !cursorTime.IsZero() {
+			askQ = askQ.Where("created_at < ?", cursorTime)
+		}
+		_ = askQ.Find(&askAnswers).Error
+		for _, a := range askAnswers {
+			entity := loadEntity(a.EntityID)
+			appendItem(feedItem{
+				ID:          "knowledge_ask:" + a.ID,
+				EventType:   "knowledge_ask",
+				WorkspaceID: a.WorkspaceID,
+				ActorID:     a.UserID,
+				ActorName:   loadUserName(a.UserID),
+				EntityID:    a.EntityID,
+				EntityTitle: entity.Title,
+				EntityKind:  entity.Kind,
+				Title:       "Ask AI · " + defaultString(entity.Title, "entity"),
+				Body:        a.Question,
+				Link:        "/workspace/knowledge/" + a.EntityID,
+				OccurredAt:  a.AnsweredAt.Format(time.RFC3339Nano),
+				Meta:        map[string]any{"provider": a.Provider, "model": a.Model, "citation_count": a.CitationCount},
+			})
+		}
+	}
+
+	// 4. Automation jobs
+	if includeEvent("automation_job") {
+		var jobs []domain.AIAutomationJob
+		jobQ := db.DB.Order("created_at desc").Limit(limit).Where("workspace_id = ?", workspaceID)
+		if !cursorTime.IsZero() {
+			jobQ = jobQ.Where("created_at < ?", cursorTime)
+		}
+		_ = jobQ.Find(&jobs).Error
+		for _, j := range jobs {
+			entity := domain.KnowledgeEntity{}
+			if j.ScopeType == "knowledge_entity" {
+				entity = loadEntity(j.ScopeID)
+			}
+			occurredAt := j.CreatedAt
+			if j.FinishedAt != nil {
+				occurredAt = *j.FinishedAt
+			} else if j.StartedAt != nil {
+				occurredAt = *j.StartedAt
+			} else if !j.ScheduledAt.IsZero() {
+				occurredAt = j.ScheduledAt
+			}
+			appendItem(feedItem{
+				ID:          "automation_job:" + j.ID,
+				EventType:   "automation_job",
+				WorkspaceID: j.WorkspaceID,
+				EntityID:    j.ScopeID,
+				EntityTitle: entity.Title,
+				EntityKind:  entity.Kind,
+				Title:       "Automation · " + strings.ReplaceAll(j.JobType, "_", " ") + " · " + j.Status,
+				Body:        strings.ReplaceAll(defaultString(j.LastError, j.TriggerReason), "_", " "),
+				Link:        activityFeedLink("", "", j.ScopeID),
+				OccurredAt:  occurredAt.Format(time.RFC3339Nano),
+				Meta:        map[string]any{"status": j.Status, "attempt_count": j.AttemptCount, "job_type": j.JobType},
+			})
+		}
+	}
+
+	// 5. File uploads
+	if includeEvent("file_uploaded") {
+		var files []domain.FileAsset
+		fileQ := db.DB.Order("created_at desc").Limit(limit)
+		if channelID != "" {
+			fileQ = fileQ.Where("channel_id = ?", channelID)
+		} else {
+			var channelIDs []string
+			db.DB.Model(&domain.Channel{}).Where("workspace_id = ?", workspaceID).Pluck("id", &channelIDs)
+			if len(channelIDs) == 0 {
+				fileQ = fileQ.Where("1=0")
+			} else {
+				fileQ = fileQ.Where("channel_id IN ?", channelIDs)
+			}
+		}
+		if !cursorTime.IsZero() {
+			fileQ = fileQ.Where("created_at < ?", cursorTime)
+		}
+		_ = fileQ.Find(&files).Error
+		for _, file := range files {
+			appendItem(feedItem{
+				ID:          "file_uploaded:" + file.ID,
+				EventType:   "file_uploaded",
+				WorkspaceID: workspaceID,
+				ActorID:     file.UploaderID,
+				ActorName:   loadUserName(file.UploaderID),
+				ChannelID:   file.ChannelID,
+				ChannelName: loadChannelName(file.ChannelID),
+				Title:       "Uploaded file · " + file.Name,
+				Body:        defaultString(file.ContentSummary, file.ContentType),
+				Link:        "/workspace?c=" + file.ChannelID,
+				OccurredAt:  file.CreatedAt.Format(time.RFC3339Nano),
+				Meta:        map[string]any{"file_id": file.ID, "content_type": file.ContentType, "source_kind": file.SourceKind},
+			})
+		}
+	}
+
+	// 6. Schedule bookings
+	if includeEvent("schedule_booking") {
+		var bookings []domain.AIScheduleBooking
+		bookingQ := db.DB.Order("created_at desc").Limit(limit).Where("workspace_id = ?", workspaceID)
+		if channelID != "" {
+			bookingQ = bookingQ.Where("channel_id = ?", channelID)
+		}
+		if dmID != "" {
+			bookingQ = bookingQ.Where("dm_conversation_id = ?", dmID)
+		}
+		if !cursorTime.IsZero() {
+			bookingQ = bookingQ.Where("created_at < ?", cursorTime)
+		}
+		_ = bookingQ.Find(&bookings).Error
+		for _, booking := range bookings {
+			appendItem(feedItem{
+				ID:          "schedule_booking:" + booking.ID,
+				EventType:   "schedule_booking",
+				WorkspaceID: booking.WorkspaceID,
+				ActorID:     booking.RequestedBy,
+				ActorName:   loadUserName(booking.RequestedBy),
+				ChannelID:   booking.ChannelID,
+				ChannelName: loadChannelName(booking.ChannelID),
+				DMID:        booking.DMConversationID,
+				Title:       booking.Title,
+				Body:        booking.Description,
+				Link:        activityFeedLink(booking.ChannelID, booking.DMConversationID, ""),
+				OccurredAt:  booking.CreatedAt.Format(time.RFC3339Nano),
+				Meta:        map[string]any{"booking_id": booking.ID, "status": booking.Status, "provider": booking.Provider, "starts_at": booking.StartsAt.Format(time.RFC3339Nano)},
+			})
+		}
+	}
+
+	sort.Slice(items, func(i, j int) bool { return items[i].OccurredAt > items[j].OccurredAt })
+
 	if len(items) > limit {
 		items = items[:limit]
 	}
 
 	var nextCursor string
 	if len(items) == limit {
-		nextCursor = items[len(items)-1].CreatedAt.Format(time.RFC3339Nano)
+		nextCursor = items[len(items)-1].OccurredAt
 	}
 
 	var total int64
-	_ = db.DB.Model(&domain.Message{}).Where("thread_id = ''").Count(&total).Error
+	for _, tableCount := range []func() int64{
+		func() int64 {
+			var n int64
+			_ = db.DB.Model(&domain.Message{}).Joins("JOIN channels ON channels.id = messages.channel_id").Where("channels.workspace_id = ? AND messages.thread_id = ''", workspaceID).Count(&n).Error
+			return n
+		},
+		func() int64 {
+			var n int64
+			_ = db.DB.Model(&domain.FileAsset{}).Joins("JOIN channels ON channels.id = file_assets.channel_id").Where("channels.workspace_id = ?", workspaceID).Count(&n).Error
+			return n
+		},
+		func() int64 {
+			var n int64
+			_ = db.DB.Model(&domain.AIScheduleBooking{}).Where("workspace_id = ?", workspaceID).Count(&n).Error
+			return n
+		},
+		func() int64 {
+			var n int64
+			_ = db.DB.Model(&domain.AIComposeActivity{}).Where("workspace_id = ?", workspaceID).Count(&n).Error
+			return n
+		},
+		func() int64 {
+			var n int64
+			_ = db.DB.Model(&domain.KnowledgeEntityAskAnswer{}).Where("workspace_id = ?", workspaceID).Count(&n).Error
+			return n
+		},
+		func() int64 {
+			var n int64
+			_ = db.DB.Model(&domain.AIAutomationJob{}).Where("workspace_id = ?", workspaceID).Count(&n).Error
+			return n
+		},
+	} {
+		total += tableCount()
+	}
 
 	c.JSON(http.StatusOK, gin.H{"items": items, "next_cursor": nextCursor, "total": total})
+}
+
+func activityFeedLink(channelID, dmID, entityID string) string {
+	if entityID != "" {
+		return "/workspace/knowledge/" + entityID
+	}
+	if channelID != "" {
+		return "/workspace?c=" + channelID
+	}
+	if dmID != "" {
+		return "/workspace/dms"
+	}
+	return "/workspace/activity"
 }
 
 func GetTools(c *gin.Context) {

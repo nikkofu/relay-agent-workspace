@@ -6274,6 +6274,92 @@ func TestPhase63IAutomationJobsAuditView(t *testing.T) {
 	}
 }
 
+func TestPhase64BUnifiedActivityFeedContract(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.Workspace{ID: "ws-1", Name: "Relay"})
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Status: "active", SourceKind: "manual", CreatedAt: now.Add(-2 * time.Hour), UpdatedAt: now.Add(-time.Hour)})
+
+	db.DB.Create(&domain.Message{ID: "msg-1", ChannelID: "ch-1", UserID: "user-1", Content: "Launch kickoff is live", CreatedAt: now.Add(-5 * time.Minute)})
+	db.DB.Create(&domain.FileAsset{ID: "file-1", ChannelID: "ch-1", UploaderID: "user-1", Name: "launch-plan.md", ContentType: "text/markdown", SourceKind: "upload", CreatedAt: now.Add(-4 * time.Minute), UpdatedAt: now.Add(-4 * time.Minute)})
+	db.DB.Create(&domain.AIScheduleBooking{ID: "booking-1", WorkspaceID: "ws-1", ChannelID: "ch-1", RequestedBy: "user-1", Title: "Launch sync", Description: "Review blockers", StartsAt: now.Add(time.Hour), EndsAt: now.Add(90 * time.Minute), Timezone: "UTC", Provider: "internal", Status: "booked", CreatedAt: now.Add(-3 * time.Minute), UpdatedAt: now.Add(-3 * time.Minute)})
+	db.DB.Create(&domain.AIComposeActivity{ID: "compose-activity-1", ComposeID: "compose-1", WorkspaceID: "ws-1", ChannelID: "ch-1", UserID: "user-1", Intent: "reply", SuggestionCount: 2, Provider: "stub", Model: "stub-model", CreatedAt: now.Add(-2 * time.Minute)})
+	db.DB.Create(&domain.KnowledgeEntityAskAnswer{ID: "entity-ask-1", EntityID: "entity-1", WorkspaceID: "ws-1", UserID: "user-1", Question: "What changed?", Answer: "Launch moved ahead.", Provider: "stub", Model: "stub-model", CitationCount: 1, AnsweredAt: now.Add(-90 * time.Second), CreatedAt: now.Add(-90 * time.Second), UpdatedAt: now.Add(-90 * time.Second)})
+	db.DB.Create(&domain.AIAutomationJob{ID: "job-1", JobType: "entity_brief_regen", ScopeType: "knowledge_entity", ScopeID: "entity-1", WorkspaceID: "ws-1", Status: "running", TriggerReason: "brief_changed", DedupeKey: "entity-1:1", AttemptCount: 1, ScheduledAt: now.Add(-60 * time.Second), StartedAt: ptrTime(now.Add(-55 * time.Second)), CreatedAt: now.Add(-60 * time.Second), UpdatedAt: now.Add(-55 * time.Second)})
+
+	router := gin.New()
+	router.GET("/api/v1/activity/feed", GetActivityFeed)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/activity/feed?workspace_id=ws-1&limit=10", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 when loading activity feed, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Items []struct {
+			ID          string         `json:"id"`
+			EventType   string         `json:"event_type"`
+			WorkspaceID string         `json:"workspace_id"`
+			ActorID     string         `json:"actor_id"`
+			ActorName   string         `json:"actor_name"`
+			ChannelID   string         `json:"channel_id"`
+			ChannelName string         `json:"channel_name"`
+			EntityID    string         `json:"entity_id"`
+			EntityTitle string         `json:"entity_title"`
+			EntityKind  string         `json:"entity_kind"`
+			Title       string         `json:"title"`
+			Body        string         `json:"body"`
+			Link        string         `json:"link"`
+			OccurredAt  string         `json:"occurred_at"`
+			Meta        map[string]any `json:"meta"`
+		} `json:"items"`
+		NextCursor string `json:"next_cursor"`
+		Total      int64  `json:"total"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode activity feed payload: %v", err)
+	}
+	if len(payload.Items) < 6 {
+		t.Fatalf("expected at least 6 unified feed items, got %#v", payload.Items)
+	}
+
+	eventTypes := map[string]bool{}
+	for _, item := range payload.Items {
+		eventTypes[item.EventType] = true
+		if item.EventType == "" || item.Title == "" || item.OccurredAt == "" {
+			t.Fatalf("expected unified feed contract fields on item, got %#v", item)
+		}
+	}
+	for _, required := range []string{"message", "file_uploaded", "schedule_booking", "compose_activity", "knowledge_ask", "automation_job"} {
+		if !eventTypes[required] {
+			t.Fatalf("expected event type %s in unified feed, got %#v", required, payload.Items)
+		}
+	}
+
+	var askItem struct {
+		EntityTitle string
+		EntityKind  string
+		Link        string
+	}
+	for _, item := range payload.Items {
+		if item.EventType == "knowledge_ask" {
+			askItem.EntityTitle = item.EntityTitle
+			askItem.EntityKind = item.EntityKind
+			askItem.Link = item.Link
+			break
+		}
+	}
+	if askItem.EntityTitle != "Launch Program" || askItem.EntityKind != "project" || askItem.Link != "/workspace/knowledge/entity-1" {
+		t.Fatalf("expected denormalized entity fields on knowledge_ask item, got %#v", askItem)
+	}
+}
+
 func TestPhase63HEntityBriefAutomationLifecycle(t *testing.T) {
 	setupTestDB(t)
 
