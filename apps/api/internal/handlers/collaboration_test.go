@@ -5676,6 +5676,138 @@ func TestPhase63DComposeFeedbackSummaryContract(t *testing.T) {
 	}
 }
 
+func TestPhase63EEntityAskStreamAndHistoryContracts(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+	AIGateway = stubGateway{}
+	defer SetAIGateway(nil)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.User{ID: "user-1", OrganizationID: "org-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.User{ID: "user-2", OrganizationID: "org-1", Name: "Windsurf", Email: "windsurf@example.com"})
+	db.DB.Create(&domain.Workspace{ID: "ws-1", OrganizationID: "org-1", Name: "Relay"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Summary: "AI-native launch workspace", Status: "active", CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.Message{ID: "msg-1", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program has a release review decision.", CreatedAt: now.Add(-2 * time.Hour)})
+	db.DB.Create(&domain.KnowledgeEntityRef{ID: "kref-1", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-1", Role: "decision", CreatedAt: now.Add(-2 * time.Hour)})
+
+	router := gin.New()
+	router.POST("/api/v1/knowledge/entities/:id/ask", AskKnowledgeEntity)
+	router.GET("/api/v1/knowledge/entities/:id/ask/history", GetKnowledgeEntityAskHistory)
+	router.POST("/api/v1/knowledge/entities/:id/ask/stream", AskKnowledgeEntityStream)
+
+	t.Run("sync ask persists history", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/entities/entity-1/ask", strings.NewReader(`{"question":"What decision exists?"}`))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200 sync ask, got %d body=%s", rec.Code, rec.Body.String())
+		}
+
+		var rows []domain.KnowledgeEntityAskAnswer
+		if err := db.DB.Where("entity_id = ? AND user_id = ?", "entity-1", "user-1").Order("answered_at desc").Find(&rows).Error; err != nil {
+			t.Fatalf("failed to load ask history rows: %v", err)
+		}
+		if len(rows) != 1 {
+			t.Fatalf("expected 1 ask history row, got %#v", rows)
+		}
+		if rows[0].Question != "What decision exists?" || !strings.Contains(rows[0].Answer, "Done.") || rows[0].CitationCount == 0 {
+			t.Fatalf("unexpected ask history row: %#v", rows[0])
+		}
+	})
+
+	t.Run("history is current user and newest first", func(t *testing.T) {
+		db.DB.Create(&domain.KnowledgeEntityAskAnswer{
+			ID:            "entity-ask-old",
+			EntityID:      "entity-1",
+			WorkspaceID:   "ws-1",
+			UserID:        "user-1",
+			Question:      "Older question",
+			Answer:        "Older answer",
+			Provider:      "stub",
+			Model:         "stub-model",
+			CitationCount: 1,
+			AnsweredAt:    now.Add(-30 * time.Minute),
+			CreatedAt:     now.Add(-30 * time.Minute),
+			UpdatedAt:     now.Add(-30 * time.Minute),
+		})
+		db.DB.Create(&domain.KnowledgeEntityAskAnswer{
+			ID:            "entity-ask-other-user",
+			EntityID:      "entity-1",
+			WorkspaceID:   "ws-1",
+			UserID:        "user-2",
+			Question:      "Other user question",
+			Answer:        "Other answer",
+			Provider:      "stub",
+			Model:         "stub-model",
+			CitationCount: 1,
+			AnsweredAt:    now,
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		})
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/knowledge/entities/entity-1/ask/history?limit=10", nil)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200 history, got %d body=%s", rec.Code, rec.Body.String())
+		}
+
+		var payload struct {
+			Entity domain.KnowledgeEntity            `json:"entity"`
+			Items  []domain.KnowledgeEntityAskAnswer `json:"items"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("failed to decode history payload: %v", err)
+		}
+		if payload.Entity.ID != "entity-1" {
+			t.Fatalf("expected entity context, got %#v", payload.Entity)
+		}
+		if len(payload.Items) != 2 {
+			t.Fatalf("expected 2 current-user history rows, got %#v", payload.Items)
+		}
+		if payload.Items[0].AnsweredAt.Before(payload.Items[1].AnsweredAt) {
+			t.Fatalf("expected newest-first history, got %#v", payload.Items)
+		}
+		for _, item := range payload.Items {
+			if item.UserID != "user-1" {
+				t.Fatalf("history leaked another user's row: %#v", item)
+			}
+		}
+	})
+
+	t.Run("stream ask emits answer events and persists", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/entities/entity-1/ask/stream", strings.NewReader(`{"question":"Stream the answer"}`))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200 stream ask, got %d body=%s", rec.Code, rec.Body.String())
+		}
+		if got := rec.Header().Get("Content-Type"); !strings.Contains(got, "text/event-stream") {
+			t.Fatalf("expected event-stream content type, got %s", got)
+		}
+		body := rec.Body.String()
+		for _, want := range []string{"event: start", "event: answer.delta", "event: answer.done", "event: done", `"entity_id":"entity-1"`} {
+			if !strings.Contains(body, want) {
+				t.Fatalf("expected %q in stream body, got %s", want, body)
+			}
+		}
+
+		var count int64
+		if err := db.DB.Model(&domain.KnowledgeEntityAskAnswer{}).Where("entity_id = ? AND user_id = ? AND question = ?", "entity-1", "user-1", "Stream the answer").Count(&count).Error; err != nil {
+			t.Fatalf("failed to count stream history rows: %v", err)
+		}
+		if count != 1 {
+			t.Fatalf("expected stream ask to persist one row, got %d", count)
+		}
+	})
+}
+
 func TestMatchKnowledgeEntitiesInTextEndpoint(t *testing.T) {
 	setupTestDB(t)
 	now := time.Now().UTC()
@@ -5987,7 +6119,7 @@ func setupTestDB(t *testing.T) {
 	if err := db.DB.AutoMigrate(&domain.Organization{}, &domain.Team{}, &domain.User{}, &domain.Agent{}, &domain.Workspace{}, &domain.WorkspaceInvite{}, &domain.UserGroup{}, &domain.UserGroupMember{}, &domain.WorkflowDefinition{}, &domain.WorkflowRunStep{}, &domain.WorkflowRunLog{}, &domain.ToolDefinition{}, &domain.ToolRun{}, &domain.ToolRunLog{}, &domain.Channel{}, &domain.ChannelMember{}, &domain.ChannelPreference{}, &domain.WorkspaceList{}, &domain.WorkspaceListItem{}, &domain.Message{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
-	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.NotificationPreference{}, &domain.NotificationMuteRule{}, &domain.AIFeedback{}, &domain.AIComposeFeedback{}, &domain.AIConversation{}, &domain.AIConversationMessage{}, &domain.AISummary{}, &domain.Artifact{}, &domain.ArtifactVersion{}, &domain.FileAsset{}, &domain.FileAssetEvent{}, &domain.FileExtraction{}, &domain.FileExtractionChunk{}, &domain.FileComment{}, &domain.FileShare{}, &domain.StarredFile{}, &domain.MessageArtifactReference{}, &domain.MessageFileAttachment{}, &domain.KnowledgeEvidenceLink{}, &domain.KnowledgeEvidenceEntityRef{}, &domain.KnowledgeEntity{}, &domain.KnowledgeEntityRef{}, &domain.KnowledgeEntityLink{}, &domain.KnowledgeEvent{}, &domain.KnowledgeEntityFollow{}, &domain.KnowledgeDigestSchedule{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}, &domain.WorkflowRun{}); err != nil {
+	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.NotificationPreference{}, &domain.NotificationMuteRule{}, &domain.AIFeedback{}, &domain.AIComposeFeedback{}, &domain.AIConversation{}, &domain.AIConversationMessage{}, &domain.AISummary{}, &domain.KnowledgeEntityAskAnswer{}, &domain.Artifact{}, &domain.ArtifactVersion{}, &domain.FileAsset{}, &domain.FileAssetEvent{}, &domain.FileExtraction{}, &domain.FileExtractionChunk{}, &domain.FileComment{}, &domain.FileShare{}, &domain.StarredFile{}, &domain.MessageArtifactReference{}, &domain.MessageFileAttachment{}, &domain.KnowledgeEvidenceLink{}, &domain.KnowledgeEvidenceEntityRef{}, &domain.KnowledgeEntity{}, &domain.KnowledgeEntityRef{}, &domain.KnowledgeEntityLink{}, &domain.KnowledgeEvent{}, &domain.KnowledgeEntityFollow{}, &domain.KnowledgeDigestSchedule{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}, &domain.WorkflowRun{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 }

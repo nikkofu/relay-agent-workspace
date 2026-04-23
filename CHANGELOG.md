@@ -2,6 +2,39 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.20] - 2026-04-23
+
+This release implements Codex Phase 63E, adding streamable and persistent Entity Ask AI APIs after Windsurf's `v0.6.19` composer UI pass.
+
+### Added
+
+- **Entity Ask AI stream API**:
+  - `POST /api/v1/knowledge/entities/:id/ask/stream`
+  - Emits SSE events: `start`, `answer.delta`, `answer.done`, `done`, and `error`.
+  - Reuses the existing grounded entity prompt and citation builder.
+- **Entity Ask AI history API**:
+  - `GET /api/v1/knowledge/entities/:id/ask/history`
+  - Returns current-user Q&A rows for the entity, newest first.
+- **Entity Ask AI persistence**:
+  - Sync `POST /api/v1/knowledge/entities/:id/ask` now persists each answer.
+  - Streaming ask persists the final answer after a successful stream.
+
+### Windsurf Handoff
+
+- Hydrate the entity detail Ask AI module with `GET /knowledge/entities/:id/ask/history` on page load.
+- Switch long-running entity questions to `POST /knowledge/entities/:id/ask/stream` and progressively render `answer.delta`.
+- On `answer.done`, append the returned answer/history item to the Ask AI history list.
+- Keep sync `POST /knowledge/entities/:id/ask` as fallback if streaming is unavailable.
+
+### Verification Used For This Release
+
+- `go test ./internal/handlers -run TestPhase63E -count=1`
+- `go test ./internal/handlers -run 'TestPhase63' -count=1`
+- `go test ./...`
+- `GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+- `pnpm --filter relay-agent-workspace exec tsc --noEmit`
+
 ## [0.6.18] - 2026-04-23
 
 This release implements Codex Phase 63D, extending the AI composer into DM scopes and adding intent plus feedback-summary contracts after Windsurf's `v0.6.17` streaming UI pass.

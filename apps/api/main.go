@@ -176,6 +176,8 @@ func main() {
 		v1.GET("/knowledge/entities/:id/brief", handlers.GetKnowledgeEntityBrief)
 		v1.POST("/knowledge/entities/:id/brief", handlers.GenerateKnowledgeEntityBrief)
 		v1.POST("/knowledge/entities/:id/ask", handlers.AskKnowledgeEntity)
+		v1.GET("/knowledge/entities/:id/ask/history", handlers.GetKnowledgeEntityAskHistory)
+		v1.POST("/knowledge/entities/:id/ask/stream", handlers.AskKnowledgeEntityStream)
 		v1.POST("/knowledge/entities/:id/share", handlers.ShareKnowledgeEntity)
 		v1.POST("/knowledge/entities/:id/follow", handlers.FollowKnowledgeEntity)
 		v1.DELETE("/knowledge/entities/:id/follow", handlers.UnfollowKnowledgeEntity)

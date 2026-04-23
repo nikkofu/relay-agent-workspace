@@ -155,6 +155,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 63C AI Compose Stream And Feedback UI | Windsurf | 2026-04-23 | Consumed both Phase 63C endpoints. Channel/thread AI Suggest popover now calls `POST /ai/compose/stream` and renders the LLM output **progressively** as tokens stream in (blinking sky caret + live text). Each finalized suggestion gains **ThumbsUp / ThumbsDown** buttons wired to `POST /ai/compose/:id/feedback`; clicking **Insert into draft** additionally fires an `edited` feedback signal and shows a `used` chip for transparency. Store adds `suggestComposeStream`, `sendComposeFeedback`, `composeStreaming`, `composeFeedback`. SSE parser handles `start` / `suggestion.delta` / `suggestion.done` / `done` / `error` with **graceful fallback to `POST /ai/compose`** on non-OK status or network error. New types: `ComposeFeedbackValue`, `ComposeStreamingState`. Published `v0.6.17`. |
 | 🟢 Done | Phase 63D AI Compose DM And Intent APIs | Codex | 2026-04-23 | Added DM parity for `POST /api/v1/ai/compose` and `/ai/compose/stream`, expanded intents to `reply`, `summarize`, `followup`, and `schedule`, added DM-scoped compose feedback, and added `GET /api/v1/ai/compose/:id/feedback/summary`. Released in `v0.6.18`. |
 | 🟢 Done | Phase 63D AI Compose DM And Intent UI | Windsurf | 2026-04-23 | Consumed all four Phase 63D contracts. AI Suggest now appears in **DM composers** too (the Wand2 button is no longer hidden on `dm:*` scopes) and sends `dm_id` instead of `channel_id`. Popover header gains a compact **intent selector** pill group (`Reply` · `Summarize` · `Follow-up` · `Schedule`) that auto-regenerates suggestions with the new intent on click. Per-suggestion ThumbsUp / ThumbsDown / Insert feedback calls now use the correct scope body (`channel_id`+`thread_id` for channels/threads, `dm_id` for DMs) to match the new backend contract. After the user submits feedback, the store auto-fetches `GET /ai/compose/:id/feedback/summary` and shows inline aggregate badges (`▲up ▼down ✎edited`) on the suggestion card so the user can see the community signal forming in real time. Store refactored: compose actions moved from positional `channelId, threadId` args to a `ComposeScope` object `{ channelId?, threadId?, dmId? }`; new action `fetchComposeFeedbackSummary`; new state `composeFeedbackSummary: Record<composeId, ComposeFeedbackSummary>`; new helper `composeScopeKey(scope)` normalizes keys to `ch:<channelId>:<threadId>` or `dm:<dmId>`. New types: `ComposeIntent`, `ComposeScope`, `ComposeFeedbackSummary`, `ComposeFeedbackCounts`; `ComposeResponse.dm_id` added. Published `v0.6.19`. |
+| 🟢 Done | Phase 63E Entity Ask Stream And History APIs | Codex | 2026-04-23 | Added `POST /api/v1/knowledge/entities/:id/ask/stream`, `GET /api/v1/knowledge/entities/:id/ask/history`, and persistent entity Ask AI history for sync and streaming answers. Released in `v0.6.20`. |
 
 ---
 
@@ -163,9 +164,22 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
-| **Codex** | `api-architecture` | Phase 63D backend shipped: DM compose parity, intent variants, and feedback summary APIs (v0.6.18) | 100% |
+| **Codex** | `api-architecture` | Phase 63E backend shipped: entity Ask AI streaming + history APIs (v0.6.20) | 100% |
 | **Claude Code**| `idle` | - | - |
 | **Windsurf** | `web-ui-agent` | Phase 63D UI shipped: DM parity + intent selector + feedback summary badges in composers (v0.6.19) | 100% |
+
+### 2026-04-23 - Phase 63E Entity Ask Stream And History APIs (v0.6.20)
+- **Codex**: Phase 63E backend is complete and published as `v0.6.20`.
+- **Codex**: Added `POST /api/v1/knowledge/entities/:id/ask/stream` for entity-scoped grounded Q&A over SSE. Events: `start`, `answer.delta`, `answer.done`, `done`, and `error`.
+- **Codex**: Added `GET /api/v1/knowledge/entities/:id/ask/history`, returning `{ entity, items[] }` for the current user, ordered newest first.
+- **Codex**: Existing sync `POST /api/v1/knowledge/entities/:id/ask` now persists successful answers into the same history table.
+- **Codex → Windsurf**: Please consume these contracts next:
+  - hydrate the entity detail Ask AI panel from `GET /knowledge/entities/:id/ask/history` on load
+  - switch long-running questions to `POST /knowledge/entities/:id/ask/stream` and progressively render `answer.delta`
+  - append `answer.done.answer` to the local Q&A list, keeping sync ask as a fallback path
+  - surface `citation_count`, `provider`, `model`, and `answered_at` from history rows in the answer cards
+- **Codex → Windsurf**: After this UI pass, the next backend target I recommend is always-on knowledge automation: entity `brief.schedule` plus `POST /channels/:id/knowledge/auto-summarize`.
+- **Codex → Nikko Fu**: This phase moves entity wiki Q&A from transient chat into a durable knowledge work surface. Users can refresh the entity page and still see their previous grounded questions and answers.
 
 ### 2026-04-23 - Phase 63D AI Compose DM And Intent UI (v0.6.19)
 - **Windsurf**: Phase 63D UI complete and published as `v0.6.19`. Full consumer for Codex `v0.6.18` backend.

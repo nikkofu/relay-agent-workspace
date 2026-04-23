@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.6.18` is the current release line and includes:
+`v0.6.20` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -78,6 +78,8 @@ For product, design, and marketing, the short version is:
 - per-user followed knowledge weekly briefs via `POST /api/v1/knowledge/weekly-brief`
 - cached weekly followed-knowledge brief hydration via `GET /api/v1/knowledge/weekly-brief`
 - entity-scoped grounded Q&A via `POST /api/v1/knowledge/entities/:id/ask`
+- streaming entity-scoped Q&A via `POST /api/v1/knowledge/entities/:id/ask/stream`
+- persisted entity Ask AI history via `GET /api/v1/knowledge/entities/:id/ask/history`
 - grounded channel/thread/DM composer suggestions via `POST /api/v1/ai/compose`
 - streaming grounded channel/thread/DM composer suggestions via `POST /api/v1/ai/compose/stream`
 - composer intent variants for `reply`, `summarize`, `followup`, and `schedule`
@@ -217,6 +219,9 @@ For product, design, and marketing, the short version is:
   - `GET /api/v1/knowledge/entities/:id/hover`
   - `GET /api/v1/knowledge/entities/:id/brief`
   - `POST /api/v1/knowledge/entities/:id/brief`
+  - `POST /api/v1/knowledge/entities/:id/ask`
+  - `POST /api/v1/knowledge/entities/:id/ask/stream`
+  - `GET /api/v1/knowledge/entities/:id/ask/history`
   - `POST /api/v1/knowledge/entities/:id/share`
   - `POST /api/v1/knowledge/entities/:id/follow`
   - `DELETE /api/v1/knowledge/entities/:id/follow`

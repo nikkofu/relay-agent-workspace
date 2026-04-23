@@ -419,24 +419,14 @@ func AskKnowledgeEntity(c *gin.Context) {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ai gateway is not configured"})
 		return
 	}
-	var input struct {
-		Question string `json:"question"`
-		Provider string `json:"provider"`
-		Model    string `json:"model"`
-	}
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	input.Question = strings.TrimSpace(input.Question)
-	if input.Question == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "question is required"})
-		return
-	}
-
-	entity, citations, prompt, err := knowledge.BuildEntityAskPrompt(db.DB, c.Param("id"), input.Question)
+	currentUser, err := getCurrentUser()
 	if err != nil {
-		handleKnowledgeNotFound(c, err, "knowledge entity not found")
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+	input, entity, citations, prompt, err := prepareKnowledgeEntityAsk(c)
+	if err != nil {
+		handleKnowledgeAskError(c, err)
 		return
 	}
 
@@ -456,7 +446,7 @@ func AskKnowledgeEntity(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"answer": knowledge.EntityAnswer{
+	answer := knowledge.EntityAnswer{
 		Entity:     entity,
 		Question:   input.Question,
 		Answer:     strings.TrimSpace(content),
@@ -465,7 +455,205 @@ func AskKnowledgeEntity(c *gin.Context) {
 		Model:      session.Model,
 		AnsweredAt: time.Now().UTC(),
 		Citations:  citations,
-	}})
+	}
+	if _, err := persistKnowledgeEntityAskAnswer(currentUser.ID, answer); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to persist entity ask answer"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"answer": answer})
+}
+
+func GetKnowledgeEntityAskHistory(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+	entity, err := knowledge.GetEntity(db.DB, c.Param("id"))
+	if err != nil {
+		handleKnowledgeNotFound(c, err, "knowledge entity not found")
+		return
+	}
+	limit := parseLimit(c.Query("limit"), 20)
+	var items []domain.KnowledgeEntityAskAnswer
+	if err := db.DB.Where("entity_id = ? AND user_id = ?", entity.ID, currentUser.ID).Order("answered_at desc, id desc").Limit(limit).Find(&items).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load entity ask history"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"entity": entity, "items": items})
+}
+
+func AskKnowledgeEntityStream(c *gin.Context) {
+	if AIGateway == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ai gateway is not configured"})
+		return
+	}
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+	input, entity, citations, prompt, err := prepareKnowledgeEntityAsk(c)
+	if err != nil {
+		handleKnowledgeAskError(c, err)
+		return
+	}
+
+	session, err := AIGateway.Stream(c.Request.Context(), llm.Request{
+		Prompt:    prompt,
+		ChannelID: entity.WorkspaceID,
+		Provider:  input.Provider,
+		Model:     input.Model,
+	})
+	if err != nil {
+		handleSummaryGenerationError(c, err)
+		return
+	}
+
+	writer := c.Writer
+	writer.Header().Set("Content-Type", "text/event-stream")
+	writer.Header().Set("Cache-Control", "no-cache")
+	writer.Header().Set("Connection", "keep-alive")
+	flusher, ok := writer.(http.Flusher)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "streaming unsupported"})
+		return
+	}
+
+	requestID := ids.NewPrefixedUUID("entity-ask-request")
+	writeSSE(writer, "start", gin.H{
+		"request_id": requestID,
+		"entity_id":  entity.ID,
+		"question":   input.Question,
+		"provider":   session.Provider,
+		"model":      session.Model,
+	})
+	flusher.Flush()
+
+	fullContent := ""
+	reasoning := ""
+	for {
+		select {
+		case event, ok := <-session.Events:
+			if !ok {
+				select {
+				case err, ok := <-session.Errors:
+					if ok && err != nil {
+						writeSSE(writer, "error", gin.H{"message": err.Error()})
+						flusher.Flush()
+						return
+					}
+				default:
+				}
+				answer := knowledge.EntityAnswer{
+					Entity:     entity,
+					Question:   input.Question,
+					Answer:     strings.TrimSpace(fullContent),
+					Reasoning:  strings.TrimSpace(reasoning),
+					Provider:   session.Provider,
+					Model:      session.Model,
+					AnsweredAt: time.Now().UTC(),
+					Citations:  citations,
+				}
+				row, err := persistKnowledgeEntityAskAnswer(currentUser.ID, answer)
+				if err != nil {
+					writeSSE(writer, "error", gin.H{"message": "failed to persist entity ask answer"})
+					flusher.Flush()
+					return
+				}
+				writeSSE(writer, "answer.done", gin.H{"answer": answer, "history_id": row.ID})
+				flusher.Flush()
+				writeSSE(writer, "done", gin.H{
+					"request_id": requestID,
+					"entity_id":  entity.ID,
+					"history_id": row.ID,
+					"provider":   session.Provider,
+					"model":      session.Model,
+				})
+				flusher.Flush()
+				return
+			}
+			switch event.Type {
+			case "reasoning":
+				reasoning += event.Text
+			case "chunk":
+				fullContent += event.Text
+				writeSSE(writer, "answer.delta", gin.H{"entity_id": entity.ID, "text_delta": event.Text})
+				flusher.Flush()
+			}
+		case err, ok := <-session.Errors:
+			if !ok {
+				session.Errors = nil
+				continue
+			}
+			if err != nil {
+				writeSSE(writer, "error", gin.H{"message": err.Error()})
+				flusher.Flush()
+			}
+			return
+		case <-c.Request.Context().Done():
+			return
+		}
+	}
+}
+
+type knowledgeEntityAskInput struct {
+	Question string `json:"question"`
+	Provider string `json:"provider"`
+	Model    string `json:"model"`
+}
+
+func prepareKnowledgeEntityAsk(c *gin.Context) (knowledgeEntityAskInput, domain.KnowledgeEntity, []knowledge.Citation, string, error) {
+	var input knowledgeEntityAskInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		return knowledgeEntityAskInput{}, domain.KnowledgeEntity{}, nil, "", err
+	}
+	input.Question = strings.TrimSpace(input.Question)
+	input.Provider = strings.TrimSpace(input.Provider)
+	input.Model = strings.TrimSpace(input.Model)
+	if input.Question == "" {
+		return knowledgeEntityAskInput{}, domain.KnowledgeEntity{}, nil, "", errors.New("question is required")
+	}
+	entity, citations, prompt, err := knowledge.BuildEntityAskPrompt(db.DB, c.Param("id"), input.Question)
+	if err != nil {
+		return knowledgeEntityAskInput{}, domain.KnowledgeEntity{}, nil, "", err
+	}
+	return input, entity, citations, prompt, nil
+}
+
+func persistKnowledgeEntityAskAnswer(userID string, answer knowledge.EntityAnswer) (domain.KnowledgeEntityAskAnswer, error) {
+	now := answer.AnsweredAt
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+	row := domain.KnowledgeEntityAskAnswer{
+		ID:            ids.NewPrefixedUUID("entity-ask"),
+		EntityID:      answer.Entity.ID,
+		WorkspaceID:   answer.Entity.WorkspaceID,
+		UserID:        userID,
+		Question:      strings.TrimSpace(answer.Question),
+		Answer:        strings.TrimSpace(answer.Answer),
+		Reasoning:     strings.TrimSpace(answer.Reasoning),
+		Provider:      answer.Provider,
+		Model:         answer.Model,
+		CitationCount: len(answer.Citations),
+		AnsweredAt:    now,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+	if err := db.DB.Create(&row).Error; err != nil {
+		return domain.KnowledgeEntityAskAnswer{}, err
+	}
+	return row, nil
+}
+
+func handleKnowledgeAskError(c *gin.Context, err error) {
+	if strings.Contains(err.Error(), "question is required") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	handleKnowledgeNotFound(c, err, "knowledge entity not found")
 }
 
 func GetKnowledgeEntityBrief(c *gin.Context) {

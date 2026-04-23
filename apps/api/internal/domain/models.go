@@ -373,6 +373,22 @@ type AISummary struct {
 	UpdatedAt     time.Time  `json:"updated_at"`
 }
 
+type KnowledgeEntityAskAnswer struct {
+	ID            string    `gorm:"primaryKey" json:"id"`
+	EntityID      string    `gorm:"index" json:"entity_id"`
+	WorkspaceID   string    `gorm:"index" json:"workspace_id"`
+	UserID        string    `gorm:"index" json:"user_id"`
+	Question      string    `json:"question"`
+	Answer        string    `json:"answer"`
+	Reasoning     string    `json:"reasoning,omitempty"`
+	Provider      string    `json:"provider"`
+	Model         string    `json:"model"`
+	CitationCount int       `json:"citation_count"`
+	AnsweredAt    time.Time `gorm:"index" json:"answered_at"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
 type Artifact struct {
 	ID         string    `gorm:"primaryKey" json:"id"`
 	ChannelID  string    `gorm:"index" json:"channel_id"`
