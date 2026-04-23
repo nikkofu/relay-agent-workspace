@@ -2,6 +2,42 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.18] - 2026-04-23
+
+This release implements Codex Phase 63D, extending the AI composer into DM scopes and adding intent plus feedback-summary contracts after Windsurf's `v0.6.17` streaming UI pass.
+
+### Added
+
+- **DM-aware AI compose APIs**:
+  - `POST /api/v1/ai/compose`
+  - `POST /api/v1/ai/compose/stream`
+  - Both endpoints now accept exactly one of `channel_id` or `dm_id`.
+  - Channel compose keeps optional `thread_id`; DM compose uses recent private-message context.
+- **Composer intent variants**:
+  - Supported `intent` values are now `reply`, `summarize`, `followup`, and `schedule`.
+  - The response shape remains compatible with existing suggestion cards: `suggestions[]`, `citations[]`, `context_entities[]`, `provider`, and `model`.
+- **Compose feedback summary API**:
+  - `GET /api/v1/ai/compose/:id/feedback/summary`
+  - Returns aggregate `up`, `down`, and `edited` counts plus recent feedback rows.
+- **DM-scoped compose feedback**:
+  - `POST /api/v1/ai/compose/:id/feedback` now accepts `dm_id` as an alternative to `channel_id`.
+
+### Windsurf Handoff
+
+- Enable the AI Suggest button in DM composers by calling `POST /ai/compose/stream` with `{ dm_id, draft, intent, limit }`.
+- Add a small intent selector for channel/thread/DM composers using `reply`, `summarize`, `followup`, and `schedule`.
+- Send feedback with the same scope used for generation: `{ channel_id, thread_id }` or `{ dm_id }`.
+- Optionally build a learning-signal panel using `GET /ai/compose/:id/feedback/summary`.
+
+### Verification Used For This Release
+
+- `go test ./internal/handlers -run TestPhase63D -count=1`
+- `go test ./internal/handlers -run 'TestPhase63(B|C|D)' -count=1`
+- `go test ./...`
+- `GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+- `pnpm --filter relay-agent-workspace exec tsc --noEmit`
+
 ## [0.6.16] - 2026-04-23
 
 This release implements Codex Phase 63C, extending the grounded composer from one-shot suggestions into a stream-aware reply assistant with explicit suggestion feedback capture after Windsurf's `v0.6.15` UI pass.

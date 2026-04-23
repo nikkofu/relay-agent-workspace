@@ -126,7 +126,7 @@ func ComposeAIStream(c *gin.Context) {
 	}
 	session, err := AIGateway.Stream(c.Request.Context(), llm.Request{
 		Prompt:    prepared.Prompt,
-		ChannelID: input.ChannelID,
+		ChannelID: input.ComposeScopeID(),
 	})
 	if err != nil {
 		handleComposeError(c, err)
@@ -150,6 +150,7 @@ func ComposeAIStream(c *gin.Context) {
 	writeSSE(writer, "start", gin.H{
 		"request_id": requestID,
 		"channel_id": input.ChannelID,
+		"dm_id":      input.DMID,
 		"thread_id":  input.ThreadID,
 		"intent":     input.Intent,
 		"limit":      input.Limit,
@@ -171,7 +172,7 @@ func ComposeAIStream(c *gin.Context) {
 					}
 				default:
 				}
-				response := buildComposeResponse(input.ChannelID, input.ThreadID, input.Intent, input.Limit, input.Draft, prepared.ThreadParent, prepared.RecentMessages, prepared.KnowledgeContext, prepared.EntityMatches, fullContent, session.Provider, session.Model)
+				response := buildComposeResponse(input.ChannelID, input.DMID, input.ThreadID, input.Intent, input.Limit, input.Draft, prepared.ThreadParent, prepared.RecentMessages, prepared.RecentDMMessages, prepared.KnowledgeContext, prepared.EntityMatches, fullContent, session.Provider, session.Model)
 				if len(response.Suggestions) > 0 {
 					response.Suggestions[0].ID = provisionalSuggestionID
 				}
@@ -182,6 +183,7 @@ func ComposeAIStream(c *gin.Context) {
 						"citations":        response.Citations,
 						"context_entities": response.ContextEntities,
 						"channel_id":       response.ChannelID,
+						"dm_id":            response.DMID,
 						"thread_id":        response.ThreadID,
 					})
 					flusher.Flush()
@@ -230,6 +232,7 @@ func SubmitAIComposeFeedback(c *gin.Context) {
 
 	var input struct {
 		ChannelID      string `json:"channel_id"`
+		DMID           string `json:"dm_id"`
 		ThreadID       string `json:"thread_id"`
 		Intent         string `json:"intent"`
 		Feedback       string `json:"feedback"`
@@ -243,21 +246,22 @@ func SubmitAIComposeFeedback(c *gin.Context) {
 	}
 
 	input.ChannelID = strings.TrimSpace(input.ChannelID)
+	input.DMID = strings.TrimSpace(input.DMID)
 	input.ThreadID = strings.TrimSpace(input.ThreadID)
 	input.Intent = strings.ToLower(strings.TrimSpace(input.Intent))
 	input.Feedback = strings.ToLower(strings.TrimSpace(input.Feedback))
 	input.SuggestionText = strings.TrimSpace(input.SuggestionText)
 	input.Provider = strings.TrimSpace(input.Provider)
 	input.Model = strings.TrimSpace(input.Model)
-	if input.ChannelID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "channel_id is required"})
+	if (input.ChannelID == "") == (input.DMID == "") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "exactly one of channel_id or dm_id is required"})
 		return
 	}
 	if input.Intent == "" {
 		input.Intent = "reply"
 	}
-	if input.Intent != "reply" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "intent must be reply"})
+	if !isSupportedComposeIntent(input.Intent) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "intent must be one of reply, summarize, followup, or schedule"})
 		return
 	}
 	switch input.Feedback {
@@ -267,14 +271,26 @@ func SubmitAIComposeFeedback(c *gin.Context) {
 		return
 	}
 
-	var channel domain.Channel
-	if err := db.DB.First(&channel, "id = ?", input.ChannelID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "channel not found"})
+	if input.ChannelID != "" {
+		var channel domain.Channel
+		if err := db.DB.First(&channel, "id = ?", input.ChannelID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				c.JSON(http.StatusNotFound, gin.H{"error": "channel not found"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load channel"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load channel"})
-		return
+	} else {
+		var conversation domain.DMConversation
+		if err := db.DB.First(&conversation, "id = ?", input.DMID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				c.JSON(http.StatusNotFound, gin.H{"error": "dm conversation not found"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load dm conversation"})
+			return
+		}
 	}
 
 	now := time.Now().UTC()
@@ -283,18 +299,19 @@ func SubmitAIComposeFeedback(c *gin.Context) {
 	err = db.DB.Where("compose_id = ? AND user_id = ?", composeID, currentUser.ID).First(&feedback).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		feedback = domain.AIComposeFeedback{
-			ID:             ids.NewPrefixedUUID("compose-feedback"),
-			ComposeID:      composeID,
-			UserID:         currentUser.ID,
-			ChannelID:      input.ChannelID,
-			ThreadID:       input.ThreadID,
-			Intent:         input.Intent,
-			Feedback:       input.Feedback,
-			SuggestionText: input.SuggestionText,
-			Provider:       input.Provider,
-			Model:          input.Model,
-			CreatedAt:      now,
-			UpdatedAt:      now,
+			ID:               ids.NewPrefixedUUID("compose-feedback"),
+			ComposeID:        composeID,
+			UserID:           currentUser.ID,
+			ChannelID:        input.ChannelID,
+			DMConversationID: input.DMID,
+			ThreadID:         input.ThreadID,
+			Intent:           input.Intent,
+			Feedback:         input.Feedback,
+			SuggestionText:   input.SuggestionText,
+			Provider:         input.Provider,
+			Model:            input.Model,
+			CreatedAt:        now,
+			UpdatedAt:        now,
 		}
 		if err := db.DB.Create(&feedback).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to persist compose feedback"})
@@ -309,6 +326,7 @@ func SubmitAIComposeFeedback(c *gin.Context) {
 	}
 
 	feedback.ChannelID = input.ChannelID
+	feedback.DMConversationID = input.DMID
 	feedback.ThreadID = input.ThreadID
 	feedback.Intent = input.Intent
 	feedback.Feedback = input.Feedback
@@ -322,6 +340,47 @@ func SubmitAIComposeFeedback(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"feedback": feedback})
+}
+
+func GetAIComposeFeedbackSummary(c *gin.Context) {
+	composeID := strings.TrimSpace(c.Param("id"))
+	if composeID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "compose id is required"})
+		return
+	}
+
+	var feedbackRows []domain.AIComposeFeedback
+	if err := db.DB.Where("compose_id = ?", composeID).Order("updated_at desc").Find(&feedbackRows).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load compose feedback"})
+		return
+	}
+
+	counts := gin.H{"up": int64(0), "down": int64(0), "edited": int64(0)}
+	var total int64
+	for _, row := range feedbackRows {
+		total++
+		switch row.Feedback {
+		case "up":
+			counts["up"] = counts["up"].(int64) + 1
+		case "down":
+			counts["down"] = counts["down"].(int64) + 1
+		case "edited":
+			counts["edited"] = counts["edited"].(int64) + 1
+		}
+	}
+	recentRows := feedbackRows
+	if len(recentRows) > 20 {
+		recentRows = recentRows[:20]
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"summary": gin.H{
+			"compose_id": composeID,
+			"total":      total,
+			"counts":     counts,
+			"recent":     recentRows,
+		},
+	})
 }
 
 func GetThreadSummary(c *gin.Context) {
@@ -730,6 +789,15 @@ func normalizeComposeLimit(limit int) int {
 	}
 }
 
+func isSupportedComposeIntent(intent string) bool {
+	switch intent {
+	case "reply", "summarize", "followup", "schedule":
+		return true
+	default:
+		return false
+	}
+}
+
 func loadComposeRecentMessages(channelID, threadID string) ([]domain.Message, error) {
 	query := db.DB.Model(&domain.Message{}).Where("channel_id = ?", channelID).Order("created_at desc, id desc").Limit(12)
 	if threadID != "" {
@@ -738,6 +806,14 @@ func loadComposeRecentMessages(channelID, threadID string) ([]domain.Message, er
 
 	var messages []domain.Message
 	if err := query.Find(&messages).Error; err != nil {
+		return nil, err
+	}
+	return messages, nil
+}
+
+func loadComposeRecentDMMessages(dmID string) ([]domain.DMMessage, error) {
+	var messages []domain.DMMessage
+	if err := db.DB.Where("dm_conversation_id = ?", dmID).Order("created_at desc, id desc").Limit(12).Find(&messages).Error; err != nil {
 		return nil, err
 	}
 	return messages, nil
@@ -763,16 +839,62 @@ func composeMatchText(draft string, threadParent *domain.Message, recentMessages
 	return builder.String()
 }
 
-func buildComposePrompt(channelID, threadID, intent, draft string, limit int, threadParent *domain.Message, recentMessages []domain.Message, knowledgeContext knowledge.ChannelKnowledgeContext, matches []knowledge.EntityTextMatch) string {
+func composeDMMatchText(draft string, recentMessages []domain.DMMessage) string {
 	var builder strings.Builder
-	builder.WriteString("You are a Slack-like AI writing assistant for reply suggestions.\n")
-	builder.WriteString("Stay grounded in the provided context and only return concise reply suggestions.\n")
+	if strings.TrimSpace(draft) != "" {
+		builder.WriteString(strings.TrimSpace(draft))
+		builder.WriteString("\n")
+	}
+	for _, message := range recentMessages {
+		if strings.TrimSpace(message.Content) == "" {
+			continue
+		}
+		builder.WriteString(message.Content)
+		builder.WriteString("\n")
+	}
+	return builder.String()
+}
+
+func composeScopeMatchText(draft string, threadParent *domain.Message, recentMessages []domain.Message, recentDMMessages []domain.DMMessage) string {
+	if len(recentDMMessages) > 0 {
+		return composeDMMatchText(draft, recentDMMessages)
+	}
+	return composeMatchText(draft, threadParent, recentMessages)
+}
+
+func composeIntentInstruction(intent string) string {
+	switch intent {
+	case "summarize":
+		return "Summarize the unread context into a short draft the user can send."
+	case "followup":
+		return "Draft clarifying follow-up questions rooted in missing facts or blockers."
+	case "schedule":
+		return "Draft scheduling language that proposes next coordination steps without inventing availability."
+	default:
+		return "Draft concise reply suggestions."
+	}
+}
+
+func buildComposePrompt(channelID, dmID, threadID, intent, draft string, limit int, threadParent *domain.Message, recentMessages []domain.Message, recentDMMessages []domain.DMMessage, knowledgeContext knowledge.ChannelKnowledgeContext, matches []knowledge.EntityTextMatch) string {
+	var builder strings.Builder
+	builder.WriteString("You are a Slack-like AI writing assistant for grounded composer suggestions.\n")
+	builder.WriteString("Stay grounded in the provided context and only return concise sendable suggestions.\n")
 	builder.WriteString("Do not invent owners, dates, or decisions.\n")
 	builder.WriteString("Return JSON with suggestions, citations, and context_entities.\n\n")
-	builder.WriteString("channel_id: ")
-	builder.WriteString(channelID)
+	builder.WriteString("scope: ")
+	if dmID != "" {
+		builder.WriteString("dm")
+		builder.WriteString("\ndm_id: ")
+		builder.WriteString(dmID)
+	} else {
+		builder.WriteString("channel")
+		builder.WriteString("\nchannel_id: ")
+		builder.WriteString(channelID)
+	}
 	builder.WriteString("\nintent: ")
 	builder.WriteString(intent)
+	builder.WriteString("\nintent_instruction: ")
+	builder.WriteString(composeIntentInstruction(intent))
 	builder.WriteString("\nlimit: ")
 	builder.WriteString(fmt.Sprintf("%d", limit))
 	builder.WriteString("\n")
@@ -794,6 +916,16 @@ func buildComposePrompt(channelID, threadID, intent, draft string, limit int, th
 	if len(recentMessages) > 0 {
 		builder.WriteString("\nrecent_messages:\n")
 		for _, message := range recentMessages {
+			builder.WriteString("- [")
+			builder.WriteString(message.UserID)
+			builder.WriteString("] ")
+			builder.WriteString(message.Content)
+			builder.WriteString("\n")
+		}
+	}
+	if len(recentDMMessages) > 0 {
+		builder.WriteString("\nrecent_dm_messages:\n")
+		for _, message := range recentDMMessages {
 			builder.WriteString("- [")
 			builder.WriteString(message.UserID)
 			builder.WriteString("] ")
@@ -829,17 +961,17 @@ func buildComposePrompt(channelID, threadID, intent, draft string, limit int, th
 	return builder.String()
 }
 
-func buildComposeResponse(channelID, threadID, intent string, limit int, draft string, threadParent *domain.Message, recentMessages []domain.Message, knowledgeContext knowledge.ChannelKnowledgeContext, matches []knowledge.EntityTextMatch, llmOutput, provider, model string) composePayload {
+func buildComposeResponse(channelID, dmID, threadID, intent string, limit int, draft string, threadParent *domain.Message, recentMessages []domain.Message, recentDMMessages []domain.DMMessage, knowledgeContext knowledge.ChannelKnowledgeContext, matches []knowledge.EntityTextMatch, llmOutput, provider, model string) composePayload {
 	structured := parseComposeOutput(llmOutput)
-	citations, contextEntities := buildComposeGrounding(knowledgeContext.Refs, matches, draft, threadParent, recentMessages)
+	citations, contextEntities := buildComposeGrounding(knowledgeContext.Refs, matches, draft, threadParent, recentMessages, recentDMMessages)
 
 	suggestions := structured.Suggestions
 	if len(suggestions) == 0 {
 		suggestions = []knowledge.ComposeSuggestion{{
 			ID:   ids.NewPrefixedUUID("compose"),
-			Text: buildFallbackComposeSuggestion(draft, threadParent, recentMessages),
+			Text: buildFallbackComposeSuggestion(intent, draft, threadParent, recentMessages, recentDMMessages),
 			Tone: "clear",
-			Kind: "reply",
+			Kind: intent,
 		}}
 	}
 	if len(suggestions) > limit {
@@ -853,7 +985,7 @@ func buildComposeResponse(channelID, threadID, intent string, limit int, draft s
 			suggestions[index].Tone = "clear"
 		}
 		if strings.TrimSpace(suggestions[index].Kind) == "" {
-			suggestions[index].Kind = "reply"
+			suggestions[index].Kind = intent
 		}
 	}
 	if len(structured.Citations) > 0 {
@@ -865,6 +997,7 @@ func buildComposeResponse(channelID, threadID, intent string, limit int, draft s
 
 	return composePayload{
 		ChannelID:       channelID,
+		DMID:            dmID,
 		ThreadID:        threadID,
 		Intent:          intent,
 		Suggestions:     suggestions,
@@ -877,6 +1010,7 @@ func buildComposeResponse(channelID, threadID, intent string, limit int, draft s
 
 type composePayload struct {
 	ChannelID       string                           `json:"channel_id"`
+	DMID            string                           `json:"dm_id,omitempty"`
 	ThreadID        string                           `json:"thread_id,omitempty"`
 	Intent          string                           `json:"intent"`
 	Suggestions     []knowledge.ComposeSuggestion    `json:"suggestions"`
@@ -905,8 +1039,8 @@ func parseComposeOutput(raw string) composeStructuredOutput {
 	return parsed
 }
 
-func buildComposeGrounding(refs []knowledge.ChannelKnowledgeRef, matches []knowledge.EntityTextMatch, draft string, threadParent *domain.Message, recentMessages []domain.Message) ([]knowledge.Citation, []knowledge.ComposeContextEntity) {
-	matchText := strings.ToLower(composeMatchText(draft, threadParent, recentMessages))
+func buildComposeGrounding(refs []knowledge.ChannelKnowledgeRef, matches []knowledge.EntityTextMatch, draft string, threadParent *domain.Message, recentMessages []domain.Message, recentDMMessages []domain.DMMessage) ([]knowledge.Citation, []knowledge.ComposeContextEntity) {
+	matchText := strings.ToLower(composeScopeMatchText(draft, threadParent, recentMessages, recentDMMessages))
 	contextEntities := make([]knowledge.ComposeContextEntity, 0, len(refs)+len(matches))
 	seenEntities := map[string]struct{}{}
 	for _, ref := range refs {
@@ -980,8 +1114,19 @@ func buildComposeGrounding(refs []knowledge.ChannelKnowledgeRef, matches []knowl
 	return citations, contextEntities
 }
 
-func buildFallbackComposeSuggestion(draft string, threadParent *domain.Message, recentMessages []domain.Message) string {
-	context := strings.ToLower(composeMatchText(draft, threadParent, recentMessages))
+func buildFallbackComposeSuggestion(intent, draft string, threadParent *domain.Message, recentMessages []domain.Message, recentDMMessages []domain.DMMessage) string {
+	context := strings.ToLower(composeScopeMatchText(draft, threadParent, recentMessages, recentDMMessages))
+	switch intent {
+	case "summarize":
+		if len(recentDMMessages) > 0 {
+			return "Here is the current private-sync summary and the next open point."
+		}
+		return "Here is the current thread summary and the next open point."
+	case "followup":
+		return "Can you share the missing context or blocker so we can move this forward?"
+	case "schedule":
+		return "Let's align on a time window and confirm who needs to join before we schedule it."
+	}
 	base := "I can help draft a reply."
 	if strings.Contains(context, "owner") || strings.Contains(context, "timeline") || strings.Contains(context, "confirm") {
 		base = "I can take the owner update."
@@ -1003,17 +1148,18 @@ func bindComposeInput(c *gin.Context) (composeInput, error) {
 	}
 
 	input.ChannelID = strings.TrimSpace(input.ChannelID)
+	input.DMID = strings.TrimSpace(input.DMID)
 	input.ThreadID = strings.TrimSpace(input.ThreadID)
 	input.Draft = strings.TrimSpace(input.Draft)
 	input.Intent = strings.ToLower(strings.TrimSpace(input.Intent))
-	if input.ChannelID == "" {
-		return composeInput{}, errors.New("channel_id is required")
+	if (input.ChannelID == "") == (input.DMID == "") {
+		return composeInput{}, errors.New("exactly one of channel_id or dm_id is required")
 	}
 	if input.Intent == "" {
 		input.Intent = "reply"
 	}
-	if input.Intent != "reply" {
-		return composeInput{}, errors.New("intent must be reply")
+	if !isSupportedComposeIntent(input.Intent) {
+		return composeInput{}, errors.New("intent must be one of reply, summarize, followup, or schedule")
 	}
 	input.Limit = normalizeComposeLimit(input.Limit)
 	return input, nil
@@ -1029,7 +1175,7 @@ func runComposeAI(c *gin.Context, input composeInput) (composePayload, *llm.Stre
 	}
 	req := llm.Request{
 		Prompt:    prepared.Prompt,
-		ChannelID: input.ChannelID,
+		ChannelID: input.ComposeScopeID(),
 	}
 	session, err := AIGateway.Stream(c.Request.Context(), req)
 	if err != nil {
@@ -1041,7 +1187,7 @@ func runComposeAI(c *gin.Context, input composeInput) (composePayload, *llm.Stre
 		return composePayload{}, nil, err
 	}
 
-	return buildComposeResponse(input.ChannelID, input.ThreadID, input.Intent, input.Limit, input.Draft, prepared.ThreadParent, prepared.RecentMessages, prepared.KnowledgeContext, prepared.EntityMatches, content, session.Provider, session.Model), session, nil
+	return buildComposeResponse(input.ChannelID, input.DMID, input.ThreadID, input.Intent, input.Limit, input.Draft, prepared.ThreadParent, prepared.RecentMessages, prepared.RecentDMMessages, prepared.KnowledgeContext, prepared.EntityMatches, content, session.Provider, session.Model), session, nil
 }
 
 func handleComposeError(c *gin.Context, err error) {
@@ -1050,8 +1196,12 @@ func handleComposeError(c *gin.Context, err error) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "channel not found"})
 	case strings.Contains(err.Error(), "thread parent not found"):
 		c.JSON(http.StatusNotFound, gin.H{"error": "thread parent not found"})
+	case strings.Contains(err.Error(), "dm conversation not found"):
+		c.JSON(http.StatusNotFound, gin.H{"error": "dm conversation not found"})
 	case strings.Contains(err.Error(), "ai gateway is not configured"):
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": err.Error()})
+	case strings.Contains(err.Error(), "exactly one of channel_id or dm_id"), strings.Contains(err.Error(), "intent must be"):
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	default:
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 	}
@@ -1059,21 +1209,48 @@ func handleComposeError(c *gin.Context, err error) {
 
 type composeInput struct {
 	ChannelID string `json:"channel_id"`
+	DMID      string `json:"dm_id"`
 	ThreadID  string `json:"thread_id"`
 	Draft     string `json:"draft"`
 	Intent    string `json:"intent"`
 	Limit     int    `json:"limit"`
 }
 
+func (input composeInput) ComposeScopeID() string {
+	if input.DMID != "" {
+		return input.DMID
+	}
+	return input.ChannelID
+}
+
 type preparedComposeAI struct {
 	Prompt           string
 	ThreadParent     *domain.Message
 	RecentMessages   []domain.Message
+	RecentDMMessages []domain.DMMessage
 	KnowledgeContext knowledge.ChannelKnowledgeContext
 	EntityMatches    []knowledge.EntityTextMatch
 }
 
 func prepareComposeAI(input composeInput) (preparedComposeAI, error) {
+	if input.DMID != "" {
+		var conversation domain.DMConversation
+		if err := db.DB.First(&conversation, "id = ?", input.DMID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return preparedComposeAI{}, fmt.Errorf("dm conversation not found")
+			}
+			return preparedComposeAI{}, err
+		}
+		recentDMMessages, err := loadComposeRecentDMMessages(input.DMID)
+		if err != nil {
+			return preparedComposeAI{}, err
+		}
+		return preparedComposeAI{
+			Prompt:           buildComposePrompt("", input.DMID, "", input.Intent, input.Draft, input.Limit, nil, nil, recentDMMessages, knowledge.ChannelKnowledgeContext{}, nil),
+			RecentDMMessages: recentDMMessages,
+		}, nil
+	}
+
 	var channel domain.Channel
 	if err := db.DB.First(&channel, "id = ?", input.ChannelID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1104,7 +1281,7 @@ func prepareComposeAI(input composeInput) (preparedComposeAI, error) {
 	}
 	entityMatches, err := knowledge.MatchEntitiesInText(db.DB, knowledge.MatchEntitiesInput{
 		WorkspaceID: channel.WorkspaceID,
-		Text:        composeMatchText(input.Draft, threadParent, recentMessages),
+		Text:        composeScopeMatchText(input.Draft, threadParent, recentMessages, nil),
 		Limit:       input.Limit * 2,
 	})
 	if err != nil {
@@ -1112,7 +1289,7 @@ func prepareComposeAI(input composeInput) (preparedComposeAI, error) {
 	}
 
 	return preparedComposeAI{
-		Prompt:           buildComposePrompt(input.ChannelID, input.ThreadID, input.Intent, input.Draft, input.Limit, threadParent, recentMessages, knowledgeContext, entityMatches),
+		Prompt:           buildComposePrompt(input.ChannelID, "", input.ThreadID, input.Intent, input.Draft, input.Limit, threadParent, recentMessages, nil, knowledgeContext, entityMatches),
 		ThreadParent:     threadParent,
 		RecentMessages:   recentMessages,
 		KnowledgeContext: knowledgeContext,

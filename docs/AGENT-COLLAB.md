@@ -153,6 +153,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 63B AI Compose UI | Windsurf | 2026-04-23 | Consumed `POST /api/v1/ai/compose` in the shared `MessageComposer` used by channel + thread panels. New **Wand2 "AI Suggest"** button (sky/cyan) next to AI Canvas on channel/thread composers (hidden for DMs) fetches 3 grounded reply suggestions using the current draft + thread context. Popover above the editor renders each suggestion with tone/kind badges and a one-click **Insert into draft** action that replaces the TipTap content with the suggestion (HTML-escaped, preserving line breaks) without auto-sending. Footer surfaces `context_entities[]` as emerald entity chips and a collapsible `citations[]` block with source-kind badge + snippet. Regenerate and Dismiss controls. Results cached per `channel_id:thread_id` in `knowledge-store.composeResults`. Published `v0.6.15`. |
 | 🟢 Done | Phase 63C AI Compose Stream And Feedback APIs | Codex | 2026-04-23 | Added `POST /api/v1/ai/compose/stream` SSE for grounded channel/thread reply suggestions and `POST /api/v1/ai/compose/:id/feedback` for per-suggestion thumbs-up/down/edited capture. Released in `v0.6.16`. |
 | 🟢 Done | Phase 63C AI Compose Stream And Feedback UI | Windsurf | 2026-04-23 | Consumed both Phase 63C endpoints. Channel/thread AI Suggest popover now calls `POST /ai/compose/stream` and renders the LLM output **progressively** as tokens stream in (blinking sky caret + live text). Each finalized suggestion gains **ThumbsUp / ThumbsDown** buttons wired to `POST /ai/compose/:id/feedback`; clicking **Insert into draft** additionally fires an `edited` feedback signal and shows a `used` chip for transparency. Store adds `suggestComposeStream`, `sendComposeFeedback`, `composeStreaming`, `composeFeedback`. SSE parser handles `start` / `suggestion.delta` / `suggestion.done` / `done` / `error` with **graceful fallback to `POST /ai/compose`** on non-OK status or network error. New types: `ComposeFeedbackValue`, `ComposeStreamingState`. Published `v0.6.17`. |
+| 🟢 Done | Phase 63D AI Compose DM And Intent APIs | Codex | 2026-04-23 | Added DM parity for `POST /api/v1/ai/compose` and `/ai/compose/stream`, expanded intents to `reply`, `summarize`, `followup`, and `schedule`, added DM-scoped compose feedback, and added `GET /api/v1/ai/compose/:id/feedback/summary`. Released in `v0.6.18`. |
 
 ---
 
@@ -161,9 +162,23 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
-| **Codex** | `api-architecture` | Phase 63C backend shipped: streaming compose + feedback capture for channel/thread suggestion flow (v0.6.16) | 100% |
+| **Codex** | `api-architecture` | Phase 63D backend shipped: DM compose parity, intent variants, and feedback summary APIs (v0.6.18) | 100% |
 | **Claude Code**| `idle` | - | - |
 | **Windsurf** | `web-ui-agent` | Phase 63C UI shipped: streaming compose + thumbs feedback in channel/thread composers (v0.6.17) | 100% |
+
+### 2026-04-23 - Phase 63D AI Compose DM And Intent APIs (v0.6.18)
+- **Codex**: Phase 63D backend is complete and published as `v0.6.18`.
+- **Codex**: `POST /api/v1/ai/compose` and `POST /api/v1/ai/compose/stream` now accept exactly one of `channel_id` or `dm_id`. Channel compose keeps optional `thread_id`; DM compose uses recent private-message context.
+- **Codex**: Supported compose intents are now `reply`, `summarize`, `followup`, and `schedule`. The response shape remains the same for existing cards, with additive `dm_id` on DM responses.
+- **Codex**: `POST /api/v1/ai/compose/:id/feedback` now accepts `dm_id` as an alternative to `channel_id`.
+- **Codex**: Added `GET /api/v1/ai/compose/:id/feedback/summary`, returning `total`, `counts.up`, `counts.down`, `counts.edited`, and recent feedback rows.
+- **Codex → Windsurf**: Please consume these contracts next:
+  - show the AI Suggest button in DM composers and call `POST /ai/compose/stream` with `{ dm_id, draft, intent, limit }`
+  - add a compact intent selector for channel/thread/DM composers: `reply`, `summarize`, `followup`, `schedule`
+  - send feedback using the same scope as generation: `{ channel_id, thread_id }` or `{ dm_id }`
+  - optionally add a learning-signal panel that calls `GET /ai/compose/:id/feedback/summary`
+- **Codex → Windsurf**: Next backend candidates after your UI pass are `POST /knowledge/entities/:id/ask/stream` + `GET /knowledge/entities/:id/ask/history`, then always-on knowledge automation (`brief schedule` and `channel auto-summarize`).
+- **Codex → Nikko Fu**: This phase makes the AI-native composer available across Slack's core message surfaces, including private conversations, while keeping the API compatible for the current UI.
 
 ### 2026-04-23 - Phase 63C AI Compose Stream And Feedback UI (v0.6.17)
 - **Windsurf**: Phase 63C UI complete and published as `v0.6.17`. Full consumer for Codex `v0.6.16` backend.

@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.6.16` is the current release line and includes:
+`v0.6.18` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -78,9 +78,11 @@ For product, design, and marketing, the short version is:
 - per-user followed knowledge weekly briefs via `POST /api/v1/knowledge/weekly-brief`
 - cached weekly followed-knowledge brief hydration via `GET /api/v1/knowledge/weekly-brief`
 - entity-scoped grounded Q&A via `POST /api/v1/knowledge/entities/:id/ask`
-- grounded channel/thread composer suggestions via `POST /api/v1/ai/compose`
-- streaming grounded composer suggestions via `POST /api/v1/ai/compose/stream`
+- grounded channel/thread/DM composer suggestions via `POST /api/v1/ai/compose`
+- streaming grounded channel/thread/DM composer suggestions via `POST /api/v1/ai/compose/stream`
+- composer intent variants for `reply`, `summarize`, `followup`, and `schedule`
 - per-suggestion composer feedback capture via `POST /api/v1/ai/compose/:id/feedback`
+- composer feedback aggregation via `GET /api/v1/ai/compose/:id/feedback/summary`
 - weekly brief snapshot sharing via `POST /api/v1/knowledge/weekly-brief/:id/share`
 - historical knowledge activity backfill status and execution via `GET /api/v1/knowledge/entities/:id/activity/backfill-status` and `POST /api/v1/knowledge/entities/:id/activity/backfill`
 - realtime followed-stats deltas via websocket `knowledge.followed.stats.changed`
@@ -178,6 +180,13 @@ For product, design, and marketing, the short version is:
   - `GET /api/v1/search/files?q=...`
 - Unified citation lookup API:
   - `GET /api/v1/citations/lookup?q=...`
+- AI composer APIs:
+  - `POST /api/v1/ai/compose`
+  - `POST /api/v1/ai/compose/stream`
+  - `POST /api/v1/ai/compose/:id/feedback`
+  - `GET /api/v1/ai/compose/:id/feedback/summary`
+  - Compose scope accepts exactly one of `channel_id` or `dm_id`; `thread_id` remains optional for channel thread context.
+  - Compose intent accepts `reply`, `summarize`, `followup`, or `schedule`.
 - Knowledge entity/wiki APIs:
   - `GET /api/v1/channels/:id/knowledge`
   - `GET /api/v1/channels/:id/knowledge/summary`

@@ -253,6 +253,7 @@ func main() {
 		v1.POST("/ai/compose", handlers.ComposeAI)
 		v1.POST("/ai/compose/stream", handlers.ComposeAIStream)
 		v1.POST("/ai/compose/:id/feedback", handlers.SubmitAIComposeFeedback)
+		v1.GET("/ai/compose/:id/feedback/summary", handlers.GetAIComposeFeedbackSummary)
 		v1.POST("/ai/execute", handlers.ExecuteAI)
 		v1.POST("/ai/canvas/generate", handlers.GenerateCanvasArtifact)
 		v1.POST("/ai/feedback", handlers.SubmitAIFeedback)

@@ -5503,6 +5503,179 @@ func TestPhase63CComposeFeedbackContract(t *testing.T) {
 	})
 }
 
+func TestPhase63DComposeDMAndIntentContracts(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+	AIGateway = stubGateway{}
+	defer SetAIGateway(nil)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.User{ID: "user-1", OrganizationID: "org-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.User{ID: "user-2", OrganizationID: "org-1", Name: "Windsurf", Email: "windsurf@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	db.DB.Create(&domain.ChannelMember{ChannelID: "ch-1", UserID: "user-1"})
+	db.DB.Create(&domain.Message{ID: "msg-1", ChannelID: "ch-1", UserID: "user-1", Content: "Can we confirm the launch owner and timeline?", CreatedAt: now.Add(-2 * time.Hour)})
+	db.DB.Create(&domain.DMConversation{ID: "dm-1", CreatedAt: now.Add(-3 * time.Hour)})
+	db.DB.Create(&domain.DMMember{DMConversationID: "dm-1", UserID: "user-1"})
+	db.DB.Create(&domain.DMMember{DMConversationID: "dm-1", UserID: "user-2"})
+	db.DB.Create(&domain.DMMessage{ID: "dm-msg-1", DMConversationID: "dm-1", UserID: "user-2", Content: "Can Codex unblock the composer DM parity?", CreatedAt: now.Add(-45 * time.Minute)})
+
+	router := gin.New()
+	router.POST("/api/v1/ai/compose", ComposeAI)
+	router.POST("/api/v1/ai/compose/stream", ComposeAIStream)
+
+	t.Run("dm compose uses dm scope", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/ai/compose", strings.NewReader(`{"dm_id":"dm-1","draft":"What should I reply?","intent":"followup","limit":2}`))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+		}
+		var payload struct {
+			Compose struct {
+				DMID        string `json:"dm_id"`
+				ChannelID   string `json:"channel_id"`
+				Intent      string `json:"intent"`
+				Suggestions []struct {
+					ID   string `json:"id"`
+					Text string `json:"text"`
+					Kind string `json:"kind"`
+				} `json:"suggestions"`
+				Provider string `json:"provider"`
+				Model    string `json:"model"`
+			} `json:"compose"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("failed to decode compose payload: %v", err)
+		}
+		if payload.Compose.DMID != "dm-1" || payload.Compose.ChannelID != "" || payload.Compose.Intent != "followup" {
+			t.Fatalf("unexpected dm compose envelope: %#v", payload.Compose)
+		}
+		if len(payload.Compose.Suggestions) == 0 || payload.Compose.Suggestions[0].ID == "" || payload.Compose.Suggestions[0].Text == "" {
+			t.Fatalf("expected dm compose suggestions, got %#v", payload.Compose.Suggestions)
+		}
+	})
+
+	t.Run("dm stream includes dm scope", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/ai/compose/stream", strings.NewReader(`{"dm_id":"dm-1","draft":"Summarize this private sync","intent":"summarize","limit":1}`))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+		}
+		body := rec.Body.String()
+		if !strings.Contains(body, `"dm_id":"dm-1"`) || !strings.Contains(body, `"intent":"summarize"`) {
+			t.Fatalf("expected dm_id and summarize intent in stream payload, got %s", body)
+		}
+		if !strings.Contains(body, "event: suggestion.done") || !strings.Contains(body, "event: done") {
+			t.Fatalf("expected completed stream events, got %s", body)
+		}
+	})
+
+	t.Run("supported intents", func(t *testing.T) {
+		for _, intent := range []string{"reply", "summarize", "followup", "schedule"} {
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/ai/compose", strings.NewReader(`{"channel_id":"ch-1","draft":"Need next step","intent":"`+intent+`","limit":1}`))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("expected 200 for intent %s, got %d body=%s", intent, rec.Code, rec.Body.String())
+			}
+		}
+	})
+
+	t.Run("invalid scope and intent", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/ai/compose", strings.NewReader(`{"channel_id":"ch-1","dm_id":"dm-1","draft":"Need next step","intent":"reply"}`))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400 for both scopes, got %d body=%s", rec.Code, rec.Body.String())
+		}
+
+		req = httptest.NewRequest(http.MethodPost, "/api/v1/ai/compose", strings.NewReader(`{"channel_id":"ch-1","draft":"Need next step","intent":"unknown"}`))
+		req.Header.Set("Content-Type", "application/json")
+		rec = httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400 for unknown intent, got %d body=%s", rec.Code, rec.Body.String())
+		}
+	})
+}
+
+func TestPhase63DComposeFeedbackSummaryContract(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.User{ID: "user-1", OrganizationID: "org-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.User{ID: "user-2", OrganizationID: "org-1", Name: "Windsurf", Email: "windsurf@example.com"})
+	db.DB.Create(&domain.DMConversation{ID: "dm-1", CreatedAt: now.Add(-3 * time.Hour)})
+	db.DB.Create(&domain.DMMember{DMConversationID: "dm-1", UserID: "user-1"})
+	db.DB.Create(&domain.DMMember{DMConversationID: "dm-1", UserID: "user-2"})
+
+	router := gin.New()
+	router.POST("/api/v1/ai/compose/:id/feedback", SubmitAIComposeFeedback)
+	router.GET("/api/v1/ai/compose/:id/feedback/summary", GetAIComposeFeedbackSummary)
+
+	postFeedback := func(path, body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		return rec
+	}
+
+	rec := postFeedback("/api/v1/ai/compose/compose-dm-1/feedback", `{"dm_id":"dm-1","intent":"followup","feedback":"up","suggestion_text":"Can you share the blocker?"}`)
+	if rec.Code != http.StatusOK && rec.Code != http.StatusCreated {
+		t.Fatalf("expected success for dm feedback, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var feedback domain.AIComposeFeedback
+	if err := db.DB.First(&feedback, "compose_id = ? AND user_id = ?", "compose-dm-1", "user-1").Error; err != nil {
+		t.Fatalf("expected dm compose feedback row: %v", err)
+	}
+	if feedback.DMConversationID != "dm-1" || feedback.ChannelID != "" || feedback.Intent != "followup" || feedback.Feedback != "up" {
+		t.Fatalf("unexpected dm compose feedback row: %#v", feedback)
+	}
+
+	db.DB.Create(&domain.AIComposeFeedback{ID: "compose-feedback-2", ComposeID: "compose-dm-1", UserID: "user-2", DMConversationID: "dm-1", Intent: "followup", Feedback: "down", SuggestionText: "Needs more context.", CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.AIComposeFeedback{ID: "compose-feedback-3", ComposeID: "compose-dm-1", UserID: "user-3", DMConversationID: "dm-1", Intent: "followup", Feedback: "edited", SuggestionText: "Edited before send.", CreatedAt: now, UpdatedAt: now})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/ai/compose/compose-dm-1/feedback/summary", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on feedback summary, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Summary struct {
+			ComposeID string `json:"compose_id"`
+			Total     int64  `json:"total"`
+			Counts    struct {
+				Up     int64 `json:"up"`
+				Down   int64 `json:"down"`
+				Edited int64 `json:"edited"`
+			} `json:"counts"`
+			Recent []domain.AIComposeFeedback `json:"recent"`
+		} `json:"summary"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode feedback summary: %v", err)
+	}
+	if payload.Summary.ComposeID != "compose-dm-1" || payload.Summary.Total != 3 || payload.Summary.Counts.Up != 1 || payload.Summary.Counts.Down != 1 || payload.Summary.Counts.Edited != 1 {
+		t.Fatalf("unexpected feedback summary: %#v", payload.Summary)
+	}
+	if len(payload.Summary.Recent) != 3 {
+		t.Fatalf("expected 3 recent feedback rows, got %#v", payload.Summary.Recent)
+	}
+}
+
 func TestMatchKnowledgeEntitiesInTextEndpoint(t *testing.T) {
 	setupTestDB(t)
 	now := time.Now().UTC()
