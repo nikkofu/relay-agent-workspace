@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -105,7 +106,7 @@ func ComposeAI(c *gin.Context) {
 		return
 	}
 
-	_ = broadcastComposeSuggestionGenerated(response)
+	_ = recordAndBroadcastComposeSuggestionGenerated(response)
 	c.JSON(http.StatusOK, gin.H{"compose": response})
 }
 
@@ -177,7 +178,7 @@ func ComposeAIStream(c *gin.Context) {
 				if len(response.Suggestions) > 0 {
 					response.Suggestions[0].ID = provisionalSuggestionID
 				}
-				_ = broadcastComposeSuggestionGenerated(response)
+				_ = recordAndBroadcastComposeSuggestionGenerated(response)
 				for index, suggestion := range response.Suggestions {
 					writeSSE(writer, "suggestion.done", gin.H{
 						"index":            index,
@@ -383,6 +384,40 @@ func GetAIComposeFeedbackSummary(c *gin.Context) {
 			"recent":     recentRows,
 		},
 	})
+}
+
+func GetAIComposeActivity(c *gin.Context) {
+	limit := parsePositiveInt(c.DefaultQuery("limit", "50"), 50)
+	if limit > 100 {
+		limit = 100
+	}
+	channelID := strings.TrimSpace(c.Query("channel_id"))
+	dmID := strings.TrimSpace(c.Query("dm_id"))
+	if channelID != "" && dmID != "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "channel_id and dm_id cannot both be provided"})
+		return
+	}
+
+	query := db.DB.Model(&domain.AIComposeActivity{}).Order("created_at desc").Limit(limit)
+	if channelID != "" {
+		query = query.Where("channel_id = ?", channelID)
+	}
+	if dmID != "" {
+		query = query.Where("dm_conversation_id = ?", dmID)
+	}
+	if workspaceID := strings.TrimSpace(c.Query("workspace_id")); workspaceID != "" {
+		query = query.Where("workspace_id = ?", workspaceID)
+	}
+	if intent := strings.ToLower(strings.TrimSpace(c.Query("intent"))); intent != "" {
+		query = query.Where("intent = ?", intent)
+	}
+
+	var items []domain.AIComposeActivity
+	if err := query.Find(&items).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load compose activity"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items})
 }
 
 func GetThreadSummary(c *gin.Context) {
@@ -1028,6 +1063,14 @@ func normalizeComposeLimit(limit int) int {
 	}
 }
 
+func parsePositiveInt(raw string, fallback int) int {
+	value, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || value <= 0 {
+		return fallback
+	}
+	return value
+}
+
 func isSupportedComposeIntent(intent string) bool {
 	switch intent {
 	case "reply", "summarize", "followup", "schedule":
@@ -1322,16 +1365,64 @@ func buildFallbackProposedSlots(recentMessages []domain.Message, recentDMMessage
 	}}
 }
 
-func broadcastComposeSuggestionGenerated(response composePayload) error {
-	workspaceID := ""
+func recordAndBroadcastComposeSuggestionGenerated(response composePayload) error {
+	activity, err := persistComposeActivity(response)
+	if err != nil {
+		return err
+	}
+	return broadcastComposeSuggestionGenerated(response, activity)
+}
+
+func persistComposeActivity(response composePayload) (domain.AIComposeActivity, error) {
+	composeID := firstComposeSuggestionID(response)
+	if composeID == "" {
+		composeID = ids.NewPrefixedUUID("compose")
+	}
+	workspaceID := composeWorkspaceID(response)
+	now := time.Now().UTC()
+	activity := domain.AIComposeActivity{
+		ID:               ids.NewPrefixedUUID("compose-activity"),
+		ComposeID:        composeID,
+		WorkspaceID:      workspaceID,
+		ChannelID:        response.ChannelID,
+		DMConversationID: response.DMID,
+		ThreadID:         response.ThreadID,
+		Intent:           response.Intent,
+		SuggestionCount:  len(response.Suggestions),
+		Provider:         response.Provider,
+		Model:            response.Model,
+		CreatedAt:        now,
+	}
+	if err := db.DB.Where("compose_id = ?", composeID).FirstOrCreate(&activity).Error; err != nil {
+		return domain.AIComposeActivity{}, err
+	}
+	return activity, nil
+}
+
+func firstComposeSuggestionID(response composePayload) string {
+	for _, suggestion := range response.Suggestions {
+		if strings.TrimSpace(suggestion.ID) != "" {
+			return strings.TrimSpace(suggestion.ID)
+		}
+	}
+	return ""
+}
+
+func composeWorkspaceID(response composePayload) string {
 	if response.ChannelID != "" {
 		var channel domain.Channel
 		if err := db.DB.First(&channel, "id = ?", response.ChannelID).Error; err == nil {
-			workspaceID = channel.WorkspaceID
+			return channel.WorkspaceID
 		}
 	}
+	return ""
+}
+
+func broadcastComposeSuggestionGenerated(response composePayload, activity domain.AIComposeActivity) error {
+	workspaceID := activity.WorkspaceID
 	return broadcastKnowledgeEvent("knowledge.compose.suggestion.generated", workspaceID, response.ChannelID, "", gin.H{
-		"compose": response,
+		"compose":  response,
+		"activity": activity,
 	})
 }
 

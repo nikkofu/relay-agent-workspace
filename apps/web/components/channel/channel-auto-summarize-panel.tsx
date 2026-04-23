@@ -9,7 +9,7 @@
 // per-channel rolling summary that regenerates when the channel materially
 // changes and broadcasts to all open tabs.
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useCallback } from "react"
 import { Loader2, RefreshCw, Radio, Settings2, Zap } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { Button } from "@/components/ui/button"

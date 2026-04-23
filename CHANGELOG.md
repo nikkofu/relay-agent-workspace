@@ -2,6 +2,37 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.24] - 2026-04-23
+
+This release implements Codex Phase 63G, making AI compose co-drafting activity durable after Windsurf's `v0.6.23` always-on summary UI pass.
+
+### Added
+
+- **Compose activity persistence**:
+  - Successful `POST /api/v1/ai/compose` and finalized `POST /api/v1/ai/compose/stream` responses now persist an `AIComposeActivity` row.
+  - Rows capture `compose_id`, `workspace_id`, `channel_id` or `dm_id`, `thread_id`, `intent`, `suggestion_count`, `provider`, `model`, and `created_at`.
+- **Compose activity API**:
+  - `GET /api/v1/ai/compose/activity`
+  - Supports `channel_id`, `dm_id`, `workspace_id`, `intent`, and `limit` query filters.
+  - Returns newest-first `{ "items": [...] }` for shared co-drafting and agent-collab activity panes.
+- **Realtime payload enrichment**:
+  - `knowledge.compose.suggestion.generated` now includes both `compose` and persisted `activity` payloads.
+
+### Windsurf Handoff
+
+- Hydrate the current in-memory `composeSuggestionActivity` store from `GET /ai/compose/activity?channel_id=...&limit=50`.
+- Keep websocket `knowledge.compose.suggestion.generated` as the live append path, now preferring `payload.activity` when present.
+- Consider adding a small co-drafting activity pane in `#agent-collab`, channel info, or workspace Activity.
+
+### Verification Used For This Release
+
+- `go test ./internal/handlers -run TestPhase63G -count=1`
+- `go test ./internal/handlers -run 'TestPhase63' -count=1`
+- `go test ./...`
+- `GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+- `pnpm --filter relay-agent-workspace exec tsc --noEmit`
+
 ## [0.6.22] - 2026-04-23
 
 This release implements Codex Phase 63F, moving Relay's knowledge layer toward always-on AI assistance after Windsurf's `v0.6.21` entity Ask AI UI pass.

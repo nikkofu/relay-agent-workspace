@@ -528,6 +528,7 @@ Recommended sequence from here:
   - Phase 63D extends the AI composer to DM scopes, adds `reply|summarize|followup|schedule` intents, and adds `GET /api/v1/ai/compose/:id/feedback/summary` for learning-signal surfaces.
   - Phase 63E adds `POST /api/v1/knowledge/entities/:id/ask/stream` and `GET /api/v1/knowledge/entities/:id/ask/history`, making entity Ask AI streamable and persistent across sessions.
   - Phase 63F adds channel auto-summarize settings/run APIs, websocket `channel.summary.updated`, websocket `knowledge.compose.suggestion.generated`, and structured `compose.proposed_slots[]` for schedule intent chips.
+  - Phase 63G adds persisted compose suggestion activity plus `GET /api/v1/ai/compose/activity`, so co-drafting signals survive refresh and can feed agent-collab/activity surfaces.
 6. Add richer search layers such as suggestions and semantic retrieval.
 7. Move toward explicit agent runtime APIs once the collaboration foundation is stable.
 

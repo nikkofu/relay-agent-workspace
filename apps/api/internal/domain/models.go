@@ -302,6 +302,20 @@ type AIComposeFeedback struct {
 	UpdatedAt        time.Time `json:"updated_at"`
 }
 
+type AIComposeActivity struct {
+	ID               string    `gorm:"primaryKey" json:"id"`
+	ComposeID        string    `gorm:"uniqueIndex;index" json:"compose_id"`
+	WorkspaceID      string    `gorm:"index" json:"workspace_id"`
+	ChannelID        string    `gorm:"index" json:"channel_id,omitempty"`
+	DMConversationID string    `gorm:"index" json:"dm_id,omitempty"`
+	ThreadID         string    `gorm:"index" json:"thread_id,omitempty"`
+	Intent           string    `gorm:"index" json:"intent"`
+	SuggestionCount  int       `json:"suggestion_count"`
+	Provider         string    `json:"provider"`
+	Model            string    `json:"model"`
+	CreatedAt        time.Time `gorm:"index" json:"created_at"`
+}
+
 type DMMessage struct {
 	ID               string    `gorm:"primaryKey" json:"id"`
 	DMConversationID string    `gorm:"index" json:"dm_id"`

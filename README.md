@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.6.22` is the current release line and includes:
+`v0.6.24` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -87,6 +87,7 @@ For product, design, and marketing, the short version is:
 - composer intent variants for `reply`, `summarize`, `followup`, and `schedule`
 - structured schedule intent slots via `compose.proposed_slots[]`
 - realtime compose suggestion broadcasts via websocket `knowledge.compose.suggestion.generated`
+- persisted compose suggestion activity via `GET /api/v1/ai/compose/activity`
 - per-suggestion composer feedback capture via `POST /api/v1/ai/compose/:id/feedback`
 - composer feedback aggregation via `GET /api/v1/ai/compose/:id/feedback/summary`
 - weekly brief snapshot sharing via `POST /api/v1/knowledge/weekly-brief/:id/share`
@@ -189,6 +190,7 @@ For product, design, and marketing, the short version is:
 - AI composer APIs:
   - `POST /api/v1/ai/compose`
   - `POST /api/v1/ai/compose/stream`
+  - `GET /api/v1/ai/compose/activity`
   - `POST /api/v1/ai/compose/:id/feedback`
   - `GET /api/v1/ai/compose/:id/feedback/summary`
   - Compose scope accepts exactly one of `channel_id` or `dm_id`; `thread_id` remains optional for channel thread context.
