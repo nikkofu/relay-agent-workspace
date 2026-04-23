@@ -419,6 +419,16 @@ export interface ComposeResponse {
   model: string
 }
 
+// ── Phase 63C: streaming + feedback ─────────────────────────────────────────
+
+export type ComposeFeedbackValue = 'up' | 'down' | 'edited'
+
+export interface ComposeStreamingState {
+  suggestionId: string
+  text: string
+  index: number
+}
+
 export interface EntityTextMatch {
   entity_id: string
   entity_title: string

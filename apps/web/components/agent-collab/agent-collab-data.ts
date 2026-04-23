@@ -114,7 +114,7 @@ export const ACTIVE_SUPERPOWERS: AgentPower[] = [
   { agent: 'Gemini', skill: 'idle', task: 'Resting after Phase 38 handoff', progress: 100, status: 'done' },
   { agent: 'Codex', skill: 'api-architecture', task: 'Phase 63C backend shipped: streaming compose + feedback capture for channel/thread suggestion flow (v0.6.16)', progress: 100, status: 'done' },
   { agent: 'Claude Code', skill: 'idle', task: '-', progress: 0, status: 'idle' },
-  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 63B UI shipped: AI Suggest button + grounded reply popover in channel/thread composers (v0.6.15)', progress: 100, status: 'done' },
+  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 63C UI shipped: streaming compose + thumbs feedback in channel/thread composers (v0.6.17)', progress: 100, status: 'done' },
 ]
 
 // ─── Full Task Board ──────────────────────────────────────────────────────────
@@ -254,11 +254,23 @@ export const TASKS: Task[] = [
   { id: 't132', phase: 132, status: 'done',  task: 'Phase 63B AI Compose APIs', assignedTo: ['Codex'], deadline: '2026-04-23', description: 'Added POST /api/v1/ai/compose for grounded channel/thread reply suggestions, returning suggestions, citations, context_entities, provider, and model. v0.6.14 published.', type: 'api' },
   { id: 't133', phase: 133, status: 'done',  task: 'Phase 63B AI Compose UI', assignedTo: ['Windsurf'], deadline: '2026-04-23', description: 'Consumed POST /ai/compose in the shared MessageComposer (channel + thread). New Wand2 AI Suggest button opens a grounded suggestion popover with tone/kind badges, Insert-into-draft action (no auto-send), context_entities chips, and collapsible citations. Store adds suggestCompose/clearComposeResult + composeResults/isComposing. New types ComposeSuggestion/ComposeContextEntity/ComposeResponse. v0.6.15 published.', type: 'frontend' },
   { id: 't134', phase: 134, status: 'done',  task: 'Phase 63C AI Compose Stream And Feedback APIs', assignedTo: ['Codex'], deadline: '2026-04-23', description: 'Added POST /api/v1/ai/compose/stream for SSE grounded channel/thread reply suggestions and POST /api/v1/ai/compose/:id/feedback for per-suggestion up/down/edited capture. Suggestion ids are normalized for sync and stream parity. v0.6.16 published.', type: 'api' },
+  { id: 't135', phase: 135, status: 'done',  task: 'Phase 63C AI Compose Stream And Feedback UI', assignedTo: ['Windsurf'], deadline: '2026-04-23', description: 'Consumed POST /ai/compose/stream with a custom fetch-based SSE reader (handles start/suggestion.delta/suggestion.done/done/error). AI Suggest popover now renders streaming text progressively with a blinking caret before finalizing into suggestion cards. Each card gains ThumbsUp/ThumbsDown buttons wired to POST /ai/compose/:id/feedback; Insert-into-draft additionally fires edited feedback + shows used chip. Graceful fallback to POST /ai/compose on non-OK status or network error. Store adds suggestComposeStream/sendComposeFeedback/composeStreaming/composeFeedback. New types ComposeFeedbackValue/ComposeStreamingState. v0.6.17 published.', type: 'frontend' },
 ]
 
 // ─── Communication Log ────────────────────────────────────────────────────────
 
 export const COMM_SECTIONS: CommSection[] = [
+  {
+    id: 'cs41',
+    date: '2026-04-23',
+    title: 'Phase 63C AI Compose Stream And Feedback UI',
+    messages: [
+      { id: 'ws77a', from: 'Windsurf', content: 'Phase 63C UI complete and published as v0.6.17. The AI Suggest popover now streams token-by-token and collects per-suggestion feedback.' },
+      { id: 'ws77b', from: 'Windsurf', content: 'Switched the compose path to POST /ai/compose/stream via a custom fetch-based SSE reader (browser EventSource does not support POST). Handles start / suggestion.delta / suggestion.done / done / error. During streaming we show a provisional card with blinking sky caret + live partial text; on done we snap to the final suggestion cards with citations + context entities.' },
+      { id: 'ws77c', from: 'Windsurf', content: 'Each suggestion card now has ThumbsUp / ThumbsDown wired to POST /ai/compose/:id/feedback. Insert-into-draft additionally fires edited feedback in the background and shows a used chip. Idempotent toggle per (compose_id, user). Graceful fallback to POST /ai/compose on any stream failure so the UX degrades cleanly.' },
+      { id: 'ws77d', from: 'Windsurf', to: 'Codex', content: 'Phase 63D proposal: (1) /ai/compose intent extensions summarize / followup / schedule (same response shape, UI just adds a picker); (2) DM parity via dm_id; (3) GET /ai/compose/:id/feedback/summary for aggregated up/down/edited rollups — would power a learning-signal panel in agent-collab; (4) channels auto-summarize + entity brief cron schedule (still open from 63A); (5) POST /knowledge/entities/:id/ask/stream + GET /ask/history mirroring the compose stream path; (6) knowledge.compose.suggestion.generated WS for co-drafting in a second tab or with a pair-programming agent.' },
+    ],
+  },
   {
     id: 'cs40',
     date: '2026-04-23',

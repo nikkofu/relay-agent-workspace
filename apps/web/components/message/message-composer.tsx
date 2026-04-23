@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useMemo, useEffect, useLayoutEffect } fr
 import { 
   Bold, Italic, Strikethrough, Link as LinkIcon, List, ListOrdered, 
   Quote, Code, FileCode, Type, Smile, Globe, Loader2, Paperclip, Send, Mic, Sparkles, X,
-  Wand2, RefreshCw,
+  Wand2, RefreshCw, ThumbsUp, ThumbsDown,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -65,7 +65,8 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
   const { uploadFile } = useFileStore()
   const {
     suggestEntities, matchEntitiesInText,
-    suggestCompose, clearComposeResult, composeResults, isComposing,
+    clearComposeResult, composeResults, isComposing,
+    suggestComposeStream, sendComposeFeedback, composeStreaming, composeFeedback,
   } = useKnowledgeStore()
   const { currentWorkspace } = useWorkspaceStore()
   const { currentChannel } = useChannelStore()
@@ -89,6 +90,7 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
   const composeKey = composeIds ? `${composeIds.channelId}:${composeIds.threadId || ''}` : null
   const composeResult = composeKey ? composeResults[composeKey] : undefined
   const composeBusy = composeKey ? !!isComposing[composeKey] : false
+  const composeStream = composeKey ? composeStreaming[composeKey] : undefined
   const fileInputRef = useRef<HTMLInputElement>(null)
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const draftsRef = useRef(drafts)
@@ -377,17 +379,18 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
     editor?.commands.focus()
   }
 
-  // Phase 63B: Request grounded compose suggestions for the current scope
+  // Phase 63B/C: Request grounded compose suggestions for the current scope.
+  // Phase 63C upgrade: prefer SSE streaming, fall back to sync on failure (handled in store).
   const runSuggestCompose = useCallback(async () => {
     if (!composeIds || !editor) return
     const draftText = editor.getText().trim()
     setShowComposeSuggestions(true)
-    await suggestCompose(composeIds.channelId, composeIds.threadId, draftText, 3)
-  }, [composeIds, editor, suggestCompose])
+    await suggestComposeStream(composeIds.channelId, composeIds.threadId, draftText, 3)
+  }, [composeIds, editor, suggestComposeStream])
 
-  // Phase 63B: Insert a suggestion into the draft (no auto-send)
+  // Phase 63B/C: Insert a suggestion into the draft (no auto-send) + fire 'edited' feedback signal.
   const handleInsertSuggestion = useCallback((s: ComposeSuggestion) => {
-    if (!editor) return
+    if (!editor || !composeIds) return
     const html = `<p>${s.text
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
@@ -397,7 +400,34 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
     editor.chain().focus().clearContent().insertContent(html).run()
     setShowComposeSuggestions(false)
     toast.success('Suggestion inserted — edit and send when ready')
-  }, [editor])
+    // Fire 'edited' feedback in the background (non-blocking)
+    if (s.id && !composeFeedback[s.id]) {
+      sendComposeFeedback(s.id, {
+        channelId: composeIds.channelId,
+        threadId: composeIds.threadId,
+        feedback: 'edited',
+        suggestionText: s.text,
+        provider: composeResult?.provider,
+        model: composeResult?.model,
+      }).catch(() => { /* best-effort */ })
+    }
+  }, [editor, composeIds, composeFeedback, sendComposeFeedback, composeResult])
+
+  // Phase 63C: thumbs up/down feedback for a specific suggestion
+  const handleSuggestionFeedback = useCallback(async (s: ComposeSuggestion, value: 'up' | 'down') => {
+    if (!composeIds || !s.id) return
+    const ok = await sendComposeFeedback(s.id, {
+      channelId: composeIds.channelId,
+      threadId: composeIds.threadId,
+      feedback: value,
+      suggestionText: s.text,
+      provider: composeResult?.provider,
+      model: composeResult?.model,
+    })
+    if (ok) {
+      toast.success(value === 'up' ? 'Thanks — feedback recorded' : 'Noted — we\u2019ll learn from it')
+    }
+  }, [composeIds, composeResult, sendComposeFeedback])
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -521,9 +551,23 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
               </Button>
             </div>
           </div>
-          {composeBusy && !composeResult && (
+          {composeBusy && !composeResult && !composeStream && (
             <div className="px-3 py-4 text-[11px] text-muted-foreground italic flex items-center gap-2">
               <Loader2 className="w-3 h-3 animate-spin" /> Drafting grounded reply suggestions…
+            </div>
+          )}
+          {composeBusy && composeStream && !composeResult && (
+            <div className="px-3 py-2">
+              <div className="rounded-lg border border-sky-400/40 bg-background/60 p-2 space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Loader2 className="w-3 h-3 animate-spin text-sky-500" />
+                  <span className="text-[9px] font-black uppercase tracking-widest text-sky-700 dark:text-sky-400">Streaming…</span>
+                </div>
+                <p className="text-xs text-foreground/85 leading-relaxed whitespace-pre-wrap">
+                  {composeStream.text}
+                  <span className="inline-block w-1.5 h-3 align-text-bottom bg-sky-500/70 animate-pulse ml-0.5" />
+                </p>
+              </div>
             </div>
           )}
           {composeResult && (
@@ -531,34 +575,70 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
               {composeResult.suggestions.length === 0 && (
                 <p className="text-[11px] text-muted-foreground italic">No suggestions returned.</p>
               )}
-              {composeResult.suggestions.map((s) => (
-                <div
-                  key={s.id}
-                  className="rounded-lg border bg-background/60 p-2 space-y-1.5 hover:border-sky-400/40 transition-colors"
-                >
-                  <p className="text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap">{s.text}</p>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {s.tone && (
-                      <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-sky-500/5 text-sky-700 dark:text-sky-400 border-sky-400/30">
-                        {s.tone}
-                      </span>
-                    )}
-                    {s.kind && s.kind !== s.tone && (
-                      <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-muted/40 text-muted-foreground">
-                        {s.kind}
-                      </span>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="ml-auto h-6 text-[10px] gap-1 px-2 border-sky-400/40 text-sky-700 dark:text-sky-400 hover:bg-sky-500/10"
-                      onClick={() => handleInsertSuggestion(s)}
-                    >
-                      <Sparkles className="w-3 h-3" /> Insert into draft
-                    </Button>
+              {composeResult.suggestions.map((s) => {
+                const fb = composeFeedback[s.id]
+                return (
+                  <div
+                    key={s.id}
+                    className="rounded-lg border bg-background/60 p-2 space-y-1.5 hover:border-sky-400/40 transition-colors"
+                  >
+                    <p className="text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap">{s.text}</p>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {s.tone && (
+                        <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-sky-500/5 text-sky-700 dark:text-sky-400 border-sky-400/30">
+                          {s.tone}
+                        </span>
+                      )}
+                      {s.kind && s.kind !== s.tone && (
+                        <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-muted/40 text-muted-foreground">
+                          {s.kind}
+                        </span>
+                      )}
+                      {fb === 'edited' && (
+                        <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-400/30">
+                          used
+                        </span>
+                      )}
+                      <div className="ml-auto flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={cn(
+                            "h-6 w-6 p-0 text-muted-foreground hover:bg-emerald-500/10",
+                            fb === 'up' && "text-emerald-600 bg-emerald-500/10"
+                          )}
+                          disabled={!!fb && fb !== 'up'}
+                          onClick={() => handleSuggestionFeedback(s, 'up')}
+                          title="Good suggestion"
+                        >
+                          <ThumbsUp className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={cn(
+                            "h-6 w-6 p-0 text-muted-foreground hover:bg-rose-500/10",
+                            fb === 'down' && "text-rose-600 bg-rose-500/10"
+                          )}
+                          disabled={!!fb && fb !== 'down'}
+                          onClick={() => handleSuggestionFeedback(s, 'down')}
+                          title="Not helpful"
+                        >
+                          <ThumbsDown className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-[10px] gap-1 px-2 border-sky-400/40 text-sky-700 dark:text-sky-400 hover:bg-sky-500/10"
+                          onClick={() => handleInsertSuggestion(s)}
+                        >
+                          <Sparkles className="w-3 h-3" /> Insert into draft
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
               {(composeResult.context_entities?.length || composeResult.citations?.length) ? (
                 <div className="pt-1 border-t border-sky-400/15 space-y-1">
                   {composeResult.context_entities && composeResult.context_entities.length > 0 && (

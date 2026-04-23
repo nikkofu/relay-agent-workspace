@@ -36,6 +36,11 @@ import type {
   SharedWeeklyBriefLink,
   StaleBriefNotice,
   ComposeResponse,
+  ComposeSuggestion,
+  ComposeContextEntity,
+  Citation,
+  ComposeFeedbackValue,
+  ComposeStreamingState,
 } from "@/types"
 
 interface KnowledgeState {
@@ -82,6 +87,9 @@ interface KnowledgeState {
   // ── Phase 63B ───────────────────────────────────────────────────────────
   composeResults: Record<string, ComposeResponse>
   isComposing: Record<string, boolean>
+  // ── Phase 63C ───────────────────────────────────────────────────────────
+  composeStreaming: Record<string, ComposeStreamingState | null>
+  composeFeedback: Record<string, ComposeFeedbackValue>
 
   pushLiveUpdate: (update: KnowledgeUpdate) => void
   handleEntityCreated: (entity: KnowledgeEntity) => void
@@ -156,9 +164,12 @@ interface KnowledgeState {
   // ── Phase 63B ───────────────────────────────────────────────────────────
   suggestCompose: (channelId: string, threadId: string | undefined, draft: string, limit?: number) => Promise<ComposeResponse | null>
   clearComposeResult: (channelId: string, threadId?: string) => void
+  // ── Phase 63C ───────────────────────────────────────────────────────────
+  suggestComposeStream: (channelId: string, threadId: string | undefined, draft: string, limit?: number) => Promise<ComposeResponse | null>
+  sendComposeFeedback: (composeId: string, args: { channelId: string; threadId?: string; feedback: ComposeFeedbackValue; suggestionText?: string; provider?: string; model?: string }) => Promise<boolean>
 }
 
-export const useKnowledgeStore = create<KnowledgeState>((set) => ({
+export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   entities: [],
   isLoading: false,
   liveUpdate: null,
@@ -197,6 +208,8 @@ export const useKnowledgeStore = create<KnowledgeState>((set) => ({
   staleBriefs: {},
   composeResults: {},
   isComposing: {},
+  composeStreaming: {},
+  composeFeedback: {},
 
   pushLiveUpdate: (update) => set({ liveUpdate: update }),
 
@@ -1211,10 +1224,163 @@ export const useKnowledgeStore = create<KnowledgeState>((set) => ({
   clearComposeResult: (channelId, threadId) => {
     const key = `${channelId}:${threadId || ''}`
     set(state => {
-      const next = { ...state.composeResults }
-      delete next[key]
-      return { composeResults: next }
+      const nextResults = { ...state.composeResults }
+      delete nextResults[key]
+      const nextStreaming = { ...state.composeStreaming }
+      delete nextStreaming[key]
+      return { composeResults: nextResults, composeStreaming: nextStreaming }
     })
+  },
+
+  // ── Phase 63C: Streaming compose via SSE with fallback ─────────
+  suggestComposeStream: async (channelId, threadId, draft, limit) => {
+    const key = `${channelId}:${threadId || ''}`
+    if (!channelId) return null
+    set(state => ({
+      isComposing: { ...state.isComposing, [key]: true },
+      composeStreaming: { ...state.composeStreaming, [key]: null },
+    }))
+    try {
+      const body: Record<string, unknown> = {
+        channel_id: channelId,
+        intent: 'reply',
+        draft,
+      }
+      if (threadId) body.thread_id = threadId
+      if (typeof limit === 'number' && limit > 0) body.limit = limit
+
+      const res = await fetch(`${API_BASE_URL}/ai/compose/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+
+      // Fallback: if stream is unsupported (older server, error, no body), use sync compose
+      if (!res.ok || !res.body) {
+        console.warn(`compose/stream returned ${res.status}; falling back to /ai/compose`)
+        return await get().suggestCompose(channelId, threadId, draft, limit)
+      }
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let streamProvider = ''
+      let streamModel = ''
+      let provisionalId = ''
+      let streamText = ''
+      const finalSuggestions: ComposeSuggestion[] = []
+      let finalCitations: Citation[] = []
+      let finalContextEntities: ComposeContextEntity[] = []
+
+      const processEvent = (event: string, payload: Record<string, unknown>) => {
+        if (event === 'start') {
+          streamProvider = typeof payload.provider === 'string' ? payload.provider : ''
+          streamModel = typeof payload.model === 'string' ? payload.model : ''
+        } else if (event === 'suggestion.delta') {
+          const delta = typeof payload.text_delta === 'string' ? payload.text_delta : ''
+          const sid = typeof payload.suggestion_id === 'string' ? payload.suggestion_id : ''
+          if (sid) provisionalId = sid
+          streamText += delta
+          set(state => ({
+            composeStreaming: {
+              ...state.composeStreaming,
+              [key]: { suggestionId: provisionalId, text: streamText, index: 0 },
+            },
+          }))
+        } else if (event === 'suggestion.done') {
+          const sugg = payload.suggestion as ComposeSuggestion | undefined
+          if (sugg) finalSuggestions.push(sugg)
+          if (Array.isArray(payload.citations)) finalCitations = payload.citations as Citation[]
+          if (Array.isArray(payload.context_entities)) finalContextEntities = payload.context_entities as ComposeContextEntity[]
+        } else if (event === 'done') {
+          const response: ComposeResponse = {
+            channel_id: channelId,
+            thread_id: threadId,
+            intent: 'reply',
+            suggestions: finalSuggestions,
+            citations: finalCitations,
+            context_entities: finalContextEntities,
+            provider: streamProvider,
+            model: streamModel,
+          }
+          set(state => ({
+            composeResults: { ...state.composeResults, [key]: response },
+            composeStreaming: { ...state.composeStreaming, [key]: null },
+          }))
+        } else if (event === 'error') {
+          const msg = typeof payload.message === 'string' ? payload.message : 'stream error'
+          toast.error(`Compose stream failed: ${msg}`)
+        }
+      }
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const parts = buffer.split('\n\n')
+        buffer = parts.pop() || ''
+        for (const part of parts) {
+          if (!part.trim()) continue
+          let evName = 'message'
+          let dataRaw = ''
+          for (const line of part.split('\n')) {
+            if (line.startsWith('event: ')) evName = line.slice(7).trim()
+            else if (line.startsWith('event:')) evName = line.slice(6).trim()
+            else if (line.startsWith('data: ')) dataRaw += line.slice(6)
+            else if (line.startsWith('data:')) dataRaw += line.slice(5)
+          }
+          try {
+            const payload = dataRaw ? JSON.parse(dataRaw) : {}
+            processEvent(evName, payload)
+          } catch (e) {
+            console.error('SSE parse error', e, part)
+          }
+        }
+      }
+
+      return get().composeResults[key] || null
+    } catch (error) {
+      console.error("Failed to stream compose:", error)
+      // Fallback on network error
+      return await get().suggestCompose(channelId, threadId, draft, limit)
+    } finally {
+      set(state => ({
+        isComposing: { ...state.isComposing, [key]: false },
+        composeStreaming: { ...state.composeStreaming, [key]: null },
+      }))
+    }
+  },
+
+  // ── Phase 63C: Per-suggestion feedback capture ─────────────
+  sendComposeFeedback: async (composeId, args) => {
+    if (!composeId) return false
+    try {
+      const body: Record<string, unknown> = {
+        channel_id: args.channelId,
+        intent: 'reply',
+        feedback: args.feedback,
+      }
+      if (args.threadId) body.thread_id = args.threadId
+      if (args.suggestionText) body.suggestion_text = args.suggestionText
+      if (args.provider) body.provider = args.provider
+      if (args.model) body.model = args.model
+      const res = await fetch(`${API_BASE_URL}/ai/compose/${encodeURIComponent(composeId)}/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) {
+        console.warn(`compose feedback returned ${res.status}`)
+        return false
+      }
+      set(state => ({
+        composeFeedback: { ...state.composeFeedback, [composeId]: args.feedback },
+      }))
+      return true
+    } catch (error) {
+      console.error("Failed to send compose feedback:", error)
+      return false
+    }
   },
 
   // ── Phase 62: Live bulk-read update from websocket (multi-tab inbox sync) ─
