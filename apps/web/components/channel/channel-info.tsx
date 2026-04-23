@@ -39,6 +39,7 @@ import { useUserStore } from "@/stores/user-store"
 import { useMessageStore } from "@/stores/message-store"
 import { useFileStore } from "@/stores/file-store"
 import { UserAvatar } from "@/components/common/user-avatar"
+import { ChannelAutoSummarizePanel } from "@/components/channel/channel-auto-summarize-panel"
 import { formatDistanceToNow } from "date-fns"
 
 export function ChannelInfo({ trigger }: { trigger: React.ReactNode }) {
@@ -175,6 +176,9 @@ export function ChannelInfo({ trigger }: { trigger: React.ReactNode }) {
                   </div>
                 )}
               </div>
+
+              {/* Phase 63F: Rolling always-on auto-summarize (persistent, live-updated via WS) */}
+              <ChannelAutoSummarizePanel channelId={currentChannel.id} />
 
               {/* Purpose Section */}
               <div className="space-y-2">

@@ -209,6 +209,27 @@ export function useWebsocket() {
           if (Array.isArray(payload.item_ids)) {
             useKnowledgeStore.getState().applyNotificationsBulkRead(payload.item_ids)
           }
+        } else if (data.type === 'channel.summary.updated') {
+          // Phase 63F: live channel auto-summarize refresh (always-on rolling summary).
+          // Backend payload: { channel_id, workspace_id, reason, summary, setting }.
+          const payload = data.payload || {}
+          if (payload.channel_id) {
+            useKnowledgeStore.getState().applyChannelSummaryUpdated({
+              channel_id: payload.channel_id,
+              workspace_id: payload.workspace_id,
+              reason: payload.reason,
+              summary: payload.summary,
+              setting: payload.setting,
+            })
+          }
+        } else if (data.type === 'knowledge.compose.suggestion.generated') {
+          // Phase 63F: co-drafting observer signal. Append a capped activity entry
+          // so a future shared "co-drafting" surface can render who is currently
+          // getting AI suggestions. Payload: { compose: ComposeResponse }.
+          const payload = data.payload || {}
+          if (payload.compose) {
+            useKnowledgeStore.getState().applyComposeSuggestionGenerated(payload.compose)
+          }
         } else if (data.type === 'knowledge.digest.published') {
           const payload = data.payload || {}
           const channelId = payload.channel_id || payload.channel?.id

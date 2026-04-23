@@ -455,8 +455,78 @@ export interface ComposeResponse {
   suggestions: ComposeSuggestion[]
   citations: Citation[]
   context_entities: ComposeContextEntity[]
+  // Phase 63F: populated when intent === 'schedule'. Additive.
+  proposed_slots?: ComposeProposedSlot[]
   provider: string
   model: string
+}
+
+// Phase 63F: Structured calendar slot the backend proposes when intent=schedule.
+// UI can render this as a bookable chip instead of parsing free-form text.
+export interface ComposeProposedSlot {
+  starts_at: string        // ISO timestamp
+  ends_at: string          // ISO timestamp
+  duration_minutes: number
+  timezone: string         // e.g. "UTC", "America/Los_Angeles"
+  attendee_ids: string[]
+  reason?: string
+}
+
+// ── Phase 63F: Channel auto-summarize (always-on rolling summary) ────────────
+
+// Backend domain.AISummary — the LLM-generated text summary row persisted
+// per channel. Distinct from ChannelKnowledgeSummary (which is a knowledge-ref
+// rollup with top_entities/velocity).
+export interface AISummary {
+  id: number
+  scope_type: string
+  scope_id: string
+  channel_id: string
+  provider: string
+  model: string
+  content: string
+  reasoning?: string
+  message_count: number
+  last_message_at?: string
+  created_at: string
+  updated_at: string
+}
+
+// Backend domain.ChannelAutoSummarySetting — the per-channel auto-summarize
+// config. If is_enabled=true the backend periodically regenerates the summary;
+// otherwise it only runs on explicit POST.
+export interface ChannelAutoSummarySetting {
+  id: string
+  channel_id: string
+  workspace_id: string
+  created_by: string
+  is_enabled: boolean
+  window_hours: number
+  message_limit: number
+  min_new_messages: number
+  provider: string
+  model: string
+  last_run_at?: string
+  last_message_at?: string
+  created_at: string
+  updated_at: string
+}
+
+// PUT/POST body. `force` is only meaningful on POST (manual run).
+export interface ChannelAutoSummarizeInput {
+  is_enabled?: boolean
+  window_hours?: number
+  message_limit?: number
+  min_new_messages?: number
+  provider?: string
+  model?: string
+  force?: boolean
+}
+
+// Response shape for GET / POST (PUT returns only { setting }).
+export interface ChannelAutoSummarizeResponse {
+  setting: ChannelAutoSummarySetting
+  summary?: AISummary | null
 }
 
 // ── Phase 63C: streaming + feedback ─────────────────────────────────────────

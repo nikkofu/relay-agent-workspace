@@ -47,6 +47,10 @@ import type {
   EntityAskHistoryItem,
   EntityAskHistoryResponse,
   EntityAskStreamingState,
+  AISummary,
+  ChannelAutoSummarySetting,
+  ChannelAutoSummarizeInput,
+  ChannelAutoSummarizeResponse,
 } from "@/types"
 
 interface KnowledgeState {
@@ -102,6 +106,25 @@ interface KnowledgeState {
   entityAskHistory: Record<string, EntityAskHistoryItem[]>
   isLoadingAskHistory: Record<string, boolean>
   entityAskStreaming: Record<string, EntityAskStreamingState | null>
+  // ── Phase 63F: always-on channel auto-summarize ───────────────────────
+  channelAutoSummarize: Record<string, ChannelAutoSummarizeResponse>
+  isLoadingAutoSummarize: Record<string, boolean>
+  isRunningAutoSummarize: Record<string, boolean>
+  // Phase 63F: Rolling in-memory log of co-drafting compose suggestions
+  // seen on the realtime channel (knowledge.compose.suggestion.generated).
+  // Capped list so an observer surface (e.g. #agent-collab) can render recent
+  // activity without unbounded growth. Newest first.
+  composeSuggestionActivity: Array<{
+    composeId: string
+    channelId?: string
+    dmId?: string
+    threadId?: string
+    intent: string
+    count: number
+    provider?: string
+    model?: string
+    at: number
+  }>
 
   pushLiveUpdate: (update: KnowledgeUpdate) => void
   handleEntityCreated: (entity: KnowledgeEntity) => void
@@ -184,6 +207,12 @@ interface KnowledgeState {
   // ── Phase 63E ───────────────────────────────────────────────────────────
   fetchEntityAskHistory: (entityId: string, limit?: number) => Promise<EntityAskHistoryResponse | null>
   askEntityStream: (entityId: string, question: string) => Promise<EntityAnswer | null>
+  // ── Phase 63F ───────────────────────────────────────────────────────────
+  fetchChannelAutoSummarize: (channelId: string) => Promise<ChannelAutoSummarizeResponse | null>
+  updateChannelAutoSummarize: (channelId: string, input: ChannelAutoSummarizeInput) => Promise<ChannelAutoSummarySetting | null>
+  runChannelAutoSummarize: (channelId: string, input?: ChannelAutoSummarizeInput) => Promise<ChannelAutoSummarizeResponse | null>
+  applyChannelSummaryUpdated: (payload: { channel_id: string; workspace_id?: string; reason?: string; summary?: AISummary | null; setting?: ChannelAutoSummarySetting }) => void
+  applyComposeSuggestionGenerated: (compose: ComposeResponse) => void
 }
 
 // Phase 63D: normalize a compose scope into a stable key used for
@@ -258,6 +287,10 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   entityAskHistory: {},
   isLoadingAskHistory: {},
   entityAskStreaming: {},
+  channelAutoSummarize: {},
+  isLoadingAutoSummarize: {},
+  isRunningAutoSummarize: {},
+  composeSuggestionActivity: [],
 
   pushLiveUpdate: (update) => set({ liveUpdate: update }),
 
@@ -1349,6 +1382,145 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
         entityAskStreaming: { ...state.entityAskStreaming, [entityId]: null },
       }))
     }
+  },
+
+  // ── Phase 63F: Channel auto-summarize (always-on rolling summary) ─────
+  // GET /channels/:id/knowledge/auto-summarize → { setting, summary }
+  fetchChannelAutoSummarize: async (channelId) => {
+    if (!channelId) return null
+    set(state => ({ isLoadingAutoSummarize: { ...state.isLoadingAutoSummarize, [channelId]: true } }))
+    try {
+      const res = await fetch(`${API_BASE_URL}/channels/${encodeURIComponent(channelId)}/knowledge/auto-summarize`)
+      if (!res.ok) {
+        console.warn(`auto-summarize GET returned ${res.status}`)
+        return null
+      }
+      const data = await res.json() as ChannelAutoSummarizeResponse
+      if (data?.setting) {
+        set(state => ({
+          channelAutoSummarize: { ...state.channelAutoSummarize, [channelId]: data },
+        }))
+      }
+      return data
+    } catch (error) {
+      console.error('Failed to load channel auto-summarize:', error)
+      return null
+    } finally {
+      set(state => ({ isLoadingAutoSummarize: { ...state.isLoadingAutoSummarize, [channelId]: false } }))
+    }
+  },
+
+  // PUT /channels/:id/knowledge/auto-summarize → { setting }
+  // Persists the settings only (does not re-run the summary).
+  updateChannelAutoSummarize: async (channelId, input) => {
+    if (!channelId) return null
+    try {
+      const res = await fetch(`${API_BASE_URL}/channels/${encodeURIComponent(channelId)}/knowledge/auto-summarize`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      })
+      if (!res.ok) {
+        toast.error(`Auto-summarize update failed (${res.status})`)
+        return null
+      }
+      const data = await res.json() as { setting?: ChannelAutoSummarySetting }
+      const setting = data?.setting
+      if (setting) {
+        set(state => {
+          const prev = state.channelAutoSummarize[channelId]
+          return {
+            channelAutoSummarize: {
+              ...state.channelAutoSummarize,
+              [channelId]: { setting, summary: prev?.summary },
+            },
+          }
+        })
+      }
+      return setting || null
+    } catch (error) {
+      console.error('Failed to update channel auto-summarize:', error)
+      toast.error('Auto-summarize update failed')
+      return null
+    }
+  },
+
+  // POST /channels/:id/knowledge/auto-summarize → { setting, summary }
+  // Runs a summary generation synchronously; backend also fires ws channel.summary.updated.
+  runChannelAutoSummarize: async (channelId, input) => {
+    if (!channelId) return null
+    set(state => ({ isRunningAutoSummarize: { ...state.isRunningAutoSummarize, [channelId]: true } }))
+    try {
+      const res = await fetch(`${API_BASE_URL}/channels/${encodeURIComponent(channelId)}/knowledge/auto-summarize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input || {}),
+      })
+      if (!res.ok) {
+        toast.error(`Auto-summarize run failed (${res.status})`)
+        return null
+      }
+      const data = await res.json() as ChannelAutoSummarizeResponse
+      if (data?.setting) {
+        set(state => ({
+          channelAutoSummarize: { ...state.channelAutoSummarize, [channelId]: data },
+        }))
+      }
+      toast.success('Channel summary generated')
+      return data
+    } catch (error) {
+      console.error('Failed to run channel auto-summarize:', error)
+      toast.error('Auto-summarize run failed')
+      return null
+    } finally {
+      set(state => ({ isRunningAutoSummarize: { ...state.isRunningAutoSummarize, [channelId]: false } }))
+    }
+  },
+
+  // Phase 63F: websocket channel.summary.updated handler.
+  // Merges the latest setting + summary into channelAutoSummarize[channelId]
+  // so any open tab re-renders without a fetch. Null payload fields are ignored
+  // so partial updates (e.g. setting-only) don't clobber the other slot.
+  applyChannelSummaryUpdated: (payload) => {
+    if (!payload || !payload.channel_id) return
+    const channelId = payload.channel_id
+    set(state => {
+      const prev = state.channelAutoSummarize[channelId]
+      const setting = payload.setting || prev?.setting
+      if (!setting) return state
+      const summary = payload.summary !== undefined ? payload.summary : prev?.summary
+      return {
+        channelAutoSummarize: {
+          ...state.channelAutoSummarize,
+          [channelId]: { setting, summary: summary || null },
+        },
+      }
+    })
+  },
+
+  // Phase 63F: websocket knowledge.compose.suggestion.generated handler.
+  // Appends a capped, newest-first activity log entry so a co-drafting observer
+  // surface (e.g. #agent-collab) can show who is actively drafting with AI help
+  // without needing to render the full suggestion text. Kept in-memory only.
+  applyComposeSuggestionGenerated: (compose) => {
+    if (!compose) return
+    const composeId = compose.suggestions?.[0]?.id || ''
+    if (!composeId) return
+    set(state => {
+      const entry = {
+        composeId,
+        channelId: compose.channel_id,
+        dmId: compose.dm_id,
+        threadId: compose.thread_id,
+        intent: compose.intent,
+        count: compose.suggestions.length,
+        provider: compose.provider,
+        model: compose.model,
+        at: Date.now(),
+      }
+      const existing = state.composeSuggestionActivity.filter(e => e.composeId !== composeId)
+      return { composeSuggestionActivity: [entry, ...existing].slice(0, 50) }
+    })
   },
 
   // ── Phase 63A: Weekly brief share link ────────────────────────

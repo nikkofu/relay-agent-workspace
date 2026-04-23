@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useMemo, useEffect, useLayoutEffect } fr
 import { 
   Bold, Italic, Strikethrough, Link as LinkIcon, List, ListOrdered, 
   Quote, Code, FileCode, Type, Smile, Globe, Loader2, Paperclip, Send, Mic, Sparkles, X,
-  Wand2, RefreshCw, ThumbsUp, ThumbsDown,
+  Wand2, RefreshCw, ThumbsUp, ThumbsDown, CalendarClock, Users,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -33,7 +33,7 @@ import { useFileStore } from "@/stores/file-store"
 import { useKnowledgeStore } from "@/stores/knowledge-store"
 import { useWorkspaceStore } from "@/stores/workspace-store"
 import { useChannelStore } from "@/stores/channel-store"
-import type { EntitySuggestResult, EntityTextMatch, ComposeSuggestion, ComposeIntent, ComposeScope } from "@/types"
+import type { EntitySuggestResult, EntityTextMatch, ComposeSuggestion, ComposeIntent, ComposeScope, ComposeProposedSlot } from "@/types"
 
 interface MessageComposerProps {
   placeholder?: string
@@ -45,6 +45,28 @@ type TypingScope = {
   channelId?: string
   dmId?: string
   threadId?: string
+}
+
+// Phase 63F: Format a proposed schedule slot. Falls back gracefully when the
+// backend returns placeholder / stub ISO strings so the UI never crashes.
+function formatSlotRange(slot: { starts_at: string; ends_at: string; timezone?: string }): string {
+  const start = safeDate(slot.starts_at)
+  const end = safeDate(slot.ends_at)
+  if (!start) return slot.starts_at || 'Unspecified time'
+  const sameDay = end && start.toDateString() === end.toDateString()
+  const dateLabel = start.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+  const startTime = start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+  const endTime = end ? end.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : ''
+  const tz = slot.timezone ? ` ${slot.timezone}` : ''
+  if (sameDay && endTime) return `${dateLabel}, ${startTime}–${endTime}${tz}`
+  if (endTime) return `${dateLabel} ${startTime} → ${end!.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${endTime}${tz}`
+  return `${dateLabel}, ${startTime}${tz}`
+}
+
+function safeDate(s: string): Date | null {
+  if (!s) return null
+  const d = new Date(s)
+  return isNaN(d.getTime()) ? null : d
 }
 
 export function MessageComposer({ placeholder, onSend, scope }: MessageComposerProps) {
@@ -428,6 +450,28 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
     }
   }, [editor, composeScope, composeFeedback, sendComposeFeedback, composeResult])
 
+  // Phase 63F: Insert a structured schedule slot into the draft as a human-readable
+  // proposal. Clears the editor and replaces it with a short "Proposing …" paragraph
+  // the user can refine before sending. Does not auto-send, mirroring the suggestion
+  // insertion flow.
+  const handleInsertSlot = useCallback((slot: ComposeProposedSlot) => {
+    if (!editor) return
+    const lines: string[] = []
+    lines.push(`Proposing: ${formatSlotRange(slot)}`)
+    if (slot.duration_minutes) lines.push(`Duration: ${slot.duration_minutes}m`)
+    if (slot.timezone) lines.push(`Timezone: ${slot.timezone}`)
+    if (slot.attendee_ids && slot.attendee_ids.length > 0) {
+      lines.push(`Attendees: ${slot.attendee_ids.join(', ')}`)
+    }
+    if (slot.reason) lines.push(`Reason: ${slot.reason}`)
+    const html = lines
+      .map(l => `<p>${l.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>`)
+      .join('')
+    editor.chain().focus().clearContent().insertContent(html).run()
+    setShowComposeSuggestions(false)
+    toast.success('Slot inserted — edit and send when ready')
+  }, [editor])
+
   // Phase 63C/D: thumbs up/down feedback for a specific suggestion (scope-aware)
   const handleSuggestionFeedback = useCallback(async (s: ComposeSuggestion, value: 'up' | 'down') => {
     if (!composeScope || !s.id) return
@@ -622,6 +666,53 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
           )}
           {composeResult && (
             <div className="px-3 py-2 space-y-2">
+              {/* Phase 63F: structured schedule slots (only for intent=schedule).
+                  Renders before the free-text suggestions so calendar-shaped
+                  intent surfaces first. Clicking a chip pipes a proposal paragraph
+                  into the draft editor (not auto-sent). */}
+              {composeResult.intent === 'schedule' && composeResult.proposed_slots && composeResult.proposed_slots.length > 0 && (
+                <div className="rounded-lg border border-amber-400/40 bg-amber-500/5 p-2 space-y-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <CalendarClock className="w-3 h-3 text-amber-600" />
+                    <span className="text-[9px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">
+                      Proposed slots ({composeResult.proposed_slots.length})
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {composeResult.proposed_slots.map((slot, i) => {
+                      const label = formatSlotRange(slot)
+                      const attendeeCount = slot.attendee_ids?.length || 0
+                      return (
+                        <button
+                          key={`${slot.starts_at}-${i}`}
+                          type="button"
+                          onClick={() => handleInsertSlot(slot)}
+                          className="inline-flex items-center gap-1.5 text-[10px] rounded-md border border-amber-400/40 bg-background/70 hover:bg-amber-500/10 hover:border-amber-500/60 text-amber-800 dark:text-amber-300 px-2 py-1 transition-colors group"
+                          title={slot.reason ? `${label} · ${slot.reason}` : label}
+                        >
+                          <CalendarClock className="w-2.5 h-2.5 shrink-0 text-amber-600" />
+                          <span className="font-bold">{label}</span>
+                          {slot.duration_minutes ? (
+                            <span className="text-[9px] font-mono text-amber-700/80 dark:text-amber-300/80">
+                              {slot.duration_minutes}m
+                            </span>
+                          ) : null}
+                          {attendeeCount > 0 && (
+                            <span className="inline-flex items-center gap-0.5 text-[9px] text-amber-700/80 dark:text-amber-300/80">
+                              <Users className="w-2.5 h-2.5" />
+                              {attendeeCount}
+                            </span>
+                          )}
+                          <Sparkles className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity text-amber-600" />
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <p className="text-[9px] text-muted-foreground italic">
+                    Click a slot to draft a scheduling proposal. You can still edit before sending.
+                  </p>
+                </div>
+              )}
               {composeResult.suggestions.length === 0 && (
                 <p className="text-[11px] text-muted-foreground italic">No suggestions returned.</p>
               )}
