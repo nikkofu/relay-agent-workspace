@@ -49,6 +49,7 @@ func InitDB() error {
 		&domain.WorkspaceList{},
 		&domain.WorkspaceListItem{},
 		&domain.Message{},
+		&domain.MessageMention{},
 		&domain.MessageReaction{},
 		&domain.SavedMessage{},
 		&domain.Draft{},

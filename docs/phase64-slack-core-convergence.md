@@ -104,3 +104,17 @@ Remembered next continuations from the user decision:
 
 - `2`: continue strengthening the unified feed itself
 - `3`: then broaden into larger Slack-like capability work outside the feed slice
+
+## Phase 65A Continuation Record
+
+Delivered in `v0.6.36` as the first concrete continuation of remembered follow-up `2`:
+
+- durable `@user` mention persistence via `MessageMention`
+- unified feed `mention_kind=user|entity`
+- `GET /api/v1/mentions` and inbox mention alignment on the same persisted source
+- realtime `mention.created`
+
+This keeps the product on the chosen path:
+
+- first, keep hardening the shared feed/inbox/message semantics
+- next, continue into the broader Slack-like surface expansion tracked as remembered follow-up `3`

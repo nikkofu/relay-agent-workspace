@@ -1895,10 +1895,11 @@ func TestGetActivityReturnsRecentWorkspaceSignals(t *testing.T) {
 	db.DB.Create(&domain.ChannelMember{ChannelID: "ch-1", UserID: "user-1", Role: "member"})
 	parent := domain.Message{ID: "msg-parent", ChannelID: "ch-1", UserID: "user-1", Content: "Root update", CreatedAt: now.Add(-2 * time.Hour), Metadata: "{}"}
 	reply := domain.Message{ID: "msg-reply", ChannelID: "ch-1", UserID: "user-3", Content: "Replying in thread", ThreadID: "msg-parent", CreatedAt: now.Add(-time.Hour), Metadata: "{}"}
-	mention := domain.Message{ID: "msg-mention", ChannelID: "ch-1", UserID: "user-2", Content: "Looping in Nikko Fu for review", CreatedAt: now.Add(-30 * time.Minute), Metadata: "{}"}
+	mention := domain.Message{ID: "msg-mention", ChannelID: "ch-1", UserID: "user-2", Content: "@Nikko Fu for review", CreatedAt: now.Add(-30 * time.Minute), Metadata: `{"user_mentions":[{"user_id":"user-1","name":"Nikko Fu","mention_text":"@Nikko Fu"}]}`}
 	db.DB.Create(&parent)
 	db.DB.Create(&reply)
 	db.DB.Create(&mention)
+	db.DB.Create(&domain.MessageMention{ID: "mm-activity-1", MessageID: "msg-mention", WorkspaceID: "ws-1", ChannelID: "ch-1", MentionedUserID: "user-1", MentionedByUserID: "user-2", MentionText: "@Nikko Fu", MentionKind: "user", CreatedAt: now.Add(-30 * time.Minute)})
 	db.DB.Create(&domain.MessageReaction{MessageID: "msg-parent", UserID: "user-2", Emoji: "🔥", CreatedAt: now.Add(-20 * time.Minute)})
 	db.DB.Create(&domain.WorkspaceList{ID: "list-1", WorkspaceID: "ws-1", ChannelID: "ch-1", Title: "Launch Checklist", CreatedBy: "user-2", CreatedAt: now.Add(-18 * time.Minute), UpdatedAt: now.Add(-14 * time.Minute)})
 	db.DB.Create(&domain.WorkspaceListItem{ID: 1, ListID: "list-1", Content: "Review launch copy", Position: 1, IsCompleted: true, AssignedTo: "user-1", CompletedAt: ptrTime(now.Add(-14 * time.Minute)), CreatedBy: "user-2", CreatedAt: now.Add(-18 * time.Minute), UpdatedAt: now.Add(-14 * time.Minute)})
@@ -1963,10 +1964,11 @@ func TestGetInboxReturnsAggregatedSignals(t *testing.T) {
 	db.DB.Create(&domain.ChannelMember{ChannelID: "ch-1", UserID: "user-1", Role: "member"})
 	parent := domain.Message{ID: "msg-parent", ChannelID: "ch-1", UserID: "user-1", Content: "Root update", CreatedAt: now.Add(-2 * time.Hour), Metadata: "{}"}
 	reply := domain.Message{ID: "msg-reply", ChannelID: "ch-1", UserID: "user-3", Content: "Replying in thread", ThreadID: "msg-parent", CreatedAt: now.Add(-time.Hour), Metadata: "{}"}
-	mention := domain.Message{ID: "msg-mention", ChannelID: "ch-1", UserID: "user-2", Content: "Looping in Nikko Fu for review", CreatedAt: now.Add(-30 * time.Minute), Metadata: "{}"}
+	mention := domain.Message{ID: "msg-mention", ChannelID: "ch-1", UserID: "user-2", Content: "@Nikko Fu for review", CreatedAt: now.Add(-30 * time.Minute), Metadata: `{"user_mentions":[{"user_id":"user-1","name":"Nikko Fu","mention_text":"@Nikko Fu"}]}`}
 	db.DB.Create(&parent)
 	db.DB.Create(&reply)
 	db.DB.Create(&mention)
+	db.DB.Create(&domain.MessageMention{ID: "mm-inbox-1", MessageID: "msg-mention", WorkspaceID: "ws-1", ChannelID: "ch-1", MentionedUserID: "user-1", MentionedByUserID: "user-2", MentionText: "@Nikko Fu", MentionKind: "user", CreatedAt: now.Add(-30 * time.Minute)})
 	db.DB.Create(&domain.MessageReaction{MessageID: "msg-parent", UserID: "user-2", Emoji: "🔥", CreatedAt: now.Add(-20 * time.Minute)})
 	db.DB.Create(&domain.WorkspaceList{ID: "list-1", WorkspaceID: "ws-1", ChannelID: "ch-1", Title: "Launch Checklist", CreatedBy: "user-2", CreatedAt: now.Add(-18 * time.Minute), UpdatedAt: now.Add(-14 * time.Minute)})
 	db.DB.Create(&domain.WorkspaceListItem{ID: 1, ListID: "list-1", Content: "Review launch copy", Position: 1, IsCompleted: true, AssignedTo: "user-1", CompletedAt: ptrTime(now.Add(-14 * time.Minute)), CreatedBy: "user-2", CreatedAt: now.Add(-18 * time.Minute), UpdatedAt: now.Add(-14 * time.Minute)})
@@ -2011,8 +2013,9 @@ func TestGetMentionsReturnsOnlyDirectMentions(t *testing.T) {
 		db.DB.Create(&user)
 	}
 	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public"})
-	db.DB.Create(&domain.Message{ID: "msg-mention", ChannelID: "ch-1", UserID: "user-2", Content: "Looping in Nikko Fu for review", CreatedAt: now.Add(-10 * time.Minute), Metadata: "{}"})
+	db.DB.Create(&domain.Message{ID: "msg-mention", ChannelID: "ch-1", UserID: "user-2", Content: "@Nikko Fu for review", CreatedAt: now.Add(-10 * time.Minute), Metadata: `{"user_mentions":[{"user_id":"user-1","name":"Nikko Fu","mention_text":"@Nikko Fu"}]}`})
 	db.DB.Create(&domain.Message{ID: "msg-other", ChannelID: "ch-1", UserID: "user-2", Content: "No direct mention here", CreatedAt: now.Add(-5 * time.Minute), Metadata: "{}"})
+	db.DB.Create(&domain.MessageMention{ID: "mm-1", MessageID: "msg-mention", WorkspaceID: "ws-1", ChannelID: "ch-1", MentionedUserID: "user-1", MentionedByUserID: "user-2", MentionText: "@Nikko Fu", MentionKind: "user", CreatedAt: now.Add(-10 * time.Minute)})
 
 	router := gin.New()
 	router.GET("/api/v1/mentions", GetMentions)
@@ -2471,9 +2474,20 @@ func TestInboxIncludesReadStateAndNotificationsCanBeMarkedRead(t *testing.T) {
 		ID:        "msg-mention",
 		ChannelID: "ch-1",
 		UserID:    "user-2",
-		Content:   "Looping in Nikko Fu for review",
+		Content:   "@Nikko Fu for review",
 		CreatedAt: now,
-		Metadata:  "{}",
+		Metadata:  `{"user_mentions":[{"user_id":"user-1","name":"Nikko Fu","mention_text":"@Nikko Fu"}]}`,
+	})
+	db.DB.Create(&domain.MessageMention{
+		ID:                "mm-read-1",
+		MessageID:         "msg-mention",
+		WorkspaceID:       "ws-1",
+		ChannelID:         "ch-1",
+		MentionedUserID:   "user-1",
+		MentionedByUserID: "user-2",
+		MentionText:       "@Nikko Fu",
+		MentionKind:       "user",
+		CreatedAt:         now,
 	})
 
 	router := gin.New()
@@ -6567,6 +6581,287 @@ func TestPhase64CMentionAndReactionFeedItems(t *testing.T) {
 	}
 }
 
+func TestPhase65AChannelMessagePersistsUserMentions(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.User{ID: "user-2", Name: "Jane Smith", Email: "jane@example.com"})
+	db.DB.Create(&domain.User{ID: "user-3", Name: "Ann Lee", Email: "ann@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public"})
+
+	router := gin.New()
+	router.POST("/api/v1/messages", CreateMessage)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/messages", bytes.NewBufferString(`{"channel_id":"ch-1","content":"@Jane Smith please sync with @Ann Lee and @Jane Smith again","user_id":"user-1"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on message create, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Message struct {
+			ID       string `json:"id"`
+			Metadata string `json:"metadata"`
+		} `json:"message"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode message create payload: %v", err)
+	}
+
+	var meta struct {
+		UserMentions []struct {
+			UserID      string `json:"user_id"`
+			Name        string `json:"name"`
+			MentionText string `json:"mention_text"`
+		} `json:"user_mentions"`
+	}
+	if err := json.Unmarshal([]byte(payload.Message.Metadata), &meta); err != nil {
+		t.Fatalf("failed to decode message metadata: %v", err)
+	}
+	if len(meta.UserMentions) != 2 {
+		t.Fatalf("expected 2 deduped user mentions in metadata, got %#v", meta.UserMentions)
+	}
+
+	var mentions []domain.MessageMention
+	if err := db.DB.Order("mentioned_user_id asc").Find(&mentions, "message_id = ?", payload.Message.ID).Error; err != nil {
+		t.Fatalf("failed to load message mentions: %v", err)
+	}
+	if len(mentions) != 2 {
+		t.Fatalf("expected 2 persisted message mentions, got %#v", mentions)
+	}
+	if mentions[0].WorkspaceID != "ws-1" || mentions[0].ChannelID != "ch-1" || mentions[0].MentionedByUserID != "user-1" || mentions[0].DMID != "" {
+		t.Fatalf("unexpected first message mention row: %#v", mentions[0])
+	}
+}
+
+func TestPhase65ADMMessagePersistsUserMentions(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.Workspace{ID: "ws-1", Name: "Relay"})
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.User{ID: "user-2", Name: "Jane Smith", Email: "jane@example.com"})
+	db.DB.Create(&domain.DMConversation{ID: "dm-1", CreatedAt: time.Now().UTC()})
+	db.DB.Create(&domain.DMMember{DMConversationID: "dm-1", UserID: "user-1"})
+	db.DB.Create(&domain.DMMember{DMConversationID: "dm-1", UserID: "user-2"})
+
+	router := gin.New()
+	router.POST("/api/v1/dms/:id/messages", CreateDMMessage)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/dms/dm-1/messages", bytes.NewBufferString(`{"content":"@Jane Smith please review","user_id":"user-1"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on dm message create, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Message struct {
+			ID string `json:"id"`
+		} `json:"message"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode dm message create payload: %v", err)
+	}
+
+	var mentions []domain.MessageMention
+	if err := db.DB.Find(&mentions, "message_id = ?", payload.Message.ID).Error; err != nil {
+		t.Fatalf("failed to load dm message mentions: %v", err)
+	}
+	if len(mentions) != 1 {
+		t.Fatalf("expected 1 persisted dm message mention, got %#v", mentions)
+	}
+	if mentions[0].WorkspaceID != "ws-1" || mentions[0].DMID != "dm-1" || mentions[0].ChannelID != "" || mentions[0].MentionedUserID != "user-2" || mentions[0].MentionedByUserID != "user-1" {
+		t.Fatalf("unexpected dm message mention row: %#v", mentions[0])
+	}
+}
+
+func TestPhase65AGetMentionsUsesMessageMention(t *testing.T) {
+	setupTestDB(t)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.User{ID: "user-2", Name: "Jane Smith", Email: "jane@example.com"})
+	db.DB.Create(&domain.User{ID: "user-3", Name: "Ann Lee", Email: "ann@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public"})
+	db.DB.Create(&domain.Message{ID: "msg-1", ChannelID: "ch-1", UserID: "user-2", Content: "@Nikko Fu please review", CreatedAt: now.Add(-10 * time.Minute), Metadata: `{"user_mentions":[{"user_id":"user-1","name":"Nikko Fu","mention_text":"@Nikko Fu"}]}`})
+	db.DB.Create(&domain.Message{ID: "msg-2", ChannelID: "ch-1", UserID: "user-1", Content: "@Nikko Fu self note", CreatedAt: now.Add(-5 * time.Minute), Metadata: `{"user_mentions":[{"user_id":"user-1","name":"Nikko Fu","mention_text":"@Nikko Fu"}]}`})
+	db.DB.Create(&domain.MessageMention{ID: "mm-1", MessageID: "msg-1", WorkspaceID: "ws-1", ChannelID: "ch-1", MentionedUserID: "user-1", MentionedByUserID: "user-2", MentionText: "@Nikko Fu", MentionKind: "user", CreatedAt: now.Add(-10 * time.Minute)})
+	db.DB.Create(&domain.MessageMention{ID: "mm-2", MessageID: "msg-2", WorkspaceID: "ws-1", ChannelID: "ch-1", MentionedUserID: "user-1", MentionedByUserID: "user-1", MentionText: "@Nikko Fu", MentionKind: "user", CreatedAt: now.Add(-5 * time.Minute)})
+
+	router := gin.New()
+	router.GET("/api/v1/mentions", GetMentions)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/mentions", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on mentions, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode mentions payload: %v", err)
+	}
+	if len(payload.Items) != 1 {
+		t.Fatalf("expected exactly 1 mention item from persisted mentions, got %#v", payload.Items)
+	}
+	if payload.Items[0]["type"] != "mention" {
+		t.Fatalf("expected mention type, got %#v", payload.Items[0])
+	}
+}
+
+func TestPhase65AUnifiedFeedReturnsUserMentionRows(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.Workspace{ID: "ws-1", Name: "Relay"})
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.User{ID: "user-2", Name: "Jane Smith", Email: "jane@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	db.DB.Create(&domain.Message{ID: "msg-user-mention", ChannelID: "ch-1", UserID: "user-2", Content: "@Nikko Fu please review", CreatedAt: now.Add(-10 * time.Minute), Metadata: `{"user_mentions":[{"user_id":"user-1","name":"Nikko Fu","mention_text":"@Nikko Fu"}]}`})
+	db.DB.Create(&domain.MessageMention{ID: "mm-1", MessageID: "msg-user-mention", WorkspaceID: "ws-1", ChannelID: "ch-1", MentionedUserID: "user-1", MentionedByUserID: "user-2", MentionText: "@Nikko Fu", MentionKind: "user", CreatedAt: now.Add(-10 * time.Minute)})
+	db.DB.Create(&domain.Message{ID: "msg-entity-mention", ChannelID: "ch-1", UserID: "user-2", Content: "@Launch Program is ready", CreatedAt: now.Add(-9 * time.Minute), Metadata: `{"entity_mentions":[{"entity_id":"entity-1","entity_title":"Launch Program","entity_kind":"project","source_kind":"explicit","mention_text":"@Launch Program"}]}`})
+
+	router := gin.New()
+	router.GET("/api/v1/activity/feed", GetActivityFeed)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/activity/feed?workspace_id=ws-1&event_type=mention&limit=10", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 when loading mention feed, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Items []struct {
+			EventType string         `json:"event_type"`
+			ActorID   string         `json:"actor_id"`
+			ChannelID string         `json:"channel_id"`
+			Meta      map[string]any `json:"meta"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode activity feed payload: %v", err)
+	}
+	if len(payload.Items) < 2 {
+		t.Fatalf("expected both user and entity mention rows, got %#v", payload.Items)
+	}
+
+	var sawUser, sawEntity bool
+	for _, item := range payload.Items {
+		if item.EventType != "mention" {
+			t.Fatalf("expected only mention rows, got %#v", item)
+		}
+		switch item.Meta["mention_kind"] {
+		case "user":
+			sawUser = true
+			if item.ActorID != "user-2" || item.ChannelID != "ch-1" || item.Meta["mentioned_user_id"] != "user-1" || item.Meta["message_id"] != "msg-user-mention" {
+				t.Fatalf("unexpected user mention feed item: %#v", item)
+			}
+		case "entity":
+			sawEntity = true
+		}
+	}
+	if !sawUser || !sawEntity {
+		t.Fatalf("expected both mention kinds in feed, got %#v", payload.Items)
+	}
+}
+
+func TestPhase65AInboxMentionBranchUsesMessageMention(t *testing.T) {
+	setupTestDB(t)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.User{ID: "user-2", Name: "Jane Smith", Email: "jane@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public"})
+	db.DB.Create(&domain.Message{ID: "msg-1", ChannelID: "ch-1", UserID: "user-2", Content: "@Nikko Fu please review", CreatedAt: now.Add(-10 * time.Minute), Metadata: `{"user_mentions":[{"user_id":"user-1","name":"Nikko Fu","mention_text":"@Nikko Fu"}]}`})
+	db.DB.Create(&domain.MessageMention{ID: "mm-1", MessageID: "msg-1", WorkspaceID: "ws-1", ChannelID: "ch-1", MentionedUserID: "user-1", MentionedByUserID: "user-2", MentionText: "@Nikko Fu", MentionKind: "user", CreatedAt: now.Add(-10 * time.Minute)})
+
+	router := gin.New()
+	router.GET("/api/v1/inbox", GetInbox)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/inbox", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on inbox, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode inbox payload: %v", err)
+	}
+	if len(payload.Items) == 0 {
+		t.Fatalf("expected inbox mention item, got %#v", payload.Items)
+	}
+	if payload.Items[0]["type"] != "mention" {
+		t.Fatalf("expected mention inbox item, got %#v", payload.Items[0])
+	}
+}
+
+func TestPhase65AMentionCreatedBroadcast(t *testing.T) {
+	setupTestDB(t)
+
+	hub := realtime.NewHub()
+	go hub.Run()
+	SetRealtimeHub(hub)
+	defer SetRealtimeHub(nil)
+
+	client := realtime.NewTestClient(8)
+	hub.RegisterTestClient(client)
+	defer hub.UnregisterTestClient(client)
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.User{ID: "user-2", Name: "Jane Smith", Email: "jane@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public"})
+
+	router := gin.New()
+	router.POST("/api/v1/messages", CreateMessage)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/messages", bytes.NewBufferString(`{"channel_id":"ch-1","content":"@Jane Smith please review","user_id":"user-1"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on message create, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var sawMention bool
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		raw, err := client.Receive(200 * time.Millisecond)
+		if err != nil {
+			continue
+		}
+		var event realtime.Event
+		if err := json.Unmarshal(raw, &event); err != nil {
+			t.Fatalf("failed to decode realtime event: %v", err)
+		}
+		if event.Type == "mention.created" {
+			sawMention = true
+			payload, ok := event.Payload.(map[string]any)
+			if !ok {
+				t.Fatalf("expected map payload, got %#v", event.Payload)
+			}
+			if payload["mentioned_user_id"] != "user-2" {
+				t.Fatalf("expected mentioned_user_id in payload, got %#v", payload)
+			}
+			break
+		}
+	}
+	if !sawMention {
+		t.Fatal("expected mention.created realtime event")
+	}
+}
+
 func TestPhase63HEntityBriefAutomationLifecycle(t *testing.T) {
 	setupTestDB(t)
 
@@ -7040,7 +7335,7 @@ func setupTestDB(t *testing.T) {
 		t.Fatalf("failed to open sqlite test db: %v", err)
 	}
 	db.DB = testDB
-	if err := db.DB.AutoMigrate(&domain.Organization{}, &domain.Team{}, &domain.User{}, &domain.Agent{}, &domain.Workspace{}, &domain.WorkspaceInvite{}, &domain.UserGroup{}, &domain.UserGroupMember{}, &domain.WorkflowDefinition{}, &domain.WorkflowRunStep{}, &domain.WorkflowRunLog{}, &domain.ToolDefinition{}, &domain.ToolRun{}, &domain.ToolRunLog{}, &domain.Channel{}, &domain.ChannelMember{}, &domain.ChannelPreference{}, &domain.WorkspaceList{}, &domain.WorkspaceListItem{}, &domain.Message{}); err != nil {
+	if err := db.DB.AutoMigrate(&domain.Organization{}, &domain.Team{}, &domain.User{}, &domain.Agent{}, &domain.Workspace{}, &domain.WorkspaceInvite{}, &domain.UserGroup{}, &domain.UserGroupMember{}, &domain.WorkflowDefinition{}, &domain.WorkflowRunStep{}, &domain.WorkflowRunLog{}, &domain.ToolDefinition{}, &domain.ToolRun{}, &domain.ToolRunLog{}, &domain.Channel{}, &domain.ChannelMember{}, &domain.ChannelPreference{}, &domain.WorkspaceList{}, &domain.WorkspaceListItem{}, &domain.Message{}, &domain.MessageMention{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.NotificationPreference{}, &domain.NotificationMuteRule{}, &domain.AIFeedback{}, &domain.AIComposeFeedback{}, &domain.AIComposeActivity{}, &domain.AIAutomationJob{}, &domain.AIScheduleBooking{}, &domain.AIConversation{}, &domain.AIConversationMessage{}, &domain.AISummary{}, &domain.ChannelAutoSummarySetting{}, &domain.KnowledgeEntityAskAnswer{}, &domain.Artifact{}, &domain.ArtifactVersion{}, &domain.FileAsset{}, &domain.FileAssetEvent{}, &domain.FileExtraction{}, &domain.FileExtractionChunk{}, &domain.FileComment{}, &domain.FileShare{}, &domain.StarredFile{}, &domain.MessageArtifactReference{}, &domain.MessageFileAttachment{}, &domain.KnowledgeEvidenceLink{}, &domain.KnowledgeEvidenceEntityRef{}, &domain.KnowledgeEntity{}, &domain.KnowledgeEntityRef{}, &domain.KnowledgeEntityLink{}, &domain.KnowledgeEvent{}, &domain.KnowledgeEntityFollow{}, &domain.KnowledgeDigestSchedule{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}, &domain.WorkflowRun{}); err != nil {

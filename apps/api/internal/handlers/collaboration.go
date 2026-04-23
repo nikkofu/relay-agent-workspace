@@ -5,13 +5,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"log"
 	"net/http"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -63,11 +66,18 @@ type messageAttachment struct {
 	Preview        *filePreviewResponse `json:"preview,omitempty"`
 }
 
+type messageUserMention struct {
+	UserID      string `json:"user_id"`
+	Name        string `json:"name"`
+	MentionText string `json:"mention_text"`
+}
+
 var CollabSnapshotPath = agentcollab.DefaultPath()
 
 type messageMetadata struct {
 	Reactions       []reactionSummary                 `json:"reactions,omitempty"`
 	Attachments     []messageAttachment               `json:"attachments,omitempty"`
+	UserMentions    []messageUserMention              `json:"user_mentions,omitempty"`
 	EntityMentions  []knowledge.MentionedEntity       `json:"entity_mentions,omitempty"`
 	KnowledgeDigest *knowledge.ChannelKnowledgeDigest `json:"knowledge_digest,omitempty"`
 }
@@ -288,6 +298,281 @@ func decodeMessageMetadata(message domain.Message) messageMetadata {
 	return meta
 }
 
+func normalizeMentionContent(content string) string {
+	plain := strings.TrimSpace(content)
+	if plain == "" {
+		return ""
+	}
+	tagPattern := regexp.MustCompile(`<[^>]+>`)
+	plain = tagPattern.ReplaceAllString(plain, " ")
+	plain = html.UnescapeString(plain)
+	return strings.Join(strings.Fields(plain), " ")
+}
+
+func hasOccupiedRange(start, end int, occupied map[int]struct{}) bool {
+	for idx := start; idx < end; idx++ {
+		if _, exists := occupied[idx]; exists {
+			return true
+		}
+	}
+	return false
+}
+
+func findExplicitMentionRange(lowerContent, lowerMention string, occupied map[int]struct{}) (int, int, bool) {
+	contentRunes := []rune(lowerContent)
+	mentionRunes := []rune(lowerMention)
+	if len(mentionRunes) == 0 || len(contentRunes) < len(mentionRunes) {
+		return 0, 0, false
+	}
+
+	for idx := 0; idx <= len(contentRunes)-len(mentionRunes); idx++ {
+		if string(contentRunes[idx:idx+len(mentionRunes)]) != lowerMention {
+			continue
+		}
+		if hasOccupiedRange(idx, idx+len(mentionRunes), occupied) {
+			continue
+		}
+		if idx > 0 {
+			prev := contentRunes[idx-1]
+			if unicode.IsLetter(prev) || unicode.IsDigit(prev) {
+				continue
+			}
+		}
+		end := idx + len(mentionRunes)
+		if end < len(contentRunes) {
+			next := contentRunes[end]
+			if unicode.IsLetter(next) || unicode.IsDigit(next) {
+				continue
+			}
+		}
+		return idx, end, true
+	}
+
+	return 0, 0, false
+}
+
+func loadUserNameByID(userID string) string {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return ""
+	}
+
+	var user domain.User
+	if err := db.DB.First(&user, "id = ?", userID).Error; err != nil {
+		return ""
+	}
+	return strings.TrimSpace(user.Name)
+}
+
+func findExplicitUserMentions(content string, users []domain.User) []messageUserMention {
+	plain := normalizeMentionContent(content)
+	if plain == "" || !strings.Contains(plain, "@") {
+		return nil
+	}
+
+	lowerContent := strings.ToLower(plain)
+	sort.SliceStable(users, func(i, j int) bool {
+		nameI := strings.TrimSpace(users[i].Name)
+		nameJ := strings.TrimSpace(users[j].Name)
+		if len(nameI) == len(nameJ) {
+			return nameI < nameJ
+		}
+		return len(nameI) > len(nameJ)
+	})
+
+	mentions := make([]messageUserMention, 0)
+	seen := map[string]struct{}{}
+	occupied := map[int]struct{}{}
+	for _, user := range users {
+		name := strings.TrimSpace(user.Name)
+		if name == "" {
+			continue
+		}
+		mentionText := "@" + name
+		start, end, ok := findExplicitMentionRange(lowerContent, strings.ToLower(mentionText), occupied)
+		if !ok {
+			continue
+		}
+		if _, exists := seen[user.ID]; exists {
+			continue
+		}
+		for idx := start; idx < end; idx++ {
+			occupied[idx] = struct{}{}
+		}
+		seen[user.ID] = struct{}{}
+		mentions = append(mentions, messageUserMention{
+			UserID:      user.ID,
+			Name:        name,
+			MentionText: mentionText,
+		})
+	}
+
+	return mentions
+}
+
+func loadMentionUsersForChannel(channelID string) (string, []domain.User, error) {
+	var channel domain.Channel
+	if err := db.DB.First(&channel, "id = ?", channelID).Error; err != nil {
+		return "", nil, err
+	}
+
+	workspaceID := strings.TrimSpace(channel.WorkspaceID)
+	users := make([]domain.User, 0)
+	if workspaceID != "" {
+		var workspace domain.Workspace
+		if err := db.DB.First(&workspace, "id = ?", workspaceID).Error; err == nil && strings.TrimSpace(workspace.OrganizationID) != "" {
+			if err := db.DB.Where("organization_id = ?", workspace.OrganizationID).Order("name asc").Find(&users).Error; err != nil {
+				return workspaceID, nil, err
+			}
+			return workspaceID, users, nil
+		}
+	}
+
+	if err := db.DB.Order("name asc").Find(&users).Error; err != nil {
+		return workspaceID, nil, err
+	}
+	return workspaceID, users, nil
+}
+
+func loadMentionUsersForDM(dmID string) (string, []domain.User, error) {
+	workspaceID := primaryWorkspaceID()
+	var members []domain.DMMember
+	if err := db.DB.Where("dm_conversation_id = ?", dmID).Order("id asc").Find(&members).Error; err != nil {
+		return workspaceID, nil, err
+	}
+	if len(members) == 0 {
+		var users []domain.User
+		if err := db.DB.Order("name asc").Find(&users).Error; err != nil {
+			return workspaceID, nil, err
+		}
+		return workspaceID, users, nil
+	}
+
+	memberIDs := make([]string, 0, len(members))
+	for _, member := range members {
+		if strings.TrimSpace(member.UserID) == "" {
+			continue
+		}
+		memberIDs = append(memberIDs, member.UserID)
+	}
+	if len(memberIDs) == 0 {
+		return workspaceID, []domain.User{}, nil
+	}
+
+	var users []domain.User
+	if err := db.DB.Where("id IN ?", memberIDs).Order("name asc").Find(&users).Error; err != nil {
+		return workspaceID, nil, err
+	}
+	return workspaceID, users, nil
+}
+
+func broadcastMentionCreatedEvent(workspaceID, channelID, messageID string, payload any) error {
+	if RealtimeHub == nil {
+		return nil
+	}
+
+	if strings.TrimSpace(workspaceID) == "" {
+		var workspace domain.Workspace
+		if err := db.DB.Order("id asc").First(&workspace).Error; err == nil {
+			workspaceID = workspace.ID
+		}
+	}
+
+	return RealtimeHub.Broadcast(realtime.Event{
+		ID:          "evt_" + time.Now().Format("20060102150405.000000"),
+		Type:        "mention.created",
+		WorkspaceID: workspaceID,
+		ChannelID:   channelID,
+		EntityID:    messageID,
+		TS:          time.Now().UTC().Format(time.RFC3339Nano),
+		Payload:     payload,
+	})
+}
+
+func persistMessageMentions(messageID, workspaceID, channelID, dmID, mentionedByUserID, content string, users []domain.User) {
+	mentions := findExplicitUserMentions(content, users)
+	if len(mentions) == 0 {
+		return
+	}
+
+	var message domain.Message
+	messageLoaded := false
+	if err := db.DB.First(&message, "id = ?", messageID).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) || strings.TrimSpace(dmID) == "" {
+			log.Printf("[collab] mention metadata refresh skipped for message %s: %v", messageID, err)
+		}
+	} else {
+		messageLoaded = true
+	}
+
+	persisted := make([]messageUserMention, 0, len(mentions))
+	now := time.Now().UTC()
+	scopeType := "channel"
+	scopeID := channelID
+	if strings.TrimSpace(dmID) != "" {
+		scopeType = "dm"
+		scopeID = dmID
+	}
+
+	for _, mention := range mentions {
+		row := domain.MessageMention{
+			ID:                ids.NewPrefixedUUID("mm"),
+			MessageID:         messageID,
+			WorkspaceID:       workspaceID,
+			ChannelID:         channelID,
+			DMID:              dmID,
+			MentionedUserID:   mention.UserID,
+			MentionedByUserID: mentionedByUserID,
+			MentionText:       mention.MentionText,
+			MentionKind:       "user",
+			CreatedAt:         now,
+		}
+
+		if err := db.DB.Where(domain.MessageMention{
+			MessageID:       messageID,
+			MentionedUserID: mention.UserID,
+			MentionKind:     "user",
+		}).FirstOrCreate(&row).Error; err != nil {
+			log.Printf("[collab] failed to persist message mention for message %s user %s: %v", messageID, mention.UserID, err)
+			continue
+		}
+
+		mention.Name = loadUserNameByID(mention.UserID)
+		persisted = append(persisted, mention)
+
+		if err := broadcastMentionCreatedEvent(workspaceID, channelID, messageID, gin.H{
+			"message_id":           messageID,
+			"mentioned_user_id":    mention.UserID,
+			"mentioned_by_user_id": mentionedByUserID,
+			"mention_text":         mention.MentionText,
+			"mention_kind":         "user",
+			"workspace_id":         workspaceID,
+			"channel_id":           channelID,
+			"dm_id":                dmID,
+			"scope_type":           scopeType,
+			"scope_id":             scopeID,
+		}); err != nil {
+			log.Printf("[collab] failed to broadcast mention.created for message %s user %s: %v", messageID, mention.UserID, err)
+		}
+	}
+
+	if len(persisted) == 0 || !messageLoaded {
+		return
+	}
+
+	meta := decodeMessageMetadata(message)
+	meta.UserMentions = persisted
+	metadataJSON, err := json.Marshal(meta)
+	if err != nil {
+		log.Printf("[collab] failed to marshal mention metadata for message %s: %v", messageID, err)
+		return
+	}
+
+	if err := db.DB.Model(&domain.Message{}).Where("id = ?", messageID).Update("metadata", string(metadataJSON)).Error; err != nil {
+		log.Printf("[collab] failed to update mention metadata for message %s: %v", messageID, err)
+	}
+}
+
 func refreshMessageMetadata(messageID string) (*domain.Message, error) {
 	var message domain.Message
 	if err := db.DB.First(&message, "id = ?", messageID).Error; err != nil {
@@ -339,6 +624,23 @@ func refreshMessageMetadata(messageID string) (*domain.Message, error) {
 		meta.EntityMentions = entityMentions
 	} else if err != gorm.ErrRecordNotFound {
 		return nil, err
+	}
+
+	var mentions []domain.MessageMention
+	if err := db.DB.Where("message_id = ? AND mention_kind = ?", messageID, "user").Order("created_at asc, id asc").Find(&mentions).Error; err != nil {
+		return nil, err
+	}
+	if len(mentions) == 0 {
+		meta.UserMentions = nil
+	} else {
+		meta.UserMentions = make([]messageUserMention, 0, len(mentions))
+		for _, mention := range mentions {
+			meta.UserMentions = append(meta.UserMentions, messageUserMention{
+				UserID:      mention.MentionedUserID,
+				Name:        loadUserNameByID(mention.MentionedUserID),
+				MentionText: mention.MentionText,
+			})
+		}
 	}
 
 	metadataJSON, err := json.Marshal(meta)
@@ -472,27 +774,46 @@ type activityItem struct {
 
 func buildActivityFeed(currentUser domain.User) []activityItem {
 	activities := make([]activityItem, 0)
-	nameNeedle := strings.ToLower(currentUser.Name)
+	var mentionRows []domain.MessageMention
+	if err := db.DB.Where("mentioned_user_id = ? AND mentioned_by_user_id <> ? AND mention_kind = ?", currentUser.ID, currentUser.ID, "user").Order("created_at desc").Find(&mentionRows).Error; err == nil {
+		for _, mention := range mentionRows {
+			var actor domain.User
+			if err := db.DB.First(&actor, "id = ?", mention.MentionedByUserID).Error; err != nil {
+				continue
+			}
 
-	var mentionMessages []domain.Message
-	db.DB.Where("user_id <> ? AND LOWER(content) LIKE ?", currentUser.ID, "%"+nameNeedle+"%").Order("created_at desc").Find(&mentionMessages)
-	for _, message := range mentionMessages {
-		var actor domain.User
-		var channel domain.Channel
-		if err := db.DB.First(&actor, "id = ?", message.UserID).Error; err != nil {
-			continue
+			item := activityItem{
+				ID:         "activity-mention-" + mention.ID,
+				Type:       "mention",
+				User:       enrichUser(actor),
+				Message:    nil,
+				Target:     "DM",
+				Summary:    actor.Name + " mentioned you",
+				OccurredAt: mention.CreatedAt,
+			}
+
+			if mention.ChannelID != "" {
+				var message domain.Message
+				if err := db.DB.First(&message, "id = ?", mention.MessageID).Error; err == nil {
+					item.Message = message
+				}
+				var channel domain.Channel
+				if err := db.DB.First(&channel, "id = ?", mention.ChannelID).Error; err == nil {
+					item.Channel = channel
+					item.Target = "#" + channel.Name
+					item.Summary = actor.Name + " mentioned you in #" + channel.Name
+				}
+			} else if mention.DMID != "" {
+				var dmMessage domain.DMMessage
+				if err := db.DB.First(&dmMessage, "id = ?", mention.MessageID).Error; err == nil {
+					item.Message = dmMessage
+				}
+				item.Target = "Direct messages"
+				item.Summary = actor.Name + " mentioned you in a DM"
+			}
+
+			activities = append(activities, item)
 		}
-		_ = db.DB.First(&channel, "id = ?", message.ChannelID).Error
-		activities = append(activities, activityItem{
-			ID:         "activity-mention-" + message.ID,
-			Type:       "mention",
-			User:       enrichUser(actor),
-			Channel:    channel,
-			Message:    message,
-			Target:     "#" + channel.Name,
-			Summary:    actor.Name + " mentioned you in #" + channel.Name,
-			OccurredAt: message.CreatedAt,
-		})
 	}
 
 	var replies []domain.Message
@@ -1546,6 +1867,12 @@ func CreateDMMessage(c *gin.Context) {
 	if err := db.DB.Create(&message).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create dm message"})
 		return
+	}
+
+	if workspaceID, users, err := loadMentionUsersForDM(dmID); err == nil {
+		persistMessageMentions(message.ID, workspaceID, "", dmID, input.UserID, input.Content, users)
+	} else {
+		log.Printf("[collab] failed to load dm mention candidates for %s: %v", dmID, err)
 	}
 
 	if err := broadcastDMRealtimeEvent(dmID, message.ID, gin.H{
@@ -2775,6 +3102,13 @@ func CreateMessage(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to attach file reference"})
 			return
 		}
+	}
+
+	workspaceID, users, err := loadMentionUsersForChannel(input.ChannelID)
+	if err != nil {
+		log.Printf("[collab] failed to load mention candidates for channel %s: %v", input.ChannelID, err)
+	} else {
+		persistMessageMentions(msg.ID, workspaceID, input.ChannelID, "", input.UserID, input.Content, users)
 	}
 
 	refreshed, err := refreshMessageMetadata(msg.ID)

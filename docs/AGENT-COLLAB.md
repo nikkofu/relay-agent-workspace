@@ -171,6 +171,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 64C Unified Activity Feed UI Upgrade | Windsurf | 2026-04-23 | Consumed Phase 64B backend. Removed stale "backend pending" fallback from All tab. Files tab now calls `GET /activity/feed?event_type=file_uploaded` instead of local store. Bookings tab calls `GET /activity/feed?event_type=schedule_booking` instead of placeholder. FeedRow upgraded: actor_name chip displayed, row wraps in `<Link>` when `link` is set (click-through to channel/entity). WS live-append wired via `appendUnifiedFeedItem` for 5 event types: `message.created` (channel + DM non-thread), `schedule.event.booked`, `knowledge.entity.ask.answered`, `knowledge.entity.brief.regen.*` (automation_job), `knowledge.compose.suggestion.generated` (compose_activity). All tabs now show real-time updates without page refresh. Published `v0.6.33`. |
 | 🟢 Done | Phase 64C Unified Activity Feed Backend Completion | Codex | 2026-04-23 | Expanded `GET /api/v1/activity/feed` with `artifact_updated`, `tool_run`, `reply`, `dm_message`, `mention`, and `reaction`; added message/deep-link aware URLs and lightweight `meta` payloads for each new event type. Published `v0.6.34`. |
 | 🟢 Done | Phase 64D Bug Fixes + Phase 64C UI Consumption | Windsurf | 2026-04-24 | Consumed Phase 64C backend (12 event types). Fixed 3 bugs + AI-native DM experience. Bug 1 (AI DM reply invisible): backend now streams AI response in real-time via `dm.stream.chunk` WS events + `typing.updated` indicator; new full-screen `/workspace/dms/[id]` page with live streaming cursor, bubble-style chat, and visible AI thinking process; DM list now navigates to full page. Bug 2 (duplicate draft DELETE): added `isSendingRef` guard in `onUpdate` so `editor.clearContent()` no longer triggers a second `deleteDraft` API call. Bug 3 (heartbeat): isolated into its own `useEffect([sendHeartbeat])` with `useRef` guard — 30s apart is normal (one interval), now defended against accidental re-registration. Phase 64C WS consumption: wired `artifact.updated` → `artifact_updated` feed, `reaction.updated` → `reaction` feed, `dm.stream.chunk` → `addStreamingChunk`. Published `v0.6.35`. |
+| 🟢 Done | Phase 65A User Mention Semantics Backend | Codex | 2026-04-24 | Added persisted `@user` parsing on channel and DM message creation, durable `MessageMention` rows, render-ready `message.metadata.user_mentions[]`, websocket `mention.created`, and rewired `GET /api/v1/activity/feed`, `GET /api/v1/mentions`, and the mention branch of `GET /api/v1/inbox` to the same persisted mention source. Published `v0.6.36`. |
 
 ---
 
@@ -179,9 +180,30 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
-| **Codex** | `api-architecture` | Phase 64C backend shipped: unified activity feed completion + slack persistence slice (v0.6.34) | 100% |
+| **Codex** | `api-architecture` | Phase 65A shipped: durable user mentions across messages, unified feed, mentions, and inbox (v0.6.36) | 100% |
 | **Claude Code**| `idle` | - | - |
 | **Windsurf** | `ai-native` | Phase 64D shipped: AI DM streaming, duplicate draft fix, heartbeat isolation, Phase 64C full consumption (v0.6.35) | 100% |
+
+### 2026-04-24 - Phase 65A User Mention Semantics Backend (v0.6.36)
+- **Codex**: Phase 65A backend shipped as `v0.6.36`.
+- **Codex**: Channel and DM message creation now parse explicit `@user` mentions and persist them as durable `MessageMention` rows.
+- **Codex**: Channel message payloads now hydrate render-ready `message.metadata.user_mentions[]` with:
+  - `user_id`
+  - `name`
+  - `mention_text`
+- **Codex**: `GET /api/v1/activity/feed` mention rows now support:
+  - `mention_kind=user` with `meta.mentioned_user_id`
+  - `mention_kind=entity` for the existing knowledge entity mention path
+- **Codex**: `GET /api/v1/mentions` and the mention branch of `GET /api/v1/inbox` now read from the same persisted mention source, so refresh and cross-surface state stay aligned.
+- **Codex**: New realtime event:
+  - `mention.created`
+  - payload fields: `message_id`, `mentioned_user_id`, `mentioned_by_user_id`, `mention_text`, `mention_kind`, `workspace_id`, `channel_id`, `dm_id`, `scope_type`, `scope_id`
+- **Codex → Windsurf**: UI follow-up can now safely treat user mentions as first-class backend data:
+  - render `mention_kind=user|entity` distinctly in the unified activity rail
+  - use `meta.mentioned_user_id` for user-mention badges or filtering
+  - wire `mention.created` into Activity, Inbox, and Mentions live append paths
+  - DM mention rows now deep-link to `/workspace/dms?id=<dm_id>` instead of channel URLs
+- **Codex → Windsurf**: This release intentionally continues the remembered follow-up `2` by strengthening the unified feed and mention semantics. The broader Slack-like expansion follow-up `3` remains next.
 
 ### 2026-04-23 - Phase 64C Unified Activity Feed Backend Completion (v0.6.34)
 - **Codex**: Phase 64C backend completion is published as `v0.6.34`.

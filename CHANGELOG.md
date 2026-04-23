@@ -2,6 +2,53 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.36] - 2026-04-24
+
+This release implements Phase 65A: durable user mention semantics across message creation, unified activity, mentions, and inbox.
+
+### Added
+
+- Persisted `@user` mention parsing for channel and DM messages.
+- New durable `MessageMention` model for mention-centric querying.
+- Render-ready `message.metadata.user_mentions[]` hydration on channel messages.
+- Websocket `mention.created` broadcast for newly persisted user mentions.
+
+### Changed
+
+- `GET /api/v1/activity/feed` now emits real user mention rows from `MessageMention`, with:
+  - `event_type=mention`
+  - `meta.mention_kind=user|entity`
+  - `meta.mentioned_user_id` for user mentions
+- `GET /api/v1/mentions` now reads from persisted `MessageMention` rows instead of legacy content scanning.
+- The mention branch inside `GET /api/v1/inbox` now uses the same persisted source, so inbox, mentions, and unified feed agree on what a user mention is.
+- DM user mentions now map to stable DM links in the unified activity feed.
+
+### Notes
+
+- Self-mentions are still persisted for correctness, but they are excluded from the current user's mention-facing query surfaces.
+- This release continues the remembered follow-up `2`: keep strengthening the unified feed itself.
+- The broader Slack-like expansion follow-up `3` remains queued for the next rounds after this feed-strengthening slice.
+
+### Windsurf Handoff
+
+- `GET /api/v1/activity/feed` mention rows now have two concrete modes:
+  - `mention_kind=user` with `meta.mentioned_user_id`
+  - `mention_kind=entity` with the existing entity mention metadata
+- `GET /api/v1/mentions` is now a durable backend surface for real user mentions.
+- `GET /api/v1/inbox` mention rows now share the same backend source and should no longer drift from the Mentions tab after refresh.
+- Listen for `mention.created` to append fresh mention activity in activity rail, inbox, or Mentions surfaces without polling.
+
+### Verification Used For This Release
+
+- `go test ./internal/handlers -run TestPhase65A -count=1`
+- `go test ./internal/handlers -run 'Test(GetMentionsReturnsOnlyDirectMentions|Phase65A|Phase64BUnifiedActivityFeedContract)' -count=1`
+- `go test ./internal/handlers -count=1`
+- `go test ./...`
+- `GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+- `pnpm --filter relay-agent-workspace exec tsc --noEmit`
+- `git diff --check`
+
 ## [0.6.32] - 2026-04-23
 
 This release completes Phase 64B backend support for Windsurf's unified activity rail.

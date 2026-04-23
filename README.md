@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.6.34` is the current release line and includes:
+`v0.6.36` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -127,6 +127,12 @@ For product, design, and marketing, the short version is:
   - `compose_activity`
   - `knowledge_ask`
   - `automation_job`
+- persisted `@user` mention parsing on channel and DM message creation
+- render-ready `message.metadata.user_mentions[]` hydration for mentioned users
+- durable `MessageMention` index rows for mention-centric APIs and feeds
+- unified feed `mention` rows now include real user mentions with `mention_kind=user` and `meta.mentioned_user_id`
+- websocket `mention.created` for realtime inbox/mentions/activity updates
+- `GET /api/v1/mentions` and the mention branch of `GET /api/v1/inbox` now share the same persisted mention source
 - weekly brief snapshot sharing via `POST /api/v1/knowledge/weekly-brief/:id/share`
 - historical knowledge activity backfill status and execution via `GET /api/v1/knowledge/entities/:id/activity/backfill-status` and `POST /api/v1/knowledge/entities/:id/activity/backfill`
 - realtime followed-stats deltas via websocket `knowledge.followed.stats.changed`

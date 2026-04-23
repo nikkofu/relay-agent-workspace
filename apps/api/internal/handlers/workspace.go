@@ -938,10 +938,79 @@ func GetActivityFeed(c *gin.Context) {
 		}
 	}
 
-	// 3b. Mentions from persisted message metadata
+	// 3b. User mentions from persisted mention rows
 	if includeEvent("mention") {
+		var mentions []domain.MessageMention
+		mentionQ := db.DB.Order("created_at desc").Limit(limit).Where("mention_kind = ?", "user")
+		if channelID != "" {
+			mentionQ = mentionQ.Where("channel_id = ?", channelID)
+		} else if dmID != "" {
+			mentionQ = mentionQ.Where("dm_id = ?", dmID)
+		} else {
+			if len(workspaceChannelIDs) == 0 {
+				mentionQ = mentionQ.Where("workspace_id = ?", workspaceID)
+			} else {
+				mentionQ = mentionQ.Where("workspace_id = ?", workspaceID)
+			}
+		}
+		if !cursorTime.IsZero() {
+			mentionQ = mentionQ.Where("created_at < ?", cursorTime)
+		}
+		_ = mentionQ.Find(&mentions).Error
+		for _, mention := range mentions {
+			var actor domain.User
+			if err := db.DB.First(&actor, "id = ?", mention.MentionedByUserID).Error; err != nil {
+				continue
+			}
+			body := ""
+			link := activityFeedScopedMessageLink(mention.ChannelID, mention.DMID, mention.MessageID)
+			if mention.ChannelID != "" {
+				var message domain.Message
+				if err := db.DB.Select("id", "content").First(&message, "id = ?", mention.MessageID).Error; err == nil {
+					body = message.Content
+				}
+			} else if mention.DMID != "" {
+				var dmMessage domain.DMMessage
+				if err := db.DB.Select("id", "content").First(&dmMessage, "id = ?", mention.MessageID).Error; err == nil {
+					body = dmMessage.Content
+				}
+			}
+
+			item := feedItem{
+				ID:          "mention:" + mention.ID,
+				EventType:   "mention",
+				WorkspaceID: workspaceID,
+				ActorID:     mention.MentionedByUserID,
+				ActorName:   loadUserName(mention.MentionedByUserID),
+				ChannelID:   mention.ChannelID,
+				DMID:        mention.DMID,
+				Title:       defaultString(loadUserName(mention.MentionedByUserID), "Someone") + " mentioned you",
+				Body:        body,
+				Link:        link,
+				OccurredAt:  mention.CreatedAt.Format(time.RFC3339Nano),
+				Meta: map[string]any{
+					"message_id":           mention.MessageID,
+					"mentioned_user_id":    mention.MentionedUserID,
+					"mentioned_by_user_id": mention.MentionedByUserID,
+					"mention_kind":         mention.MentionKind,
+				},
+			}
+
+			if mention.ChannelID != "" {
+				item.ChannelName = loadChannelName(mention.ChannelID)
+				item.Title = defaultString(loadUserName(mention.MentionedByUserID), "Someone") + " mentioned you in #" + defaultString(item.ChannelName, "channel")
+			} else if mention.DMID != "" {
+				item.Title = defaultString(loadUserName(mention.MentionedByUserID), "Someone") + " mentioned you in DM"
+			}
+
+			if item.ActorID != actor.ID {
+				item.ActorID = actor.ID
+			}
+			appendItem(item)
+		}
+
 		var messages []domain.Message
-		mentionQ := db.DB.Order("created_at desc").Limit(limit)
+		mentionQ = db.DB.Order("created_at desc").Limit(limit)
 		if channelID != "" {
 			mentionQ = mentionQ.Where("channel_id = ?", channelID)
 		} else {
@@ -1342,6 +1411,16 @@ func activityFeedMessageLink(channelID, messageID string) string {
 		return "/workspace?c=" + channelID
 	}
 	return "/workspace?c=" + channelID + "&m=" + messageID
+}
+
+func activityFeedScopedMessageLink(channelID, dmID, messageID string) string {
+	if channelID != "" {
+		return activityFeedMessageLink(channelID, messageID)
+	}
+	if dmID != "" {
+		return activityFeedDMMessageLink(dmID)
+	}
+	return "/workspace/activity"
 }
 
 func activityFeedDMMessageLink(dmID string) string {

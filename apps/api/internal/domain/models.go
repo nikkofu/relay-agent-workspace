@@ -246,6 +246,19 @@ type Message struct {
 	Metadata    string     `json:"metadata"` // 用于存储 Reactions/Attachments 的 JSON 字符串
 }
 
+type MessageMention struct {
+	ID                string    `gorm:"primaryKey" json:"id"`
+	MessageID         string    `gorm:"index;uniqueIndex:idx_message_mention_message_user_kind" json:"message_id"`
+	WorkspaceID       string    `gorm:"index;index:idx_message_mention_workspace_channel;index:idx_message_mention_workspace_dm" json:"workspace_id"`
+	ChannelID         string    `gorm:"index;index:idx_message_mention_workspace_channel" json:"channel_id"`
+	DMID              string    `gorm:"index;index:idx_message_mention_workspace_dm" json:"dm_id"`
+	MentionedUserID   string    `gorm:"index;uniqueIndex:idx_message_mention_message_user_kind;index:idx_message_mention_mentioned_user" json:"mentioned_user_id"`
+	MentionedByUserID string    `gorm:"index" json:"mentioned_by_user_id"`
+	MentionText       string    `json:"mention_text"`
+	MentionKind       string    `gorm:"uniqueIndex:idx_message_mention_message_user_kind;index:idx_message_mention_kind" json:"mention_kind"`
+	CreatedAt         time.Time `json:"created_at"`
+}
+
 type MessageReaction struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
 	MessageID string    `gorm:"index;uniqueIndex:idx_message_user_emoji" json:"message_id"`
