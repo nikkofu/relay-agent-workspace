@@ -51,6 +51,7 @@ import type {
   ChannelAutoSummarySetting,
   ChannelAutoSummarizeInput,
   ChannelAutoSummarizeResponse,
+  AIComposeActivity,
 } from "@/types"
 
 interface KnowledgeState {
@@ -110,21 +111,18 @@ interface KnowledgeState {
   channelAutoSummarize: Record<string, ChannelAutoSummarizeResponse>
   isLoadingAutoSummarize: Record<string, boolean>
   isRunningAutoSummarize: Record<string, boolean>
-  // Phase 63F: Rolling in-memory log of co-drafting compose suggestions
-  // seen on the realtime channel (knowledge.compose.suggestion.generated).
-  // Capped list so an observer surface (e.g. #agent-collab) can render recent
-  // activity without unbounded growth. Newest first.
-  composeSuggestionActivity: Array<{
-    composeId: string
-    channelId?: string
-    dmId?: string
-    threadId?: string
-    intent: string
-    count: number
-    provider?: string
-    model?: string
-    at: number
-  }>
+  // Phase 63F + 63G: Rolling co-drafting activity log. Hydrated on demand from
+  // `GET /api/v1/ai/compose/activity` and extended live by the
+  // `knowledge.compose.suggestion.generated` WS event (preferring `payload.activity`).
+  // Capped list so an observer surface (e.g. #agent-collab, channel info) can render
+  // recent activity without unbounded growth. Newest first, de-duped by `compose_id`.
+  // Shape matches backend `domain.AIComposeActivity` exactly so persisted rows and
+  // live rows are interchangeable.
+  composeSuggestionActivity: AIComposeActivity[]
+  // Phase 63G: per-scope hydration flags so multiple mounts of ComposeActivityPane
+  // don't re-fetch the same scope repeatedly. Keys are produced by `composeActivityScopeKey`.
+  isLoadingComposeActivity: Record<string, boolean>
+  hasHydratedComposeActivity: Record<string, boolean>
 
   pushLiveUpdate: (update: KnowledgeUpdate) => void
   handleEntityCreated: (entity: KnowledgeEntity) => void
@@ -212,7 +210,14 @@ interface KnowledgeState {
   updateChannelAutoSummarize: (channelId: string, input: ChannelAutoSummarizeInput) => Promise<ChannelAutoSummarySetting | null>
   runChannelAutoSummarize: (channelId: string, input?: ChannelAutoSummarizeInput) => Promise<ChannelAutoSummarizeResponse | null>
   applyChannelSummaryUpdated: (payload: { channel_id: string; workspace_id?: string; reason?: string; summary?: AISummary | null; setting?: ChannelAutoSummarySetting }) => void
-  applyComposeSuggestionGenerated: (compose: ComposeResponse) => void
+  // Phase 63G: receives the full ws `knowledge.compose.suggestion.generated` payload.
+  // Prefers the persisted `activity` row from the server and falls back to synthesizing
+  // one from `compose` if the backend ever emits compose-only (defensive parity).
+  applyComposeSuggestionGenerated: (payload: { compose?: ComposeResponse; activity?: AIComposeActivity }) => void
+  // Phase 63G: GET /api/v1/ai/compose/activity — hydrates the activity log
+  // scoped by channel / DM / workspace / intent. Merges into the single shared
+  // `composeSuggestionActivity` list so WS appends stay consistent.
+  fetchComposeActivity: (filters: { channelId?: string; dmId?: string; workspaceId?: string; intent?: string; limit?: number }) => Promise<AIComposeActivity[] | null>
 }
 
 // Phase 63D: normalize a compose scope into a stable key used for
@@ -222,6 +227,23 @@ function composeScopeKey(scope: ComposeScope): string | null {
   if (scope.dmId) return `dm:${scope.dmId}`
   if (scope.channelId) return `ch:${scope.channelId}:${scope.threadId || ''}`
   return null
+}
+
+// Phase 63G: normalize activity filters into a stable hydration-tracking key.
+// Keeps hydration state granular so a workspace-wide mount doesn't clobber a
+// per-channel hydration flag and vice versa.
+function composeActivityScopeKey(filters: {
+  channelId?: string
+  dmId?: string
+  workspaceId?: string
+  intent?: string
+}): string {
+  const parts: string[] = []
+  if (filters.channelId) parts.push(`ch:${filters.channelId}`)
+  if (filters.dmId) parts.push(`dm:${filters.dmId}`)
+  if (filters.workspaceId) parts.push(`ws:${filters.workspaceId}`)
+  if (filters.intent) parts.push(`intent:${filters.intent}`)
+  return parts.length > 0 ? parts.join('|') : 'all'
 }
 
 // Phase 63E: Convert a persisted history row into an EntityAnswer-shaped object
@@ -291,6 +313,8 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   isLoadingAutoSummarize: {},
   isRunningAutoSummarize: {},
   composeSuggestionActivity: [],
+  isLoadingComposeActivity: {},
+  hasHydratedComposeActivity: {},
 
   pushLiveUpdate: (update) => set({ liveUpdate: update }),
 
@@ -1498,29 +1522,96 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
     })
   },
 
-  // Phase 63F: websocket knowledge.compose.suggestion.generated handler.
-  // Appends a capped, newest-first activity log entry so a co-drafting observer
-  // surface (e.g. #agent-collab) can show who is actively drafting with AI help
-  // without needing to render the full suggestion text. Kept in-memory only.
-  applyComposeSuggestionGenerated: (compose) => {
-    if (!compose) return
-    const composeId = compose.suggestions?.[0]?.id || ''
-    if (!composeId) return
-    set(state => {
-      const entry = {
-        composeId,
-        channelId: compose.channel_id,
-        dmId: compose.dm_id,
-        threadId: compose.thread_id,
+  // Phase 63F + 63G: websocket knowledge.compose.suggestion.generated handler.
+  // Appends a capped, newest-first activity log entry. Since Phase 63G, the
+  // backend emits `{ compose, activity }` where `activity` is the persisted
+  // AIComposeActivity row; we prefer that row verbatim so the UI stays aligned
+  // with what `GET /api/v1/ai/compose/activity` would return on refresh. If
+  // `activity` is absent (defensive backwards-compat), we synthesize a row
+  // from `compose` using the first suggestion id as `compose_id`.
+  applyComposeSuggestionGenerated: (payload) => {
+    if (!payload) return
+    let row: AIComposeActivity | null = null
+    if (payload.activity && payload.activity.compose_id) {
+      row = payload.activity
+    } else if (payload.compose) {
+      const compose = payload.compose
+      const composeId = compose.suggestions?.[0]?.id || ''
+      if (!composeId) return
+      row = {
+        id: composeId, // synthetic, best-effort — backend sets a real UUID
+        compose_id: composeId,
+        workspace_id: '',
+        channel_id: compose.channel_id,
+        dm_id: compose.dm_id,
+        thread_id: compose.thread_id,
         intent: compose.intent,
-        count: compose.suggestions.length,
+        suggestion_count: compose.suggestions.length,
         provider: compose.provider,
         model: compose.model,
-        at: Date.now(),
+        created_at: new Date().toISOString(),
       }
-      const existing = state.composeSuggestionActivity.filter(e => e.composeId !== composeId)
-      return { composeSuggestionActivity: [entry, ...existing].slice(0, 50) }
+    }
+    if (!row) return
+    const composeId = row.compose_id
+    set(state => {
+      // Dedupe by compose_id so sync + stream paths (or client-initiated sync
+      // followed by ws echo) don't double-count.
+      const existing = state.composeSuggestionActivity.filter(e => e.compose_id !== composeId)
+      return { composeSuggestionActivity: [row!, ...existing].slice(0, 100) }
     })
+  },
+
+  // Phase 63G: GET /api/v1/ai/compose/activity
+  // Pulls newest-first activity rows filtered by channel/dm/workspace/intent.
+  // Merges results into the single shared `composeSuggestionActivity` list so
+  // the same list powers both historical display and live WS appends.
+  fetchComposeActivity: async (filters) => {
+    const scopeKey = composeActivityScopeKey(filters)
+    set(state => ({ isLoadingComposeActivity: { ...state.isLoadingComposeActivity, [scopeKey]: true } }))
+    try {
+      const params = new URLSearchParams()
+      if (filters.channelId) params.set('channel_id', filters.channelId)
+      if (filters.dmId) params.set('dm_id', filters.dmId)
+      if (filters.workspaceId) params.set('workspace_id', filters.workspaceId)
+      if (filters.intent) params.set('intent', filters.intent)
+      const lim = Math.max(1, Math.min(100, filters.limit ?? 50))
+      params.set('limit', String(lim))
+      const res = await fetch(`${API_BASE_URL}/ai/compose/activity?${params.toString()}`)
+      if (!res.ok) {
+        console.warn(`compose activity GET returned ${res.status}`)
+        return null
+      }
+      const data = await res.json() as { items?: AIComposeActivity[] }
+      const items = Array.isArray(data?.items) ? data.items : []
+      set(state => {
+        // Merge fetched rows with any WS-appended rows already present. Dedupe by compose_id.
+        const seen = new Set<string>()
+        const merged: AIComposeActivity[] = []
+        for (const row of [...items, ...state.composeSuggestionActivity]) {
+          const key = row.compose_id
+          if (!key || seen.has(key)) continue
+          seen.add(key)
+          merged.push(row)
+        }
+        // Keep newest-first by created_at (falls back to insertion order for ties).
+        merged.sort((a, b) => {
+          const ta = Date.parse(a.created_at) || 0
+          const tb = Date.parse(b.created_at) || 0
+          return tb - ta
+        })
+        return {
+          composeSuggestionActivity: merged.slice(0, 100),
+          hasHydratedComposeActivity: { ...state.hasHydratedComposeActivity, [scopeKey]: true },
+        }
+      })
+      return items
+    } catch (error) {
+      console.error('Failed to load compose activity:', error)
+      return null
+    } finally {
+      set(state => ({ isLoadingComposeActivity: { ...state.isLoadingComposeActivity, [scopeKey]: false } }))
+    }
   },
 
   // ── Phase 63A: Weekly brief share link ────────────────────────

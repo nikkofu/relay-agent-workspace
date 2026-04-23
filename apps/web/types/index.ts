@@ -529,6 +529,29 @@ export interface ChannelAutoSummarizeResponse {
   summary?: AISummary | null
 }
 
+// ── Phase 63G: Persisted AI compose activity ────────────────────────────────
+
+// Backend domain.AIComposeActivity — a durable row written on every successful
+// sync compose and every finalized streaming compose. Lets the UI show a real,
+// refreshable team co-drafting pane (not just WS-driven in-memory events).
+// Source: GET /api/v1/ai/compose/activity (newest-first), also emitted inside
+// the knowledge.compose.suggestion.generated WS payload as `activity`.
+export interface AIComposeActivity {
+  id: string
+  compose_id: string
+  workspace_id: string
+  // Exactly one of channel_id or dm_id is set (mutually exclusive). Both are
+  // `omitempty` on the backend so the field may be missing in JSON.
+  channel_id?: string
+  dm_id?: string
+  thread_id?: string
+  intent: string
+  suggestion_count: number
+  provider: string
+  model: string
+  created_at: string
+}
+
 // ── Phase 63C: streaming + feedback ─────────────────────────────────────────
 
 export type ComposeFeedbackValue = 'up' | 'down' | 'edited'

@@ -223,12 +223,15 @@ export function useWebsocket() {
             })
           }
         } else if (data.type === 'knowledge.compose.suggestion.generated') {
-          // Phase 63F: co-drafting observer signal. Append a capped activity entry
-          // so a future shared "co-drafting" surface can render who is currently
-          // getting AI suggestions. Payload: { compose: ComposeResponse }.
+          // Phase 63F + 63G: co-drafting observer signal. The store prefers the
+          // persisted `activity` row (63G) and falls back to synthesizing from
+          // `compose` (63F parity). Payload: { compose?, activity? }.
           const payload = data.payload || {}
-          if (payload.compose) {
-            useKnowledgeStore.getState().applyComposeSuggestionGenerated(payload.compose)
+          if (payload.compose || payload.activity) {
+            useKnowledgeStore.getState().applyComposeSuggestionGenerated({
+              compose: payload.compose,
+              activity: payload.activity,
+            })
           }
         } else if (data.type === 'knowledge.digest.published') {
           const payload = data.payload || {}
