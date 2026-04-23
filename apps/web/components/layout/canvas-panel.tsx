@@ -427,7 +427,7 @@ export function CanvasPanel() {
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-bold">Version {v.version}</span>
                           <span className="text-[9px] text-muted-foreground">
-                            {formatDistanceToNow(new Date(v.updatedAt), { addSuffix: true })}
+                            {v.updatedAt ? formatDistanceToNow(new Date(v.updatedAt), { addSuffix: true }) : '—'}
                           </span>
                         </div>
                         {v.updatedByUser && (

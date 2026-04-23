@@ -60,11 +60,9 @@ export function ComposeActivityDigestStrip({
     limit: topN,
   }
 
-  const { fetchComposeActivityDigest, composeActivityDigests, isLoadingComposeActivityDigest } = useKnowledgeStore(s => ({
-    fetchComposeActivityDigest: s.fetchComposeActivityDigest,
-    composeActivityDigests: s.composeActivityDigests,
-    isLoadingComposeActivityDigest: s.isLoadingComposeActivityDigest,
-  }))
+  const fetchComposeActivityDigest = useKnowledgeStore(s => s.fetchComposeActivityDigest)
+  const composeActivityDigests = useKnowledgeStore(s => s.composeActivityDigests)
+  const isLoadingComposeActivityDigest = useKnowledgeStore(s => s.isLoadingComposeActivityDigest)
 
   // Build cache key to look up the right digest
   const scopePart = channelId ? `ch:${channelId}` : dmId ? `dm:${dmId}` : workspaceId ? `ws:${workspaceId}` : 'none'

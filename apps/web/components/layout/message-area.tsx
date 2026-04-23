@@ -1,6 +1,7 @@
 "use client"
 
 import { useChannelStore } from "@/stores/channel-store"
+import type { ChannelMember } from "@/types"
 import { useMessageStore } from "@/stores/message-store"
 import { Hash, Lock, Info, Phone, Video, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -12,7 +13,7 @@ import { TypingIndicator } from "@/components/message/typing-indicator"
 import { cn } from "@/lib/utils"
 
 export function MessageArea({ children }: { children?: React.ReactNode }) {
-  const { currentChannel, toggleStar } = useChannelStore()
+  const { currentChannel, toggleStar, members } = useChannelStore()
   const { fetchMessages, sendMessage } = useMessageStore()
   const lastFetchedId = useRef<string | null>(null)
   
@@ -34,7 +35,7 @@ export function MessageArea({ children }: { children?: React.ReactNode }) {
   const Icon = currentChannel.type === "private" ? Lock : Hash
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#1a1d21]">
+    <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-white dark:bg-[#1a1d21]">
       {/* Channel Header */}
       <header className="h-14 px-4 flex items-center justify-between border-b shrink-0">
         <div className="flex items-center gap-1.5 min-w-0">
@@ -56,14 +57,21 @@ export function MessageArea({ children }: { children?: React.ReactNode }) {
         
         <div className="flex items-center gap-2">
           <div className="hidden md:flex items-center -space-x-2 mr-2">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="w-6 h-6 rounded border-2 border-white dark:border-[#1a1d21] bg-muted flex items-center justify-center text-[10px] font-bold">
-                {i}
+            {members.slice(0, 3).map((m: ChannelMember) => (
+              <div key={m.user.id} className="w-6 h-6 rounded-full border-2 border-white dark:border-[#1a1d21] bg-purple-500/20 text-purple-700 dark:text-purple-300 flex items-center justify-center text-[10px] font-bold uppercase">
+                {m.user.name?.[0] ?? '?'}
               </div>
             ))}
-            <div className="pl-3 text-xs font-semibold text-muted-foreground">
-              {currentChannel.memberCount}
-            </div>
+            {currentChannel.memberCount > 3 && (
+              <div className="pl-3 text-xs font-semibold text-muted-foreground">
+                +{currentChannel.memberCount - 3}
+              </div>
+            )}
+            {currentChannel.memberCount <= 3 && currentChannel.memberCount > 0 && (
+              <div className="pl-2 text-xs font-semibold text-muted-foreground">
+                {currentChannel.memberCount}
+              </div>
+            )}
           </div>
           <Button variant="ghost" size="icon" className="h-8 w-8">
             <Phone className="w-4 h-4" />

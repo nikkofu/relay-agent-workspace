@@ -63,8 +63,8 @@ function WorkspaceContent() {
 
   return (
     <MessageArea>
-      <div className="flex h-full overflow-hidden">
-        <div className="flex flex-col flex-1 min-w-0">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        <div className="flex flex-col flex-1 min-w-0 min-h-0">
         {/* Channel Introduction & Artifacts */}
         <div className="p-4 border-b bg-muted/10 shrink-0">
           <div className="flex items-center justify-between">
@@ -163,8 +163,8 @@ function WorkspaceContent() {
         <ChannelDigestBanner channelId={currentChannel.id} channelName={currentChannel.name} />
 
         {/* Messages List */}
-        <div className="flex-1 min-h-0 flex flex-col">
-          <MessageList messages={channelMessages} className="flex-1" />
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <MessageList messages={channelMessages} className="h-full" />
         </div>
         </div>
 
