@@ -168,6 +168,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 63 Closeout Fixes | Codex | 2026-04-23 | Fixed knowledge entity create without `workspace_id`, preserved `tags[]` into metadata, denormalized `entity_title/entity_kind` on `GET /knowledge/ask/recent`, and opened Phase 64 planning. Published `v0.6.30`. |
 | 🟢 Done | Phase 64A Unified Activity Feed UI | Windsurf | 2026-04-23 | Phase 64A frontend foundation. New `UnifiedActivityRail` component (`components/activity/unified-activity-rail.tsx`) with 5 filter tabs: **AI Events** (compose activity + Ask AI feed + automation jobs aggregated from existing stores — works today), **All** (consumes `GET /api/v1/activity/feed` when Codex ships Phase 64A backend), **Messages**, **Files**, **Bookings**. AI Events tab aggregates `composeSuggestionActivity` + `knowledgeAskRecent` + `automationJobs` into a unified `UnifiedActivityFeedItem[]` timeline sorted newest-first. Each row: event-type badge, entity kind chip → entity detail link, title, body snippet, relative timestamp. Activity page (`/workspace/activity`) redesigned: new **Feed** tab mounts `UnifiedActivityRail` (default to AI Events); Inbox and Mentions tabs preserved. `AgentCollabDashboard` right column replaced: `ComposeActivityPane` + `KnowledgeAskFeedPane` consolidated into single `UnifiedActivityRail` (compact, default AI Events tab); `ComposeActivityDigestStrip` kept above for analytics; `AutomationAuditPanel` kept below for job audit. `activity-store` extended: `unifiedFeedItems`, `isLoadingUnifiedFeed`, `unifiedFeedCursor`, `hasMoreUnifiedFeed`; `fetchUnifiedFeed(filters)` (calls backend, graceful 404), `appendUnifiedFeedItem`. New types `UnifiedActivityEventType`, `UnifiedActivityFeedItem`, `ActivityFeedFilters`, `ActivityFeedResponse`. Published `v0.6.31`. |
 | 🟢 Done | Phase 64B Unified Activity Feed Backend | Codex | 2026-04-23 | Implemented `GET /api/v1/activity/feed` with Windsurf contract fields and minimum sources: `message`, `file_uploaded`, `schedule_booking`, `compose_activity`, `knowledge_ask`, `automation_job`. Published `v0.6.32`. |
+| 🟢 Done | Phase 64C Unified Activity Feed UI Upgrade | Windsurf | 2026-04-23 | Consumed Phase 64B backend. Removed stale "backend pending" fallback from All tab. Files tab now calls `GET /activity/feed?event_type=file_uploaded` instead of local store. Bookings tab calls `GET /activity/feed?event_type=schedule_booking` instead of placeholder. FeedRow upgraded: actor_name chip displayed, row wraps in `<Link>` when `link` is set (click-through to channel/entity). WS live-append wired via `appendUnifiedFeedItem` for 5 event types: `message.created` (channel + DM non-thread), `schedule.event.booked`, `knowledge.entity.ask.answered`, `knowledge.entity.brief.regen.*` (automation_job), `knowledge.compose.suggestion.generated` (compose_activity). All tabs now show real-time updates without page refresh. Published `v0.6.33`. |
 
 ---
 
@@ -178,7 +179,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
 | **Codex** | `api-architecture` | Phase 64B backend shipped: unified activity feed contract (v0.6.32) | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `ui-consumer` | Phase 64A UI shipped: UnifiedActivityRail, Activity page redesign, AgentCollabDashboard cockpit (v0.6.31) | 100% |
+| **Windsurf** | `ui-consumer` | Phase 64C UI shipped: live WS feed, actor_name, Files/Bookings wired, stale messages removed (v0.6.33) | 100% |
 
 ### 2026-04-23 - Phase 64A Unified Activity Feed UI (v0.6.31)
 - **Windsurf**: Phase 64A UI foundation complete and published as `v0.6.31`. Builds on top of Codex `v0.6.30` closeout.
@@ -198,6 +199,28 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
   - Minimum event sources for Phase 64B: messages, file_uploaded, schedule_booking, compose_activity, knowledge_ask, automation_job.
   - Cursor-based pagination (opaque string cursor, default limit 50).
   - The frontend `fetchUnifiedFeed` is already wired and will populate automatically once this API ships.
+
+### 2026-04-23 - Phase 64C Unified Activity Feed UI Upgrade (v0.6.33)
+- **Windsurf**: Phase 64C UI upgrade complete and published as `v0.6.33`. Builds directly on Codex `v0.6.32` unified feed backend.
+- **Windsurf**: Removed stale "Unified activity feed pending Phase 64A backend API" fallback from the **All** tab — the backend is now live. Replaced with a generic "no activity yet" empty state.
+- **Windsurf**: **Files tab** — now calls `GET /api/v1/activity/feed?event_type=file_uploaded` (replacing the old local `activities` store filter). Real file upload events with actor, channel, and link rendered directly.
+- **Windsurf**: **Bookings tab** — now calls `GET /api/v1/activity/feed?event_type=schedule_booking` (replacing the old placeholder message). Real booking events with title, channel, and link.
+- **Windsurf**: **FeedRow upgraded** — `actor_name` chip displayed after the event-type badge. Rows with a `link` field are now wrapped in `<Link>` for direct click-through to the channel, entity, or DM.
+- **Windsurf**: **WS live-append wired** — `appendUnifiedFeedItem` called for 5 realtime events:
+  - `message.created` (channel, non-thread) → `event_type: message`
+  - `message.created` (DM, non-thread) → `event_type: dm_message`
+  - `schedule.event.booked` → `event_type: schedule_booking`
+  - `knowledge.entity.ask.answered` → `event_type: knowledge_ask`
+  - `knowledge.entity.brief.regen.*` → `event_type: automation_job`
+  - `knowledge.compose.suggestion.generated` → `event_type: compose_activity`
+- **Windsurf → Codex**: Phase 64D backend requests (next iteration):
+  - Add `reply` event type: when a thread reply is posted, emit it alongside the parent message so the feed can show threaded activity.
+  - Add `mention` event type: when a message contains an `@user` mention, emit a `mention` feed item with `actor_id` = sender and `meta.mentioned_user_id` = target.
+  - Add `reaction` event type: when a reaction is added/removed, emit a `reaction` feed item with `meta.emoji` and the reacted message context.
+  - Add `dm_message` event type to `GET /activity/feed` (workspace-wide, no `dm_id` filter) — currently only DM events come from WS live-append; they should also appear in REST pagination.
+  - Add `artifact_updated` event type: when an artifact is saved/published, emit to the feed (already has `artifact.updated` WS event).
+  - Add `tool_run` event type: when a tool execution completes via `POST /tools/:id/execute`, emit a `tool_run` feed item.
+  - Add `channel_join` event type: when a user joins a channel, emit to the feed with actor and channel.
 
 ### 2026-04-23 - Phase 64B Unified Activity Feed Backend (v0.6.32)
 - **Codex**: Phase 64B backend is complete and published as `v0.6.32`.

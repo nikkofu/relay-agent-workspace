@@ -19,7 +19,7 @@ export function useWebsocket() {
   const { setCollabData } = useCollabStore()
   const { updatePresence, setTyping } = usePresenceStore()
   const { updateArtifactLocally } = useArtifactStore()
-  const { markAsReadLocally } = useActivityStore()
+  const { markAsReadLocally, appendUnifiedFeedItem } = useActivityStore()
   const { fetchWorkflowRuns } = useDirectoryStore()
 
   useEffect(() => {
@@ -55,6 +55,30 @@ export function useWebsocket() {
             replyCount: data.payload.reply_count,
             lastReplyAt: data.payload.last_reply_at
           })
+          // Phase 64C: append to unified feed for live updates
+          if (data.payload.channel_id && !data.payload.thread_id) {
+            appendUnifiedFeedItem({
+              id: `message:${data.payload.id}`,
+              event_type: 'message',
+              workspace_id: data.payload.workspace_id,
+              actor_id: data.payload.user_id,
+              channel_id: data.payload.channel_id,
+              title: `Message in channel`,
+              body: data.payload.content,
+              link: data.payload.channel_id ? `/workspace?c=${data.payload.channel_id}` : undefined,
+              occurred_at: data.payload.created_at ?? new Date().toISOString(),
+            })
+          } else if (data.payload.dm_id && !data.payload.thread_id) {
+            appendUnifiedFeedItem({
+              id: `dm_message:${data.payload.id}`,
+              event_type: 'dm_message',
+              actor_id: data.payload.user_id,
+              dm_id: data.payload.dm_id,
+              title: 'DM message',
+              body: data.payload.content,
+              occurred_at: data.payload.created_at ?? new Date().toISOString(),
+            })
+          }
         } else if (data.type === 'message.deleted') {
           const { message_id } = data.payload
           useMessageStore.getState().deleteMessageLocally(message_id)
@@ -232,6 +256,20 @@ export function useWebsocket() {
               compose: payload.compose,
               activity: payload.activity,
             })
+            // Phase 64C: append compose_activity events to unified feed
+            if (payload.activity) {
+              appendUnifiedFeedItem({
+                id: `compose_activity:${payload.activity.id}`,
+                event_type: 'compose_activity',
+                workspace_id: payload.activity.workspace_id,
+                actor_id: payload.activity.user_id,
+                channel_id: payload.activity.channel_id,
+                title: `Compose activity · ${payload.activity.entity_title}`,
+                body: payload.activity.content,
+                link: payload.activity.channel_id ? `/workspace?c=${payload.activity.channel_id}` : undefined,
+                occurred_at: payload.activity.created_at ?? new Date().toISOString(),
+              })
+            }
           }
         } else if (
           data.type === 'knowledge.entity.brief.regen.queued' ||
@@ -242,6 +280,24 @@ export function useWebsocket() {
           // Payload: { job: AIAutomationJob, entity: KnowledgeEntity, reason? }
           const payload = data.payload || {}
           useKnowledgeStore.getState().applyEntityBriefAutomationEvent(data.type, payload)
+          // Phase 64C: live-append succeeded automation jobs to unified feed
+          const job = payload.job
+          const entity = payload.entity
+          if (job) {
+            appendUnifiedFeedItem({
+              id: `automation_job:${job.id}`,
+              event_type: 'automation_job',
+              workspace_id: job.workspace_id,
+              entity_id: entity?.id ?? job.scope_id,
+              entity_title: entity?.title,
+              entity_kind: entity?.kind,
+              title: `Automation · ${(job.job_type ?? 'job').replace(/_/g, ' ')} · ${job.status}`,
+              body: job.last_error ?? job.trigger_reason,
+              link: entity?.id ? `/workspace/knowledge/${entity.id}` : undefined,
+              occurred_at: job.finished_at ?? job.started_at ?? job.created_at ?? new Date().toISOString(),
+              meta: { status: job.status, attempt_count: job.attempt_count, job_type: job.job_type },
+            })
+          }
         } else if (
           data.type === 'schedule.event.booked' ||
           data.type === 'schedule.event.cancelled'
@@ -250,11 +306,45 @@ export function useWebsocket() {
           // Payload: { booking: AIScheduleBooking }
           const payload = data.payload || {}
           useKnowledgeStore.getState().applyScheduleBookingEvent(data.type, payload)
+          // Phase 64C: live-append to unified feed
+          const booking = payload.booking
+          if (booking && data.type === 'schedule.event.booked') {
+            appendUnifiedFeedItem({
+              id: `schedule_booking:${booking.id}`,
+              event_type: 'schedule_booking',
+              workspace_id: booking.workspace_id,
+              actor_id: booking.requested_by,
+              channel_id: booking.channel_id,
+              dm_id: booking.dm_conversation_id,
+              title: booking.title ?? 'Schedule booking',
+              body: booking.description,
+              link: booking.channel_id ? `/workspace?c=${booking.channel_id}` : '/workspace/dms',
+              occurred_at: booking.created_at ?? new Date().toISOString(),
+            })
+          }
         } else if (data.type === 'knowledge.entity.ask.answered') {
           // Phase 63I: cross-entity ask answered — prepend to shared ask feed.
           // Payload: { item: KnowledgeAskRecentItem }
           const payload = data.payload || {}
           useKnowledgeStore.getState().applyEntityAskAnswered({ item: payload.item })
+          // Phase 64C: live-append to unified feed
+          const item = payload.item
+          if (item) {
+            appendUnifiedFeedItem({
+              id: `knowledge_ask:${item.id}`,
+              event_type: 'knowledge_ask',
+              workspace_id: item.workspace_id,
+              actor_id: item.user_id,
+              entity_id: item.entity_id,
+              entity_title: item.entity_title,
+              entity_kind: item.entity_kind,
+              title: `Ask AI · ${item.entity_title ?? 'entity'}`,
+              body: item.question,
+              link: item.entity_id ? `/workspace/knowledge/${item.entity_id}` : undefined,
+              occurred_at: item.answered_at ?? item.created_at ?? new Date().toISOString(),
+              meta: { citation_count: item.citation_count, provider: item.provider, model: item.model },
+            })
+          }
         } else if (data.type === 'knowledge.digest.published') {
           const payload = data.payload || {}
           const channelId = payload.channel_id || payload.channel?.id

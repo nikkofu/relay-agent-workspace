@@ -16,18 +16,17 @@ import { formatDistanceToNow } from "date-fns"
 import Link from "next/link"
 import type { UnifiedActivityFeedItem, UnifiedActivityEventType } from "@/types"
 
-// ── Phase 64A: Unified Activity Rail ─────────────────────────────────────────
+// ── Phase 64C: Unified Activity Rail ─────────────────────────────────────────
 //
 // Aggregates ALL workspace signals into one chronological feed:
-//  • "All" tab   → GET /api/v1/activity/feed (Phase 64A backend, pending Codex).
-//                  Falls back to empty until the API ships.
-//  • "AI Events" → compose activity + Ask AI feed + automation jobs,
-//                  all available today from existing stores. No backend needed.
-//  • "Messages"  → traditional activity items (mentions, replies, joins…)
-//  • "Files"     → file_uploaded items
-//  • "Bookings"  → schedule_booking items
+//  • "All"      → GET /api/v1/activity/feed (live since v0.6.32, Codex Phase 64B)
+//  • "AI Events"→ compose activity + Ask AI feed + automation jobs, no extra API.
+//  • "Messages" → traditional activity items (mentions, replies, joins…)
+//  • "Files"    → unified feed filtered to file_uploaded events
+//  • "Bookings" → unified feed filtered to schedule_booking events
 //
-// When the Phase 64A backend ships, the "All" tab will populate automatically.
+// Phase 64C adds: actor_name display, Files/Bookings wired to unified feed,
+// WS live-append via appendUnifiedFeedItem (wired in use-websocket.ts).
 
 interface UnifiedActivityRailProps {
   workspaceId?: string
@@ -156,11 +155,30 @@ function FeedRow({ item, compact }: { item: UnifiedActivityFeedItem; compact: bo
     catch { return '' }
   })()
 
+  const row = item.link ? (
+    <Link href={item.link} className="block px-3 hover:bg-muted/20 transition-colors space-y-0.5 group/row" style={{ paddingTop: compact ? '6px' : '10px', paddingBottom: compact ? '6px' : '10px' }}>
+      <RowInner item={item} cfg={cfg} Icon={Icon} KindIcon={KindIcon} kindColor={kindColor} ago={ago} compact={compact} />
+    </Link>
+  ) : (
+    <div className={cn("px-3 hover:bg-muted/20 transition-colors space-y-0.5", compact ? "py-1.5" : "py-2.5")}>
+      <RowInner item={item} cfg={cfg} Icon={Icon} KindIcon={KindIcon} kindColor={kindColor} ago={ago} compact={compact} />
+    </div>
+  )
+
+  return row
+}
+
+function RowInner({ item, cfg, Icon, KindIcon, kindColor, ago, compact }: {
+  item: UnifiedActivityFeedItem
+  cfg: EventCfg
+  Icon: React.ElementType
+  KindIcon: React.ElementType
+  kindColor: string
+  ago: string
+  compact: boolean
+}) {
   return (
-    <div className={cn(
-      "px-3 py-2 hover:bg-muted/20 transition-colors space-y-0.5",
-      compact ? "py-1.5" : "py-2.5"
-    )}>
+    <>
       <div className="flex items-center gap-1.5 flex-wrap">
         {/* event type badge */}
         <span className={cn(
@@ -171,16 +189,18 @@ function FeedRow({ item, compact }: { item: UnifiedActivityFeedItem; compact: bo
           {cfg.label}
         </span>
 
+        {/* actor name */}
+        {item.actor_name && (
+          <span className="text-[9px] font-semibold text-foreground/70">{item.actor_name}</span>
+        )}
+
         {/* entity kind chip */}
         {item.entity_id && (
-          <Link
-            href={item.link ?? `/workspace/knowledge/${item.entity_id}`}
-            className="inline-flex items-center gap-0.5 text-[9px] text-sky-700 dark:text-sky-400 hover:underline"
-          >
+          <span className="inline-flex items-center gap-0.5 text-[9px] text-sky-700 dark:text-sky-400">
             <KindIcon className={cn("w-2.5 h-2.5", kindColor)} />
             <span>{item.entity_title ?? item.entity_id.slice(-6)}</span>
             <ExternalLink className="w-2 h-2" />
-          </Link>
+          </span>
         )}
 
         {item.channel_name && (
@@ -197,7 +217,7 @@ function FeedRow({ item, compact }: { item: UnifiedActivityFeedItem; compact: bo
       {!compact && item.body && (
         <p className="text-[10px] text-muted-foreground line-clamp-1">{item.body}</p>
       )}
-    </div>
+    </>
   )
 }
 
@@ -223,10 +243,14 @@ export function UnifiedActivityRail({
   const aiFeedItems = useAIFeedItems(wsId)
 
   useEffect(() => {
-    if (activeTab === 'all' && wsId) {
+    if (!wsId) return
+    if (activeTab === 'all') {
       fetchUnifiedFeed({ workspaceId: wsId, limit: 50 })
-    }
-    if (activeTab === 'messages' || activeTab === 'files' || activeTab === 'bookings') {
+    } else if (activeTab === 'files') {
+      fetchUnifiedFeed({ workspaceId: wsId, eventType: 'file_uploaded', limit: 40 })
+    } else if (activeTab === 'bookings') {
+      fetchUnifiedFeed({ workspaceId: wsId, eventType: 'schedule_booking', limit: 40 })
+    } else if (activeTab === 'messages') {
       fetchActivities()
     }
   }, [activeTab, wsId, fetchUnifiedFeed, fetchActivities])
@@ -234,18 +258,17 @@ export function UnifiedActivityRail({
   const messageItems = activities.filter(a =>
     ['mention', 'reply', 'thread_reply', 'channel_join', 'dm_message'].includes(a.type)
   )
-  const fileItems = activities.filter(a => a.type === 'file_uploaded')
 
   const visibleAI = showMore ? aiFeedItems : aiFeedItems.slice(0, 30)
   const visibleAll = showMore ? unifiedFeedItems : unifiedFeedItems.slice(0, 30)
 
-  const isLoading = activeTab === 'all' ? isLoadingUnifiedFeed : false
+  const isLoading = ['all', 'files', 'bookings'].includes(activeTab) ? isLoadingUnifiedFeed : false
   const isEmpty = {
     ai:       aiFeedItems.length === 0,
     all:      unifiedFeedItems.length === 0 && !isLoadingUnifiedFeed,
     messages: messageItems.length === 0,
-    files:    fileItems.length === 0,
-    bookings: false,
+    files:    unifiedFeedItems.length === 0 && !isLoadingUnifiedFeed,
+    bookings: unifiedFeedItems.length === 0 && !isLoadingUnifiedFeed,
   }[activeTab]
 
   const renderRows = () => {
@@ -279,10 +302,10 @@ export function UnifiedActivityRail({
       if (unifiedFeedItems.length === 0) return (
         <div className="px-3 py-4 space-y-1">
           <p className="text-[11px] text-muted-foreground italic">
-            Unified activity feed pending Phase 64A backend API.
+            No activity yet in this workspace.
           </p>
           <p className="text-[10px] text-muted-foreground/60">
-            Use the <strong>AI Events</strong> tab for available AI signals.
+            Events will appear here as your team uses channels, files, and AI features.
           </p>
         </div>
       )
@@ -321,23 +344,36 @@ export function UnifiedActivityRail({
     }
 
     if (activeTab === 'files') {
-      if (fileItems.length === 0) return <p className="text-[11px] text-muted-foreground italic px-3 py-4">No file uploads yet.</p>
-      return fileItems.slice(0, 40).map(a => {
-        const item: UnifiedActivityFeedItem = {
-          id: a.id,
-          event_type: 'file_uploaded',
-          title: `${a.user?.name ?? 'Someone'} uploaded a file${a.target ? ` · #${a.target}` : ''}`,
-          occurred_at: a.occurredAt,
-        }
-        return <FeedRow key={item.id} item={item} compact={compact} />
-      })
+      if (unifiedFeedItems.length === 0) return <p className="text-[11px] text-muted-foreground italic px-3 py-4">No file uploads yet.</p>
+      return (
+        <>
+          {visibleAll.map(item => <FeedRow key={item.id} item={item} compact={compact} />)}
+          {(unifiedFeedItems.length > 30 && !showMore) && (
+            <button type="button" onClick={() => setShowMore(true)}
+              className="w-full py-2 text-[10px] text-muted-foreground hover:text-foreground flex items-center justify-center gap-1 hover:bg-muted/20 transition-colors">
+              <ChevronDown className="w-3 h-3" /> Show {unifiedFeedItems.length - 30} more
+            </button>
+          )}
+        </>
+      )
     }
 
     if (activeTab === 'bookings') {
-      return (
+      if (unifiedFeedItems.length === 0) return (
         <p className="text-[11px] text-muted-foreground italic px-3 py-4">
-          Schedule bookings visible in ChannelInfo sheet or via the unified feed once Phase 64A ships.
+          No schedule bookings yet. Book a slot from the message composer.
         </p>
+      )
+      return (
+        <>
+          {visibleAll.map(item => <FeedRow key={item.id} item={item} compact={compact} />)}
+          {(unifiedFeedItems.length > 30 && !showMore) && (
+            <button type="button" onClick={() => setShowMore(true)}
+              className="w-full py-2 text-[10px] text-muted-foreground hover:text-foreground flex items-center justify-center gap-1 hover:bg-muted/20 transition-colors">
+              <ChevronDown className="w-3 h-3" /> Show {unifiedFeedItems.length - 30} more
+            </button>
+          )}
+        </>
       )
     }
 
