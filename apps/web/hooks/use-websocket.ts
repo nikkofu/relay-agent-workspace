@@ -15,7 +15,7 @@ import { useUserStore } from '@/stores/user-store'
 
 export function useWebsocket() {
   const socketRef = useRef<WebSocket | null>(null)
-  const { addMessage } = useMessageStore()
+  const { addMessage, addStreamingChunk } = useMessageStore()
   const { setCollabData } = useCollabStore()
   const { updatePresence, setTyping } = usePresenceStore()
   const { updateArtifactLocally } = useArtifactStore()
@@ -82,9 +82,26 @@ export function useWebsocket() {
         } else if (data.type === 'message.deleted') {
           const { message_id } = data.payload
           useMessageStore.getState().deleteMessageLocally(message_id)
-        } else if (data.type === 'message.updated' || data.type === 'reaction.updated') {
+        } else if (data.type === 'message.updated') {
           const updatedMsg = data.payload.message || data.payload
           useMessageStore.getState().updateMessageLocally(updatedMsg)
+        } else if (data.type === 'reaction.updated') {
+          const updatedMsg = data.payload.message || data.payload
+          useMessageStore.getState().updateMessageLocally(updatedMsg)
+          // Phase 64C: append reaction to unified feed
+          const reaction = data.payload.reaction
+          if (reaction) {
+            appendUnifiedFeedItem({
+              id: `reaction:${reaction.id ?? reaction.message_id + ':' + reaction.emoji + ':' + reaction.user_id}`,
+              event_type: 'reaction',
+              actor_id: reaction.user_id,
+              channel_id: data.payload.channel_id,
+              title: `Reacted ${reaction.emoji}`,
+              body: data.payload.message?.content,
+              occurred_at: reaction.created_at ?? new Date().toISOString(),
+              meta: { message_id: reaction.message_id, emoji: reaction.emoji },
+            })
+          }
         } else if (data.type === 'agent_collab.sync') {
           console.log("Syncing Agent Collab data from backend...")
           setCollabData(data.payload)
@@ -101,6 +118,28 @@ export function useWebsocket() {
           })
         } else if (data.type === 'artifact.updated') {
           updateArtifactLocally(data.payload)
+          // Phase 64C: append artifact updates to unified feed
+          const artifact = data.payload
+          if (artifact?.id) {
+            appendUnifiedFeedItem({
+              id: `artifact_updated:${artifact.id}`,
+              event_type: 'artifact_updated',
+              workspace_id: artifact.workspace_id,
+              actor_id: artifact.updated_by,
+              channel_id: artifact.channel_id,
+              title: `Artifact updated · ${artifact.title ?? 'Untitled'}`,
+              body: [artifact.type, artifact.status].filter(Boolean).join(' · '),
+              link: artifact.channel_id ? `/workspace?c=${artifact.channel_id}` : undefined,
+              occurred_at: artifact.updated_at ?? new Date().toISOString(),
+              meta: { artifact_id: artifact.id, artifact_type: artifact.type },
+            })
+          }
+        } else if (data.type === 'dm.stream.chunk') {
+          // Bug 1 fix: live AI DM response streaming
+          const { temp_id, dm_id, chunk, is_final } = data.payload || {}
+          if (temp_id && dm_id !== undefined) {
+            addStreamingChunk(temp_id, dm_id, chunk ?? '', !!is_final)
+          }
         } else if (data.type === 'notifications.read') {
           markAsReadLocally(data.payload.item_ids || [])
         } else if (data.type === 'workflow.run.updated') {

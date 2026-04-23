@@ -134,6 +134,7 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
   const fileInputRef = useRef<HTMLInputElement>(null)
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const draftsRef = useRef(drafts)
+  const isSendingRef = useRef(false)
 
   // Phase 55: passive entity reverse-lookup from the composer text
   const [detectedMatches, setDetectedMatches] = useState<EntityTextMatch[]>([])
@@ -257,12 +258,11 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
         setEntityMentionQuery("")
       }
 
-      // Autosave draft
+      // Autosave draft (skip deletion if we're in the middle of a send, which calls deleteDraft itself)
       if (scope) {
         const content = editor.getHTML()
-        // If empty content, explicitly delete draft from backend
         if (content === "<p></p>" || editor.isEmpty) {
-          deleteDraft(scope)
+          if (!isSendingRef.current) deleteDraft(scope)
         } else {
           saveDraft(scope, content)
         }
@@ -324,16 +324,20 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
       // Intercept slash commands in plain text form
       if (textContent === "/canvas") {
         openCanvas("new-doc")
+        isSendingRef.current = true
         editor.commands.clearContent()
+        isSendingRef.current = false
         if (scope) deleteDraft(scope)
         setShowSlashCommands(false)
         return
       }
 
+      isSendingRef.current = true
+      if (scope) deleteDraft(scope)  // Delete BEFORE clearContent to prevent onUpdate duplicate
       onSend?.(htmlContent, [], uploadedFileIds)
       editor.commands.clearContent()
+      isSendingRef.current = false
       setUploadedFileIds([])
-      if (scope) deleteDraft(scope) // Clear draft on send
       setShowSlashCommands(false)
       setShowMentions(false)
       setDetectedMatches([])

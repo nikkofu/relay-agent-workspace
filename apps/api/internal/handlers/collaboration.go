@@ -208,6 +208,51 @@ func broadcastDMRealtimeEvent(dmID, messageID string, payload any) error {
 	})
 }
 
+func broadcastDMTypingEvent(dmID, userID string, isTyping bool) {
+	if RealtimeHub == nil {
+		return
+	}
+	workspaceID := ""
+	var workspace domain.Workspace
+	if err := db.DB.Order("id asc").First(&workspace).Error; err == nil {
+		workspaceID = workspace.ID
+	}
+	_ = RealtimeHub.Broadcast(realtime.Event{
+		ID:          "evt_" + time.Now().Format("20060102150405.000000"),
+		Type:        "typing.updated",
+		WorkspaceID: workspaceID,
+		TS:          time.Now().UTC().Format(time.RFC3339Nano),
+		Payload: gin.H{
+			"user_id":   userID,
+			"dm_id":     dmID,
+			"is_typing": isTyping,
+		},
+	})
+}
+
+func broadcastDMStreamChunk(dmID, tempID, chunk string, isFinal bool) {
+	if RealtimeHub == nil {
+		return
+	}
+	workspaceID := ""
+	var workspace domain.Workspace
+	if err := db.DB.Order("id asc").First(&workspace).Error; err == nil {
+		workspaceID = workspace.ID
+	}
+	_ = RealtimeHub.Broadcast(realtime.Event{
+		ID:          "evt_" + time.Now().Format("20060102150405.000000"),
+		Type:        "dm.stream.chunk",
+		WorkspaceID: workspaceID,
+		TS:          time.Now().UTC().Format(time.RFC3339Nano),
+		Payload: gin.H{
+			"dm_id":    dmID,
+			"temp_id":  tempID,
+			"chunk":    chunk,
+			"is_final": isFinal,
+		},
+	})
+}
+
 func loadChannelPreference(channelID, userID string) domain.ChannelPreference {
 	prefs := domain.ChannelPreference{
 		ChannelID:         channelID,
@@ -1567,19 +1612,28 @@ func triggerAIDMReply(dmID, userMessage, senderUserID string) {
 	var recentMessages []domain.DMMessage
 	_ = db.DB.Where("dm_conversation_id = ?", dmID).Order("created_at desc").Limit(10).Find(&recentMessages).Error
 	prompt := buildDMAIPrompt(aiUser, recentMessages, userMessage)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	session, err := AIGateway.Stream(ctx, llm.Request{Prompt: prompt})
 	if err != nil {
 		log.Printf("[ai-dm] gateway error: %v", err)
 		return
 	}
+
+	// Signal AI is thinking
+	broadcastDMTypingEvent(dmID, aiUser.ID, true)
+	defer broadcastDMTypingEvent(dmID, aiUser.ID, false)
+
+	// Stream chunks in real-time so the UI can show thinking progress
+	tempID := ids.NewPrefixedUUID("dm-stream")
 	var reply strings.Builder
 	for event := range session.Events {
-		if event.Type == "chunk" {
+		if event.Type == "chunk" && event.Text != "" {
 			reply.WriteString(event.Text)
+			broadcastDMStreamChunk(dmID, tempID, event.Text, false)
 		}
 	}
+
 	replyContent := strings.TrimSpace(reply.String())
 	if replyContent == "" {
 		return
@@ -1596,6 +1650,8 @@ func triggerAIDMReply(dmID, userMessage, senderUserID string) {
 		log.Printf("[ai-dm] failed to save reply: %v", err)
 		return
 	}
+	// Signal streaming complete (frontend replaces the streaming message with the saved one)
+	broadcastDMStreamChunk(dmID, tempID, aiMessage.ID, true)
 	_ = broadcastDMRealtimeEvent(dmID, aiMessage.ID, gin.H{
 		"id":         aiMessage.ID,
 		"dm_id":      aiMessage.DMConversationID,

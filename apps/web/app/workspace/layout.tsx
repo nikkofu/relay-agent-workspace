@@ -36,6 +36,8 @@ export default function WorkspaceLayout({
   const workspacesFetched = useRef(false)
   const lastChannelsWorkspaceId = useRef<string | null>(null)
 
+  const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
   useEffect(() => {
     setMounted(true)
     if (!workspacesFetched.current) {
@@ -46,14 +48,18 @@ export default function WorkspaceLayout({
       fetchPresence()
       fetchDrafts()
     }
+  }, [fetchMe, fetchUsers, fetchWorkspaces, fetchPresence, fetchDrafts])
 
-    // Presence Heartbeat
-    const interval = setInterval(() => {
-      sendHeartbeat()
-    }, 30000) // Every 30 seconds
-
-    return () => clearInterval(interval)
-  }, [fetchMe, fetchUsers, fetchWorkspaces, fetchPresence, sendHeartbeat, fetchDrafts])
+  useEffect(() => {
+    if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current)
+    heartbeatIntervalRef.current = setInterval(() => sendHeartbeat(), 30000)
+    return () => {
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current)
+        heartbeatIntervalRef.current = null
+      }
+    }
+  }, [sendHeartbeat])
 
   useEffect(() => {
     if (currentWorkspace && currentWorkspace.id !== lastChannelsWorkspaceId.current) {

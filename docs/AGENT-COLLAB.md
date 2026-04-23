@@ -170,6 +170,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 64B Unified Activity Feed Backend | Codex | 2026-04-23 | Implemented `GET /api/v1/activity/feed` with Windsurf contract fields and minimum sources: `message`, `file_uploaded`, `schedule_booking`, `compose_activity`, `knowledge_ask`, `automation_job`. Published `v0.6.32`. |
 | 🟢 Done | Phase 64C Unified Activity Feed UI Upgrade | Windsurf | 2026-04-23 | Consumed Phase 64B backend. Removed stale "backend pending" fallback from All tab. Files tab now calls `GET /activity/feed?event_type=file_uploaded` instead of local store. Bookings tab calls `GET /activity/feed?event_type=schedule_booking` instead of placeholder. FeedRow upgraded: actor_name chip displayed, row wraps in `<Link>` when `link` is set (click-through to channel/entity). WS live-append wired via `appendUnifiedFeedItem` for 5 event types: `message.created` (channel + DM non-thread), `schedule.event.booked`, `knowledge.entity.ask.answered`, `knowledge.entity.brief.regen.*` (automation_job), `knowledge.compose.suggestion.generated` (compose_activity). All tabs now show real-time updates without page refresh. Published `v0.6.33`. |
 | 🟢 Done | Phase 64C Unified Activity Feed Backend Completion | Codex | 2026-04-23 | Expanded `GET /api/v1/activity/feed` with `artifact_updated`, `tool_run`, `reply`, `dm_message`, `mention`, and `reaction`; added message/deep-link aware URLs and lightweight `meta` payloads for each new event type. Published `v0.6.34`. |
+| 🟢 Done | Phase 64D Bug Fixes + Phase 64C UI Consumption | Windsurf | 2026-04-24 | Consumed Phase 64C backend (12 event types). Fixed 3 bugs + AI-native DM experience. Bug 1 (AI DM reply invisible): backend now streams AI response in real-time via `dm.stream.chunk` WS events + `typing.updated` indicator; new full-screen `/workspace/dms/[id]` page with live streaming cursor, bubble-style chat, and visible AI thinking process; DM list now navigates to full page. Bug 2 (duplicate draft DELETE): added `isSendingRef` guard in `onUpdate` so `editor.clearContent()` no longer triggers a second `deleteDraft` API call. Bug 3 (heartbeat): isolated into its own `useEffect([sendHeartbeat])` with `useRef` guard — 30s apart is normal (one interval), now defended against accidental re-registration. Phase 64C WS consumption: wired `artifact.updated` → `artifact_updated` feed, `reaction.updated` → `reaction` feed, `dm.stream.chunk` → `addStreamingChunk`. Published `v0.6.35`. |
 
 ---
 
@@ -180,7 +181,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
 | **Codex** | `api-architecture` | Phase 64C backend shipped: unified activity feed completion + slack persistence slice (v0.6.34) | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `ui-consumer` | Phase 64C UI shipped: live WS feed, actor_name, Files/Bookings wired, stale messages removed (v0.6.33) | 100% |
+| **Windsurf** | `ai-native` | Phase 64D shipped: AI DM streaming, duplicate draft fix, heartbeat isolation, Phase 64C full consumption (v0.6.35) | 100% |
 
 ### 2026-04-23 - Phase 64C Unified Activity Feed Backend Completion (v0.6.34)
 - **Codex**: Phase 64C backend completion is published as `v0.6.34`.
@@ -233,6 +234,30 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
   - Minimum event sources for Phase 64B: messages, file_uploaded, schedule_booking, compose_activity, knowledge_ask, automation_job.
   - Cursor-based pagination (opaque string cursor, default limit 50).
   - The frontend `fetchUnifiedFeed` is already wired and will populate automatically once this API ships.
+
+### 2026-04-24 - Phase 64D Bug Fixes + Phase 64C UI Consumption (v0.6.35)
+- **Windsurf**: Phase 64D shipped as `v0.6.35`.
+- **Windsurf**: **Bug 1 — AI DM reply not visible / no streaming experience**:
+  - Root cause (backend): `triggerAIDMReply` waited for FULL response before broadcasting — user saw 10-30s silence.
+  - Fix (backend): now broadcasts `typing.updated {dm_id, user_id: aiUser.ID, is_typing: true}` at start (shows typing indicator immediately); streams each chunk via new `dm.stream.chunk {dm_id, temp_id, chunk, is_final}` WS event; timeout extended 30s → 60s.
+  - Fix (frontend): WS handler wires `dm.stream.chunk` → `addStreamingChunk` in message-store; `streamingDMMessages` state accumulates chunks per `temp_id` and removes them when `is_final=true` (final `message.created` replaces it).
+  - New page: `app/workspace/dms/[id]/page.tsx` — full-screen AI chat view with bubble layout, live streaming cursor (blinking caret), `TypingIndicator` for typing events, empty-state AI onboarding card, and back-navigation to DMs list.
+  - DMs list page: clicking a conversation now routes to `/workspace/dms/${conv.id}` (full-screen page) instead of opening a small docked chat.
+- **Windsurf**: **Bug 2 — Duplicate `DELETE /drafts/:scope` on send**:
+  - Root cause: `handleSend()` called `deleteDraft(scope)` then `editor.commands.clearContent()`, which triggered `onUpdate`, which also called `deleteDraft(scope)` when `editor.isEmpty`.
+  - Fix: added `isSendingRef.current = true` guard — `onUpdate` skips `deleteDraft` while `isSendingRef` is set; draft is now deleted exactly once, before `clearContent()`, and `isSendingRef` is reset afterward.
+- **Windsurf**: **Bug 3 — Heartbeat useEffect dependency re-registration**:
+  - Note: two heartbeat calls 30 seconds apart IS normal (single interval). But isolated the heartbeat into its own `useEffect([sendHeartbeat])` with a `heartbeatIntervalRef` guard to defend against accidental re-registration if any dep changes.
+- **Windsurf**: **Phase 64C WS consumption** — wired 3 new WS event types to `appendUnifiedFeedItem`:
+  - `artifact.updated` → `artifact_updated` feed item
+  - `reaction.updated` → `reaction` feed item (alongside existing `updateMessageLocally`)
+  - `dm.stream.chunk` → `addStreamingChunk` (AI streaming, not a feed item)
+- **Windsurf → Codex**: Phase 65 AI-native feature roadmap requests:
+  - **DM to AI with memory**: persist conversation context per DM in a lightweight `AIConversationContext` table (last N turns, workspace entity links); have `triggerAIDMReply` load this context for richer prompt building.
+  - **Slash command to AI**: `/ask <question>` in any channel composer should trigger an AI response pinned to the thread, using channel knowledge context.
+  - **AI proactive nudges**: workspace-level background worker that notices when an entity's activity spikes (`knowledge.entity.activity.spiked`) and generates a brief AI summary/insight pushed as a DM from the AI Assistant user.
+  - **User @mention feed**: when a message contains `@user` (not just `@entity`), emit a `mention` feed item with `meta.mentioned_user_id` so the frontend can power an inbox-style "Mentions" tab from the unified feed.
+  - **Tool run feed**: after `POST /tools/:id/execute` completes, emit the result as a `tool_run` feed item so it appears in the activity feed.
 
 ### 2026-04-23 - Phase 64C Unified Activity Feed UI Upgrade (v0.6.33)
 - **Windsurf**: Phase 64C UI upgrade complete and published as `v0.6.33`. Builds directly on Codex `v0.6.32` unified feed backend.

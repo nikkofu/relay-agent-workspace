@@ -13,6 +13,7 @@ import { MessageSquare, Search, Plus, Sparkles } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatDistanceToNow } from "date-fns"
 import { InviteMemberDialog } from "@/components/workspace/invite-member-dialog"
+import { useRouter } from "next/navigation"
 
 function statusDot(status?: string) {
   if (status === "online") return "bg-green-500"
@@ -25,6 +26,7 @@ export default function DMsPage() {
   const { conversations, fetchConversations } = useDMStore()
   const { users, currentUser } = useUserStore()
   const { openDockedChat } = useUIStore()
+  const router = useRouter()
   const [q, setQ] = useState("")
   const [showInvite, setShowInvite] = useState(false)
 
@@ -102,7 +104,7 @@ export default function DMsPage() {
               return (
                 <button
                   key={conv.id}
-                  onClick={() => openDockedChat(user.id)}
+                  onClick={() => conv.id ? router.push(`/workspace/dms/${conv.id}`) : openDockedChat(user.id)}
                   className="w-full flex items-center gap-4 px-6 py-4 hover:bg-muted/40 transition-colors text-left group"
                 >
                   <div className="relative shrink-0">

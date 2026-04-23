@@ -28,6 +28,9 @@ interface MessageState {
   markAsUnread: (messageId: string) => Promise<void>
   deleteMessageLocally: (messageId: string) => void
   updateMessageLocally: (rawMessage: any) => void
+  // Streaming DM messages from AI
+  streamingDMMessages: Record<string, { dmId: string; text: string }>
+  addStreamingChunk: (tempId: string, dmId: string, chunk: string, isFinal: boolean) => void
 }
 
 const mapMessage = (m: any): Message => {
@@ -64,6 +67,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   pinnedMessages: [],
   currentThreadSummary: null,
   isSummaryLoading: false,
+  streamingDMMessages: {},
   fetchMessages: async (channelId) => {
     try {
       const response = await fetch(`${API_BASE_URL}/messages?channel_id=${channelId}`)
@@ -199,6 +203,26 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   getMessagesByChannel: (channelId) => get().messages.filter((m) => m.channelId === channelId),
   getMessagesByDM: (dmId) => get().messages.filter((m) => m.dmId === dmId),
   
+  addStreamingChunk: (tempId, dmId, chunk, isFinal) => {
+    if (isFinal) {
+      // Remove the streaming message — the real message.created event will arrive next
+      set(state => {
+        const next = { ...state.streamingDMMessages }
+        delete next[tempId]
+        return { streamingDMMessages: next }
+      })
+      return
+    }
+    set(state => {
+      const existing = state.streamingDMMessages[tempId]
+      return {
+        streamingDMMessages: {
+          ...state.streamingDMMessages,
+          [tempId]: { dmId, text: (existing?.text ?? '') + chunk },
+        }
+      }
+    })
+  },
   deleteMessageLocally: (messageId: string) => {
     set(state => ({
       messages: state.messages.filter(m => m.id !== messageId),
