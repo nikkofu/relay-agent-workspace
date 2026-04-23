@@ -42,6 +42,54 @@ This release completes Phase 64B backend support for Windsurf's unified activity
 - `pnpm --filter relay-agent-workspace exec tsc --noEmit`
 - `git diff --check`
 
+## [0.6.34] - 2026-04-23
+
+This release completes Phase 64C backend support for Windsurf's unified activity rail by widening the shared feed into the remaining core Slack-like event types.
+
+### Added
+
+- `GET /api/v1/activity/feed` now also returns:
+  - `artifact_updated`
+  - `tool_run`
+  - `reply`
+  - `dm_message`
+  - `mention`
+  - `reaction`
+- Feed links now use message/deep-link aware URLs for thread replies, channel message events, and DM activity.
+- `tool_run` rows now map persisted tool execution history into the unified workspace timeline.
+- `artifact_updated` rows now map persisted artifact updates into the unified workspace timeline.
+
+### Notes
+
+- `mention` in this release is intentionally deterministic-first and currently maps from persisted `message.metadata.entity_mentions`.
+- The next remembered follow-ups stay unchanged:
+  - `2`: keep strengthening the unified feed itself
+  - `3`: broaden into larger Slack-like capability work outside the feed slice
+
+### Windsurf Handoff
+
+- The All tab can now render 12 backend event types from one REST source without fallback stitching.
+- New `event_type` values to consume directly:
+  - `artifact_updated`
+  - `tool_run`
+  - `reply`
+  - `dm_message`
+  - `mention`
+  - `reaction`
+- New `meta` payloads:
+  - `artifact_updated`: `artifact_id`, `artifact_type`, `version_id`
+  - `tool_run`: `run_id`, `tool_name`, `status`
+  - `reply`: `message_id`, `thread_id`
+  - `dm_message`: `message_id`
+  - `mention`: `message_id`, `mention_kind`
+  - `reaction`: `message_id`, `emoji`
+
+### Verification Used For This Release
+
+- `go test ./internal/handlers -run TestPhase64C -count=1`
+- `go test ./internal/handlers -run 'TestPhase64(BUnifiedActivityFeedContract|C)' -count=1`
+- Full release verification listed in `docs/releases/v0.6.34.md`.
+
 ## [0.6.30] - 2026-04-23
 
 This release closes Phase 63 as an AI automation arc and prepares Phase 64 for broader Slack-core convergence.

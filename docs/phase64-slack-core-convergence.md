@@ -86,3 +86,21 @@ Phase 64A proposed scope:
 - backend: include at least message, file, artifact, booking, compose activity, knowledge ask, and automation job items
 - frontend: Activity/Home/Agent-Collab consume the same feed shape
 - websocket: keep existing event-specific messages for now; do not add a new generic feed event until the REST feed is stable
+
+## Phase 64C Completion Record
+
+Phase 64C is the first feed-completion slice after the initial REST contract and UI integration.
+
+Delivered in `v0.6.34`:
+
+- `artifact_updated`
+- `tool_run`
+- `reply`
+- `dm_message`
+- `mention`
+- `reaction`
+
+Remembered next continuations from the user decision:
+
+- `2`: continue strengthening the unified feed itself
+- `3`: then broaden into larger Slack-like capability work outside the feed slice

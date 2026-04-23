@@ -727,10 +727,17 @@ func GetActivityFeed(c *gin.Context) {
 		return
 	}
 
-	items := make([]feedItem, 0, limit*6)
+	items := make([]feedItem, 0, limit*12)
 	var cursorTime time.Time
 	if cursor != "" {
 		cursorTime, _ = time.Parse(time.RFC3339Nano, cursor)
+	}
+
+	var workspaceChannelIDs []string
+	_ = db.DB.Model(&domain.Channel{}).Where("workspace_id = ?", workspaceID).Pluck("id", &workspaceChannelIDs).Error
+	workspaceChannelSet := make(map[string]struct{}, len(workspaceChannelIDs))
+	for _, id := range workspaceChannelIDs {
+		workspaceChannelSet[id] = struct{}{}
 	}
 
 	channelNames := map[string]string{}
@@ -805,12 +812,10 @@ func GetActivityFeed(c *gin.Context) {
 		if channelID != "" {
 			msgQ = msgQ.Where("channel_id = ?", channelID)
 		} else {
-			var channelIDs []string
-			db.DB.Model(&domain.Channel{}).Where("workspace_id = ?", workspaceID).Pluck("id", &channelIDs)
-			if len(channelIDs) == 0 {
+			if len(workspaceChannelIDs) == 0 {
 				msgQ = msgQ.Where("1=0")
 			} else {
-				msgQ = msgQ.Where("channel_id IN ?", channelIDs)
+				msgQ = msgQ.Where("channel_id IN ?", workspaceChannelIDs)
 			}
 		}
 		if !cursorTime.IsZero() {
@@ -831,6 +836,41 @@ func GetActivityFeed(c *gin.Context) {
 				Link:        "/workspace?c=" + m.ChannelID,
 				OccurredAt:  m.CreatedAt.Format(time.RFC3339Nano),
 				Meta:        map[string]any{"message_id": m.ID},
+			})
+		}
+	}
+
+	// 1b. Thread replies
+	if includeEvent("reply") {
+		var replies []domain.Message
+		replyQ := db.DB.Order("created_at desc").Limit(limit).Where("thread_id <> ''")
+		if channelID != "" {
+			replyQ = replyQ.Where("channel_id = ?", channelID)
+		} else {
+			if len(workspaceChannelIDs) == 0 {
+				replyQ = replyQ.Where("1=0")
+			} else {
+				replyQ = replyQ.Where("channel_id IN ?", workspaceChannelIDs)
+			}
+		}
+		if !cursorTime.IsZero() {
+			replyQ = replyQ.Where("created_at < ?", cursorTime)
+		}
+		_ = replyQ.Find(&replies).Error
+		for _, m := range replies {
+			appendItem(feedItem{
+				ID:          "reply:" + m.ID,
+				EventType:   "reply",
+				WorkspaceID: workspaceID,
+				ActorID:     m.UserID,
+				ActorName:   loadUserName(m.UserID),
+				ChannelID:   m.ChannelID,
+				ChannelName: loadChannelName(m.ChannelID),
+				Title:       defaultString(loadUserName(m.UserID), "Someone") + " replied in #" + defaultString(loadChannelName(m.ChannelID), "channel"),
+				Body:        m.Content,
+				Link:        activityFeedMessageLink(m.ChannelID, m.ID),
+				OccurredAt:  m.CreatedAt.Format(time.RFC3339Nano),
+				Meta:        map[string]any{"message_id": m.ID, "thread_id": m.ThreadID},
 			})
 		}
 	}
@@ -898,6 +938,51 @@ func GetActivityFeed(c *gin.Context) {
 		}
 	}
 
+	// 3b. Mentions from persisted message metadata
+	if includeEvent("mention") {
+		var messages []domain.Message
+		mentionQ := db.DB.Order("created_at desc").Limit(limit)
+		if channelID != "" {
+			mentionQ = mentionQ.Where("channel_id = ?", channelID)
+		} else {
+			if len(workspaceChannelIDs) == 0 {
+				mentionQ = mentionQ.Where("1=0")
+			} else {
+				mentionQ = mentionQ.Where("channel_id IN ?", workspaceChannelIDs)
+			}
+		}
+		if !cursorTime.IsZero() {
+			mentionQ = mentionQ.Where("created_at < ?", cursorTime)
+		}
+		_ = mentionQ.Find(&messages).Error
+		for _, m := range messages {
+			if strings.TrimSpace(m.Metadata) == "" {
+				continue
+			}
+			var meta messageMetadata
+			if err := json.Unmarshal([]byte(m.Metadata), &meta); err != nil || len(meta.EntityMentions) == 0 {
+				continue
+			}
+			appendItem(feedItem{
+				ID:          "mention:" + m.ID,
+				EventType:   "mention",
+				WorkspaceID: workspaceID,
+				ActorID:     m.UserID,
+				ActorName:   loadUserName(m.UserID),
+				ChannelID:   m.ChannelID,
+				ChannelName: loadChannelName(m.ChannelID),
+				EntityID:    meta.EntityMentions[0].EntityID,
+				EntityTitle: meta.EntityMentions[0].EntityTitle,
+				EntityKind:  meta.EntityMentions[0].EntityKind,
+				Title:       defaultString(loadUserName(m.UserID), "Someone") + " mentioned " + defaultString(meta.EntityMentions[0].EntityTitle, "an entity"),
+				Body:        m.Content,
+				Link:        activityFeedMessageLink(m.ChannelID, m.ID),
+				OccurredAt:  m.CreatedAt.Format(time.RFC3339Nano),
+				Meta:        map[string]any{"message_id": m.ID, "mention_kind": "entity"},
+			})
+		}
+	}
+
 	// 4. Automation jobs
 	if includeEvent("automation_job") {
 		var jobs []domain.AIAutomationJob
@@ -942,12 +1027,10 @@ func GetActivityFeed(c *gin.Context) {
 		if channelID != "" {
 			fileQ = fileQ.Where("channel_id = ?", channelID)
 		} else {
-			var channelIDs []string
-			db.DB.Model(&domain.Channel{}).Where("workspace_id = ?", workspaceID).Pluck("id", &channelIDs)
-			if len(channelIDs) == 0 {
+			if len(workspaceChannelIDs) == 0 {
 				fileQ = fileQ.Where("1=0")
 			} else {
-				fileQ = fileQ.Where("channel_id IN ?", channelIDs)
+				fileQ = fileQ.Where("channel_id IN ?", workspaceChannelIDs)
 			}
 		}
 		if !cursorTime.IsZero() {
@@ -968,6 +1051,77 @@ func GetActivityFeed(c *gin.Context) {
 				Link:        "/workspace?c=" + file.ChannelID,
 				OccurredAt:  file.CreatedAt.Format(time.RFC3339Nano),
 				Meta:        map[string]any{"file_id": file.ID, "content_type": file.ContentType, "source_kind": file.SourceKind},
+			})
+		}
+	}
+
+	// 5b. Artifact updates
+	if includeEvent("artifact_updated") {
+		var artifacts []domain.Artifact
+		artifactQ := db.DB.Joins("JOIN channels ON channels.id = artifacts.channel_id").
+			Where("channels.workspace_id = ?", workspaceID).
+			Order("artifacts.updated_at desc").
+			Limit(limit)
+		if channelID != "" {
+			artifactQ = artifactQ.Where("artifacts.channel_id = ?", channelID)
+		}
+		if !cursorTime.IsZero() {
+			artifactQ = artifactQ.Where("artifacts.updated_at < ?", cursorTime)
+		}
+		_ = artifactQ.Find(&artifacts).Error
+		for _, artifact := range artifacts {
+			appendItem(feedItem{
+				ID:          "artifact_updated:" + artifact.ID,
+				EventType:   "artifact_updated",
+				WorkspaceID: workspaceID,
+				ActorID:     artifact.UpdatedBy,
+				ActorName:   loadUserName(artifact.UpdatedBy),
+				ChannelID:   artifact.ChannelID,
+				ChannelName: loadChannelName(artifact.ChannelID),
+				Title:       "Artifact updated · " + artifact.Title,
+				Body:        strings.TrimSpace(strings.Join([]string{artifact.Type, artifact.Status}, " · ")),
+				Link:        activityFeedLink(artifact.ChannelID, "", ""),
+				OccurredAt:  artifact.UpdatedAt.Format(time.RFC3339Nano),
+				Meta:        map[string]any{"artifact_id": artifact.ID, "artifact_type": artifact.Type, "version_id": artifact.Version},
+			})
+		}
+	}
+
+	// 5c. Reactions on persisted channel messages
+	if includeEvent("reaction") {
+		var reactions []domain.MessageReaction
+		reactionQ := db.DB.Table("message_reactions").
+			Select("message_reactions.*").
+			Joins("JOIN messages ON messages.id = message_reactions.message_id").
+			Joins("JOIN channels ON channels.id = messages.channel_id").
+			Where("channels.workspace_id = ?", workspaceID).
+			Order("message_reactions.created_at desc").
+			Limit(limit)
+		if channelID != "" {
+			reactionQ = reactionQ.Where("messages.channel_id = ?", channelID)
+		}
+		if !cursorTime.IsZero() {
+			reactionQ = reactionQ.Where("message_reactions.created_at < ?", cursorTime)
+		}
+		_ = reactionQ.Find(&reactions).Error
+		for _, reaction := range reactions {
+			var message domain.Message
+			if err := db.DB.First(&message, "id = ?", reaction.MessageID).Error; err != nil {
+				continue
+			}
+			appendItem(feedItem{
+				ID:          "reaction:" + strconv.FormatUint(uint64(reaction.ID), 10),
+				EventType:   "reaction",
+				WorkspaceID: workspaceID,
+				ActorID:     reaction.UserID,
+				ActorName:   loadUserName(reaction.UserID),
+				ChannelID:   message.ChannelID,
+				ChannelName: loadChannelName(message.ChannelID),
+				Title:       defaultString(loadUserName(reaction.UserID), "Someone") + " reacted " + reaction.Emoji,
+				Body:        message.Content,
+				Link:        activityFeedMessageLink(message.ChannelID, message.ID),
+				OccurredAt:  reaction.CreatedAt.Format(time.RFC3339Nano),
+				Meta:        map[string]any{"message_id": message.ID, "emoji": reaction.Emoji},
 			})
 		}
 	}
@@ -1005,6 +1159,74 @@ func GetActivityFeed(c *gin.Context) {
 		}
 	}
 
+	// 6b. Tool runs
+	if includeEvent("tool_run") {
+		var runs []domain.ToolRun
+		runQ := db.DB.Order("updated_at desc").Limit(limit * 3)
+		if !cursorTime.IsZero() {
+			runQ = runQ.Where("updated_at < ?", cursorTime)
+		}
+		_ = runQ.Find(&runs).Error
+		for _, run := range runs {
+			response := hydrateToolRun(run, false)
+			if response.ChannelID == "" {
+				continue
+			}
+			if channelID != "" && response.ChannelID != channelID {
+				continue
+			}
+			if _, ok := workspaceChannelSet[response.ChannelID]; !ok {
+				continue
+			}
+			occurredAt := run.StartedAt
+			if run.CompletedAt != nil {
+				occurredAt = *run.CompletedAt
+			}
+			appendItem(feedItem{
+				ID:          "tool_run:" + run.ID,
+				EventType:   "tool_run",
+				WorkspaceID: workspaceID,
+				ActorID:     run.TriggeredBy,
+				ActorName:   loadUserName(run.TriggeredBy),
+				ChannelID:   response.ChannelID,
+				ChannelName: loadChannelName(response.ChannelID),
+				Title:       defaultString(response.ToolName, "Tool") + " · " + defaultString(run.Status, "unknown"),
+				Body:        defaultString(strings.TrimSpace(run.Summary), defaultString(response.ToolKey, run.ToolID)),
+				Link:        "/workspace/workflows",
+				OccurredAt:  occurredAt.Format(time.RFC3339Nano),
+				Meta:        map[string]any{"run_id": run.ID, "tool_name": response.ToolName, "status": defaultString(run.Status, "unknown")},
+			})
+		}
+	}
+
+	// 6c. DM messages
+	if includeEvent("dm_message") {
+		var messages []domain.DMMessage
+		dmQ := db.DB.Order("created_at desc").Limit(limit)
+		if dmID != "" {
+			dmQ = dmQ.Where("dm_conversation_id = ?", dmID)
+		}
+		if !cursorTime.IsZero() {
+			dmQ = dmQ.Where("created_at < ?", cursorTime)
+		}
+		_ = dmQ.Find(&messages).Error
+		for _, m := range messages {
+			appendItem(feedItem{
+				ID:          "dm_message:" + m.ID,
+				EventType:   "dm_message",
+				WorkspaceID: workspaceID,
+				ActorID:     m.UserID,
+				ActorName:   loadUserName(m.UserID),
+				DMID:        m.DMConversationID,
+				Title:       defaultString(loadUserName(m.UserID), "Someone") + " sent a DM",
+				Body:        m.Content,
+				Link:        activityFeedDMMessageLink(m.DMConversationID),
+				OccurredAt:  m.CreatedAt.Format(time.RFC3339Nano),
+				Meta:        map[string]any{"message_id": m.ID},
+			})
+		}
+	}
+
 	sort.Slice(items, func(i, j int) bool { return items[i].OccurredAt > items[j].OccurredAt })
 
 	if len(items) > limit {
@@ -1025,7 +1247,17 @@ func GetActivityFeed(c *gin.Context) {
 		},
 		func() int64 {
 			var n int64
+			_ = db.DB.Model(&domain.Message{}).Joins("JOIN channels ON channels.id = messages.channel_id").Where("channels.workspace_id = ? AND messages.thread_id <> ''", workspaceID).Count(&n).Error
+			return n
+		},
+		func() int64 {
+			var n int64
 			_ = db.DB.Model(&domain.FileAsset{}).Joins("JOIN channels ON channels.id = file_assets.channel_id").Where("channels.workspace_id = ?", workspaceID).Count(&n).Error
+			return n
+		},
+		func() int64 {
+			var n int64
+			_ = db.DB.Model(&domain.Artifact{}).Joins("JOIN channels ON channels.id = artifacts.channel_id").Where("channels.workspace_id = ?", workspaceID).Count(&n).Error
 			return n
 		},
 		func() int64 {
@@ -1048,6 +1280,40 @@ func GetActivityFeed(c *gin.Context) {
 			_ = db.DB.Model(&domain.AIAutomationJob{}).Where("workspace_id = ?", workspaceID).Count(&n).Error
 			return n
 		},
+		func() int64 {
+			var n int64
+			_ = db.DB.Model(&domain.MessageReaction{}).
+				Joins("JOIN messages ON messages.id = message_reactions.message_id").
+				Joins("JOIN channels ON channels.id = messages.channel_id").
+				Where("channels.workspace_id = ?", workspaceID).
+				Count(&n).Error
+			return n
+		},
+		func() int64 {
+			var n int64
+			var messages []domain.Message
+			_ = db.DB.Joins("JOIN channels ON channels.id = messages.channel_id").Where("channels.workspace_id = ?", workspaceID).Find(&messages).Error
+			for _, m := range messages {
+				if strings.TrimSpace(m.Metadata) == "" {
+					continue
+				}
+				var meta messageMetadata
+				if err := json.Unmarshal([]byte(m.Metadata), &meta); err == nil && len(meta.EntityMentions) > 0 {
+					n++
+				}
+			}
+			return n
+		},
+		func() int64 {
+			var n int64
+			_ = db.DB.Model(&domain.ToolRun{}).Count(&n).Error
+			return n
+		},
+		func() int64 {
+			var n int64
+			_ = db.DB.Model(&domain.DMMessage{}).Count(&n).Error
+			return n
+		},
 	} {
 		total += tableCount()
 	}
@@ -1066,6 +1332,23 @@ func activityFeedLink(channelID, dmID, entityID string) string {
 		return "/workspace/dms"
 	}
 	return "/workspace/activity"
+}
+
+func activityFeedMessageLink(channelID, messageID string) string {
+	if channelID == "" {
+		return "/workspace/activity"
+	}
+	if messageID == "" {
+		return "/workspace?c=" + channelID
+	}
+	return "/workspace?c=" + channelID + "&m=" + messageID
+}
+
+func activityFeedDMMessageLink(dmID string) string {
+	if dmID == "" {
+		return "/workspace/dms"
+	}
+	return "/workspace/dms?id=" + dmID
 }
 
 func GetTools(c *gin.Context) {

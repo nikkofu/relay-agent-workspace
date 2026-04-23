@@ -6360,6 +6360,213 @@ func TestPhase64BUnifiedActivityFeedContract(t *testing.T) {
 	}
 }
 
+func TestPhase64CArtifactAndToolRunFeedItems(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.Workspace{ID: "ws-1", Name: "Relay"})
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	db.DB.Create(&domain.Artifact{ID: "artifact-1", ChannelID: "ch-1", Title: "Launch Doc", Type: "document", Status: "live", Content: "v2", Source: "manual", CreatedBy: "user-1", UpdatedBy: "user-1", CreatedAt: now.Add(-20 * time.Minute), UpdatedAt: now.Add(-7 * time.Minute)})
+	db.DB.Create(&domain.ToolDefinition{ID: "tool-1", Name: "Summarize Thread", Key: "summarize-thread", Category: "ai", IsEnabled: true, CreatedAt: now.Add(-time.Hour), UpdatedAt: now.Add(-time.Hour)})
+	toolInput := `{"channel_id":"ch-1"}`
+	db.DB.Create(&domain.ToolRun{ID: "tool-run-1", ToolID: "tool-1", TriggeredBy: "user-1", Status: "succeeded", Input: toolInput, Summary: "Summarized launch blockers", StartedAt: now.Add(-6 * time.Minute), CompletedAt: ptrTime(now.Add(-5 * time.Minute)), CreatedAt: now.Add(-6 * time.Minute), UpdatedAt: now.Add(-5 * time.Minute)})
+
+	router := gin.New()
+	router.GET("/api/v1/activity/feed", GetActivityFeed)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/activity/feed?workspace_id=ws-1&limit=10", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 when loading activity feed, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Items []struct {
+			EventType  string         `json:"event_type"`
+			ActorID    string         `json:"actor_id"`
+			ActorName  string         `json:"actor_name"`
+			ChannelID  string         `json:"channel_id"`
+			Title      string         `json:"title"`
+			Link       string         `json:"link"`
+			OccurredAt string         `json:"occurred_at"`
+			Meta       map[string]any `json:"meta"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode activity feed payload: %v", err)
+	}
+
+	var seenArtifact, seenTool bool
+	for _, item := range payload.Items {
+		switch item.EventType {
+		case "artifact_updated":
+			seenArtifact = true
+			if item.ActorID != "user-1" || item.ActorName != "Nikko Fu" || item.ChannelID != "ch-1" || item.Title == "" || item.OccurredAt == "" {
+				t.Fatalf("unexpected artifact feed item: %#v", item)
+			}
+			if item.Link == "" || item.Meta["artifact_id"] != "artifact-1" || item.Meta["artifact_type"] != "document" {
+				t.Fatalf("expected artifact metadata on unified feed row, got %#v", item)
+			}
+		case "tool_run":
+			seenTool = true
+			if item.ActorID != "user-1" || item.ActorName != "Nikko Fu" || item.ChannelID != "ch-1" || item.Title == "" || item.OccurredAt == "" {
+				t.Fatalf("unexpected tool run feed item: %#v", item)
+			}
+			if item.Link != "/workspace/workflows" || item.Meta["run_id"] != "tool-run-1" || item.Meta["tool_name"] != "Summarize Thread" || item.Meta["status"] != "succeeded" {
+				t.Fatalf("expected tool_run metadata on unified feed row, got %#v", item)
+			}
+		}
+	}
+
+	if !seenArtifact || !seenTool {
+		t.Fatalf("expected artifact_updated and tool_run in feed, got %#v", payload.Items)
+	}
+
+	filtered := httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/activity/feed?workspace_id=ws-1&event_type=tool_run&limit=10", nil)
+	router.ServeHTTP(filtered, req)
+	if filtered.Code != http.StatusOK {
+		t.Fatalf("expected 200 when filtering tool_run feed, got %d body=%s", filtered.Code, filtered.Body.String())
+	}
+	if !strings.Contains(filtered.Body.String(), `"event_type":"tool_run"`) || strings.Contains(filtered.Body.String(), `"event_type":"artifact_updated"`) {
+		t.Fatalf("expected tool_run filter to exclude artifact_updated, got %s", filtered.Body.String())
+	}
+}
+
+func TestPhase64CReplyAndDMFeedItems(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.Workspace{ID: "ws-1", Name: "Relay"})
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.User{ID: "user-2", Name: "Windsurf", Email: "windsurf@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	db.DB.Create(&domain.Message{ID: "msg-parent", ChannelID: "ch-1", UserID: "user-1", Content: "Can we confirm the launch owner?", CreatedAt: now.Add(-20 * time.Minute)})
+	db.DB.Create(&domain.Message{ID: "msg-reply", ChannelID: "ch-1", ThreadID: "msg-parent", UserID: "user-2", Content: "Yes, Nikko owns the launch.", CreatedAt: now.Add(-8 * time.Minute)})
+	db.DB.Create(&domain.DMConversation{ID: "dm-1", CreatedAt: now.Add(-30 * time.Minute)})
+	db.DB.Create(&domain.DMMember{DMConversationID: "dm-1", UserID: "user-1"})
+	db.DB.Create(&domain.DMMember{DMConversationID: "dm-1", UserID: "user-2"})
+	db.DB.Create(&domain.DMMessage{ID: "dm-msg-1", DMConversationID: "dm-1", UserID: "user-2", Content: "Shipping the build now.", CreatedAt: now.Add(-5 * time.Minute)})
+
+	router := gin.New()
+	router.GET("/api/v1/activity/feed", GetActivityFeed)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/activity/feed?workspace_id=ws-1&limit=10", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 when loading activity feed, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Items []struct {
+			EventType  string         `json:"event_type"`
+			ActorID    string         `json:"actor_id"`
+			ActorName  string         `json:"actor_name"`
+			ChannelID  string         `json:"channel_id"`
+			DMID       string         `json:"dm_id"`
+			Link       string         `json:"link"`
+			OccurredAt string         `json:"occurred_at"`
+			Meta       map[string]any `json:"meta"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode activity feed payload: %v", err)
+	}
+
+	var replyOK, dmOK bool
+	for _, item := range payload.Items {
+		switch item.EventType {
+		case "reply":
+			replyOK = true
+			if item.ActorID != "user-2" || item.ActorName != "Windsurf" || item.ChannelID != "ch-1" || item.Link != "/workspace?c=ch-1&m=msg-reply" || item.OccurredAt == "" || item.Meta["thread_id"] != "msg-parent" {
+				t.Fatalf("unexpected reply feed item: %#v", item)
+			}
+		case "dm_message":
+			dmOK = true
+			if item.ActorID != "user-2" || item.ActorName != "Windsurf" || item.DMID != "dm-1" || item.Link != "/workspace/dms?id=dm-1" || item.OccurredAt == "" || item.Meta["message_id"] != "dm-msg-1" {
+				t.Fatalf("unexpected dm_message feed item: %#v", item)
+			}
+		}
+	}
+	if !replyOK || !dmOK {
+		t.Fatalf("expected reply and dm_message in feed, got %#v", payload.Items)
+	}
+
+	filtered := httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/activity/feed?workspace_id=ws-1&dm_id=dm-1&event_type=dm_message&limit=10", nil)
+	router.ServeHTTP(filtered, req)
+	if filtered.Code != http.StatusOK {
+		t.Fatalf("expected 200 when filtering dm activity feed, got %d body=%s", filtered.Code, filtered.Body.String())
+	}
+	if !strings.Contains(filtered.Body.String(), `"event_type":"dm_message"`) || strings.Contains(filtered.Body.String(), `"event_type":"reply"`) {
+		t.Fatalf("expected dm_message filter to exclude reply rows, got %s", filtered.Body.String())
+	}
+}
+
+func TestPhase64CMentionAndReactionFeedItems(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.Workspace{ID: "ws-1", Name: "Relay"})
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.User{ID: "user-2", Name: "Windsurf", Email: "windsurf@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	mentionMetadata := `{"entity_mentions":[{"entity_id":"entity-1","entity_title":"Launch Program","entity_kind":"project","source_kind":"explicit","mention_text":"@Launch Program"}]}`
+	db.DB.Create(&domain.Message{ID: "msg-mention", ChannelID: "ch-1", UserID: "user-2", Content: "@Launch Program is ready for review.", CreatedAt: now.Add(-10 * time.Minute), Metadata: mentionMetadata})
+	db.DB.Create(&domain.Message{ID: "msg-react-target", ChannelID: "ch-1", UserID: "user-1", Content: "We are good to launch.", CreatedAt: now.Add(-9 * time.Minute)})
+	db.DB.Create(&domain.MessageReaction{MessageID: "msg-react-target", UserID: "user-2", Emoji: "🔥", CreatedAt: now.Add(-4 * time.Minute)})
+
+	router := gin.New()
+	router.GET("/api/v1/activity/feed", GetActivityFeed)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/activity/feed?workspace_id=ws-1&limit=10", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 when loading activity feed, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Items []struct {
+			EventType  string         `json:"event_type"`
+			ActorID    string         `json:"actor_id"`
+			ActorName  string         `json:"actor_name"`
+			ChannelID  string         `json:"channel_id"`
+			Link       string         `json:"link"`
+			OccurredAt string         `json:"occurred_at"`
+			Meta       map[string]any `json:"meta"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode activity feed payload: %v", err)
+	}
+
+	var mentionOK, reactionOK bool
+	for _, item := range payload.Items {
+		switch item.EventType {
+		case "mention":
+			mentionOK = true
+			if item.ActorID != "user-2" || item.ActorName != "Windsurf" || item.ChannelID != "ch-1" || item.Link != "/workspace?c=ch-1&m=msg-mention" || item.OccurredAt == "" || item.Meta["message_id"] != "msg-mention" || item.Meta["mention_kind"] != "entity" {
+				t.Fatalf("unexpected mention feed item: %#v", item)
+			}
+		case "reaction":
+			reactionOK = true
+			if item.ActorID != "user-2" || item.ActorName != "Windsurf" || item.ChannelID != "ch-1" || item.Link != "/workspace?c=ch-1&m=msg-react-target" || item.OccurredAt == "" || item.Meta["message_id"] != "msg-react-target" || item.Meta["emoji"] != "🔥" {
+				t.Fatalf("unexpected reaction feed item: %#v", item)
+			}
+		}
+	}
+	if !mentionOK || !reactionOK {
+		t.Fatalf("expected mention and reaction in feed, got %#v", payload.Items)
+	}
+}
+
 func TestPhase63HEntityBriefAutomationLifecycle(t *testing.T) {
 	setupTestDB(t)
 
