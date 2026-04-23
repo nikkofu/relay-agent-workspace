@@ -6,6 +6,8 @@ import { useCollabStore } from "@/stores/collab-store"
 import { useWorkspaceStore } from "@/stores/workspace-store"
 import { ComposeActivityPane } from "@/components/knowledge/compose-activity-pane"
 import { ComposeActivityDigestStrip } from "@/components/knowledge/compose-activity-digest-strip"
+import { KnowledgeAskFeedPane } from "@/components/knowledge/knowledge-ask-feed-pane"
+import { AutomationAuditPanel } from "@/components/knowledge/automation-audit-panel"
 
 export function AgentCollabDashboard() {
   const { agents, tasks, fetchSnapshot } = useCollabStore()
@@ -54,7 +56,7 @@ export function AgentCollabDashboard() {
           <div />
         )}
 
-        {/* Phase 63G + 63H: workspace-wide co-drafting column */}
+        {/* Phase 63G + 63H + 63I: workspace-wide AI activity column */}
         <div className="space-y-3">
           {/* Phase 63H: 24h rolling digest (counts by intent) */}
           {currentWorkspaceId && (
@@ -73,8 +75,22 @@ export function AgentCollabDashboard() {
             showChannelLabel
             emptyLabel="No AI Suggest activity in this workspace yet."
           />
+          {/* Phase 63I: shared Ask AI feed */}
+          <KnowledgeAskFeedPane
+            workspaceId={currentWorkspaceId}
+            limit={10}
+            title="Team Ask AI feed"
+            compact
+            emptyLabel="No Ask AI activity in this workspace yet."
+          />
         </div>
       </div>
+
+      {/* Phase 63I: workspace automation audit — full-width below the grid */}
+      <AutomationAuditPanel
+        workspaceId={currentWorkspaceId}
+        limit={15}
+      />
     </div>
   )
 }

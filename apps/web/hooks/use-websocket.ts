@@ -250,6 +250,11 @@ export function useWebsocket() {
           // Payload: { booking: AIScheduleBooking }
           const payload = data.payload || {}
           useKnowledgeStore.getState().applyScheduleBookingEvent(data.type, payload)
+        } else if (data.type === 'knowledge.entity.ask.answered') {
+          // Phase 63I: cross-entity ask answered — prepend to shared ask feed.
+          // Payload: { item: KnowledgeAskRecentItem }
+          const payload = data.payload || {}
+          useKnowledgeStore.getState().applyEntityAskAnswered({ item: payload.item })
         } else if (data.type === 'knowledge.digest.published') {
           const payload = data.payload || {}
           const channelId = payload.channel_id || payload.channel?.id

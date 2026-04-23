@@ -24,6 +24,7 @@ import {
 import { formatDistanceToNow } from "date-fns"
 import type { FollowNotificationLevel, FollowedEntity } from "@/types"
 import { useWorkspaceStore } from "@/stores/workspace-store"
+import { KnowledgeAskFeedPane } from "@/components/knowledge/knowledge-ask-feed-pane"
 
 const KIND_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string; badgeClass: string }> = {
   person:       { label: "Person",       icon: User2,       color: "text-sky-600",    badgeClass: "bg-sky-500/10 text-sky-700 border-sky-300 dark:border-sky-700" },
@@ -318,6 +319,19 @@ export default function FollowingPage() {
               )
             })}
           </div>
+        </div>
+      )}
+
+      {/* Phase 63I: shared Ask AI feed — compact strip above entity list */}
+      {currentWorkspace?.id && (
+        <div className="px-6 pt-3 shrink-0">
+          <KnowledgeAskFeedPane
+            workspaceId={currentWorkspace.id}
+            limit={8}
+            compact
+            title="Recent Ask AI"
+            emptyLabel="No Ask AI activity yet — ask questions on entity detail pages."
+          />
         </div>
       )}
 

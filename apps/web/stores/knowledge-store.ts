@@ -58,6 +58,10 @@ import type {
   EntityBriefAutomationState,
   AIScheduleBooking,
   AIScheduleBookingInput,
+  KnowledgeAskRecentItem,
+  KnowledgeAskRecentFilters,
+  AIAutomationJobsFilters,
+  AIAutomationJobsResponse,
 } from "@/types"
 
 interface KnowledgeState {
@@ -155,6 +159,22 @@ interface KnowledgeState {
   // Tracks the most recently booked compose_id so MessageComposer can flip
   // the calendar chip to a "Booked ✓" pill immediately on success.
   lastBookedComposeIds: Record<string, string> // compose_id → booking_id
+
+  // ── Phase 63I: shared knowledge ask recent feed ───────────────────────
+  // Newest-first cross-entity ask feed. Hydrated from GET /knowledge/ask/recent
+  // and extended live by `knowledge.entity.ask.answered` WS events.
+  // Keyed by workspace (one flat list per workspace; scoped mounts filter
+  // client-side). Capped at 50 entries.
+  knowledgeAskRecent: KnowledgeAskRecentItem[]
+  isLoadingAskRecent: boolean
+  hasHydratedAskRecent: Record<string, boolean> // workspaceId → boolean
+
+  // ── Phase 63I: workspace automation audit ─────────────────────────────
+  // Flat list of AIAutomationJob rows from GET /api/v1/ai/automation/jobs.
+  // May cover multiple job_types. UI renders status filter tabs.
+  automationJobs: AIAutomationJob[]
+  isLoadingAutomationJobs: boolean
+  automationJobsTotal: number
 
   pushLiveUpdate: (update: KnowledgeUpdate) => void
   handleEntityCreated: (entity: KnowledgeEntity) => void
@@ -281,6 +301,17 @@ interface KnowledgeState {
   // WS fan-in for schedule.event.{booked,cancelled} — upserts the booking
   // and, on booked events, stamps `lastBookedComposeIds` for the composer.
   applyScheduleBookingEvent: (eventType: string, payload: { booking?: AIScheduleBooking }) => void
+
+  // ── Phase 63I actions ────────────────────────────────────────────────
+
+  // GET /api/v1/knowledge/ask/recent — cross-entity ask feed.
+  fetchKnowledgeAskRecent: (filters: KnowledgeAskRecentFilters) => Promise<KnowledgeAskRecentItem[] | null>
+  // WS fan-in for knowledge.entity.ask.answered — prepends the new item to
+  // the recent feed so open panes update without a refresh.
+  applyEntityAskAnswered: (payload: { item?: KnowledgeAskRecentItem }) => void
+
+  // GET /api/v1/ai/automation/jobs — workspace automation audit list.
+  fetchAutomationJobs: (filters: AIAutomationJobsFilters) => Promise<AIAutomationJobsResponse | null>
 }
 
 // Phase 63D: normalize a compose scope into a stable key used for
@@ -413,6 +444,13 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   isLoadingScheduleBookings: {},
   hasHydratedScheduleBookings: {},
   lastBookedComposeIds: {},
+  // Phase 63I
+  knowledgeAskRecent: [],
+  isLoadingAskRecent: false,
+  hasHydratedAskRecent: {},
+  automationJobs: [],
+  isLoadingAutomationJobs: false,
+  automationJobsTotal: 0,
 
   pushLiveUpdate: (update) => set({ liveUpdate: update }),
 
@@ -2221,6 +2259,79 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
         : state.lastBookedComposeIds
       return { scheduleBookings: next, lastBookedComposeIds: nextLastBooked }
     })
+  },
+
+  // ── Phase 63I: shared knowledge ask recent feed ───────────────────────────────
+  fetchKnowledgeAskRecent: async (filters) => {
+    const wsKey = filters.workspaceId || 'none'
+    if (get().hasHydratedAskRecent[wsKey]) return get().knowledgeAskRecent
+    set({ isLoadingAskRecent: true })
+    try {
+      const params = new URLSearchParams()
+      if (filters.workspaceId) params.set('workspace_id', filters.workspaceId)
+      if (filters.entityId) params.set('entity_id', filters.entityId)
+      if (filters.userId) params.set('user_id', filters.userId)
+      params.set('limit', String(filters.limit || 20))
+      const res = await fetch(`${API_BASE_URL}/knowledge/ask/recent?${params.toString()}`)
+      if (!res.ok) { set({ isLoadingAskRecent: false }); return null }
+      const data = await res.json() as { items?: KnowledgeAskRecentItem[] }
+      const items = Array.isArray(data?.items) ? data.items : []
+      set(state => ({
+        isLoadingAskRecent: false,
+        hasHydratedAskRecent: { ...state.hasHydratedAskRecent, [wsKey]: true },
+        // Merge with any WS-prepended rows, dedupe by id, newest first
+        knowledgeAskRecent: (() => {
+          const seen = new Set<string>()
+          const merged: KnowledgeAskRecentItem[] = []
+          for (const row of [...state.knowledgeAskRecent, ...items]) {
+            if (!row.id || seen.has(row.id)) continue
+            seen.add(row.id)
+            merged.push(row)
+          }
+          return merged.sort((a, b) =>
+            new Date(b.answered_at).getTime() - new Date(a.answered_at).getTime()
+          ).slice(0, 50)
+        })(),
+      }))
+      return get().knowledgeAskRecent
+    } catch (err) {
+      console.error('Failed to fetch knowledge ask recent:', err)
+      set({ isLoadingAskRecent: false })
+      return null
+    }
+  },
+
+  applyEntityAskAnswered: (payload) => {
+    const item = payload.item
+    if (!item?.id) return
+    set(state => ({
+      knowledgeAskRecent: [item, ...state.knowledgeAskRecent.filter(r => r.id !== item.id)].slice(0, 50),
+    }))
+  },
+
+  // ── Phase 63I: workspace automation audit ──────────────────────────────────
+  fetchAutomationJobs: async (filters) => {
+    set({ isLoadingAutomationJobs: true })
+    try {
+      const params = new URLSearchParams()
+      if (filters.workspaceId) params.set('workspace_id', filters.workspaceId)
+      if (filters.status) params.set('status', filters.status)
+      if (filters.jobType) params.set('job_type', filters.jobType)
+      if (filters.scopeType) params.set('scope_type', filters.scopeType)
+      if (filters.scopeId) params.set('scope_id', filters.scopeId)
+      params.set('limit', String(filters.limit || 20))
+      const res = await fetch(`${API_BASE_URL}/ai/automation/jobs?${params.toString()}`)
+      if (!res.ok) { set({ isLoadingAutomationJobs: false }); return null }
+      const data = await res.json() as AIAutomationJobsResponse
+      const items = Array.isArray(data?.items) ? data.items : []
+      const total = typeof data?.total === 'number' ? data.total : items.length
+      set({ isLoadingAutomationJobs: false, automationJobs: items, automationJobsTotal: total })
+      return { items, total }
+    } catch (err) {
+      console.error('Failed to fetch automation jobs:', err)
+      set({ isLoadingAutomationJobs: false })
+      return null
+    }
   },
 
   // ── Phase 62: Live bulk-read update from websocket (multi-tab inbox sync) ─

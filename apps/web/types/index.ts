@@ -705,6 +705,48 @@ export interface AIScheduleBookingInput {
   }
 }
 
+// ── Phase 63I: shared knowledge ask recent feed ──────────────────────────────
+//
+// Source: GET /api/v1/knowledge/ask/recent?workspace_id=...&entity_id=...
+//         &user_id=...&limit=...
+// WS:     knowledge.entity.ask.answered → payload { item: KnowledgeAskRecentItem }
+//
+// Extends EntityAskHistoryItem with entity-display fields so the cross-entity
+// feed can render an entity chip without a separate lookup.
+
+export interface KnowledgeAskRecentItem extends EntityAskHistoryItem {
+  // Denormalized from the parent KnowledgeEntity — available in the `/ask/recent`
+  // response but not in per-entity ask history since the scope is already known.
+  entity_title?: string
+  entity_kind?: string
+}
+
+export interface KnowledgeAskRecentFilters {
+  workspaceId?: string
+  entityId?: string
+  userId?: string
+  limit?: number
+}
+
+// ── Phase 63I: workspace automation audit ────────────────────────────────────
+//
+// Source: GET /api/v1/ai/automation/jobs?workspace_id=...&status=...
+//         &job_type=...&scope_type=...&scope_id=...&limit=...
+
+export interface AIAutomationJobsFilters {
+  workspaceId?: string
+  status?: AIAutomationJobStatus
+  jobType?: string
+  scopeType?: string
+  scopeId?: string
+  limit?: number
+}
+
+export interface AIAutomationJobsResponse {
+  items: AIAutomationJob[]
+  total: number
+}
+
 // ── Phase 63C: streaming + feedback ─────────────────────────────────────────
 
 export type ComposeFeedbackValue = 'up' | 'down' | 'edited'
