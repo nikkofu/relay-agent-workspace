@@ -1,6 +1,6 @@
 "use client"
 
-import { use, useEffect, useRef, useState, Suspense } from "react"
+import { use, useCallback, useEffect, useRef, useState, Suspense } from "react"
 import { useRouter } from "next/navigation"
 import { useKnowledgeStore } from "@/stores/knowledge-store"
 import { Input } from "@/components/ui/input"
@@ -17,7 +17,7 @@ import {
   BookOpen, Clock, Network, FileText, MessageSquare,
   Layout, Tag, ArrowRight, ArrowLeft, User2, Briefcase,
   Lightbulb, Building2, AlertCircle, Zap, Send, Plus, Share2,
-  Sparkles, RefreshCw, DatabaseZap, CheckCheck, HelpCircle,
+  Sparkles, RefreshCw, DatabaseZap, CheckCheck, HelpCircle, Upload, ExternalLink,
 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
@@ -26,6 +26,7 @@ import type { KnowledgeEntity, KnowledgeEntityRef, KnowledgeEntityLink, Knowledg
 import { EntityFollowButton } from "@/components/knowledge/entity-follow-button"
 import { EntityActivitySparkline } from "@/components/knowledge/entity-activity-sparkline"
 import { EntityBriefAutomationBanner } from "@/components/knowledge/entity-brief-automation-banner"
+import { useFileStore } from "@/stores/file-store"
 
 const KIND_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string; badgeClass: string; bgClass: string }> = {
   person:       { label: "Person",       icon: User2,       color: "text-sky-600",    badgeClass: "bg-sky-500/10 text-sky-700 border-sky-300 dark:border-sky-700",         bgClass: "bg-sky-500/5" },
@@ -50,13 +51,14 @@ function EntityDetailContent({ id }: { id: string }) {
   const router = useRouter()
   const {
     fetchEntity, updateEntity, fetchEntityRefs, fetchEntityTimeline, fetchEntityLinks, fetchEntityGraph,
-    ingestEvent, liveUpdate, spikingEntityIds, shareEntity,
+    ingestEvent, liveUpdate, spikingEntityIds, shareEntity, addEntityRef,
     entityBriefs, isGeneratingBrief, generateEntityBrief, fetchEntityBrief,
     backfillStatuses, isBackfilling, fetchBackfillStatus, triggerBackfill,
     staleBriefs, entityAnswers, isAskingEntity, clearEntityAnswers,
     // Phase 63E
     fetchEntityAskHistory, askEntityStream, entityAskStreaming, isLoadingAskHistory,
   } = useKnowledgeStore()
+  const { uploadFile } = useFileStore()
   const [sharing, setSharing] = useState(false)
   const [askInput, setAskInput] = useState("")
 
@@ -90,6 +92,9 @@ function EntityDetailContent({ id }: { id: string }) {
   const [isLoadingRefs, setIsLoadingRefs] = useState(false)
   const [isLoadingTimeline, setIsLoadingTimeline] = useState(false)
   const [isLoadingGraph, setIsLoadingGraph] = useState(false)
+  const [fileRefs, setFileRefs] = useState<KnowledgeEntityRef[]>([])
+  const [isUploadingFile, setIsUploadingFile] = useState(false)
+  const fileAttachInputRef = useRef<HTMLInputElement>(null)
   const [liveFlash, setLiveFlash] = useState<string | null>(null)
   const prevLiveTs = useRef<number>(0)
   const [showIngest, setShowIngest] = useState(false)
@@ -112,6 +117,27 @@ function EntityDetailContent({ id }: { id: string }) {
     // Phase 63E: hydrate persisted Ask AI Q&A history (per-user, newest first)
     fetchEntityAskHistory(id, 20).catch(() => {})
   }, [id, fetchEntity, fetchBackfillStatus, fetchEntityBrief, fetchEntityAskHistory])
+
+  // Eagerly load file refs when entity kind is 'file'
+  useEffect(() => {    if (!entity || entity.kind !== 'file') return
+    fetchEntityRefs(id).then(allRefs => {
+      setFileRefs(allRefs.filter(r => r.source_kind === 'file'))
+    }).catch(() => {})
+  }, [id, entity, fetchEntityRefs])
+
+  const handleFileAttach = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    setIsUploadingFile(true)
+    const uploaded = await uploadFile(file)
+    if (uploaded) {
+      const ref = await addEntityRef(id, { source_kind: 'file', source_id: uploaded.id, snippet: uploaded.name })
+      if (ref) setFileRefs(prev => [ref, ...prev])
+      toast.success(`${uploaded.name} attached to entity`)
+    }
+    setIsUploadingFile(false)
+  }, [id, uploadFile, addEntityRef])
 
   useEffect(() => {
     if (!liveUpdate || liveUpdate.ts === prevLiveTs.current) return
@@ -271,6 +297,47 @@ function EntityDetailContent({ id }: { id: string }) {
                   {entity.ref_count !== undefined && <div className="space-y-1"><p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Evidence Refs</p><p className="text-sm font-bold">{entity.ref_count}</p></div>}
                   {entity.updated_at && <div className="space-y-1"><p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Last Updated</p><p className="text-sm font-bold">{format(new Date(entity.updated_at), "PPp")}</p></div>}
                 </div>
+
+                {/* File attachment section — only for kind=file entities */}
+                {entity.kind === 'file' && (
+                  <div className="rounded-xl border bg-blue-500/5 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-3.5 h-3.5 text-blue-500" />
+                        <p className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">Attached Files</p>
+                        {fileRefs.length > 0 && <span className="text-[9px] text-muted-foreground">({fileRefs.length})</span>}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 text-[10px] gap-1 px-2 border-blue-400/40 text-blue-700 dark:text-blue-400 hover:bg-blue-500/10"
+                        disabled={isUploadingFile}
+                        onClick={() => fileAttachInputRef.current?.click()}
+                      >
+                        {isUploadingFile ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                        {isUploadingFile ? 'Uploading…' : 'Upload file'}
+                      </Button>
+                      <input ref={fileAttachInputRef} type="file" className="hidden" onChange={handleFileAttach} />
+                    </div>
+                    {fileRefs.length === 0 ? (
+                      <p className="text-xs text-muted-foreground italic">No files attached yet. Click "Upload file" to attach a document or media file.</p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {fileRefs.map((ref, i) => (
+                          <div key={ref.id || i} className="flex items-center gap-2 rounded-lg border bg-white/60 dark:bg-black/20 px-3 py-2">
+                            <FileText className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                            <span className="text-xs flex-1 truncate font-medium">{ref.snippet || ref.source_id}</span>
+                            {ref.source_id && (
+                              <a href={`/api/v1/files/${ref.source_id}`} target="_blank" rel="noopener noreferrer" className="shrink-0 text-muted-foreground hover:text-foreground">
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Phase 63H: brief automation job state (run / retry) */}
                 <EntityBriefAutomationBanner entityId={id} />

@@ -929,7 +929,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
 
   updateFollowNotificationLevel: async (followId, entityId, level) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/users/me/knowledge/followed/${followId}`, {
+      const res = await fetch(`${API_BASE_URL}/knowledge/entities/${entityId}/follow`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ notification_level: level }),
@@ -1865,11 +1865,23 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
       }
       if (typeof limit === 'number' && limit > 0) body.limit = limit
 
-      const res = await fetch(`${API_BASE_URL}/ai/compose/stream`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
+      const streamAbort = new AbortController()
+      const streamTimeout = setTimeout(() => streamAbort.abort(), 8000)
+      let res: Response
+      try {
+        res = await fetch(`${API_BASE_URL}/ai/compose/stream`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: streamAbort.signal,
+        })
+      } catch (fetchErr) {
+        clearTimeout(streamTimeout)
+        const isAbort = fetchErr instanceof DOMException && fetchErr.name === 'AbortError'
+        console.warn(`compose/stream ${isAbort ? 'timed out' : 'failed'}; falling back to /ai/compose`)
+        return await get().suggestCompose(scope, draft, activeIntent, limit)
+      }
+      clearTimeout(streamTimeout)
 
       // Fallback: if stream is unsupported (older server, error, no body), use sync compose
       if (!res.ok || !res.body) {

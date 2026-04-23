@@ -83,7 +83,7 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
   const entityMentionStartRef = useRef<number>(0)
   const entitySuggestTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const { openCanvas } = useUIStore()
-  const { saveDraft, deleteDraft, drafts, fetchDrafts } = useDraftStore()
+  const { saveDraft, deleteDraft, drafts } = useDraftStore()
   const { sendTyping } = usePresenceStore()
   const { uploadFile } = useFileStore()
   const {
@@ -313,11 +313,6 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
       }
     }
   }, [scope, editor])
-
-  // Initial fetch of drafts
-  useEffect(() => {
-    fetchDrafts()
-  }, [fetchDrafts])
 
   // We need to use a ref for handleSend to avoid dependency cycles in useEditor
   // or just use the editor instance inside handleSend directly which is fine since it's defined in the same scope.

@@ -15,6 +15,7 @@ import { useUserStore } from "@/stores/user-store"
 import { usePresenceStore } from "@/stores/presence-store"
 import { useEffect, useRef, useState, Suspense } from "react"
 import { useWebsocket } from "@/hooks/use-websocket"
+import { useDraftStore } from "@/stores/draft-store"
 
 export default function WorkspaceLayout({
   children,
@@ -26,6 +27,7 @@ export default function WorkspaceLayout({
   const { fetchChannels, currentChannel } = useChannelStore()
   const { fetchMe, fetchUsers } = useUserStore()
   const { fetchPresence, sendHeartbeat, fetchScopedPresence } = usePresenceStore()
+  const { fetchDrafts } = useDraftStore()
   const [mounted, setMounted] = useState(false)
   const showRightPanel = isThreadOpen || isAIPanelOpen || isCanvasOpen
   
@@ -42,6 +44,7 @@ export default function WorkspaceLayout({
       fetchUsers()
       fetchWorkspaces()
       fetchPresence()
+      fetchDrafts()
     }
 
     // Presence Heartbeat
@@ -50,7 +53,7 @@ export default function WorkspaceLayout({
     }, 30000) // Every 30 seconds
 
     return () => clearInterval(interval)
-  }, [fetchMe, fetchUsers, fetchWorkspaces, fetchPresence, sendHeartbeat])
+  }, [fetchMe, fetchUsers, fetchWorkspaces, fetchPresence, sendHeartbeat, fetchDrafts])
 
   useEffect(() => {
     if (currentWorkspace && currentWorkspace.id !== lastChannelsWorkspaceId.current) {
