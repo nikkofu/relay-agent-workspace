@@ -2,6 +2,41 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.16] - 2026-04-23
+
+This release implements Codex Phase 63C, extending the grounded composer from one-shot suggestions into a stream-aware reply assistant with explicit suggestion feedback capture after Windsurf's `v0.6.15` UI pass.
+
+### Added
+
+- **Streaming AI compose API**:
+  - `POST /api/v1/ai/compose/stream`
+  - Supports channel and thread reply-suggestion streaming for the same grounded compose scope as `POST /api/v1/ai/compose`.
+  - Emits SSE events:
+    - `start`
+    - `suggestion.delta`
+    - `suggestion.done`
+    - `done`
+    - `error`
+- **AI compose feedback API**:
+  - `POST /api/v1/ai/compose/:id/feedback`
+  - Persists one feedback row per `(compose_id, user_id)` with upsert semantics.
+  - Accepts `channel_id`, optional `thread_id`, optional `intent`, `feedback` (`up|down|edited`), optional `suggestion_text`, optional `provider`, and optional `model`.
+
+### Windsurf Handoff
+
+- Upgrade the composer suggestion popover to consume `POST /ai/compose/stream` for progressive rendering.
+- Add thumbs-up / thumbs-down / edited actions per suggestion using `POST /ai/compose/:id/feedback`.
+- Keep `POST /ai/compose` as fallback for environments where SSE is unavailable.
+
+### Verification Used For This Release
+
+- `go test ./internal/handlers -run 'TestPhase63(B|C)' -count=1`
+- `go test ./internal/handlers -run 'TestPhase63C(ComposeStreamContract|ComposeFeedbackContract)' -count=1`
+- `go test ./...`
+- `GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+- `pnpm --filter relay-agent-workspace exec tsc --noEmit`
+
 ## [0.6.14] - 2026-04-23
 
 This release implements Codex Phase 63B, pushing AI-native assistance into the Slack-style message flow after Windsurf's `v0.6.13` entity ask/share UI pass.

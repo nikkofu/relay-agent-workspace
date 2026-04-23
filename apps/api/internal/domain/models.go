@@ -286,6 +286,21 @@ type AIFeedback struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+type AIComposeFeedback struct {
+	ID             string    `gorm:"primaryKey" json:"id"`
+	ComposeID      string    `gorm:"index;uniqueIndex:idx_ai_compose_feedback_compose_user" json:"compose_id"`
+	UserID         string    `gorm:"uniqueIndex:idx_ai_compose_feedback_compose_user" json:"user_id"`
+	ChannelID      string    `json:"channel_id"`
+	ThreadID       string    `json:"thread_id"`
+	Intent         string    `json:"intent"`
+	Feedback       string    `json:"feedback"`
+	SuggestionText string    `json:"suggestion_text"`
+	Provider       string    `json:"provider"`
+	Model          string    `json:"model"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
 type DMMessage struct {
 	ID               string    `gorm:"primaryKey" json:"id"`
 	DMConversationID string    `gorm:"index" json:"dm_id"`

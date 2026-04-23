@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -42,6 +43,24 @@ type captureGateway struct {
 func (g *captureGateway) Stream(_ context.Context, req llm.Request) (*llm.StreamSession, error) {
 	g.lastRequest = req
 	return stubGateway{}.Stream(context.Background(), req)
+}
+
+type failingAfterChunkGateway struct{}
+
+func (failingAfterChunkGateway) Stream(_ context.Context, _ llm.Request) (*llm.StreamSession, error) {
+	events := make(chan llm.StreamEvent, 2)
+	errs := make(chan error, 1)
+	events <- llm.StreamEvent{Type: "chunk", Text: "Partial reply"}
+	errs <- errors.New("upstream stream failed")
+	close(events)
+	close(errs)
+
+	return &llm.StreamSession{
+		Provider: "stub",
+		Model:    "stub-model",
+		Events:   events,
+		Errors:   errs,
+	}, nil
 }
 
 func TestExecuteAIStreamsSSE(t *testing.T) {

@@ -151,6 +151,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 63A Knowledge Ask And Share UI | Windsurf | 2026-04-22 | Consumed all Phase 63A backend contracts. Entity detail page gets a full **Ask AI** module (question input, answer cards with citations, clear history). AI Brief card shows an **amber stale ring + Refresh button** when `knowledge.entity.brief.changed` arrives, with the stale `reason` surfaced inline. Following Hub Weekly Digest gets a **Share button** that calls `POST /knowledge/weekly-brief/:id/share` and copies the snapshot link to clipboard. Frontend `EntityBrief` / `WeeklyBrief` / `ActivityBackfillStatus` types corrected to match backend JSON (`content` string, `is_backfilled`, `missing_ref_count`, etc.) — fixes broken Phase 61 rendering. New types: `Citation`, `EntityAnswer`, `SharedWeeklyBriefLink`, `StaleBriefNotice`. New store actions: `askEntity`, `shareWeeklyBrief`, `applyEntityBriefChanged`, `clearEntityAnswers`. Published `v0.6.13`. |
 | 🟢 Done | Phase 63B AI Compose APIs | Codex | 2026-04-23 | Added `POST /api/v1/ai/compose` for grounded channel/thread reply suggestions, returning `suggestions[]`, `citations[]`, and `context_entities[]`. Released in `v0.6.14`. |
 | 🟢 Done | Phase 63B AI Compose UI | Windsurf | 2026-04-23 | Consumed `POST /api/v1/ai/compose` in the shared `MessageComposer` used by channel + thread panels. New **Wand2 "AI Suggest"** button (sky/cyan) next to AI Canvas on channel/thread composers (hidden for DMs) fetches 3 grounded reply suggestions using the current draft + thread context. Popover above the editor renders each suggestion with tone/kind badges and a one-click **Insert into draft** action that replaces the TipTap content with the suggestion (HTML-escaped, preserving line breaks) without auto-sending. Footer surfaces `context_entities[]` as emerald entity chips and a collapsible `citations[]` block with source-kind badge + snippet. Regenerate and Dismiss controls. Results cached per `channel_id:thread_id` in `knowledge-store.composeResults`. Published `v0.6.15`. |
+| 🟢 Done | Phase 63C AI Compose Stream And Feedback APIs | Codex | 2026-04-23 | Added `POST /api/v1/ai/compose/stream` SSE for grounded channel/thread reply suggestions and `POST /api/v1/ai/compose/:id/feedback` for per-suggestion thumbs-up/down/edited capture. Released in `v0.6.16`. |
 
 ---
 
@@ -159,9 +160,20 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
-| **Codex** | `api-architecture` | Phase 63B backend shipped: grounded compose for channel/thread message flow (v0.6.14) | 100% |
+| **Codex** | `api-architecture` | Phase 63C backend shipped: streaming compose + feedback capture for channel/thread suggestion flow (v0.6.16) | 100% |
 | **Claude Code**| `idle` | - | - |
 | **Windsurf** | `web-ui-agent` | Phase 63B UI shipped: AI Suggest button + grounded reply popover in channel/thread composers (v0.6.15) | 100% |
+
+### 2026-04-23 - Phase 63C AI Compose Stream And Feedback APIs (v0.6.16)
+- **Codex**: Phase 63C backend is complete and published as `v0.6.16`.
+- **Codex**: Added `POST /api/v1/ai/compose/stream` for grounded channel/thread reply suggestions over SSE. It emits `start`, `suggestion.delta`, `suggestion.done`, `done`, and `error`.
+- **Codex**: Added `POST /api/v1/ai/compose/:id/feedback` for per-suggestion `up | down | edited` capture with one row per `(compose_id, user_id)`.
+- **Codex**: Stream and sync compose now normalize suggestion IDs to stable `compose-*` identifiers so feedback can target either path consistently.
+- **Codex → Windsurf**: Please consume these contracts next:
+  - upgrade the channel/thread suggestion popover to `POST /ai/compose/stream` for progressive rendering
+  - add thumbs-up / thumbs-down / edited actions per suggestion using `POST /ai/compose/:id/feedback`
+  - keep `POST /ai/compose` as fallback when SSE is unavailable
+- **Codex → Nikko Fu**: This phase turns the message composer into a proper AI-native interaction loop: grounded suggestion generation, progressive reveal, and explicit user signal capture.
 
 ### 2026-04-23 - Phase 63B AI Compose UI (v0.6.15)
 - **Windsurf**: Phase 63B UI complete and published as `v0.6.15`. Full consumer for Codex `v0.6.14` backend.

@@ -57,6 +57,7 @@ func InitDB() error {
 		&domain.NotificationPreference{},
 		&domain.NotificationMuteRule{},
 		&domain.AIFeedback{},
+		&domain.AIComposeFeedback{},
 		&domain.AIConversation{},
 		&domain.AIConversationMessage{},
 		&domain.AISummary{},

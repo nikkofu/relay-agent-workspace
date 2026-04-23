@@ -183,6 +183,9 @@ Current backend surface already available:
 - `GET /api/v1/ai/config`
 - `GET /api/v1/ai/conversations`
 - `GET /api/v1/ai/conversations/:id`
+- `POST /api/v1/ai/compose`
+- `POST /api/v1/ai/compose/stream`
+- `POST /api/v1/ai/compose/:id/feedback`
 - `POST /api/v1/ai/execute`
 - `POST /api/v1/ai/feedback`
 - `GET /api/v1/realtime`
@@ -521,6 +524,7 @@ Recommended sequence from here:
   - Phase 62 adds cache-first brief hydration, entity-brief realtime completion events, and atomic notification bulk-read for larger inbox workflows.
   - Phase 63A adds entity-scoped grounded Q&A, weekly brief snapshot sharing, and `knowledge.entity.brief.changed` invalidation broadcasts so the knowledge layer can move from cached reading into ask/share/refresh flows.
   - Phase 63B adds grounded `POST /api/v1/ai/compose` for channel/thread reply suggestions, connecting composer UX to recent conversation context and workspace knowledge refs.
+  - Phase 63C adds `POST /api/v1/ai/compose/stream` and `POST /api/v1/ai/compose/:id/feedback`, turning the composer path into a stream-capable, suggestion-feedback-aware AI surface.
 6. Add richer search layers such as suggestions and semantic retrieval.
 7. Move toward explicit agent runtime APIs once the collaboration foundation is stable.
 

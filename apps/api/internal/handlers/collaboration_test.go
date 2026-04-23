@@ -5327,6 +5327,182 @@ func TestPhase63BAIComposeContract(t *testing.T) {
 	})
 }
 
+func TestPhase63CComposeStreamContract(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.User{ID: "user-1", OrganizationID: "org-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	db.DB.Create(&domain.ChannelMember{ChannelID: "ch-1", UserID: "user-1"})
+	db.DB.Create(&domain.Message{ID: "msg-parent", ChannelID: "ch-1", UserID: "user-1", Content: "Can we confirm the launch owner and timeline?", CreatedAt: now.Add(-2 * time.Hour)})
+	db.DB.Create(&domain.Message{ID: "msg-thread-1", ChannelID: "ch-1", ThreadID: "msg-parent", UserID: "user-1", Content: "The Friday review is still the current target.", CreatedAt: now.Add(-90 * time.Minute)})
+
+	router := gin.New()
+	router.POST("/api/v1/ai/compose/stream", ComposeAIStream)
+
+	t.Run("channel stream", func(t *testing.T) {
+		AIGateway = stubGateway{}
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/ai/compose/stream", strings.NewReader(`{"channel_id":"ch-1","draft":"Can we confirm the launch owner and timeline?","intent":"reply","limit":3}`))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+		}
+		if got := rec.Header().Get("Content-Type"); !strings.Contains(got, "text/event-stream") {
+			t.Fatalf("expected event-stream content type, got %s", got)
+		}
+		body := rec.Body.String()
+		if !strings.Contains(body, "event: start") {
+			t.Fatalf("expected start event, got %s", body)
+		}
+		if !strings.Contains(body, "event: suggestion.delta") {
+			t.Fatalf("expected suggestion.delta event, got %s", body)
+		}
+		if !strings.Contains(body, "event: suggestion.done") {
+			t.Fatalf("expected suggestion.done event, got %s", body)
+		}
+		if !strings.Contains(body, "event: done") {
+			t.Fatalf("expected done event, got %s", body)
+		}
+		if !strings.Contains(body, `"request_id":"compose-request-`) {
+			t.Fatalf("expected request_id in start/done payload, got %s", body)
+		}
+		if !strings.Contains(body, `"suggestion_count":1`) {
+			t.Fatalf("expected suggestion_count in done payload, got %s", body)
+		}
+	})
+
+	t.Run("thread stream", func(t *testing.T) {
+		AIGateway = stubGateway{}
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/ai/compose/stream", strings.NewReader(`{"channel_id":"ch-1","thread_id":"msg-parent","draft":"The Friday review is still the current target.","intent":"reply","limit":3}`))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+		}
+		body := rec.Body.String()
+		if !strings.Contains(body, `"thread_id":"msg-parent"`) {
+			t.Fatalf("expected thread_id in stream payload, got %s", body)
+		}
+		if !strings.Contains(body, "event: suggestion.done") {
+			t.Fatalf("expected suggestion.done event, got %s", body)
+		}
+	})
+
+	t.Run("stream error after headers", func(t *testing.T) {
+		AIGateway = failingAfterChunkGateway{}
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/ai/compose/stream", strings.NewReader(`{"channel_id":"ch-1","draft":"Can we confirm the launch owner and timeline?","intent":"reply","limit":3}`))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+		}
+		body := rec.Body.String()
+		if !strings.Contains(body, "event: error") || !strings.Contains(body, "upstream stream failed") {
+			t.Fatalf("expected stream error event, got %s", body)
+		}
+	})
+
+	t.Run("missing ai gateway", func(t *testing.T) {
+		AIGateway = nil
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/ai/compose/stream", strings.NewReader(`{"channel_id":"ch-1","draft":"Can we confirm the launch owner and timeline?","intent":"reply","limit":3}`))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusServiceUnavailable {
+			t.Fatalf("expected 503, got %d body=%s", rec.Code, rec.Body.String())
+		}
+	})
+}
+
+func TestPhase63CComposeFeedbackContract(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+
+	db.DB.Create(&domain.User{ID: "user-1", OrganizationID: "org-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	db.DB.Create(&domain.ChannelMember{ChannelID: "ch-1", UserID: "user-1"})
+
+	router := gin.New()
+	router.POST("/api/v1/ai/compose/:id/feedback", SubmitAIComposeFeedback)
+
+	postFeedback := func(body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/ai/compose/compose-1/feedback", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		return rec
+	}
+
+	t.Run("creates row", func(t *testing.T) {
+		rec := postFeedback(`{"channel_id":"ch-1","thread_id":"msg-parent","intent":"reply","feedback":"up","suggestion_text":"Let's confirm the owner and keep Friday as the target."}`)
+		if rec.Code != http.StatusOK && rec.Code != http.StatusCreated {
+			t.Fatalf("expected success, got %d body=%s", rec.Code, rec.Body.String())
+		}
+
+		var rows []struct {
+			ID             string    `gorm:"column:id"`
+			ComposeID      string    `gorm:"column:compose_id"`
+			UserID         string    `gorm:"column:user_id"`
+			ChannelID      string    `gorm:"column:channel_id"`
+			ThreadID       string    `gorm:"column:thread_id"`
+			Intent         string    `gorm:"column:intent"`
+			Feedback       string    `gorm:"column:feedback"`
+			SuggestionText string    `gorm:"column:suggestion_text"`
+			CreatedAt      time.Time `gorm:"column:created_at"`
+			UpdatedAt      time.Time `gorm:"column:updated_at"`
+		}
+		if err := db.DB.Table("ai_compose_feedbacks").Where("compose_id = ? AND user_id = ?", "compose-1", "user-1").Find(&rows).Error; err != nil {
+			t.Fatalf("failed to load compose feedback rows: %v", err)
+		}
+		if len(rows) != 1 {
+			t.Fatalf("expected one compose feedback row, got %#v", rows)
+		}
+		if rows[0].ComposeID != "compose-1" || rows[0].UserID != "user-1" || rows[0].ChannelID != "ch-1" || rows[0].ThreadID != "msg-parent" || rows[0].Intent != "reply" || rows[0].Feedback != "up" {
+			t.Fatalf("unexpected compose feedback row: %#v", rows[0])
+		}
+		if rows[0].SuggestionText != "Let's confirm the owner and keep Friday as the target." {
+			t.Fatalf("unexpected suggestion text: %#v", rows[0])
+		}
+	})
+
+	t.Run("updates same row", func(t *testing.T) {
+		rec := postFeedback(`{"channel_id":"ch-1","thread_id":"msg-parent","intent":"reply","feedback":"edited","suggestion_text":"Let's confirm the owner and keep Friday as the target."}`)
+		if rec.Code != http.StatusOK && rec.Code != http.StatusCreated {
+			t.Fatalf("expected success, got %d body=%s", rec.Code, rec.Body.String())
+		}
+
+		var rows []struct {
+			ID       string `gorm:"column:id"`
+			Feedback string `gorm:"column:feedback"`
+		}
+		if err := db.DB.Table("ai_compose_feedbacks").Where("compose_id = ? AND user_id = ?", "compose-1", "user-1").Find(&rows).Error; err != nil {
+			t.Fatalf("failed to load compose feedback rows: %v", err)
+		}
+		if len(rows) != 1 {
+			t.Fatalf("expected one compose feedback row after update, got %#v", rows)
+		}
+		if rows[0].Feedback != "edited" {
+			t.Fatalf("expected feedback to update in place, got %#v", rows[0])
+		}
+	})
+
+	t.Run("invalid feedback", func(t *testing.T) {
+		rec := postFeedback(`{"channel_id":"ch-1","intent":"reply","feedback":"maybe"}`)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d body=%s", rec.Code, rec.Body.String())
+		}
+	})
+}
+
 func TestMatchKnowledgeEntitiesInTextEndpoint(t *testing.T) {
 	setupTestDB(t)
 	now := time.Now().UTC()
@@ -5638,7 +5814,7 @@ func setupTestDB(t *testing.T) {
 	if err := db.DB.AutoMigrate(&domain.Organization{}, &domain.Team{}, &domain.User{}, &domain.Agent{}, &domain.Workspace{}, &domain.WorkspaceInvite{}, &domain.UserGroup{}, &domain.UserGroupMember{}, &domain.WorkflowDefinition{}, &domain.WorkflowRunStep{}, &domain.WorkflowRunLog{}, &domain.ToolDefinition{}, &domain.ToolRun{}, &domain.ToolRunLog{}, &domain.Channel{}, &domain.ChannelMember{}, &domain.ChannelPreference{}, &domain.WorkspaceList{}, &domain.WorkspaceListItem{}, &domain.Message{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
-	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.NotificationPreference{}, &domain.NotificationMuteRule{}, &domain.AIFeedback{}, &domain.AIConversation{}, &domain.AIConversationMessage{}, &domain.AISummary{}, &domain.Artifact{}, &domain.ArtifactVersion{}, &domain.FileAsset{}, &domain.FileAssetEvent{}, &domain.FileExtraction{}, &domain.FileExtractionChunk{}, &domain.FileComment{}, &domain.FileShare{}, &domain.StarredFile{}, &domain.MessageArtifactReference{}, &domain.MessageFileAttachment{}, &domain.KnowledgeEvidenceLink{}, &domain.KnowledgeEvidenceEntityRef{}, &domain.KnowledgeEntity{}, &domain.KnowledgeEntityRef{}, &domain.KnowledgeEntityLink{}, &domain.KnowledgeEvent{}, &domain.KnowledgeEntityFollow{}, &domain.KnowledgeDigestSchedule{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}, &domain.WorkflowRun{}); err != nil {
+	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.NotificationPreference{}, &domain.NotificationMuteRule{}, &domain.AIFeedback{}, &domain.AIComposeFeedback{}, &domain.AIConversation{}, &domain.AIConversationMessage{}, &domain.AISummary{}, &domain.Artifact{}, &domain.ArtifactVersion{}, &domain.FileAsset{}, &domain.FileAssetEvent{}, &domain.FileExtraction{}, &domain.FileExtractionChunk{}, &domain.FileComment{}, &domain.FileShare{}, &domain.StarredFile{}, &domain.MessageArtifactReference{}, &domain.MessageFileAttachment{}, &domain.KnowledgeEvidenceLink{}, &domain.KnowledgeEvidenceEntityRef{}, &domain.KnowledgeEntity{}, &domain.KnowledgeEntityRef{}, &domain.KnowledgeEntityLink{}, &domain.KnowledgeEvent{}, &domain.KnowledgeEntityFollow{}, &domain.KnowledgeDigestSchedule{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}, &domain.WorkflowRun{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 }

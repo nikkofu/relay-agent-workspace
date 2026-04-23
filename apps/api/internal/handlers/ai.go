@@ -93,35 +93,179 @@ func GetAIConversation(c *gin.Context) {
 }
 
 func ComposeAI(c *gin.Context) {
-	var input struct {
-		ChannelID string `json:"channel_id"`
-		ThreadID  string `json:"thread_id"`
-		Draft     string `json:"draft"`
-		Intent    string `json:"intent"`
-		Limit     int    `json:"limit"`
+	input, err := bindComposeInput(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
-	if err := c.ShouldBindJSON(&input); err != nil {
+
+	response, _, err := runComposeAI(c, input)
+	if err != nil {
+		handleComposeError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"compose": response})
+}
+
+func ComposeAIStream(c *gin.Context) {
+	input, err := bindComposeInput(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if AIGateway == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ai gateway is not configured"})
+		return
+	}
+
+	prepared, err := prepareComposeAI(input)
+	if err != nil {
+		handleComposeError(c, err)
+		return
+	}
+	session, err := AIGateway.Stream(c.Request.Context(), llm.Request{
+		Prompt:    prepared.Prompt,
+		ChannelID: input.ChannelID,
+	})
+	if err != nil {
+		handleComposeError(c, err)
+		return
+	}
+
+	writer := c.Writer
+	writer.Header().Set("Content-Type", "text/event-stream")
+	writer.Header().Set("Cache-Control", "no-cache")
+	writer.Header().Set("Connection", "keep-alive")
+	flusher, ok := writer.(http.Flusher)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "streaming unsupported"})
+		return
+	}
+
+	requestID := ids.NewPrefixedUUID("compose-request")
+	provisionalSuggestionID := ids.NewPrefixedUUID("compose")
+	fullContent := ""
+
+	writeSSE(writer, "start", gin.H{
+		"request_id": requestID,
+		"channel_id": input.ChannelID,
+		"thread_id":  input.ThreadID,
+		"intent":     input.Intent,
+		"limit":      input.Limit,
+		"provider":   session.Provider,
+		"model":      session.Model,
+	})
+	flusher.Flush()
+
+	for {
+		select {
+		case event, ok := <-session.Events:
+			if !ok {
+				select {
+				case err, ok := <-session.Errors:
+					if ok && err != nil {
+						writeSSE(writer, "error", gin.H{"message": err.Error()})
+						flusher.Flush()
+						return
+					}
+				default:
+				}
+				response := buildComposeResponse(input.ChannelID, input.ThreadID, input.Intent, input.Limit, input.Draft, prepared.ThreadParent, prepared.RecentMessages, prepared.KnowledgeContext, prepared.EntityMatches, fullContent, session.Provider, session.Model)
+				if len(response.Suggestions) > 0 {
+					response.Suggestions[0].ID = provisionalSuggestionID
+				}
+				for index, suggestion := range response.Suggestions {
+					writeSSE(writer, "suggestion.done", gin.H{
+						"index":            index,
+						"suggestion":       suggestion,
+						"citations":        response.Citations,
+						"context_entities": response.ContextEntities,
+						"channel_id":       response.ChannelID,
+						"thread_id":        response.ThreadID,
+					})
+					flusher.Flush()
+				}
+				writeSSE(writer, "done", gin.H{
+					"request_id":       requestID,
+					"suggestion_count": len(response.Suggestions),
+					"provider":         session.Provider,
+					"model":            session.Model,
+				})
+				flusher.Flush()
+				return
+			}
+			if event.Type != "chunk" {
+				continue
+			}
+			fullContent += event.Text
+			writeSSE(writer, "suggestion.delta", gin.H{
+				"suggestion_id": provisionalSuggestionID,
+				"index":         0,
+				"text_delta":    event.Text,
+			})
+			flusher.Flush()
+		case err, ok := <-session.Errors:
+			if !ok {
+				session.Errors = nil
+				continue
+			}
+			if err != nil {
+				writeSSE(writer, "error", gin.H{"message": err.Error()})
+				flusher.Flush()
+			}
+			return
+		case <-c.Request.Context().Done():
+			return
+		}
+	}
+}
+
+func SubmitAIComposeFeedback(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var input struct {
+		ChannelID      string `json:"channel_id"`
+		ThreadID       string `json:"thread_id"`
+		Intent         string `json:"intent"`
+		Feedback       string `json:"feedback"`
+		SuggestionText string `json:"suggestion_text"`
+		Provider       string `json:"provider"`
+		Model          string `json:"model"`
+	}
+	if err := bindJSONBody(c, &input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	input.ChannelID = strings.TrimSpace(input.ChannelID)
 	input.ThreadID = strings.TrimSpace(input.ThreadID)
-	input.Draft = strings.TrimSpace(input.Draft)
-	intent := strings.ToLower(strings.TrimSpace(input.Intent))
+	input.Intent = strings.ToLower(strings.TrimSpace(input.Intent))
+	input.Feedback = strings.ToLower(strings.TrimSpace(input.Feedback))
+	input.SuggestionText = strings.TrimSpace(input.SuggestionText)
+	input.Provider = strings.TrimSpace(input.Provider)
+	input.Model = strings.TrimSpace(input.Model)
 	if input.ChannelID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "channel_id is required"})
 		return
 	}
-	if intent == "" {
-		intent = "reply"
+	if input.Intent == "" {
+		input.Intent = "reply"
 	}
-	if intent != "reply" {
+	if input.Intent != "reply" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "intent must be reply"})
 		return
 	}
-
-	limit := normalizeComposeLimit(input.Limit)
+	switch input.Feedback {
+	case "up", "down", "edited":
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "feedback must be up, down, or edited"})
+		return
+	}
 
 	var channel domain.Channel
 	if err := db.DB.First(&channel, "id = ?", input.ChannelID).Error; err != nil {
@@ -133,67 +277,51 @@ func ComposeAI(c *gin.Context) {
 		return
 	}
 
-	var threadParent *domain.Message
-	if input.ThreadID != "" {
-		var parent domain.Message
-		if err := db.DB.First(&parent, "id = ? AND channel_id = ?", input.ThreadID, input.ChannelID).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				c.JSON(http.StatusNotFound, gin.H{"error": "thread parent not found"})
-				return
-			}
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load thread parent"})
+	now := time.Now().UTC()
+	composeID := c.Param("id")
+	var feedback domain.AIComposeFeedback
+	err = db.DB.Where("compose_id = ? AND user_id = ?", composeID, currentUser.ID).First(&feedback).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		feedback = domain.AIComposeFeedback{
+			ID:             ids.NewPrefixedUUID("compose-feedback"),
+			ComposeID:      composeID,
+			UserID:         currentUser.ID,
+			ChannelID:      input.ChannelID,
+			ThreadID:       input.ThreadID,
+			Intent:         input.Intent,
+			Feedback:       input.Feedback,
+			SuggestionText: input.SuggestionText,
+			Provider:       input.Provider,
+			Model:          input.Model,
+			CreatedAt:      now,
+			UpdatedAt:      now,
+		}
+		if err := db.DB.Create(&feedback).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to persist compose feedback"})
 			return
 		}
-		threadParent = &parent
-	}
-
-	if AIGateway == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ai gateway is not configured"})
+		c.JSON(http.StatusCreated, gin.H{"feedback": feedback})
 		return
 	}
-
-	recentMessages, err := loadComposeRecentMessages(input.ChannelID, input.ThreadID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load compose context"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load compose feedback"})
 		return
 	}
 
-	knowledgeContext, err := knowledge.GetChannelKnowledgeContext(db.DB, input.ChannelID, limit)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to load channel knowledge context"})
+	feedback.ChannelID = input.ChannelID
+	feedback.ThreadID = input.ThreadID
+	feedback.Intent = input.Intent
+	feedback.Feedback = input.Feedback
+	feedback.SuggestionText = input.SuggestionText
+	feedback.Provider = input.Provider
+	feedback.Model = input.Model
+	feedback.UpdatedAt = now
+	if err := db.DB.Save(&feedback).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to persist compose feedback"})
 		return
 	}
 
-	matchText := composeMatchText(input.Draft, threadParent, recentMessages)
-	entityMatches, err := knowledge.MatchEntitiesInText(db.DB, knowledge.MatchEntitiesInput{
-		WorkspaceID: channel.WorkspaceID,
-		Text:        matchText,
-		Limit:       limit * 2,
-	})
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to match knowledge entities"})
-		return
-	}
-
-	req := llm.Request{
-		Prompt:    buildComposePrompt(input.ChannelID, input.ThreadID, intent, input.Draft, limit, threadParent, recentMessages, knowledgeContext, entityMatches),
-		ChannelID: input.ChannelID,
-	}
-
-	session, err := AIGateway.Stream(c.Request.Context(), req)
-	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
-		return
-	}
-
-	content, _, err := collectStreamOutput(c.Request.Context(), session)
-	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
-		return
-	}
-
-	response := buildComposeResponse(input.ChannelID, input.ThreadID, intent, limit, input.Draft, threadParent, recentMessages, knowledgeContext, entityMatches, content, session.Provider, session.Model)
-	c.JSON(http.StatusOK, gin.H{"compose": response})
+	c.JSON(http.StatusOK, gin.H{"feedback": feedback})
 }
 
 func GetThreadSummary(c *gin.Context) {
@@ -708,7 +836,7 @@ func buildComposeResponse(channelID, threadID, intent string, limit int, draft s
 	suggestions := structured.Suggestions
 	if len(suggestions) == 0 {
 		suggestions = []knowledge.ComposeSuggestion{{
-			ID:   "cmp-1",
+			ID:   ids.NewPrefixedUUID("compose"),
 			Text: buildFallbackComposeSuggestion(draft, threadParent, recentMessages),
 			Tone: "clear",
 			Kind: "reply",
@@ -716,6 +844,17 @@ func buildComposeResponse(channelID, threadID, intent string, limit int, draft s
 	}
 	if len(suggestions) > limit {
 		suggestions = suggestions[:limit]
+	}
+	for index := range suggestions {
+		if strings.TrimSpace(suggestions[index].ID) == "" || suggestions[index].ID == "cmp-1" {
+			suggestions[index].ID = ids.NewPrefixedUUID("compose")
+		}
+		if strings.TrimSpace(suggestions[index].Tone) == "" {
+			suggestions[index].Tone = "clear"
+		}
+		if strings.TrimSpace(suggestions[index].Kind) == "" {
+			suggestions[index].Kind = "reply"
+		}
 	}
 	if len(structured.Citations) > 0 {
 		citations = structured.Citations
@@ -855,4 +994,136 @@ func buildFallbackComposeSuggestion(draft string, threadParent *domain.Message, 
 		return base + " The timeline still looks consistent with the current plan."
 	}
 	return base
+}
+
+func bindComposeInput(c *gin.Context) (composeInput, error) {
+	var input composeInput
+	if err := bindJSONBody(c, &input); err != nil {
+		return composeInput{}, err
+	}
+
+	input.ChannelID = strings.TrimSpace(input.ChannelID)
+	input.ThreadID = strings.TrimSpace(input.ThreadID)
+	input.Draft = strings.TrimSpace(input.Draft)
+	input.Intent = strings.ToLower(strings.TrimSpace(input.Intent))
+	if input.ChannelID == "" {
+		return composeInput{}, errors.New("channel_id is required")
+	}
+	if input.Intent == "" {
+		input.Intent = "reply"
+	}
+	if input.Intent != "reply" {
+		return composeInput{}, errors.New("intent must be reply")
+	}
+	input.Limit = normalizeComposeLimit(input.Limit)
+	return input, nil
+}
+
+func runComposeAI(c *gin.Context, input composeInput) (composePayload, *llm.StreamSession, error) {
+	if AIGateway == nil {
+		return composePayload{}, nil, errors.New("ai gateway is not configured")
+	}
+	prepared, err := prepareComposeAI(input)
+	if err != nil {
+		return composePayload{}, nil, err
+	}
+	req := llm.Request{
+		Prompt:    prepared.Prompt,
+		ChannelID: input.ChannelID,
+	}
+	session, err := AIGateway.Stream(c.Request.Context(), req)
+	if err != nil {
+		return composePayload{}, nil, err
+	}
+
+	content, _, err := collectStreamOutput(c.Request.Context(), session)
+	if err != nil {
+		return composePayload{}, nil, err
+	}
+
+	return buildComposeResponse(input.ChannelID, input.ThreadID, input.Intent, input.Limit, input.Draft, prepared.ThreadParent, prepared.RecentMessages, prepared.KnowledgeContext, prepared.EntityMatches, content, session.Provider, session.Model), session, nil
+}
+
+func handleComposeError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "channel not found"})
+	case strings.Contains(err.Error(), "thread parent not found"):
+		c.JSON(http.StatusNotFound, gin.H{"error": "thread parent not found"})
+	case strings.Contains(err.Error(), "ai gateway is not configured"):
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": err.Error()})
+	default:
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+	}
+}
+
+type composeInput struct {
+	ChannelID string `json:"channel_id"`
+	ThreadID  string `json:"thread_id"`
+	Draft     string `json:"draft"`
+	Intent    string `json:"intent"`
+	Limit     int    `json:"limit"`
+}
+
+type preparedComposeAI struct {
+	Prompt           string
+	ThreadParent     *domain.Message
+	RecentMessages   []domain.Message
+	KnowledgeContext knowledge.ChannelKnowledgeContext
+	EntityMatches    []knowledge.EntityTextMatch
+}
+
+func prepareComposeAI(input composeInput) (preparedComposeAI, error) {
+	var channel domain.Channel
+	if err := db.DB.First(&channel, "id = ?", input.ChannelID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return preparedComposeAI{}, gorm.ErrRecordNotFound
+		}
+		return preparedComposeAI{}, err
+	}
+
+	var threadParent *domain.Message
+	if input.ThreadID != "" {
+		var parent domain.Message
+		if err := db.DB.First(&parent, "id = ? AND channel_id = ?", input.ThreadID, input.ChannelID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return preparedComposeAI{}, fmt.Errorf("thread parent not found")
+			}
+			return preparedComposeAI{}, err
+		}
+		threadParent = &parent
+	}
+
+	recentMessages, err := loadComposeRecentMessages(input.ChannelID, input.ThreadID)
+	if err != nil {
+		return preparedComposeAI{}, err
+	}
+	knowledgeContext, err := knowledge.GetChannelKnowledgeContext(db.DB, input.ChannelID, input.Limit)
+	if err != nil {
+		return preparedComposeAI{}, err
+	}
+	entityMatches, err := knowledge.MatchEntitiesInText(db.DB, knowledge.MatchEntitiesInput{
+		WorkspaceID: channel.WorkspaceID,
+		Text:        composeMatchText(input.Draft, threadParent, recentMessages),
+		Limit:       input.Limit * 2,
+	})
+	if err != nil {
+		return preparedComposeAI{}, err
+	}
+
+	return preparedComposeAI{
+		Prompt:           buildComposePrompt(input.ChannelID, input.ThreadID, input.Intent, input.Draft, input.Limit, threadParent, recentMessages, knowledgeContext, entityMatches),
+		ThreadParent:     threadParent,
+		RecentMessages:   recentMessages,
+		KnowledgeContext: knowledgeContext,
+		EntityMatches:    entityMatches,
+	}, nil
+}
+
+func bindJSONBody(c *gin.Context, target any) error {
+	raw, err := c.GetRawData()
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(raw, target)
 }

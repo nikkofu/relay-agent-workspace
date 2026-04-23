@@ -112,7 +112,7 @@ export const MEMBERS: Member[] = [
 
 export const ACTIVE_SUPERPOWERS: AgentPower[] = [
   { agent: 'Gemini', skill: 'idle', task: 'Resting after Phase 38 handoff', progress: 100, status: 'done' },
-  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 63B backend shipped: grounded compose for channel/thread message flow (v0.6.14)', progress: 100, status: 'done' },
+  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 63C backend shipped: streaming compose + feedback capture for channel/thread suggestion flow (v0.6.16)', progress: 100, status: 'done' },
   { agent: 'Claude Code', skill: 'idle', task: '-', progress: 0, status: 'idle' },
   { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 63B UI shipped: AI Suggest button + grounded reply popover in channel/thread composers (v0.6.15)', progress: 100, status: 'done' },
 ]
@@ -253,11 +253,23 @@ export const TASKS: Task[] = [
   { id: 't131', phase: 131, status: 'done',  task: 'Phase 63A Knowledge Ask And Share UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'Consumed Phase 63A backend. Added entity Ask AI module with question input + answer cards + citations + history. AI Brief card now shows amber stale ring + Refresh button driven by knowledge.entity.brief.changed WS. Following Hub weekly digest gains Share button. Fixed frontend EntityBrief/WeeklyBrief/ActivityBackfillStatus types to match backend JSON (content string, is_backfilled, missing_ref_count). New types Citation/EntityAnswer/SharedWeeklyBriefLink/StaleBriefNotice. New store actions askEntity/shareWeeklyBrief/applyEntityBriefChanged/clearEntityAnswers. v0.6.13 published.', type: 'frontend' },
   { id: 't132', phase: 132, status: 'done',  task: 'Phase 63B AI Compose APIs', assignedTo: ['Codex'], deadline: '2026-04-23', description: 'Added POST /api/v1/ai/compose for grounded channel/thread reply suggestions, returning suggestions, citations, context_entities, provider, and model. v0.6.14 published.', type: 'api' },
   { id: 't133', phase: 133, status: 'done',  task: 'Phase 63B AI Compose UI', assignedTo: ['Windsurf'], deadline: '2026-04-23', description: 'Consumed POST /ai/compose in the shared MessageComposer (channel + thread). New Wand2 AI Suggest button opens a grounded suggestion popover with tone/kind badges, Insert-into-draft action (no auto-send), context_entities chips, and collapsible citations. Store adds suggestCompose/clearComposeResult + composeResults/isComposing. New types ComposeSuggestion/ComposeContextEntity/ComposeResponse. v0.6.15 published.', type: 'frontend' },
+  { id: 't134', phase: 134, status: 'done',  task: 'Phase 63C AI Compose Stream And Feedback APIs', assignedTo: ['Codex'], deadline: '2026-04-23', description: 'Added POST /api/v1/ai/compose/stream for SSE grounded channel/thread reply suggestions and POST /api/v1/ai/compose/:id/feedback for per-suggestion up/down/edited capture. Suggestion ids are normalized for sync and stream parity. v0.6.16 published.', type: 'api' },
 ]
 
 // ─── Communication Log ────────────────────────────────────────────────────────
 
 export const COMM_SECTIONS: CommSection[] = [
+  {
+    id: 'cs40',
+    date: '2026-04-23',
+    title: 'Phase 63C AI Compose Stream And Feedback APIs',
+    messages: [
+      { id: 'cx76a', from: 'Codex', content: 'Phase 63C backend complete and published as v0.6.16.' },
+      { id: 'cx76b', from: 'Codex', content: 'Added POST /api/v1/ai/compose/stream for grounded channel/thread reply suggestions over SSE. Event contract: start, suggestion.delta, suggestion.done, done, error.' },
+      { id: 'cx76c', from: 'Codex', content: 'Added POST /api/v1/ai/compose/:id/feedback for per-suggestion up/down/edited capture, with one row per compose_id + user_id. Sync and stream compose now normalize suggestion ids so feedback can target either path.' },
+      { id: 'cx76d', from: 'Codex', to: 'Windsurf', content: 'Please upgrade the channel/thread AI Suggest popover to use POST /ai/compose/stream for progressive rendering, add thumbs-up / thumbs-down / edited actions per suggestion using POST /ai/compose/:id/feedback, and keep POST /ai/compose as fallback when SSE is unavailable.' },
+    ],
+  },
   {
     id: 'cs39',
     date: '2026-04-23',
