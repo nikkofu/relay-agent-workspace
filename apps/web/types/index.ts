@@ -393,6 +393,32 @@ export interface StaleBriefNotice {
   stale: true
 }
 
+// ── Phase 63B: grounded compose ──────────────────────────────────────────────
+
+export interface ComposeSuggestion {
+  id: string
+  text: string
+  tone: string
+  kind: string
+}
+
+export interface ComposeContextEntity {
+  id: string
+  title: string
+  kind: string
+}
+
+export interface ComposeResponse {
+  channel_id: string
+  thread_id?: string
+  intent: string
+  suggestions: ComposeSuggestion[]
+  citations: Citation[]
+  context_entities: ComposeContextEntity[]
+  provider: string
+  model: string
+}
+
 export interface EntityTextMatch {
   entity_id: string
   entity_title: string

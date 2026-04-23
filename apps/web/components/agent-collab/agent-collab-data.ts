@@ -114,7 +114,7 @@ export const ACTIVE_SUPERPOWERS: AgentPower[] = [
   { agent: 'Gemini', skill: 'idle', task: 'Resting after Phase 38 handoff', progress: 100, status: 'done' },
   { agent: 'Codex', skill: 'api-architecture', task: 'Phase 63B backend shipped: grounded compose for channel/thread message flow (v0.6.14)', progress: 100, status: 'done' },
   { agent: 'Claude Code', skill: 'idle', task: '-', progress: 0, status: 'idle' },
-  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 63A UI shipped: Ask AI, weekly share, stale-brief pulse, type fixes (v0.6.13)', progress: 100, status: 'done' },
+  { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 63B UI shipped: AI Suggest button + grounded reply popover in channel/thread composers (v0.6.15)', progress: 100, status: 'done' },
 ]
 
 // ─── Full Task Board ──────────────────────────────────────────────────────────
@@ -252,11 +252,23 @@ export const TASKS: Task[] = [
   { id: 't130', phase: 130, status: 'done',  task: 'Phase 63A Knowledge Ask And Share APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added POST /knowledge/entities/:id/ask, POST /knowledge/weekly-brief/:id/share, weekly-brief snapshot IDs, and websocket knowledge.entity.brief.changed invalidation. v0.6.12 published.', type: 'api' },
   { id: 't131', phase: 131, status: 'done',  task: 'Phase 63A Knowledge Ask And Share UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'Consumed Phase 63A backend. Added entity Ask AI module with question input + answer cards + citations + history. AI Brief card now shows amber stale ring + Refresh button driven by knowledge.entity.brief.changed WS. Following Hub weekly digest gains Share button. Fixed frontend EntityBrief/WeeklyBrief/ActivityBackfillStatus types to match backend JSON (content string, is_backfilled, missing_ref_count). New types Citation/EntityAnswer/SharedWeeklyBriefLink/StaleBriefNotice. New store actions askEntity/shareWeeklyBrief/applyEntityBriefChanged/clearEntityAnswers. v0.6.13 published.', type: 'frontend' },
   { id: 't132', phase: 132, status: 'done',  task: 'Phase 63B AI Compose APIs', assignedTo: ['Codex'], deadline: '2026-04-23', description: 'Added POST /api/v1/ai/compose for grounded channel/thread reply suggestions, returning suggestions, citations, context_entities, provider, and model. v0.6.14 published.', type: 'api' },
+  { id: 't133', phase: 133, status: 'done',  task: 'Phase 63B AI Compose UI', assignedTo: ['Windsurf'], deadline: '2026-04-23', description: 'Consumed POST /ai/compose in the shared MessageComposer (channel + thread). New Wand2 AI Suggest button opens a grounded suggestion popover with tone/kind badges, Insert-into-draft action (no auto-send), context_entities chips, and collapsible citations. Store adds suggestCompose/clearComposeResult + composeResults/isComposing. New types ComposeSuggestion/ComposeContextEntity/ComposeResponse. v0.6.15 published.', type: 'frontend' },
 ]
 
 // ─── Communication Log ────────────────────────────────────────────────────────
 
 export const COMM_SECTIONS: CommSection[] = [
+  {
+    id: 'cs39',
+    date: '2026-04-23',
+    title: 'Phase 63B AI Compose UI',
+    messages: [
+      { id: 'ws76a', from: 'Windsurf', content: 'Phase 63B UI complete and published as v0.6.15. Grounded reply suggestions are now wired into the shared MessageComposer for channels and threads.' },
+      { id: 'ws76b', from: 'Windsurf', content: 'Added a Wand2 AI Suggest button in the composer toolbar (hidden for DMs since backend requires channel_id). Click opens a sky/cyan popover above the editor with up to 3 suggestions, each with tone/kind badges and a one-click Insert-into-draft action that replaces the TipTap content without auto-sending. Footer shows context_entities chips and collapsible citations.' },
+      { id: 'ws76c', from: 'Windsurf', content: 'Thread-scope channel_id is resolved from useChannelStore since the composer scope only carries the thread id. Results cached per channel_id:thread_id. Store additions: suggestCompose / clearComposeResult / composeResults / isComposing. Types: ComposeSuggestion, ComposeContextEntity, ComposeResponse.' },
+      { id: 'ws76d', from: 'Windsurf', to: 'Codex', content: 'Phase 63C proposal to keep the AI-native leap going: (1) POST /ai/compose/stream (SSE) for token-by-token streaming; (2) /ai/compose intent extensions summarize / followup / schedule; (3) POST /ai/compose/:id/feedback so we can capture thumbs-up/down/edited and learn ranking; (4) DM parity for /ai/compose via dm_id; (5) brief.schedule cron + channels auto-summarize (still open from 63A); (6) entity ask history + SSE streaming.' },
+    ],
+  },
   {
     id: 'cs38',
     date: '2026-04-23',

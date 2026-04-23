@@ -35,6 +35,7 @@ import type {
   EntityAnswer,
   SharedWeeklyBriefLink,
   StaleBriefNotice,
+  ComposeResponse,
 } from "@/types"
 
 interface KnowledgeState {
@@ -78,6 +79,9 @@ interface KnowledgeState {
   isAskingEntity: Record<string, boolean>
   isSharingWeeklyBrief: boolean
   staleBriefs: Record<string, StaleBriefNotice>
+  // ── Phase 63B ───────────────────────────────────────────────────────────
+  composeResults: Record<string, ComposeResponse>
+  isComposing: Record<string, boolean>
 
   pushLiveUpdate: (update: KnowledgeUpdate) => void
   handleEntityCreated: (entity: KnowledgeEntity) => void
@@ -149,6 +153,9 @@ interface KnowledgeState {
   shareWeeklyBrief: (briefId: string) => Promise<SharedWeeklyBriefLink | null>
   applyEntityBriefChanged: (notice: StaleBriefNotice) => void
   clearEntityAnswers: (entityId: string) => void
+  // ── Phase 63B ───────────────────────────────────────────────────────────
+  suggestCompose: (channelId: string, threadId: string | undefined, draft: string, limit?: number) => Promise<ComposeResponse | null>
+  clearComposeResult: (channelId: string, threadId?: string) => void
 }
 
 export const useKnowledgeStore = create<KnowledgeState>((set) => ({
@@ -188,6 +195,8 @@ export const useKnowledgeStore = create<KnowledgeState>((set) => ({
   isAskingEntity: {},
   isSharingWeeklyBrief: false,
   staleBriefs: {},
+  composeResults: {},
+  isComposing: {},
 
   pushLiveUpdate: (update) => set({ liveUpdate: update }),
 
@@ -1161,6 +1170,52 @@ export const useKnowledgeStore = create<KnowledgeState>((set) => ({
   applyEntityBriefChanged: (notice) => set(state => ({
     staleBriefs: { ...state.staleBriefs, [notice.entity_id]: notice },
   })),
+
+  // ── Phase 63B: Grounded compose suggestions ─────────────────────
+  suggestCompose: async (channelId, threadId, draft, limit) => {
+    const key = `${channelId}:${threadId || ''}`
+    if (!channelId) return null
+    set(state => ({ isComposing: { ...state.isComposing, [key]: true } }))
+    try {
+      const body: Record<string, unknown> = {
+        channel_id: channelId,
+        intent: 'reply',
+        draft,
+      }
+      if (threadId) body.thread_id = threadId
+      if (typeof limit === 'number' && limit > 0) body.limit = limit
+      const res = await fetch(`${API_BASE_URL}/ai/compose`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) {
+        toast.error(`Compose failed (${res.status})`)
+        return null
+      }
+      const data = await res.json()
+      const compose: ComposeResponse | undefined = data.compose
+      if (compose) {
+        set(state => ({ composeResults: { ...state.composeResults, [key]: compose } }))
+      }
+      return compose || null
+    } catch (error) {
+      console.error("Failed to suggest compose:", error)
+      toast.error("Compose failed")
+      return null
+    } finally {
+      set(state => ({ isComposing: { ...state.isComposing, [key]: false } }))
+    }
+  },
+
+  clearComposeResult: (channelId, threadId) => {
+    const key = `${channelId}:${threadId || ''}`
+    set(state => {
+      const next = { ...state.composeResults }
+      delete next[key]
+      return { composeResults: next }
+    })
+  },
 
   // ── Phase 62: Live bulk-read update from websocket (multi-tab inbox sync) ─
   applyNotificationsBulkRead: (itemIds) => set(state => {

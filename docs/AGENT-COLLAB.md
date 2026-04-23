@@ -150,6 +150,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 63A Knowledge Ask And Share APIs | Codex | 2026-04-22 | Added `POST /api/v1/knowledge/entities/:id/ask`, `POST /api/v1/knowledge/weekly-brief/:id/share`, weekly-brief snapshot IDs, and websocket `knowledge.entity.brief.changed` invalidation. Released in `v0.6.12`. |
 | 🟢 Done | Phase 63A Knowledge Ask And Share UI | Windsurf | 2026-04-22 | Consumed all Phase 63A backend contracts. Entity detail page gets a full **Ask AI** module (question input, answer cards with citations, clear history). AI Brief card shows an **amber stale ring + Refresh button** when `knowledge.entity.brief.changed` arrives, with the stale `reason` surfaced inline. Following Hub Weekly Digest gets a **Share button** that calls `POST /knowledge/weekly-brief/:id/share` and copies the snapshot link to clipboard. Frontend `EntityBrief` / `WeeklyBrief` / `ActivityBackfillStatus` types corrected to match backend JSON (`content` string, `is_backfilled`, `missing_ref_count`, etc.) — fixes broken Phase 61 rendering. New types: `Citation`, `EntityAnswer`, `SharedWeeklyBriefLink`, `StaleBriefNotice`. New store actions: `askEntity`, `shareWeeklyBrief`, `applyEntityBriefChanged`, `clearEntityAnswers`. Published `v0.6.13`. |
 | 🟢 Done | Phase 63B AI Compose APIs | Codex | 2026-04-23 | Added `POST /api/v1/ai/compose` for grounded channel/thread reply suggestions, returning `suggestions[]`, `citations[]`, and `context_entities[]`. Released in `v0.6.14`. |
+| 🟢 Done | Phase 63B AI Compose UI | Windsurf | 2026-04-23 | Consumed `POST /api/v1/ai/compose` in the shared `MessageComposer` used by channel + thread panels. New **Wand2 "AI Suggest"** button (sky/cyan) next to AI Canvas on channel/thread composers (hidden for DMs) fetches 3 grounded reply suggestions using the current draft + thread context. Popover above the editor renders each suggestion with tone/kind badges and a one-click **Insert into draft** action that replaces the TipTap content with the suggestion (HTML-escaped, preserving line breaks) without auto-sending. Footer surfaces `context_entities[]` as emerald entity chips and a collapsible `citations[]` block with source-kind badge + snippet. Regenerate and Dismiss controls. Results cached per `channel_id:thread_id` in `knowledge-store.composeResults`. Published `v0.6.15`. |
 
 ---
 
@@ -160,7 +161,24 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
 | **Codex** | `api-architecture` | Phase 63B backend shipped: grounded compose for channel/thread message flow (v0.6.14) | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-ui-agent` | Phase 63A UI shipped: Ask AI module, weekly share, stale-brief pulse, type fixes (v0.6.13) | 100% |
+| **Windsurf** | `web-ui-agent` | Phase 63B UI shipped: AI Suggest button + grounded reply popover in channel/thread composers (v0.6.15) | 100% |
+
+### 2026-04-23 - Phase 63B AI Compose UI (v0.6.15)
+- **Windsurf**: Phase 63B UI complete and published as `v0.6.15`. Full consumer for Codex `v0.6.14` backend.
+- **Windsurf**: **AI Suggest button** — new `Wand2` icon button (sky/cyan) appears next to the AI Canvas button in the shared `MessageComposer` whenever the scope is `channel:*` or `thread:*`. Hidden on DM scopes since the backend requires `channel_id`. The button shows a loading spinner while the LLM is thinking.
+- **Windsurf**: **Grounded suggestion popover** — sky/cyan gradient panel above the editor surfaces up to 3 suggestions. Each suggestion card includes the text, tone + kind badges, and a one-click **Insert into draft** button that pushes the suggestion into the TipTap editor (HTML-escaped, with `\n` → `<br/>` / `\n\n` → new paragraph) without auto-sending. The footer includes: collapsible `citations[]` list with source-kind badge + truncated snippet, and `context_entities[]` rendered as emerald entity chips with kind tag.
+- **Windsurf**: **Controls** — Regenerate (calls `/ai/compose` again with current draft + thread context), Dismiss (`X`) clears the cached `composeResult` for the scope. Provider/model footer shown for transparency.
+- **Windsurf**: Thread-scope channel id is pulled from `useChannelStore.currentChannel.id` since the composer's `scope` prop only carries the thread id.
+- **Windsurf**: Store additions (Phase 63B): `suggestCompose(channelId, threadId, draft, limit?) => ComposeResponse | null`, `clearComposeResult(channelId, threadId?)`, plus state `composeResults: Record<'channelId:threadId', ComposeResponse>` and `isComposing: Record<key, boolean>`.
+- **Windsurf**: New types exported from `types/index.ts`: `ComposeSuggestion`, `ComposeContextEntity`, `ComposeResponse`.
+- **Windsurf → Codex**: Recommended Phase 63C targets to keep pushing the AI-native leap:
+  - **`POST /api/v1/ai/compose/stream`** (SSE) — streaming version so long suggestions render token-by-token. Would pair well with an in-place progressive suggestion card UI.
+  - **`POST /api/v1/ai/compose`** intent extensions — `summarize` (summarise the unread thread replies into a drafted reply), `followup` (ask clarifying questions rooted in missing entity attributes), `schedule` (propose a meeting time given thread context + presence).
+  - **`POST /api/v1/ai/compose/:id/feedback`** — user thumbs-up / thumbs-down / "edited" on a specific suggestion ID so Codex can record learning signal and eventually re-rank tones.
+  - **`POST /api/v1/dms/:id/messages` grounded compose parity** — let DM composers call `/ai/compose` by accepting `dm_id` as an alternative scope. Unblocks DM composer Suggest button.
+  - **`POST /api/v1/knowledge/entities/:id/brief/schedule`** + **`POST /api/v1/channels/:id/knowledge/auto-summarize`** — still open from Phase 63A proposal; these keep entity/channel briefs warm without manual clicks and round out the always-on AI substrate.
+  - **`GET /api/v1/knowledge/entities/:id/ask/history`** + **`POST /api/v1/knowledge/entities/:id/ask/stream`** — persist and stream entity Q&A, mirroring the compose streaming work.
+- **Windsurf → Nikko Fu**: Try it: open any channel, type "can we confirm…?", click the 🪄 **Wand2** button next to AI Canvas. You get 3 grounded reply drafts with real citations pulled from channel history + knowledge entities. Click **Insert into draft** to put one into the message box, edit, then send normally. Same flow works inside any open thread panel.
 
 ### 2026-04-23 - Phase 63B AI Compose APIs (v0.6.14)
 - **Codex**: Phase 63B backend is complete and published as `v0.6.14`.

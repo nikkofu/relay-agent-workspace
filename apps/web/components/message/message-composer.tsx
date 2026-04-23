@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useMemo, useEffect, useLayoutEffect } fr
 import { 
   Bold, Italic, Strikethrough, Link as LinkIcon, List, ListOrdered, 
   Quote, Code, FileCode, Type, Smile, Globe, Loader2, Paperclip, Send, Mic, Sparkles, X,
+  Wand2, RefreshCw,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -31,7 +32,8 @@ import { usePresenceStore } from "@/stores/presence-store"
 import { useFileStore } from "@/stores/file-store"
 import { useKnowledgeStore } from "@/stores/knowledge-store"
 import { useWorkspaceStore } from "@/stores/workspace-store"
-import type { EntitySuggestResult, EntityTextMatch } from "@/types"
+import { useChannelStore } from "@/stores/channel-store"
+import type { EntitySuggestResult, EntityTextMatch, ComposeSuggestion } from "@/types"
 
 interface MessageComposerProps {
   placeholder?: string
@@ -61,8 +63,32 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
   const { saveDraft, deleteDraft, drafts, fetchDrafts } = useDraftStore()
   const { sendTyping } = usePresenceStore()
   const { uploadFile } = useFileStore()
-  const { suggestEntities, matchEntitiesInText } = useKnowledgeStore()
+  const {
+    suggestEntities, matchEntitiesInText,
+    suggestCompose, clearComposeResult, composeResults, isComposing,
+  } = useKnowledgeStore()
   const { currentWorkspace } = useWorkspaceStore()
+  const { currentChannel } = useChannelStore()
+
+  // Phase 63B: AI Compose suggestion state
+  const [showComposeSuggestions, setShowComposeSuggestions] = useState(false)
+
+  // Derive channel/thread ids for /ai/compose (only for channel & thread scopes)
+  const composeIds = useMemo(() => {
+    if (!scope) return null
+    if (scope.startsWith('channel:')) {
+      return { channelId: scope.slice('channel:'.length), threadId: undefined as string | undefined }
+    }
+    if (scope.startsWith('thread:')) {
+      const threadId = scope.slice('thread:'.length)
+      if (currentChannel?.id) return { channelId: currentChannel.id, threadId }
+    }
+    return null
+  }, [scope, currentChannel?.id])
+
+  const composeKey = composeIds ? `${composeIds.channelId}:${composeIds.threadId || ''}` : null
+  const composeResult = composeKey ? composeResults[composeKey] : undefined
+  const composeBusy = composeKey ? !!isComposing[composeKey] : false
   const fileInputRef = useRef<HTMLInputElement>(null)
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const draftsRef = useRef(drafts)
@@ -351,6 +377,28 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
     editor?.commands.focus()
   }
 
+  // Phase 63B: Request grounded compose suggestions for the current scope
+  const runSuggestCompose = useCallback(async () => {
+    if (!composeIds || !editor) return
+    const draftText = editor.getText().trim()
+    setShowComposeSuggestions(true)
+    await suggestCompose(composeIds.channelId, composeIds.threadId, draftText, 3)
+  }, [composeIds, editor, suggestCompose])
+
+  // Phase 63B: Insert a suggestion into the draft (no auto-send)
+  const handleInsertSuggestion = useCallback((s: ComposeSuggestion) => {
+    if (!editor) return
+    const html = `<p>${s.text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n{2,}/g, '</p><p>')
+      .replace(/\n/g, '<br/>')}</p>`
+    editor.chain().focus().clearContent().insertContent(html).run()
+    setShowComposeSuggestions(false)
+    toast.success('Suggestion inserted — edit and send when ready')
+  }, [editor])
+
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file && editor) {
@@ -433,6 +481,124 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
           </div>
         )}
       </div>
+
+      {/* Phase 63B: AI Compose suggestions */}
+      {composeIds && showComposeSuggestions && (composeBusy || composeResult) && (
+        <div className="mb-2 rounded-xl border border-sky-400/40 bg-gradient-to-br from-sky-500/5 to-cyan-500/5 overflow-hidden">
+          <div className="px-3 py-1.5 border-b border-sky-400/20 flex items-center gap-2">
+            <Wand2 className="w-3 h-3 text-sky-500" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-sky-700 dark:text-sky-400">
+              AI Suggestions
+            </span>
+            {composeResult?.provider && (
+              <span className="text-[9px] font-mono text-muted-foreground">
+                {composeResult.provider}{composeResult.model ? ` / ${composeResult.model}` : ''}
+              </span>
+            )}
+            <div className="ml-auto flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-[10px] gap-1 px-2 text-sky-700 dark:text-sky-400 hover:bg-sky-500/10"
+                disabled={composeBusy}
+                onClick={runSuggestCompose}
+                title="Regenerate suggestions"
+              >
+                {composeBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                {composeBusy ? 'Thinking…' : 'Regenerate'}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0 text-muted-foreground"
+                onClick={() => {
+                  setShowComposeSuggestions(false)
+                  if (composeIds) clearComposeResult(composeIds.channelId, composeIds.threadId)
+                }}
+                title="Dismiss"
+              >
+                <X className="w-3 h-3" />
+              </Button>
+            </div>
+          </div>
+          {composeBusy && !composeResult && (
+            <div className="px-3 py-4 text-[11px] text-muted-foreground italic flex items-center gap-2">
+              <Loader2 className="w-3 h-3 animate-spin" /> Drafting grounded reply suggestions…
+            </div>
+          )}
+          {composeResult && (
+            <div className="px-3 py-2 space-y-2">
+              {composeResult.suggestions.length === 0 && (
+                <p className="text-[11px] text-muted-foreground italic">No suggestions returned.</p>
+              )}
+              {composeResult.suggestions.map((s) => (
+                <div
+                  key={s.id}
+                  className="rounded-lg border bg-background/60 p-2 space-y-1.5 hover:border-sky-400/40 transition-colors"
+                >
+                  <p className="text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap">{s.text}</p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {s.tone && (
+                      <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-sky-500/5 text-sky-700 dark:text-sky-400 border-sky-400/30">
+                        {s.tone}
+                      </span>
+                    )}
+                    {s.kind && s.kind !== s.tone && (
+                      <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-muted/40 text-muted-foreground">
+                        {s.kind}
+                      </span>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="ml-auto h-6 text-[10px] gap-1 px-2 border-sky-400/40 text-sky-700 dark:text-sky-400 hover:bg-sky-500/10"
+                      onClick={() => handleInsertSuggestion(s)}
+                    >
+                      <Sparkles className="w-3 h-3" /> Insert into draft
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              {(composeResult.context_entities?.length || composeResult.citations?.length) ? (
+                <div className="pt-1 border-t border-sky-400/15 space-y-1">
+                  {composeResult.context_entities && composeResult.context_entities.length > 0 && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Context</span>
+                      {composeResult.context_entities.slice(0, 6).map(ent => (
+                        <span
+                          key={ent.id}
+                          className="inline-flex items-center gap-1 text-[10px] rounded-md border bg-emerald-500/5 text-emerald-700 dark:text-emerald-400 border-emerald-400/30 px-1.5 py-0.5"
+                        >
+                          <Globe className="w-2.5 h-2.5" />
+                          <span className="truncate max-w-[140px] font-bold">{ent.title}</span>
+                          <span className="text-[8px] uppercase opacity-70">{ent.kind}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {composeResult.citations && composeResult.citations.length > 0 && (
+                    <details className="group">
+                      <summary className="text-[9px] font-black uppercase tracking-widest text-muted-foreground cursor-pointer select-none hover:text-foreground">
+                        Citations ({composeResult.citations.length})
+                      </summary>
+                      <div className="mt-1 space-y-1 pl-1">
+                        {composeResult.citations.slice(0, 6).map((c, i) => (
+                          <div key={c.id || i} className="flex items-start gap-1.5 text-[10px]">
+                            <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-muted/40 text-muted-foreground shrink-0">
+                              {c.source_kind || c.ref_kind}
+                            </span>
+                            <span className="text-foreground/75 italic line-clamp-2">&ldquo;{c.snippet}&rdquo;</span>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Phase 55: passive entity detection hint row */}
       {visibleDetectedMatches.length > 0 && !showEntityMentions && !showSlashCommands && !showMentions && (
@@ -608,6 +774,22 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
               </TooltipTrigger>
               <TooltipContent>AI Canvas</TooltipContent>
             </Tooltip>
+            {composeIds && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-sky-500 hover:bg-sky-500/10"
+                    disabled={composeBusy}
+                    onClick={runSuggestCompose}
+                  >
+                    {composeBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>AI Suggest (grounded reply)</TooltipContent>
+              </Tooltip>
+            )}
           </div>
           
           <Button 
