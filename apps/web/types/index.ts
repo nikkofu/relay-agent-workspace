@@ -372,6 +372,45 @@ export interface EntityAnswer {
   model: string
   answered_at: string
   citations: Citation[]
+  // Phase 63E: populated when the row is hydrated from persisted history
+  // (server returns citation_count but not the full citations[] for history rows).
+  citation_count?: number
+  // Phase 63E: id of the persisted history row, when available.
+  history_id?: string
+}
+
+// ── Phase 63E: Persisted entity Ask history ─────────────────────────────────
+
+export interface EntityAskHistoryItem {
+  id: string
+  entity_id: string
+  workspace_id: string
+  user_id: string
+  question: string
+  answer: string
+  reasoning?: string
+  provider: string
+  model: string
+  citation_count: number
+  answered_at: string
+  created_at: string
+  updated_at: string
+}
+
+export interface EntityAskHistoryResponse {
+  entity: KnowledgeEntity
+  items: EntityAskHistoryItem[]
+}
+
+// Phase 63E: per-entity streaming state for progressive rendering of the
+// current in-flight Ask answer. `text` is the accumulated `answer.delta` body.
+export interface EntityAskStreamingState {
+  entityId: string
+  requestId: string
+  question: string
+  text: string
+  provider?: string
+  model?: string
 }
 
 export interface SharedWeeklyBriefLink {

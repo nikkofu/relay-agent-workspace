@@ -52,7 +52,9 @@ function EntityDetailContent({ id }: { id: string }) {
     ingestEvent, liveUpdate, spikingEntityIds, shareEntity,
     entityBriefs, isGeneratingBrief, generateEntityBrief, fetchEntityBrief,
     backfillStatuses, isBackfilling, fetchBackfillStatus, triggerBackfill,
-    staleBriefs, entityAnswers, isAskingEntity, askEntity, clearEntityAnswers,
+    staleBriefs, entityAnswers, isAskingEntity, clearEntityAnswers,
+    // Phase 63E
+    fetchEntityAskHistory, askEntityStream, entityAskStreaming, isLoadingAskHistory,
   } = useKnowledgeStore()
   const [sharing, setSharing] = useState(false)
   const [askInput, setAskInput] = useState("")
@@ -106,7 +108,9 @@ function EntityDetailContent({ id }: { id: string }) {
     fetchBackfillStatus(id).catch(() => {})
     // Phase 62: hydrate cached brief without invoking the LLM
     fetchEntityBrief(id).catch(() => {})
-  }, [id, fetchEntity, fetchBackfillStatus, fetchEntityBrief])
+    // Phase 63E: hydrate persisted Ask AI Q&A history (per-user, newest first)
+    fetchEntityAskHistory(id, 20).catch(() => {})
+  }, [id, fetchEntity, fetchBackfillStatus, fetchEntityBrief, fetchEntityAskHistory])
 
   useEffect(() => {
     if (!liveUpdate || liveUpdate.ts === prevLiveTs.current) return
@@ -325,15 +329,19 @@ function EntityDetailContent({ id }: { id: string }) {
                   )
                 })()}
 
-                {/* Phase 63A: Ask AI module */}
+                {/* Phase 63A/E: Ask AI module — streaming + persisted history */}
                 {(() => {
                   const answers = entityAnswers[id] || []
                   const asking = !!isAskingEntity[id]
+                  const loadingHistory = !!isLoadingAskHistory[id]
+                  const streaming = entityAskStreaming[id]
                   const submit = async () => {
                     const q = askInput.trim()
                     if (!q || asking) return
                     setAskInput("")
-                    await askEntity(id, q)
+                    // Phase 63E: prefer SSE streaming; the store falls back to
+                    // the sync /ask endpoint on non-OK status or network error.
+                    await askEntityStream(id, q)
                   }
                   return (
                     <div className="rounded-xl border bg-gradient-to-br from-sky-500/5 to-cyan-500/5 p-4 space-y-3">
@@ -343,6 +351,11 @@ function EntityDetailContent({ id }: { id: string }) {
                           <p className="text-[10px] font-black uppercase tracking-widest text-sky-600 dark:text-sky-400">Ask AI</p>
                           {answers.length > 0 && (
                             <span className="text-[9px] text-muted-foreground">{answers.length} answered</span>
+                          )}
+                          {loadingHistory && (
+                            <span className="text-[9px] text-muted-foreground inline-flex items-center gap-1">
+                              <Loader2 className="w-2.5 h-2.5 animate-spin" /> loading history
+                            </span>
                           )}
                         </div>
                         {answers.length > 0 && (
@@ -380,29 +393,67 @@ function EntityDetailContent({ id }: { id: string }) {
                           Ask
                         </Button>
                       </div>
+
+                      {/* Phase 63E: progressive SSE streaming card — visible until 'done' fires */}
+                      {streaming && (
+                        <div className="rounded-lg border border-sky-400/40 bg-background/60 p-3 space-y-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <Loader2 className="w-3 h-3 animate-spin text-sky-500" />
+                            <span className="text-[9px] font-black uppercase tracking-widest text-sky-700 dark:text-sky-400">Streaming…</span>
+                            {(streaming.provider || streaming.model) && (
+                              <span className="text-[9px] font-mono text-muted-foreground ml-auto">
+                                {streaming.provider}{streaming.model ? ` / ${streaming.model}` : ''}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] font-bold text-sky-700 dark:text-sky-400">Q: {streaming.question}</p>
+                          <p className="text-xs text-foreground/85 leading-relaxed whitespace-pre-wrap">
+                            {streaming.text || <span className="text-muted-foreground italic">Thinking…</span>}
+                            <span className="inline-block w-1.5 h-3 align-text-bottom bg-sky-500/70 animate-pulse ml-0.5" />
+                          </p>
+                        </div>
+                      )}
+
                       {answers.length > 0 && (
                         <div className="space-y-3 pt-1">
-                          {answers.map((a, i) => (
-                            <div key={i} className="rounded-lg border bg-background/60 p-3 space-y-2">
-                              <p className="text-[11px] font-bold text-sky-700 dark:text-sky-400">Q: {a.question}</p>
-                              <p className="text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap">{a.answer}</p>
-                              {a.citations && a.citations.length > 0 && (
-                                <div className="space-y-1 pt-1 border-t">
-                                  <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Citations ({a.citations.length})</p>
-                                  {a.citations.slice(0, 5).map((c, j) => (
-                                    <div key={c.id || j} className="flex items-start gap-1.5 text-[10px]">
-                                      <Badge variant="secondary" className="text-[9px] h-4 px-1.5 shrink-0">{c.source_kind || c.ref_kind}</Badge>
-                                      <span className="text-foreground/75 italic line-clamp-2">&ldquo;{c.snippet}&rdquo;</span>
-                                    </div>
-                                  ))}
+                          {answers.map((a, i) => {
+                            // Phase 63E: rows hydrated from /ask/history carry citation_count but no citations[]
+                            const isHydratedHistory = (a.citations?.length ?? 0) === 0 && typeof a.citation_count === 'number' && a.citation_count > 0
+                            const key = a.history_id || `${a.question}-${a.answered_at}-${i}`
+                            return (
+                              <div key={key} className="rounded-lg border bg-background/60 p-3 space-y-2">
+                                <p className="text-[11px] font-bold text-sky-700 dark:text-sky-400">Q: {a.question}</p>
+                                <p className="text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap">{a.answer}</p>
+                                {a.citations && a.citations.length > 0 && (
+                                  <div className="space-y-1 pt-1 border-t">
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Citations ({a.citations.length})</p>
+                                    {a.citations.slice(0, 5).map((c, j) => (
+                                      <div key={c.id || j} className="flex items-start gap-1.5 text-[10px]">
+                                        <Badge variant="secondary" className="text-[9px] h-4 px-1.5 shrink-0">{c.source_kind || c.ref_kind}</Badge>
+                                        <span className="text-foreground/75 italic line-clamp-2">&ldquo;{c.snippet}&rdquo;</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                {isHydratedHistory && (
+                                  <div className="pt-1 border-t">
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+                                      {a.citation_count} citation{a.citation_count === 1 ? '' : 's'} · from history
+                                    </p>
+                                  </div>
+                                )}
+                                <div className="flex items-center gap-2 text-[9px] text-muted-foreground">
+                                  <span>{format(new Date(a.answered_at), "MMM d, HH:mm")}</span>
+                                  {a.history_id && (
+                                    <span className="font-mono text-muted-foreground/60" title={`History id: ${a.history_id}`}>
+                                      #{a.history_id.slice(-6)}
+                                    </span>
+                                  )}
+                                  {a.provider && <span className="font-mono ml-auto">{a.provider}{a.model ? ` / ${a.model}` : ''}</span>}
                                 </div>
-                              )}
-                              <div className="flex items-center gap-2 text-[9px] text-muted-foreground">
-                                <span>{format(new Date(a.answered_at), "MMM d, HH:mm")}</span>
-                                {a.provider && <span className="font-mono ml-auto">{a.provider}{a.model ? ` / ${a.model}` : ''}</span>}
                               </div>
-                            </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       )}
                     </div>

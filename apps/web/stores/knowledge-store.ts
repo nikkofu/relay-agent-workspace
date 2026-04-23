@@ -44,6 +44,9 @@ import type {
   ComposeIntent,
   ComposeScope,
   ComposeFeedbackSummary,
+  EntityAskHistoryItem,
+  EntityAskHistoryResponse,
+  EntityAskStreamingState,
 } from "@/types"
 
 interface KnowledgeState {
@@ -95,6 +98,10 @@ interface KnowledgeState {
   composeFeedback: Record<string, ComposeFeedbackValue>
   // ── Phase 63D ───────────────────────────────────────────────────────────
   composeFeedbackSummary: Record<string, ComposeFeedbackSummary>
+  // ── Phase 63E: persisted entity Ask history + SSE streaming state ─────
+  entityAskHistory: Record<string, EntityAskHistoryItem[]>
+  isLoadingAskHistory: Record<string, boolean>
+  entityAskStreaming: Record<string, EntityAskStreamingState | null>
 
   pushLiveUpdate: (update: KnowledgeUpdate) => void
   handleEntityCreated: (entity: KnowledgeEntity) => void
@@ -174,6 +181,9 @@ interface KnowledgeState {
   sendComposeFeedback: (composeId: string, args: { scope: ComposeScope; feedback: ComposeFeedbackValue; suggestionText?: string; provider?: string; model?: string }) => Promise<boolean>
   // ── Phase 63D ───────────────────────────────────────────────────────────
   fetchComposeFeedbackSummary: (composeId: string) => Promise<ComposeFeedbackSummary | null>
+  // ── Phase 63E ───────────────────────────────────────────────────────────
+  fetchEntityAskHistory: (entityId: string, limit?: number) => Promise<EntityAskHistoryResponse | null>
+  askEntityStream: (entityId: string, question: string) => Promise<EntityAnswer | null>
 }
 
 // Phase 63D: normalize a compose scope into a stable key used for
@@ -183,6 +193,24 @@ function composeScopeKey(scope: ComposeScope): string | null {
   if (scope.dmId) return `dm:${scope.dmId}`
   if (scope.channelId) return `ch:${scope.channelId}:${scope.threadId || ''}`
   return null
+}
+
+// Phase 63E: Convert a persisted history row into an EntityAnswer-shaped object
+// so the UI can render both fresh answers and hydrated history in the same list.
+// History rows don't carry `citations[]`, only `citation_count`, which we preserve.
+function historyItemToEntityAnswer(item: EntityAskHistoryItem, entity: KnowledgeEntity): EntityAnswer {
+  return {
+    entity,
+    question: item.question,
+    answer: item.answer,
+    reasoning: item.reasoning,
+    provider: item.provider,
+    model: item.model,
+    answered_at: item.answered_at,
+    citations: [],
+    citation_count: item.citation_count,
+    history_id: item.id,
+  }
 }
 
 export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
@@ -227,6 +255,9 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   composeStreaming: {},
   composeFeedback: {},
   composeFeedbackSummary: {},
+  entityAskHistory: {},
+  isLoadingAskHistory: {},
+  entityAskStreaming: {},
 
   pushLiveUpdate: (update) => set({ liveUpdate: update }),
 
@@ -1160,8 +1191,165 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   clearEntityAnswers: (entityId) => set(state => {
     const next = { ...state.entityAnswers }
     delete next[entityId]
-    return { entityAnswers: next }
+    const nextHistory = { ...state.entityAskHistory }
+    delete nextHistory[entityId]
+    return { entityAnswers: next, entityAskHistory: nextHistory }
   }),
+
+  // ── Phase 63E: Hydrate persisted entity Ask history ─────────────────
+  // Also mirrors the history into `entityAnswers[entityId]` so the existing
+  // Ask AI card can render persisted + fresh answers through the same
+  // rendering path (via `historyItemToEntityAnswer`).
+  fetchEntityAskHistory: async (entityId, limit) => {
+    if (!entityId) return null
+    set(state => ({ isLoadingAskHistory: { ...state.isLoadingAskHistory, [entityId]: true } }))
+    try {
+      const qs = typeof limit === 'number' && limit > 0 ? `?limit=${limit}` : ''
+      const res = await fetch(`${API_BASE_URL}/knowledge/entities/${encodeURIComponent(entityId)}/ask/history${qs}`)
+      if (!res.ok) {
+        console.warn(`ask/history returned ${res.status}`)
+        return null
+      }
+      const data = await res.json() as EntityAskHistoryResponse
+      const items = Array.isArray(data?.items) ? data.items : []
+      const entity = data?.entity
+      set(state => {
+        // Keep any fresher in-memory answers in `entityAnswers` at the top; append
+        // history rows below them, deduped by `history_id` so the fresh answer
+        // emitted by ask/stream doesn't render twice after hydration.
+        const fresh = state.entityAnswers[entityId] || []
+        const freshHistoryIds = new Set(fresh.map(a => a.history_id).filter(Boolean))
+        const hydrated = entity
+          ? items
+              .filter(it => !freshHistoryIds.has(it.id))
+              .map(it => historyItemToEntityAnswer(it, entity))
+          : []
+        return {
+          entityAskHistory: { ...state.entityAskHistory, [entityId]: items },
+          entityAnswers: { ...state.entityAnswers, [entityId]: [...fresh, ...hydrated] },
+        }
+      })
+      return data
+    } catch (error) {
+      console.error('Failed to load entity ask history:', error)
+      return null
+    } finally {
+      set(state => ({ isLoadingAskHistory: { ...state.isLoadingAskHistory, [entityId]: false } }))
+    }
+  },
+
+  // ── Phase 63E: Streaming entity Ask via SSE with graceful fallback ─────
+  // Progressively renders `answer.delta` tokens in `entityAskStreaming[entityId]`.
+  // On `answer.done`, the full EntityAnswer (with citations[] + history_id) is
+  // prepended to `entityAnswers[entityId]` so the Ask AI card snaps to a finalized
+  // card. Falls back to sync `askEntity` on non-OK status / network error.
+  askEntityStream: async (entityId, question) => {
+    const q = question.trim()
+    if (!entityId || !q) return null
+    set(state => ({
+      isAskingEntity: { ...state.isAskingEntity, [entityId]: true },
+      entityAskStreaming: {
+        ...state.entityAskStreaming,
+        [entityId]: { entityId, requestId: '', question: q, text: '' },
+      },
+    }))
+    try {
+      const res = await fetch(`${API_BASE_URL}/knowledge/entities/${encodeURIComponent(entityId)}/ask/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: q }),
+      })
+      if (!res.ok || !res.body) {
+        console.warn(`ask/stream returned ${res.status}; falling back to /ask`)
+        return await get().askEntity(entityId, q)
+      }
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let streamProvider = ''
+      let streamModel = ''
+      let streamText = ''
+      let requestId = ''
+      let finalAnswer: EntityAnswer | null = null
+
+      const processEvent = (event: string, payload: Record<string, unknown>) => {
+        if (event === 'start') {
+          streamProvider = typeof payload.provider === 'string' ? payload.provider : ''
+          streamModel = typeof payload.model === 'string' ? payload.model : ''
+          requestId = typeof payload.request_id === 'string' ? payload.request_id : ''
+          set(state => ({
+            entityAskStreaming: {
+              ...state.entityAskStreaming,
+              [entityId]: { entityId, requestId, question: q, text: '', provider: streamProvider, model: streamModel },
+            },
+          }))
+        } else if (event === 'answer.delta') {
+          const delta = typeof payload.text_delta === 'string' ? payload.text_delta : ''
+          streamText += delta
+          set(state => ({
+            entityAskStreaming: {
+              ...state.entityAskStreaming,
+              [entityId]: { entityId, requestId, question: q, text: streamText, provider: streamProvider, model: streamModel },
+            },
+          }))
+        } else if (event === 'answer.done') {
+          const answer = payload.answer as EntityAnswer | undefined
+          const historyId = typeof payload.history_id === 'string' ? payload.history_id : undefined
+          if (answer) {
+            finalAnswer = { ...answer, history_id: historyId }
+            set(state => ({
+              entityAnswers: {
+                ...state.entityAnswers,
+                [entityId]: [finalAnswer as EntityAnswer, ...(state.entityAnswers[entityId] || [])],
+              },
+            }))
+          }
+        } else if (event === 'done') {
+          set(state => ({
+            entityAskStreaming: { ...state.entityAskStreaming, [entityId]: null },
+          }))
+        } else if (event === 'error') {
+          const msg = typeof payload.message === 'string' ? payload.message : 'stream error'
+          toast.error(`Ask stream failed: ${msg}`)
+        }
+      }
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const parts = buffer.split('\n\n')
+        buffer = parts.pop() || ''
+        for (const part of parts) {
+          if (!part.trim()) continue
+          let evName = 'message'
+          let dataRaw = ''
+          for (const line of part.split('\n')) {
+            if (line.startsWith('event: ')) evName = line.slice(7).trim()
+            else if (line.startsWith('event:')) evName = line.slice(6).trim()
+            else if (line.startsWith('data: ')) dataRaw += line.slice(6)
+            else if (line.startsWith('data:')) dataRaw += line.slice(5)
+          }
+          try {
+            const payload = dataRaw ? JSON.parse(dataRaw) : {}
+            processEvent(evName, payload)
+          } catch (e) {
+            console.error('SSE parse error', e, part)
+          }
+        }
+      }
+      return finalAnswer
+    } catch (error) {
+      console.error('Failed to stream entity ask:', error)
+      return await get().askEntity(entityId, q)
+    } finally {
+      set(state => ({
+        isAskingEntity: { ...state.isAskingEntity, [entityId]: false },
+        entityAskStreaming: { ...state.entityAskStreaming, [entityId]: null },
+      }))
+    }
+  },
 
   // ── Phase 63A: Weekly brief share link ────────────────────────
   shareWeeklyBrief: async (briefId) => {
