@@ -747,6 +747,65 @@ export interface AIAutomationJobsResponse {
   total: number
 }
 
+// ── Phase 64A: Unified Activity Feed ─────────────────────────────────────────
+//
+// Source: GET /api/v1/activity/feed?workspace_id=...&channel_id=...&actor_id=...
+//         &event_type=...&limit=...&cursor=...
+// WS:     existing per-domain events; no new generic feed event in Phase 64A.
+//
+// The backend API is pending (Phase 64A Codex work). Until it ships the store
+// falls back to aggregating from existing stores.
+
+export type UnifiedActivityEventType =
+  | 'message'
+  | 'mention'
+  | 'reaction'
+  | 'reply'
+  | 'channel_join'
+  | 'dm_message'
+  | 'file_uploaded'
+  | 'artifact_updated'
+  | 'schedule_booking'
+  | 'compose_activity'
+  | 'knowledge_ask'
+  | 'automation_job'
+  | 'tool_run'
+
+export interface UnifiedActivityFeedItem {
+  id: string
+  event_type: UnifiedActivityEventType
+  workspace_id?: string
+  actor_id?: string
+  actor_name?: string
+  channel_id?: string
+  channel_name?: string
+  dm_id?: string
+  entity_id?: string
+  entity_title?: string
+  entity_kind?: string
+  title: string
+  body?: string
+  link?: string
+  occurred_at: string
+  meta?: Record<string, unknown>
+}
+
+export interface ActivityFeedFilters {
+  workspaceId?: string
+  channelId?: string
+  dmId?: string
+  actorId?: string
+  eventType?: UnifiedActivityEventType
+  limit?: number
+  cursor?: string
+}
+
+export interface ActivityFeedResponse {
+  items: UnifiedActivityFeedItem[]
+  next_cursor?: string | null
+  total?: number
+}
+
 // ── Phase 63C: streaming + feedback ─────────────────────────────────────────
 
 export type ComposeFeedbackValue = 'up' | 'down' | 'edited'

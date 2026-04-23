@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import { API_BASE_URL } from "@/lib/constants"
+import type { UnifiedActivityFeedItem, ActivityFeedFilters } from "@/types"
 
 export interface ActivityItem {
   id: string
@@ -22,6 +23,13 @@ interface ActivityState {
   fetchMentions: () => Promise<void>
   markAsRead: (itemIds: string[]) => Promise<void>
   markAsReadLocally: (itemIds: string[]) => void
+  // Phase 64A: unified activity feed
+  unifiedFeedItems: UnifiedActivityFeedItem[]
+  isLoadingUnifiedFeed: boolean
+  unifiedFeedCursor: string | null
+  hasMoreUnifiedFeed: boolean
+  fetchUnifiedFeed: (filters: ActivityFeedFilters) => Promise<void>
+  appendUnifiedFeedItem: (item: UnifiedActivityFeedItem) => void
 }
 
 const mapActivity = (a: any): ActivityItem => ({
@@ -40,10 +48,15 @@ const deduplicateItems = (items: ActivityItem[]): ActivityItem[] => {
   });
 }
 
-export const useActivityStore = create<ActivityState>((set) => ({
+export const useActivityStore = create<ActivityState>((set, get) => ({
   activities: [],
   inboxItems: [],
   mentionItems: [],
+  // Phase 64A initial state
+  unifiedFeedItems: [],
+  isLoadingUnifiedFeed: false,
+  unifiedFeedCursor: null,
+  hasMoreUnifiedFeed: false,
   fetchActivities: async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/activity`)
@@ -111,5 +124,52 @@ export const useActivityStore = create<ActivityState>((set) => ({
         itemIds.includes(item.id) ? { ...item, isRead: true } : item
       )
     }))
-  }
+  },
+
+  // ── Phase 64A: Unified Activity Feed ──────────────────────────────────────
+  //
+  // Calls GET /api/v1/activity/feed (Phase 64A backend, pending).
+  // On 404/failure gracefully sets empty list — the UI will show AI-store
+  // data as a fallback in the "AI Events" tab.
+
+  fetchUnifiedFeed: async (filters) => {
+    set({ isLoadingUnifiedFeed: true })
+    try {
+      const params = new URLSearchParams()
+      if (filters.workspaceId) params.set('workspace_id', filters.workspaceId)
+      if (filters.channelId)   params.set('channel_id', filters.channelId)
+      if (filters.dmId)        params.set('dm_id', filters.dmId)
+      if (filters.actorId)     params.set('actor_id', filters.actorId)
+      if (filters.eventType)   params.set('event_type', filters.eventType)
+      if (filters.limit)       params.set('limit', String(filters.limit))
+      if (filters.cursor)      params.set('cursor', filters.cursor)
+
+      const res = await fetch(`${API_BASE_URL}/activity/feed?${params}`)
+      if (!res.ok) {
+        set({ isLoadingUnifiedFeed: false })
+        return
+      }
+      const data = await res.json()
+      const incoming: UnifiedActivityFeedItem[] = data.items ?? []
+      const cursor = data.next_cursor ?? null
+      const { unifiedFeedItems } = get()
+      if (filters.cursor) {
+        // pagination append
+        const existing = new Set(unifiedFeedItems.map(i => i.id))
+        const merged = [...unifiedFeedItems, ...incoming.filter(i => !existing.has(i.id))]
+        set({ unifiedFeedItems: merged, unifiedFeedCursor: cursor, hasMoreUnifiedFeed: !!cursor, isLoadingUnifiedFeed: false })
+      } else {
+        set({ unifiedFeedItems: incoming, unifiedFeedCursor: cursor, hasMoreUnifiedFeed: !!cursor, isLoadingUnifiedFeed: false })
+      }
+    } catch {
+      set({ isLoadingUnifiedFeed: false })
+    }
+  },
+
+  appendUnifiedFeedItem: (item) => {
+    set(state => {
+      if (state.unifiedFeedItems.some(i => i.id === item.id)) return state
+      return { unifiedFeedItems: [item, ...state.unifiedFeedItems].slice(0, 200) }
+    })
+  },
 }))

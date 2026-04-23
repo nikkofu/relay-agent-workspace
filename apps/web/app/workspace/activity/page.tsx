@@ -1,6 +1,9 @@
 "use client"
 
-import { AtSign, ThumbsUp, MessageSquare, UserPlus, Mail, CheckCheck, ListTodo, Terminal, Paperclip, ArrowRight } from "lucide-react"
+import {
+  AtSign, ThumbsUp, MessageSquare, UserPlus, Mail,
+  CheckCheck, ListTodo, Terminal, Paperclip, ArrowRight, Activity,
+} from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useActivityStore, ActivityItem } from "@/stores/activity-store"
@@ -11,6 +14,8 @@ import { formatDistanceToNow } from "date-fns"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { UnifiedActivityRail } from "@/components/activity/unified-activity-rail"
+import { useWorkspaceStore } from "@/stores/workspace-store"
 
 const TYPE_ICONS = {
   mention: AtSign,
@@ -25,14 +30,15 @@ const TYPE_ICONS = {
 }
 
 export default function ActivityPage() {
-  const { 
-    activities, inboxItems, mentionItems, 
-    fetchActivities, fetchInbox, fetchMentions, markAsRead 
+  const {
+    activities, inboxItems, mentionItems,
+    fetchActivities, fetchInbox, fetchMentions, markAsRead
   } = useActivityStore()
   const { setCurrentChannelById } = useChannelStore()
   const { conversations, setCurrentConversation } = useDMStore()
+  const currentWorkspace = useWorkspaceStore(s => s.currentWorkspace)
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState("all")
+  const [activeTab, setActiveTab] = useState("feed")
 
   useEffect(() => {
     fetchActivities()
@@ -41,67 +47,47 @@ export default function ActivityPage() {
   }, [fetchActivities, fetchInbox, fetchMentions])
 
   const handleItemClick = (item: ActivityItem) => {
-    if (!item.isRead) {
-      markAsRead([item.id])
-    }
+    if (!item.isRead) markAsRead([item.id])
 
-    if (item.type === 'tool_run') {
-      router.push('/workspace/workflows')
-      return
-    }
-
-    if (item.type === 'file_uploaded') {
-      router.push('/workspace/files')
-      return
-    }
+    if (item.type === 'tool_run') { router.push('/workspace/workflows'); return }
+    if (item.type === 'file_uploaded') { router.push('/workspace/files'); return }
 
     if (item.channel?.id) {
       setCurrentChannelById(item.channel.id)
       router.push(`/workspace?c=${item.channel.id}`)
     } else if (item.message?.dm_id) {
       const conv = conversations.find(c => c.id === item.message.dm_id)
-      if (conv) {
-        setCurrentConversation(conv)
-      }
+      if (conv) setCurrentConversation(conv)
       router.push(`/workspace/dms?id=${item.message.dm_id}`)
     }
   }
 
   const handleMarkAllRead = () => {
-    let itemsToMark: ActivityItem[] = []
-    if (activeTab === "all") itemsToMark = activities
-    else if (activeTab === "inbox") itemsToMark = inboxItems
-    else if (activeTab === "mentions") itemsToMark = mentionItems
-
-    const unreadIds = itemsToMark.filter(i => !i.isRead).map(i => i.id)
-    if (unreadIds.length > 0) {
-      markAsRead(unreadIds)
-    }
+    const map: Record<string, ActivityItem[]> = { inbox: inboxItems, mentions: mentionItems }
+    const items = map[activeTab] ?? activities
+    const ids = items.filter(i => !i.isRead).map(i => i.id)
+    if (ids.length > 0) markAsRead(ids)
   }
 
   const renderItemList = (items: ActivityItem[], emptyText: string) => {
-    if (items.length === 0) {
-      return (
-        <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-          <p className="text-sm italic">{emptyText}</p>
-        </div>
-      )
-    }
-
+    if (items.length === 0) return (
+      <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+        <p className="text-sm italic">{emptyText}</p>
+      </div>
+    )
     return (
       <div className="flex flex-col gap-1 p-4">
         {items.map((item) => {
           const Icon = TYPE_ICONS[item.type as keyof typeof TYPE_ICONS] || MessageSquare
           const isSpecial = ['list_completed', 'tool_run', 'file_uploaded'].includes(item.type)
-          
           return (
-            <div 
-              key={item.id} 
+            <div
+              key={item.id}
               onClick={() => handleItemClick(item)}
               className={cn(
                 "flex items-start gap-4 p-3 rounded-xl cursor-pointer group transition-all border relative",
-                item.isRead 
-                  ? "hover:bg-muted/30 border-transparent" 
+                item.isRead
+                  ? "hover:bg-muted/30 border-transparent"
                   : "bg-blue-50/50 dark:bg-blue-900/10 hover:bg-blue-50 dark:hover:bg-blue-900/20 border-blue-100/50 dark:border-blue-900/30"
               )}
             >
@@ -119,7 +105,7 @@ export default function ActivityPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
                   <p className={cn("text-sm leading-tight", !item.isRead ? "text-foreground font-bold" : "text-muted-foreground font-medium")}>
-                    <span className="text-foreground">{item.user?.name || "Someone"}</span> {item.summary} 
+                    <span className="text-foreground">{item.user?.name || "Someone"}</span> {item.summary}
                     {item.target && <span className="text-blue-500 ml-1 font-bold">#{item.target}</span>}
                   </p>
                   {item.type === 'tool_run' && item.message?.status && (
@@ -153,35 +139,34 @@ export default function ActivityPage() {
   }
 
   const getUnreadCount = (items: ActivityItem[]) => items.filter(i => !i.isRead).length
-  const allUnread = getUnreadCount(activities)
   const inboxUnread = getUnreadCount(inboxItems)
   const mentionsUnread = getUnreadCount(mentionItems)
 
   return (
     <div className="flex-1 flex flex-col h-full bg-white dark:bg-[#1a1d21]">
       <header className="h-14 px-4 flex items-center justify-between border-b shrink-0 bg-white dark:bg-[#1a1d21] z-10">
-        <h2 className="font-bold text-lg text-foreground">Activity & Notifications</h2>
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
-          onClick={handleMarkAllRead}
-        >
-          <CheckCheck className="w-3.5 h-3.5" />
-          Mark all as read
-        </Button>
+        <div className="flex items-center gap-2">
+          <Activity className="w-5 h-5 text-violet-500" />
+          <h2 className="font-bold text-lg text-foreground">Activity</h2>
+        </div>
+        {(activeTab === 'inbox' || activeTab === 'mentions') && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
+            onClick={handleMarkAllRead}
+          >
+            <CheckCheck className="w-3.5 h-3.5" />
+            Mark all as read
+          </Button>
+        )}
       </header>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-        <div className="px-4 border-b bg-muted/30">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
+        <div className="px-4 border-b bg-muted/30 shrink-0">
           <TabsList className="bg-transparent h-12 p-0 gap-6">
-            <TabsTrigger value="all" className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-[#1164a3] data-[state=active]:bg-transparent px-0 text-sm font-medium">
-              All Activity
-              {allUnread > 0 && (
-                <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-blue-500 text-white text-[10px] font-bold">
-                  {allUnread}
-                </span>
-              )}
+            <TabsTrigger value="feed" className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-violet-500 data-[state=active]:bg-transparent px-0 text-sm font-medium">
+              Feed
             </TabsTrigger>
             <TabsTrigger value="inbox" className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-[#1164a3] data-[state=active]:bg-transparent px-0 text-sm font-medium">
               Inbox
@@ -202,17 +187,26 @@ export default function ActivityPage() {
           </TabsList>
         </div>
 
-        <ScrollArea className="flex-1">
-          <TabsContent value="all" className="m-0 border-none outline-none">
-            {renderItemList(activities, "No recent activity found.")}
+        <div className="flex-1 overflow-hidden">
+          <TabsContent value="feed" className="m-0 border-none outline-none h-full overflow-y-auto">
+            <div className="p-4">
+              <UnifiedActivityRail
+                workspaceId={currentWorkspace?.id}
+                defaultTab="ai"
+                className="h-full"
+              />
+            </div>
           </TabsContent>
-          <TabsContent value="inbox" className="m-0 border-none outline-none">
-            {renderItemList(inboxItems, "Your inbox is empty.")}
-          </TabsContent>
-          <TabsContent value="mentions" className="m-0 border-none outline-none">
-            {renderItemList(mentionItems, "No mentions yet.")}
-          </TabsContent>
-        </ScrollArea>
+
+          <ScrollArea className="h-full">
+            <TabsContent value="inbox" className="m-0 border-none outline-none">
+              {renderItemList(inboxItems, "Your inbox is empty.")}
+            </TabsContent>
+            <TabsContent value="mentions" className="m-0 border-none outline-none">
+              {renderItemList(mentionItems, "No mentions yet.")}
+            </TabsContent>
+          </ScrollArea>
+        </div>
       </Tabs>
     </div>
   )
