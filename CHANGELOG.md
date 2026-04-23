@@ -2,6 +2,43 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.28] - 2026-04-23
+
+This release implements Codex Phase 63I, closing the next always-on AI loops after Windsurf's `v0.6.27` UI pass.
+
+### Added
+
+- **Auto-summarize scheduler worker**:
+  - Added background channel auto-summary execution on API startup and every minute.
+  - Respects persisted `ChannelAutoSummarySetting` rows, including `is_enabled`, `min_new_messages`, `message_limit`, `provider`, and `model`.
+  - Writes refreshed channel `AISummary` cache and updates `last_run_at` / `last_message_at`.
+  - Broadcasts websocket `channel.summary.updated` with `reason=auto_run`.
+- **Knowledge ask rolling feed**:
+  - `GET /api/v1/knowledge/ask/recent`
+  - Supports `workspace_id` plus optional `entity_id`, `user_id`, and `limit`.
+  - Returns newest-first persisted `KnowledgeEntityAskAnswer` rows for shared workspace visibility.
+  - `POST /api/v1/knowledge/entities/:id/ask` and `POST /api/v1/knowledge/entities/:id/ask/stream` now emit websocket `knowledge.entity.ask.answered`.
+- **Workspace automation audit view API**:
+  - `GET /api/v1/ai/automation/jobs`
+  - Supports `workspace_id`, `status`, `job_type`, `scope_type`, `scope_id`, and `limit`.
+  - Returns `{ items, total }` for workspace-level monitoring of durable `AIAutomationJob` rows.
+
+### Windsurf Handoff
+
+- Add an automation audit panel using `GET /api/v1/ai/automation/jobs?workspace_id=...&limit=20`, with status filters for `pending/running/failed/succeeded`.
+- Surface shared entity Ask activity in Following Hub, `#agent-collab`, or workspace Activity by hydrating `GET /api/v1/knowledge/ask/recent?workspace_id=...` and listening for `knowledge.entity.ask.answered`.
+- Reuse the existing channel auto-summary UI, but expect background `channel.summary.updated` events with `reason=auto_run` even when the user does not click Run now.
+
+### Verification Used For This Release
+
+- `go test ./internal/handlers -run TestPhase63I -count=1`
+- `go test ./internal/handlers -count=1`
+- `go test ./...`
+- `GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+- `pnpm --filter relay-agent-workspace exec tsc --noEmit`
+- `git diff --check`
+
 ## [0.6.26] - 2026-04-23
 
 This release implements Codex Phase 63H, turning the AI compose and knowledge layer from refreshable signals into a more complete automation suite.

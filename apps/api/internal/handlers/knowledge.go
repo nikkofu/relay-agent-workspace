@@ -456,12 +456,43 @@ func AskKnowledgeEntity(c *gin.Context) {
 		AnsweredAt: time.Now().UTC(),
 		Citations:  citations,
 	}
-	if _, err := persistKnowledgeEntityAskAnswer(currentUser.ID, answer); err != nil {
+	row, err := persistKnowledgeEntityAskAnswer(currentUser.ID, answer)
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to persist entity ask answer"})
 		return
 	}
+	_ = broadcastKnowledgeEntityAskAnswered(entity, row)
 
 	c.JSON(http.StatusOK, gin.H{"answer": answer})
+}
+
+func GetRecentKnowledgeEntityAsks(c *gin.Context) {
+	workspaceID := strings.TrimSpace(c.Query("workspace_id"))
+	if workspaceID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "workspace_id is required"})
+		return
+	}
+
+	limit := parseLimit(c.Query("limit"), 20)
+	if limit > 100 {
+		limit = 100
+	}
+
+	query := db.DB.Where("workspace_id = ?", workspaceID)
+	if entityID := strings.TrimSpace(c.Query("entity_id")); entityID != "" {
+		query = query.Where("entity_id = ?", entityID)
+	}
+	if userID := strings.TrimSpace(c.Query("user_id")); userID != "" {
+		query = query.Where("user_id = ?", userID)
+	}
+
+	var items []domain.KnowledgeEntityAskAnswer
+	if err := query.Order("answered_at desc, id desc").Limit(limit).Find(&items).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load recent knowledge asks"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"items": items})
 }
 
 func GetKnowledgeEntityAskHistory(c *gin.Context) {
@@ -562,6 +593,7 @@ func AskKnowledgeEntityStream(c *gin.Context) {
 					flusher.Flush()
 					return
 				}
+				_ = broadcastKnowledgeEntityAskAnswered(entity, row)
 				writeSSE(writer, "answer.done", gin.H{"answer": answer, "history_id": row.ID})
 				flusher.Flush()
 				writeSSE(writer, "done", gin.H{
@@ -646,6 +678,13 @@ func persistKnowledgeEntityAskAnswer(userID string, answer knowledge.EntityAnswe
 		return domain.KnowledgeEntityAskAnswer{}, err
 	}
 	return row, nil
+}
+
+func broadcastKnowledgeEntityAskAnswered(entity domain.KnowledgeEntity, row domain.KnowledgeEntityAskAnswer) error {
+	return broadcastKnowledgeEvent("knowledge.entity.ask.answered", entity.WorkspaceID, "", entity.ID, gin.H{
+		"entity": entity,
+		"item":   row,
+	})
 }
 
 func handleKnowledgeAskError(c *gin.Context, err error) {

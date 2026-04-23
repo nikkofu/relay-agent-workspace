@@ -60,8 +60,7 @@ export function ScheduleBookingsPanel({ channelId, dmId, compact = false, classN
     if (!hasHydrated && !isLoading) {
       fetchAIScheduleBookings({ channelId, dmId })
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channelId, dmId])
+  }, [channelId, dmId, fetchAIScheduleBookings, hasHydrated, isLoading])
 
   // Client-filter to current scope
   const filtered = scheduleBookings.filter(b => {

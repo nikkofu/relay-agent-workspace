@@ -78,8 +78,7 @@ export function ComposeActivityDigestStrip({
     if (hasScope && !digest && !loading) {
       fetchComposeActivityDigest(filters)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channelId, dmId, workspaceId, win, groupBy])
+  }, [digest, loading, fetchComposeActivityDigest, filters, hasScope])
 
   if (!hasScope) return null
 

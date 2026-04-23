@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.6.26` is the current release line and includes:
+`v0.6.28` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -99,6 +99,7 @@ For product, design, and marketing, the short version is:
   - `knowledge.entity.brief.regen.queued`
   - `knowledge.entity.brief.regen.started`
   - `knowledge.entity.brief.regen.failed`
+- interval-driven channel auto-summary worker that honors `min_new_messages` and emits websocket `channel.summary.updated` without manual clicks
 - AI schedule booking APIs:
   - `POST /api/v1/ai/schedule/book`
   - `GET /api/v1/ai/schedule/bookings`
@@ -107,6 +108,9 @@ For product, design, and marketing, the short version is:
 - AI schedule booking websocket events:
   - `schedule.event.booked`
   - `schedule.event.cancelled`
+- workspace automation audit API via `GET /api/v1/ai/automation/jobs`
+- recent cross-entity ask feed via `GET /api/v1/knowledge/ask/recent`
+- realtime entity ask answer broadcasts via websocket `knowledge.entity.ask.answered`
 - weekly brief snapshot sharing via `POST /api/v1/knowledge/weekly-brief/:id/share`
 - historical knowledge activity backfill status and execution via `GET /api/v1/knowledge/entities/:id/activity/backfill-status` and `POST /api/v1/knowledge/entities/:id/activity/backfill`
 - realtime followed-stats deltas via websocket `knowledge.followed.stats.changed`

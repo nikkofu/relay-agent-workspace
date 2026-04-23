@@ -187,6 +187,7 @@ Current backend surface already available:
 - `POST /api/v1/ai/compose/stream`
 - `GET /api/v1/ai/compose/activity`
 - `GET /api/v1/ai/compose/activity/digest`
+- `GET /api/v1/ai/automation/jobs`
 - `POST /api/v1/ai/compose/:id/feedback`
 - `GET /api/v1/ai/compose/:id/feedback/summary`
 - `POST /api/v1/ai/schedule/book`
@@ -200,6 +201,7 @@ Current backend surface already available:
 - `GET /api/v1/knowledge/entities/:id/brief/automation`
 - `POST /api/v1/knowledge/entities/:id/brief/automation/run`
 - `POST /api/v1/knowledge/entities/:id/brief/automation/retry`
+- `GET /api/v1/knowledge/ask/recent`
 - `GET /api/v1/realtime`
 
 ## 4. Remaining Backend Targets

@@ -41,6 +41,7 @@ func main() {
 	handlers.SetRealtimeHub(hub)
 	handlers.StartKnowledgeDigestScheduler()
 	handlers.StartKnowledgeEntityBriefAutomationScheduler()
+	handlers.StartChannelAutoSummaryScheduler()
 
 	llmConfig, err := config.LoadLLMConfig(filepath.Join("config"))
 	if err != nil {
@@ -182,6 +183,7 @@ func main() {
 		v1.GET("/knowledge/entities/:id/brief/automation", handlers.GetKnowledgeEntityBriefAutomation)
 		v1.POST("/knowledge/entities/:id/brief/automation/run", handlers.RunKnowledgeEntityBriefAutomation)
 		v1.POST("/knowledge/entities/:id/brief/automation/retry", handlers.RetryKnowledgeEntityBriefAutomation)
+		v1.GET("/knowledge/ask/recent", handlers.GetRecentKnowledgeEntityAsks)
 		v1.POST("/knowledge/entities/:id/ask", handlers.AskKnowledgeEntity)
 		v1.GET("/knowledge/entities/:id/ask/history", handlers.GetKnowledgeEntityAskHistory)
 		v1.POST("/knowledge/entities/:id/ask/stream", handlers.AskKnowledgeEntityStream)
@@ -258,6 +260,7 @@ func main() {
 		v1.GET("/realtime", handlers.HandleRealtime)
 		v1.GET("/ai/config", handlers.GetAIConfig)
 		v1.GET("/ai/conversations", handlers.GetAIConversations)
+		v1.GET("/ai/automation/jobs", handlers.ListAIAutomationJobs)
 		v1.GET("/ai/conversations/:id", handlers.GetAIConversation)
 		v1.POST("/ai/compose", handlers.ComposeAI)
 		v1.POST("/ai/compose/stream", handlers.ComposeAIStream)

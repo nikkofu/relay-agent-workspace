@@ -5137,6 +5137,7 @@ func TestPhase63EntityAskWeeklyShareAndBriefInvalidation(t *testing.T) {
 	if askPayload.Answer.Entity.ID != "entity-1" || askPayload.Answer.Question == "" || !strings.Contains(askPayload.Answer.Answer, "Done.") || len(askPayload.Answer.Citations) == 0 {
 		t.Fatalf("unexpected ask payload: %#v", askPayload.Answer)
 	}
+	assertRealtimeEventType(t, client, "knowledge.entity.ask.answered")
 
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/weekly-brief", strings.NewReader(`{"workspace_id":"ws-1","force":true}`))
@@ -6033,6 +6034,220 @@ func TestPhase63HComposeActivityDigest(t *testing.T) {
 	}
 	if !foundUnknown {
 		t.Fatalf("expected null user rows to map to unknown in user grouping, got %#v", payload.Breakdown)
+	}
+}
+
+func TestPhase63IAutoSummarizeSchedulerRunsEnabledChannels(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+	AIGateway = stubGateway{}
+	defer SetAIGateway(nil)
+
+	hub := realtime.NewHub()
+	go hub.Run()
+	SetRealtimeHub(hub)
+	defer SetRealtimeHub(nil)
+
+	client := realtime.NewTestClient(8)
+	hub.RegisterTestClient(client)
+	defer hub.UnregisterTestClient(client)
+
+	now := time.Now().UTC()
+	lastRun := now.Add(-2 * time.Hour)
+	lastMessageAt := now.Add(-90 * time.Minute)
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	db.DB.Create(&domain.Message{ID: "msg-1", ChannelID: "ch-1", UserID: "user-1", Content: "Launch update one", CreatedAt: now.Add(-30 * time.Minute)})
+	db.DB.Create(&domain.Message{ID: "msg-2", ChannelID: "ch-1", UserID: "user-1", Content: "Launch update two", CreatedAt: now.Add(-20 * time.Minute)})
+	db.DB.Create(&domain.ChannelAutoSummarySetting{
+		ID:             "auto-summary-1",
+		ChannelID:      "ch-1",
+		WorkspaceID:    "ws-1",
+		CreatedBy:      "user-1",
+		IsEnabled:      true,
+		WindowHours:    24,
+		MessageLimit:   25,
+		MinNewMessages: 2,
+		Provider:       "stub",
+		Model:          "stub-model",
+		LastRunAt:      &lastRun,
+		LastMessageAt:  &lastMessageAt,
+		CreatedAt:      now.Add(-3 * time.Hour),
+		UpdatedAt:      now.Add(-2 * time.Hour),
+	})
+
+	if err := processChannelAutoSummaries(now); err != nil {
+		t.Fatalf("process channel auto summaries: %v", err)
+	}
+
+	var summary domain.AISummary
+	if err := db.DB.Where("scope_type = ? AND scope_id = ?", "channel", "ch-1").First(&summary).Error; err != nil {
+		t.Fatalf("expected scheduler to persist channel summary: %v", err)
+	}
+	if summary.Content == "" {
+		t.Fatalf("expected non-empty summary content, got %#v", summary)
+	}
+
+	var refreshed domain.ChannelAutoSummarySetting
+	if err := db.DB.First(&refreshed, "channel_id = ?", "ch-1").Error; err != nil {
+		t.Fatalf("reload auto summary setting: %v", err)
+	}
+	if refreshed.LastRunAt == nil || !refreshed.LastRunAt.After(lastRun) {
+		t.Fatalf("expected last_run_at to advance, got %#v", refreshed)
+	}
+	assertRealtimeEventType(t, client, "channel.summary.updated")
+}
+
+func TestPhase63IEntityAskRecentFeedAndRealtime(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+	AIGateway = stubGateway{}
+	defer SetAIGateway(nil)
+
+	hub := realtime.NewHub()
+	go hub.Run()
+	SetRealtimeHub(hub)
+	defer SetRealtimeHub(nil)
+
+	client := realtime.NewTestClient(8)
+	hub.RegisterTestClient(client)
+	defer hub.UnregisterTestClient(client)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.User{ID: "user-2", Name: "Jane Smith", Email: "jane@example.com"})
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Status: "active", SourceKind: "manual", CreatedAt: now.Add(-2 * time.Hour), UpdatedAt: now.Add(-time.Hour)})
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-2", WorkspaceID: "ws-1", Kind: "service", Title: "Billing Service", Status: "active", SourceKind: "manual", CreatedAt: now.Add(-2 * time.Hour), UpdatedAt: now.Add(-time.Hour)})
+	db.DB.Create(&domain.KnowledgeEntityAskAnswer{
+		ID:            "entity-ask-1",
+		EntityID:      "entity-1",
+		WorkspaceID:   "ws-1",
+		UserID:        "user-1",
+		Question:      "What changed?",
+		Answer:        "Launch moved ahead.",
+		Provider:      "stub",
+		Model:         "stub-model",
+		CitationCount: 1,
+		AnsweredAt:    now.Add(-30 * time.Minute),
+		CreatedAt:     now.Add(-30 * time.Minute),
+		UpdatedAt:     now.Add(-30 * time.Minute),
+	})
+
+	router := gin.New()
+	router.GET("/api/v1/knowledge/ask/recent", GetRecentKnowledgeEntityAsks)
+	router.POST("/api/v1/knowledge/entities/:id/ask", AskKnowledgeEntity)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/entities/entity-2/ask", strings.NewReader(`{"question":"What is the latest status?","provider":"stub","model":"stub-model"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on entity ask, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	assertRealtimeEventType(t, client, "knowledge.entity.ask.answered")
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/knowledge/ask/recent?workspace_id=ws-1&limit=10", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on recent entity asks, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Items []struct {
+			ID          string `json:"id"`
+			EntityID    string `json:"entity_id"`
+			WorkspaceID string `json:"workspace_id"`
+			UserID      string `json:"user_id"`
+			Question    string `json:"question"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode recent entity asks payload: %v", err)
+	}
+	if len(payload.Items) < 2 {
+		t.Fatalf("expected at least 2 recent asks, got %#v", payload.Items)
+	}
+	if payload.Items[0].EntityID != "entity-2" || payload.Items[0].WorkspaceID != "ws-1" || payload.Items[0].UserID != "user-1" {
+		t.Fatalf("expected newest item to be freshly asked entity-2 row, got %#v", payload.Items[0])
+	}
+}
+
+func TestPhase63IAutomationJobsAuditView(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.AIAutomationJob{
+		ID:            "job-1",
+		JobType:       "entity_brief_regen",
+		ScopeType:     "knowledge_entity",
+		ScopeID:       "entity-1",
+		WorkspaceID:   "ws-1",
+		Status:        "running",
+		TriggerReason: "brief_changed",
+		DedupeKey:     "entity-1:2026042311",
+		AttemptCount:  1,
+		ScheduledAt:   now.Add(-10 * time.Minute),
+		StartedAt:     ptrTime(now.Add(-9 * time.Minute)),
+		CreatedAt:     now.Add(-10 * time.Minute),
+		UpdatedAt:     now.Add(-8 * time.Minute),
+	})
+	db.DB.Create(&domain.AIAutomationJob{
+		ID:            "job-2",
+		JobType:       "entity_brief_regen",
+		ScopeType:     "knowledge_entity",
+		ScopeID:       "entity-2",
+		WorkspaceID:   "ws-1",
+		Status:        "failed",
+		TriggerReason: "manual_retry",
+		DedupeKey:     "entity-2:2026042310",
+		AttemptCount:  2,
+		LastError:     "provider timeout",
+		ScheduledAt:   now.Add(-30 * time.Minute),
+		FinishedAt:    ptrTime(now.Add(-25 * time.Minute)),
+		CreatedAt:     now.Add(-30 * time.Minute),
+		UpdatedAt:     now.Add(-25 * time.Minute),
+	})
+	db.DB.Create(&domain.AIAutomationJob{
+		ID:            "job-3",
+		JobType:       "entity_brief_regen",
+		ScopeType:     "knowledge_entity",
+		ScopeID:       "entity-3",
+		WorkspaceID:   "ws-2",
+		Status:        "succeeded",
+		TriggerReason: "brief_changed",
+		DedupeKey:     "entity-3:2026042309",
+		AttemptCount:  1,
+		ScheduledAt:   now.Add(-40 * time.Minute),
+		FinishedAt:    ptrTime(now.Add(-35 * time.Minute)),
+		CreatedAt:     now.Add(-40 * time.Minute),
+		UpdatedAt:     now.Add(-35 * time.Minute),
+	})
+
+	router := gin.New()
+	router.GET("/api/v1/ai/automation/jobs", ListAIAutomationJobs)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/ai/automation/jobs?workspace_id=ws-1&status=failed&limit=10", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 when listing automation jobs, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Items []domain.AIAutomationJob `json:"items"`
+		Total int64                    `json:"total"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode automation jobs payload: %v", err)
+	}
+	if payload.Total != 1 || len(payload.Items) != 1 {
+		t.Fatalf("expected one filtered automation job, got total=%d items=%#v", payload.Total, payload.Items)
+	}
+	if payload.Items[0].ID != "job-2" || payload.Items[0].WorkspaceID != "ws-1" || payload.Items[0].Status != "failed" {
+		t.Fatalf("unexpected automation job payload: %#v", payload.Items[0])
 	}
 }
 

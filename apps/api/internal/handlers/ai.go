@@ -835,6 +835,10 @@ func generateSummaryFromMessages(c *gin.Context, scopeType, scopeID, channelID s
 }
 
 func generateChannelSummaryWithOptions(c *gin.Context, channel domain.Channel, provider, model string, limit int) (*domain.AISummary, *time.Time, error) {
+	return generateChannelSummaryWithContext(c.Request.Context(), channel, provider, model, limit)
+}
+
+func generateChannelSummaryWithContext(ctx context.Context, channel domain.Channel, provider, model string, limit int) (*domain.AISummary, *time.Time, error) {
 	limit = normalizeAutoSummaryMessageLimit(limit)
 	var messages []domain.Message
 	if err := db.DB.Where("channel_id = ?", channel.ID).Order("created_at desc").Limit(limit).Find(&messages).Error; err != nil {
@@ -844,10 +848,14 @@ func generateChannelSummaryWithOptions(c *gin.Context, channel domain.Channel, p
 		return nil, nil, errors.New("channel has no messages to summarize")
 	}
 	reverseMessages(messages)
-	return generateSummaryWithOptions(c, "channel", channel.ID, channel.ID, messages, provider, model)
+	return generateSummaryWithContext(ctx, "channel", channel.ID, channel.ID, messages, provider, model)
 }
 
 func generateSummaryWithOptions(c *gin.Context, scopeType, scopeID, channelID string, messages []domain.Message, provider, model string) (*domain.AISummary, *time.Time, error) {
+	return generateSummaryWithContext(c.Request.Context(), scopeType, scopeID, channelID, messages, provider, model)
+}
+
+func generateSummaryWithContext(ctx context.Context, scopeType, scopeID, channelID string, messages []domain.Message, provider, model string) (*domain.AISummary, *time.Time, error) {
 	if AIGateway == nil {
 		return nil, nil, errors.New("ai gateway is not configured")
 	}
@@ -862,12 +870,12 @@ func generateSummaryWithOptions(c *gin.Context, scopeType, scopeID, channelID st
 		Model:     model,
 	}
 
-	session, err := AIGateway.Stream(c.Request.Context(), req)
+	session, err := AIGateway.Stream(ctx, req)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	content, reasoning, err := collectStreamOutput(c.Request.Context(), session)
+	content, reasoning, err := collectStreamOutput(ctx, session)
 	if err != nil {
 		return nil, nil, err
 	}
