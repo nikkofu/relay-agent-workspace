@@ -409,7 +409,8 @@ export interface ComposeContextEntity {
 }
 
 export interface ComposeResponse {
-  channel_id: string
+  channel_id?: string
+  dm_id?: string
   thread_id?: string
   intent: string
   suggestions: ComposeSuggestion[]
@@ -427,6 +428,31 @@ export interface ComposeStreamingState {
   suggestionId: string
   text: string
   index: number
+}
+
+// ── Phase 63D: DM parity, intent variants, feedback summary ────────────────
+
+export type ComposeIntent = 'reply' | 'summarize' | 'followup' | 'schedule'
+
+// Exactly one of { channelId } or { dmId } must be provided.
+// threadId is only meaningful in combination with channelId.
+export interface ComposeScope {
+  channelId?: string
+  threadId?: string
+  dmId?: string
+}
+
+export interface ComposeFeedbackCounts {
+  up: number
+  down: number
+  edited: number
+}
+
+export interface ComposeFeedbackSummary {
+  compose_id: string
+  total: number
+  counts: ComposeFeedbackCounts
+  recent?: unknown[]
 }
 
 export interface EntityTextMatch {

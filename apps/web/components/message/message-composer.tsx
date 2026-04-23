@@ -33,7 +33,7 @@ import { useFileStore } from "@/stores/file-store"
 import { useKnowledgeStore } from "@/stores/knowledge-store"
 import { useWorkspaceStore } from "@/stores/workspace-store"
 import { useChannelStore } from "@/stores/channel-store"
-import type { EntitySuggestResult, EntityTextMatch, ComposeSuggestion } from "@/types"
+import type { EntitySuggestResult, EntityTextMatch, ComposeSuggestion, ComposeIntent, ComposeScope } from "@/types"
 
 interface MessageComposerProps {
   placeholder?: string
@@ -67,27 +67,43 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
     suggestEntities, matchEntitiesInText,
     clearComposeResult, composeResults, isComposing,
     suggestComposeStream, sendComposeFeedback, composeStreaming, composeFeedback,
+    fetchComposeFeedbackSummary, composeFeedbackSummary,
   } = useKnowledgeStore()
   const { currentWorkspace } = useWorkspaceStore()
   const { currentChannel } = useChannelStore()
 
   // Phase 63B: AI Compose suggestion state
   const [showComposeSuggestions, setShowComposeSuggestions] = useState(false)
+  // Phase 63D: intent selector (reply is default; summarize/followup/schedule supported by backend)
+  const [composeIntent, setComposeIntent] = useState<ComposeIntent>('reply')
 
-  // Derive channel/thread ids for /ai/compose (only for channel & thread scopes)
-  const composeIds = useMemo(() => {
+  // Phase 63D: Derive a scope object for /ai/compose supporting channel, thread, and DM.
+  const composeScope = useMemo((): ComposeScope | null => {
     if (!scope) return null
     if (scope.startsWith('channel:')) {
-      return { channelId: scope.slice('channel:'.length), threadId: undefined as string | undefined }
+      const channelId = scope.slice('channel:'.length)
+      return channelId ? { channelId } : null
     }
     if (scope.startsWith('thread:')) {
       const threadId = scope.slice('thread:'.length)
-      if (currentChannel?.id) return { channelId: currentChannel.id, threadId }
+      if (currentChannel?.id && threadId) return { channelId: currentChannel.id, threadId }
+      return null
+    }
+    if (scope.startsWith('dm:')) {
+      const dmId = scope.slice('dm:'.length)
+      return dmId ? { dmId } : null
     }
     return null
   }, [scope, currentChannel?.id])
 
-  const composeKey = composeIds ? `${composeIds.channelId}:${composeIds.threadId || ''}` : null
+  // Stable key mirroring the store's composeScopeKey(): 'ch:<channelId>:<threadId||''>' or 'dm:<dmId>'
+  const composeKey = useMemo(() => {
+    if (!composeScope) return null
+    if (composeScope.dmId) return `dm:${composeScope.dmId}`
+    if (composeScope.channelId) return `ch:${composeScope.channelId}:${composeScope.threadId || ''}`
+    return null
+  }, [composeScope])
+
   const composeResult = composeKey ? composeResults[composeKey] : undefined
   const composeBusy = composeKey ? !!isComposing[composeKey] : false
   const composeStream = composeKey ? composeStreaming[composeKey] : undefined
@@ -379,18 +395,18 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
     editor?.commands.focus()
   }
 
-  // Phase 63B/C: Request grounded compose suggestions for the current scope.
-  // Phase 63C upgrade: prefer SSE streaming, fall back to sync on failure (handled in store).
+  // Phase 63B/C/D: Request grounded compose suggestions for the current scope.
+  // Prefers SSE streaming; the store gracefully falls back to the sync endpoint on failure.
   const runSuggestCompose = useCallback(async () => {
-    if (!composeIds || !editor) return
+    if (!composeScope || !editor) return
     const draftText = editor.getText().trim()
     setShowComposeSuggestions(true)
-    await suggestComposeStream(composeIds.channelId, composeIds.threadId, draftText, 3)
-  }, [composeIds, editor, suggestComposeStream])
+    await suggestComposeStream(composeScope, draftText, composeIntent, 3)
+  }, [composeScope, editor, suggestComposeStream, composeIntent])
 
-  // Phase 63B/C: Insert a suggestion into the draft (no auto-send) + fire 'edited' feedback signal.
+  // Phase 63B/C/D: Insert a suggestion into the draft (no auto-send) + fire 'edited' feedback.
   const handleInsertSuggestion = useCallback((s: ComposeSuggestion) => {
-    if (!editor || !composeIds) return
+    if (!editor || !composeScope) return
     const html = `<p>${s.text
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
@@ -403,31 +419,31 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
     // Fire 'edited' feedback in the background (non-blocking)
     if (s.id && !composeFeedback[s.id]) {
       sendComposeFeedback(s.id, {
-        channelId: composeIds.channelId,
-        threadId: composeIds.threadId,
+        scope: composeScope,
         feedback: 'edited',
         suggestionText: s.text,
         provider: composeResult?.provider,
         model: composeResult?.model,
       }).catch(() => { /* best-effort */ })
     }
-  }, [editor, composeIds, composeFeedback, sendComposeFeedback, composeResult])
+  }, [editor, composeScope, composeFeedback, sendComposeFeedback, composeResult])
 
-  // Phase 63C: thumbs up/down feedback for a specific suggestion
+  // Phase 63C/D: thumbs up/down feedback for a specific suggestion (scope-aware)
   const handleSuggestionFeedback = useCallback(async (s: ComposeSuggestion, value: 'up' | 'down') => {
-    if (!composeIds || !s.id) return
+    if (!composeScope || !s.id) return
     const ok = await sendComposeFeedback(s.id, {
-      channelId: composeIds.channelId,
-      threadId: composeIds.threadId,
+      scope: composeScope,
       feedback: value,
       suggestionText: s.text,
       provider: composeResult?.provider,
       model: composeResult?.model,
     })
     if (ok) {
-      toast.success(value === 'up' ? 'Thanks — feedback recorded' : 'Noted — we\u2019ll learn from it')
+      toast.success(value === 'up' ? 'Thanks — feedback recorded' : 'Noted — we will learn from it')
+      // Also refresh summary so the badges update immediately
+      fetchComposeFeedbackSummary(s.id).catch(() => { /* best-effort */ })
     }
-  }, [composeIds, composeResult, sendComposeFeedback])
+  }, [composeScope, composeResult, sendComposeFeedback, fetchComposeFeedbackSummary])
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -512,14 +528,48 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
         )}
       </div>
 
-      {/* Phase 63B: AI Compose suggestions */}
-      {composeIds && showComposeSuggestions && (composeBusy || composeResult) && (
+      {/* Phase 63B/C/D: AI Compose suggestions */}
+      {composeScope && showComposeSuggestions && (composeBusy || composeResult) && (
         <div className="mb-2 rounded-xl border border-sky-400/40 bg-gradient-to-br from-sky-500/5 to-cyan-500/5 overflow-hidden">
-          <div className="px-3 py-1.5 border-b border-sky-400/20 flex items-center gap-2">
+          <div className="px-3 py-1.5 border-b border-sky-400/20 flex items-center gap-2 flex-wrap">
             <Wand2 className="w-3 h-3 text-sky-500" />
             <span className="text-[10px] font-black uppercase tracking-widest text-sky-700 dark:text-sky-400">
               AI Suggestions
             </span>
+            {/* Phase 63D: intent selector pills */}
+            <div className="flex items-center gap-0.5 rounded-md border border-sky-400/20 bg-background/40 p-0.5">
+              {([
+                { value: 'reply' as const, label: 'Reply' },
+                { value: 'summarize' as const, label: 'Summarize' },
+                { value: 'followup' as const, label: 'Follow-up' },
+                { value: 'schedule' as const, label: 'Schedule' },
+              ]).map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  disabled={composeBusy}
+                  onClick={async () => {
+                    if (opt.value === composeIntent || composeBusy) return
+                    setComposeIntent(opt.value)
+                    // Auto-run with the new intent so the user sees the change immediately
+                    if (composeScope && editor) {
+                      const draftText = editor.getText().trim()
+                      setShowComposeSuggestions(true)
+                      await suggestComposeStream(composeScope, draftText, opt.value, 3)
+                    }
+                  }}
+                  className={cn(
+                    "text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded transition-colors",
+                    composeIntent === opt.value
+                      ? "bg-sky-500/20 text-sky-700 dark:text-sky-300"
+                      : "text-muted-foreground hover:bg-sky-500/10 hover:text-sky-700 dark:hover:text-sky-400",
+                    composeBusy && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
             {composeResult?.provider && (
               <span className="text-[9px] font-mono text-muted-foreground">
                 {composeResult.provider}{composeResult.model ? ` / ${composeResult.model}` : ''}
@@ -543,7 +593,7 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
                 className="h-6 w-6 p-0 text-muted-foreground"
                 onClick={() => {
                   setShowComposeSuggestions(false)
-                  if (composeIds) clearComposeResult(composeIds.channelId, composeIds.threadId)
+                  if (composeScope) clearComposeResult(composeScope)
                 }}
                 title="Dismiss"
               >
@@ -577,6 +627,7 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
               )}
               {composeResult.suggestions.map((s) => {
                 const fb = composeFeedback[s.id]
+                const summary = composeFeedbackSummary[s.id]
                 return (
                   <div
                     key={s.id}
@@ -597,6 +648,17 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
                       {fb === 'edited' && (
                         <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-400/30">
                           used
+                        </span>
+                      )}
+                      {/* Phase 63D: aggregate feedback badges (visible once user provides feedback) */}
+                      {fb && summary && summary.total > 0 && (
+                        <span
+                          className="text-[9px] font-mono px-1 py-0.5 rounded bg-muted/30 text-muted-foreground"
+                          title={`${summary.total} feedback signal${summary.total === 1 ? '' : 's'} recorded for this suggestion`}
+                        >
+                          <span className="text-emerald-600 dark:text-emerald-400">▲{summary.counts.up}</span>{' '}
+                          <span className="text-rose-600 dark:text-rose-400">▼{summary.counts.down}</span>{' '}
+                          <span className="text-sky-600 dark:text-sky-400">✎{summary.counts.edited}</span>
                         </span>
                       )}
                       <div className="ml-auto flex items-center gap-1">
@@ -854,7 +916,7 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
               </TooltipTrigger>
               <TooltipContent>AI Canvas</TooltipContent>
             </Tooltip>
-            {composeIds && (
+            {composeScope && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button

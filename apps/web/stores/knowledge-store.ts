@@ -41,6 +41,9 @@ import type {
   Citation,
   ComposeFeedbackValue,
   ComposeStreamingState,
+  ComposeIntent,
+  ComposeScope,
+  ComposeFeedbackSummary,
 } from "@/types"
 
 interface KnowledgeState {
@@ -90,6 +93,8 @@ interface KnowledgeState {
   // ── Phase 63C ───────────────────────────────────────────────────────────
   composeStreaming: Record<string, ComposeStreamingState | null>
   composeFeedback: Record<string, ComposeFeedbackValue>
+  // ── Phase 63D ───────────────────────────────────────────────────────────
+  composeFeedbackSummary: Record<string, ComposeFeedbackSummary>
 
   pushLiveUpdate: (update: KnowledgeUpdate) => void
   handleEntityCreated: (entity: KnowledgeEntity) => void
@@ -161,12 +166,23 @@ interface KnowledgeState {
   shareWeeklyBrief: (briefId: string) => Promise<SharedWeeklyBriefLink | null>
   applyEntityBriefChanged: (notice: StaleBriefNotice) => void
   clearEntityAnswers: (entityId: string) => void
-  // ── Phase 63B ───────────────────────────────────────────────────────────
-  suggestCompose: (channelId: string, threadId: string | undefined, draft: string, limit?: number) => Promise<ComposeResponse | null>
-  clearComposeResult: (channelId: string, threadId?: string) => void
-  // ── Phase 63C ───────────────────────────────────────────────────────────
-  suggestComposeStream: (channelId: string, threadId: string | undefined, draft: string, limit?: number) => Promise<ComposeResponse | null>
-  sendComposeFeedback: (composeId: string, args: { channelId: string; threadId?: string; feedback: ComposeFeedbackValue; suggestionText?: string; provider?: string; model?: string }) => Promise<boolean>
+  // ── Phase 63B/D ───────────────────────────────────────────────────────────
+  suggestCompose: (scope: ComposeScope, draft: string, intent?: ComposeIntent, limit?: number) => Promise<ComposeResponse | null>
+  clearComposeResult: (scope: ComposeScope) => void
+  // ── Phase 63C/D ──────────────────────────────────────────────────────────
+  suggestComposeStream: (scope: ComposeScope, draft: string, intent?: ComposeIntent, limit?: number) => Promise<ComposeResponse | null>
+  sendComposeFeedback: (composeId: string, args: { scope: ComposeScope; feedback: ComposeFeedbackValue; suggestionText?: string; provider?: string; model?: string }) => Promise<boolean>
+  // ── Phase 63D ───────────────────────────────────────────────────────────
+  fetchComposeFeedbackSummary: (composeId: string) => Promise<ComposeFeedbackSummary | null>
+}
+
+// Phase 63D: normalize a compose scope into a stable key used for
+// `composeResults`, `isComposing`, and `composeStreaming` maps.
+// Channel scopes keep threadId for nested-thread independence.
+function composeScopeKey(scope: ComposeScope): string | null {
+  if (scope.dmId) return `dm:${scope.dmId}`
+  if (scope.channelId) return `ch:${scope.channelId}:${scope.threadId || ''}`
+  return null
 }
 
 export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
@@ -210,6 +226,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   isComposing: {},
   composeStreaming: {},
   composeFeedback: {},
+  composeFeedbackSummary: {},
 
   pushLiveUpdate: (update) => set({ liveUpdate: update }),
 
@@ -1184,18 +1201,24 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
     staleBriefs: { ...state.staleBriefs, [notice.entity_id]: notice },
   })),
 
-  // ── Phase 63B: Grounded compose suggestions ─────────────────────
-  suggestCompose: async (channelId, threadId, draft, limit) => {
-    const key = `${channelId}:${threadId || ''}`
-    if (!channelId) return null
+  // ── Phase 63B/D: Grounded compose suggestions (sync) ─────────────
+  // Phase 63D: scope is { channelId [+threadId] } or { dmId }; intent is reply | summarize | followup | schedule
+  suggestCompose: async (scope, draft, intent, limit) => {
+    const key = composeScopeKey(scope)
+    if (!key) return null
+    const activeIntent: ComposeIntent = intent || 'reply'
     set(state => ({ isComposing: { ...state.isComposing, [key]: true } }))
     try {
       const body: Record<string, unknown> = {
-        channel_id: channelId,
-        intent: 'reply',
+        intent: activeIntent,
         draft,
       }
-      if (threadId) body.thread_id = threadId
+      if (scope.dmId) {
+        body.dm_id = scope.dmId
+      } else if (scope.channelId) {
+        body.channel_id = scope.channelId
+        if (scope.threadId) body.thread_id = scope.threadId
+      }
       if (typeof limit === 'number' && limit > 0) body.limit = limit
       const res = await fetch(`${API_BASE_URL}/ai/compose`, {
         method: 'POST',
@@ -1221,8 +1244,9 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
     }
   },
 
-  clearComposeResult: (channelId, threadId) => {
-    const key = `${channelId}:${threadId || ''}`
+  clearComposeResult: (scope) => {
+    const key = composeScopeKey(scope)
+    if (!key) return
     set(state => {
       const nextResults = { ...state.composeResults }
       delete nextResults[key]
@@ -1232,21 +1256,26 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
     })
   },
 
-  // ── Phase 63C: Streaming compose via SSE with fallback ─────────
-  suggestComposeStream: async (channelId, threadId, draft, limit) => {
-    const key = `${channelId}:${threadId || ''}`
-    if (!channelId) return null
+  // ── Phase 63C/D: Streaming compose via SSE with fallback ─────
+  suggestComposeStream: async (scope, draft, intent, limit) => {
+    const key = composeScopeKey(scope)
+    if (!key) return null
+    const activeIntent: ComposeIntent = intent || 'reply'
     set(state => ({
       isComposing: { ...state.isComposing, [key]: true },
       composeStreaming: { ...state.composeStreaming, [key]: null },
     }))
     try {
       const body: Record<string, unknown> = {
-        channel_id: channelId,
-        intent: 'reply',
+        intent: activeIntent,
         draft,
       }
-      if (threadId) body.thread_id = threadId
+      if (scope.dmId) {
+        body.dm_id = scope.dmId
+      } else if (scope.channelId) {
+        body.channel_id = scope.channelId
+        if (scope.threadId) body.thread_id = scope.threadId
+      }
       if (typeof limit === 'number' && limit > 0) body.limit = limit
 
       const res = await fetch(`${API_BASE_URL}/ai/compose/stream`, {
@@ -1258,7 +1287,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
       // Fallback: if stream is unsupported (older server, error, no body), use sync compose
       if (!res.ok || !res.body) {
         console.warn(`compose/stream returned ${res.status}; falling back to /ai/compose`)
-        return await get().suggestCompose(channelId, threadId, draft, limit)
+        return await get().suggestCompose(scope, draft, activeIntent, limit)
       }
 
       const reader = res.body.getReader()
@@ -1294,9 +1323,10 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
           if (Array.isArray(payload.context_entities)) finalContextEntities = payload.context_entities as ComposeContextEntity[]
         } else if (event === 'done') {
           const response: ComposeResponse = {
-            channel_id: channelId,
-            thread_id: threadId,
-            intent: 'reply',
+            channel_id: scope.channelId,
+            dm_id: scope.dmId,
+            thread_id: scope.threadId,
+            intent: activeIntent,
             suggestions: finalSuggestions,
             citations: finalCitations,
             context_entities: finalContextEntities,
@@ -1342,7 +1372,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
     } catch (error) {
       console.error("Failed to stream compose:", error)
       // Fallback on network error
-      return await get().suggestCompose(channelId, threadId, draft, limit)
+      return await get().suggestCompose(scope, draft, activeIntent, limit)
     } finally {
       set(state => ({
         isComposing: { ...state.isComposing, [key]: false },
@@ -1351,16 +1381,23 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
     }
   },
 
-  // ── Phase 63C: Per-suggestion feedback capture ─────────────
+  // ── Phase 63C/D: Per-suggestion feedback capture (scope-aware) ────
   sendComposeFeedback: async (composeId, args) => {
     if (!composeId) return false
     try {
       const body: Record<string, unknown> = {
-        channel_id: args.channelId,
         intent: 'reply',
         feedback: args.feedback,
       }
-      if (args.threadId) body.thread_id = args.threadId
+      if (args.scope.dmId) {
+        body.dm_id = args.scope.dmId
+      } else if (args.scope.channelId) {
+        body.channel_id = args.scope.channelId
+        if (args.scope.threadId) body.thread_id = args.scope.threadId
+      } else {
+        console.warn('compose feedback: scope missing channel/dm id')
+        return false
+      }
       if (args.suggestionText) body.suggestion_text = args.suggestionText
       if (args.provider) body.provider = args.provider
       if (args.model) body.model = args.model
@@ -1376,10 +1413,35 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
       set(state => ({
         composeFeedback: { ...state.composeFeedback, [composeId]: args.feedback },
       }))
+      // Refresh aggregate signal for this compose (best-effort, non-blocking)
+      get().fetchComposeFeedbackSummary(composeId).catch(() => { /* best-effort */ })
       return true
     } catch (error) {
       console.error("Failed to send compose feedback:", error)
       return false
+    }
+  },
+
+  // ── Phase 63D: Aggregate feedback signal per compose ─────────────
+  fetchComposeFeedbackSummary: async (composeId) => {
+    if (!composeId) return null
+    try {
+      const res = await fetch(`${API_BASE_URL}/ai/compose/${encodeURIComponent(composeId)}/feedback/summary`)
+      if (!res.ok) {
+        console.warn(`compose feedback summary returned ${res.status}`)
+        return null
+      }
+      const data = await res.json()
+      const summary: ComposeFeedbackSummary | undefined = data.summary
+      if (summary) {
+        set(state => ({
+          composeFeedbackSummary: { ...state.composeFeedbackSummary, [composeId]: summary },
+        }))
+      }
+      return summary || null
+    } catch (error) {
+      console.error("Failed to fetch compose feedback summary:", error)
+      return null
     }
   },
 
