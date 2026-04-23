@@ -105,6 +105,7 @@ func ComposeAI(c *gin.Context) {
 		return
 	}
 
+	_ = broadcastComposeSuggestionGenerated(response)
 	c.JSON(http.StatusOK, gin.H{"compose": response})
 }
 
@@ -176,6 +177,7 @@ func ComposeAIStream(c *gin.Context) {
 				if len(response.Suggestions) > 0 {
 					response.Suggestions[0].ID = provisionalSuggestionID
 				}
+				_ = broadcastComposeSuggestionGenerated(response)
 				for index, suggestion := range response.Suggestions {
 					writeSSE(writer, "suggestion.done", gin.H{
 						"index":            index,
@@ -463,6 +465,223 @@ func GenerateChannelSummary(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"summary": summary})
 }
 
+func GetChannelKnowledgeAutoSummarize(c *gin.Context) {
+	channel, ok := loadAutoSummaryChannel(c)
+	if !ok {
+		return
+	}
+	setting, err := getOrDefaultChannelAutoSummarySetting(channel, "")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load auto-summarize setting"})
+		return
+	}
+	summary, err := getStoredSummary("channel", channel.ID)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load channel summary"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"setting": setting, "summary": summary})
+}
+
+func PutChannelKnowledgeAutoSummarize(c *gin.Context) {
+	channel, ok := loadAutoSummaryChannel(c)
+	if !ok {
+		return
+	}
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+	var input channelAutoSummaryInput
+	if err := bindJSONBody(c, &input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	setting, err := upsertChannelAutoSummarySetting(channel, currentUser.ID, input)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to persist auto-summarize setting"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"setting": setting})
+}
+
+func RunChannelKnowledgeAutoSummarize(c *gin.Context) {
+	if AIGateway == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ai gateway is not configured"})
+		return
+	}
+	channel, ok := loadAutoSummaryChannel(c)
+	if !ok {
+		return
+	}
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+	var input channelAutoSummaryInput
+	if err := bindJSONBody(c, &input); err != nil && !errors.Is(err, io.EOF) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	setting, err := getOrDefaultChannelAutoSummarySetting(channel, currentUser.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load auto-summarize setting"})
+		return
+	}
+	setting.Provider = defaultString(strings.TrimSpace(input.Provider), setting.Provider)
+	setting.Model = defaultString(strings.TrimSpace(input.Model), setting.Model)
+	setting.MessageLimit = normalizeAutoSummaryMessageLimit(firstPositive(input.MessageLimit, setting.MessageLimit))
+
+	summary, lastMessageAt, err := generateChannelSummaryWithOptions(c, channel, setting.Provider, setting.Model, setting.MessageLimit)
+	if err != nil {
+		handleSummaryGenerationError(c, err)
+		return
+	}
+	now := time.Now().UTC()
+	setting.LastRunAt = &now
+	setting.LastMessageAt = lastMessageAt
+	setting.UpdatedAt = now
+	if setting.ID == "" {
+		setting.ID = ids.NewPrefixedUUID("auto-summary")
+		setting.ChannelID = channel.ID
+		setting.WorkspaceID = channel.WorkspaceID
+		setting.CreatedBy = currentUser.ID
+		setting.CreatedAt = now
+	}
+	if err := db.DB.Where("channel_id = ?", channel.ID).Assign(setting).FirstOrCreate(&setting).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to persist auto-summarize setting"})
+		return
+	}
+	_ = broadcastChannelSummaryUpdated(channel, summary, setting, "manual_run")
+	c.JSON(http.StatusOK, gin.H{"setting": setting, "summary": summary})
+}
+
+type channelAutoSummaryInput struct {
+	IsEnabled      bool   `json:"is_enabled"`
+	WindowHours    int    `json:"window_hours"`
+	MessageLimit   int    `json:"message_limit"`
+	MinNewMessages int    `json:"min_new_messages"`
+	Provider       string `json:"provider"`
+	Model          string `json:"model"`
+	Force          bool   `json:"force"`
+}
+
+func loadAutoSummaryChannel(c *gin.Context) (domain.Channel, bool) {
+	var channel domain.Channel
+	if err := db.DB.First(&channel, "id = ?", c.Param("id")).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "channel not found"})
+			return domain.Channel{}, false
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load channel"})
+		return domain.Channel{}, false
+	}
+	return channel, true
+}
+
+func getOrDefaultChannelAutoSummarySetting(channel domain.Channel, userID string) (domain.ChannelAutoSummarySetting, error) {
+	var setting domain.ChannelAutoSummarySetting
+	if err := db.DB.Where("channel_id = ?", channel.ID).First(&setting).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return domain.ChannelAutoSummarySetting{}, err
+		}
+		now := time.Now().UTC()
+		return domain.ChannelAutoSummarySetting{
+			ID:             "",
+			ChannelID:      channel.ID,
+			WorkspaceID:    channel.WorkspaceID,
+			CreatedBy:      userID,
+			IsEnabled:      false,
+			WindowHours:    24,
+			MessageLimit:   50,
+			MinNewMessages: 5,
+			CreatedAt:      now,
+			UpdatedAt:      now,
+		}, nil
+	}
+	return setting, nil
+}
+
+func upsertChannelAutoSummarySetting(channel domain.Channel, userID string, input channelAutoSummaryInput) (domain.ChannelAutoSummarySetting, error) {
+	current, err := getOrDefaultChannelAutoSummarySetting(channel, userID)
+	if err != nil {
+		return domain.ChannelAutoSummarySetting{}, err
+	}
+	now := time.Now().UTC()
+	if current.ID == "" {
+		current.ID = ids.NewPrefixedUUID("auto-summary")
+		current.CreatedAt = now
+	}
+	current.ChannelID = channel.ID
+	current.WorkspaceID = channel.WorkspaceID
+	current.CreatedBy = defaultString(current.CreatedBy, userID)
+	current.IsEnabled = input.IsEnabled
+	current.WindowHours = normalizeAutoSummaryWindowHours(input.WindowHours)
+	current.MessageLimit = normalizeAutoSummaryMessageLimit(input.MessageLimit)
+	current.MinNewMessages = normalizeAutoSummaryMinNewMessages(input.MinNewMessages)
+	current.Provider = strings.TrimSpace(input.Provider)
+	current.Model = strings.TrimSpace(input.Model)
+	current.UpdatedAt = now
+	if err := db.DB.Where("channel_id = ?", channel.ID).Assign(current).FirstOrCreate(&current).Error; err != nil {
+		return domain.ChannelAutoSummarySetting{}, err
+	}
+	return current, nil
+}
+
+func normalizeAutoSummaryWindowHours(value int) int {
+	if value <= 0 {
+		return 24
+	}
+	if value > 24*30 {
+		return 24 * 30
+	}
+	return value
+}
+
+func normalizeAutoSummaryMessageLimit(value int) int {
+	if value <= 0 {
+		return 50
+	}
+	if value > 200 {
+		return 200
+	}
+	return value
+}
+
+func normalizeAutoSummaryMinNewMessages(value int) int {
+	if value <= 0 {
+		return 5
+	}
+	if value > 100 {
+		return 100
+	}
+	return value
+}
+
+func firstPositive(values ...int) int {
+	for _, value := range values {
+		if value > 0 {
+			return value
+		}
+	}
+	return 0
+}
+
+func broadcastChannelSummaryUpdated(channel domain.Channel, summary *domain.AISummary, setting domain.ChannelAutoSummarySetting, reason string) error {
+	if summary == nil {
+		return nil
+	}
+	return broadcastKnowledgeEvent("channel.summary.updated", channel.WorkspaceID, channel.ID, "", gin.H{
+		"channel_id":   channel.ID,
+		"workspace_id": channel.WorkspaceID,
+		"reason":       reason,
+		"summary":      summary,
+		"setting":      setting,
+	})
+}
+
 func ExecuteAI(c *gin.Context) {
 	if AIGateway == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ai gateway is not configured"})
@@ -569,10 +788,6 @@ func getStoredSummary(scopeType, scopeID string) (*domain.AISummary, error) {
 }
 
 func generateSummaryFromMessages(c *gin.Context, scopeType, scopeID, channelID string, messages []domain.Message) (*domain.AISummary, error) {
-	if AIGateway == nil {
-		return nil, errors.New("ai gateway is not configured")
-	}
-
 	var input struct {
 		Provider string `json:"provider"`
 		Model    string `json:"model"`
@@ -580,22 +795,46 @@ func generateSummaryFromMessages(c *gin.Context, scopeType, scopeID, channelID s
 	if err := c.ShouldBindJSON(&input); err != nil && !errors.Is(err, io.EOF) {
 		return nil, err
 	}
+	summary, _, err := generateSummaryWithOptions(c, scopeType, scopeID, channelID, messages, strings.TrimSpace(input.Provider), strings.TrimSpace(input.Model))
+	return summary, err
+}
+
+func generateChannelSummaryWithOptions(c *gin.Context, channel domain.Channel, provider, model string, limit int) (*domain.AISummary, *time.Time, error) {
+	limit = normalizeAutoSummaryMessageLimit(limit)
+	var messages []domain.Message
+	if err := db.DB.Where("channel_id = ?", channel.ID).Order("created_at desc").Limit(limit).Find(&messages).Error; err != nil {
+		return nil, nil, err
+	}
+	if len(messages) == 0 {
+		return nil, nil, errors.New("channel has no messages to summarize")
+	}
+	reverseMessages(messages)
+	return generateSummaryWithOptions(c, "channel", channel.ID, channel.ID, messages, provider, model)
+}
+
+func generateSummaryWithOptions(c *gin.Context, scopeType, scopeID, channelID string, messages []domain.Message, provider, model string) (*domain.AISummary, *time.Time, error) {
+	if AIGateway == nil {
+		return nil, nil, errors.New("ai gateway is not configured")
+	}
+	if len(messages) == 0 {
+		return nil, nil, errors.New("channel has no messages to summarize")
+	}
 
 	req := llm.Request{
 		Prompt:    buildSummaryPrompt(scopeType, messages),
 		ChannelID: channelID,
-		Provider:  input.Provider,
-		Model:     input.Model,
+		Provider:  provider,
+		Model:     model,
 	}
 
 	session, err := AIGateway.Stream(c.Request.Context(), req)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	content, reasoning, err := collectStreamOutput(c.Request.Context(), session)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	lastMessageAt := messages[len(messages)-1].CreatedAt
@@ -615,10 +854,10 @@ func generateSummaryFromMessages(c *gin.Context, scopeType, scopeID, channelID s
 	if err := db.DB.Where("scope_type = ? AND scope_id = ?", scopeType, scopeID).
 		Assign(summary).
 		FirstOrCreate(&summary).Error; err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return &summary, nil
+	return &summary, &lastMessageAt, nil
 }
 
 func buildSummaryPrompt(scopeType string, messages []domain.Message) string {
@@ -994,6 +1233,10 @@ func buildComposeResponse(channelID, dmID, threadID, intent string, limit int, d
 	if len(structured.ContextEntities) > 0 {
 		contextEntities = structured.ContextEntities
 	}
+	proposedSlots := structured.ProposedSlots
+	if intent == "schedule" && len(proposedSlots) == 0 {
+		proposedSlots = buildFallbackProposedSlots(recentMessages, recentDMMessages)
+	}
 
 	return composePayload{
 		ChannelID:       channelID,
@@ -1003,6 +1246,7 @@ func buildComposeResponse(channelID, dmID, threadID, intent string, limit int, d
 		Suggestions:     suggestions,
 		Citations:       citations,
 		ContextEntities: contextEntities,
+		ProposedSlots:   proposedSlots,
 		Provider:        provider,
 		Model:           model,
 	}
@@ -1016,6 +1260,7 @@ type composePayload struct {
 	Suggestions     []knowledge.ComposeSuggestion    `json:"suggestions"`
 	Citations       []knowledge.Citation             `json:"citations"`
 	ContextEntities []knowledge.ComposeContextEntity `json:"context_entities"`
+	ProposedSlots   []knowledge.ComposeProposedSlot  `json:"proposed_slots,omitempty"`
 	Provider        string                           `json:"provider"`
 	Model           string                           `json:"model"`
 }
@@ -1024,6 +1269,7 @@ type composeStructuredOutput struct {
 	Suggestions     []knowledge.ComposeSuggestion    `json:"suggestions"`
 	Citations       []knowledge.Citation             `json:"citations"`
 	ContextEntities []knowledge.ComposeContextEntity `json:"context_entities"`
+	ProposedSlots   []knowledge.ComposeProposedSlot  `json:"proposed_slots"`
 }
 
 func parseComposeOutput(raw string) composeStructuredOutput {
@@ -1037,6 +1283,56 @@ func parseComposeOutput(raw string) composeStructuredOutput {
 		return composeStructuredOutput{}
 	}
 	return parsed
+}
+
+func buildFallbackProposedSlots(recentMessages []domain.Message, recentDMMessages []domain.DMMessage) []knowledge.ComposeProposedSlot {
+	start := time.Now().UTC().Add(24 * time.Hour).Truncate(time.Hour)
+	attendees := make([]string, 0, 4)
+	seen := map[string]struct{}{}
+	for _, message := range recentMessages {
+		if message.UserID == "" {
+			continue
+		}
+		if _, ok := seen[message.UserID]; ok {
+			continue
+		}
+		seen[message.UserID] = struct{}{}
+		attendees = append(attendees, message.UserID)
+	}
+	for _, message := range recentDMMessages {
+		if message.UserID == "" {
+			continue
+		}
+		if _, ok := seen[message.UserID]; ok {
+			continue
+		}
+		seen[message.UserID] = struct{}{}
+		attendees = append(attendees, message.UserID)
+	}
+	if len(attendees) > 4 {
+		attendees = attendees[:4]
+	}
+	return []knowledge.ComposeProposedSlot{{
+		StartsAt:        start.Format(time.RFC3339),
+		EndsAt:          start.Add(30 * time.Minute).Format(time.RFC3339),
+		DurationMinutes: 30,
+		Timezone:        "UTC",
+		AttendeeIDs:     attendees,
+		Reason:          "Fallback schedule slot from recent conversation participants.",
+	}}
+}
+
+func broadcastComposeSuggestionGenerated(response composePayload) error {
+	workspaceID := ""
+	if response.ChannelID != "" {
+		var channel domain.Channel
+		if err := db.DB.First(&channel, "id = ?", response.ChannelID).Error; err == nil {
+			workspaceID = channel.WorkspaceID
+		}
+	}
+	return broadcastKnowledgeEvent("knowledge.compose.suggestion.generated", workspaceID, response.ChannelID, "", gin.H{
+		"compose": response,
+	})
 }
 
 func buildComposeGrounding(refs []knowledge.ChannelKnowledgeRef, matches []knowledge.EntityTextMatch, draft string, threadParent *domain.Message, recentMessages []domain.Message, recentDMMessages []domain.DMMessage) ([]knowledge.Citation, []knowledge.ComposeContextEntity) {

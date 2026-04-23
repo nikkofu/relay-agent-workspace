@@ -33,6 +33,15 @@ type ComposeContextEntity struct {
 	Kind  string `json:"kind"`
 }
 
+type ComposeProposedSlot struct {
+	StartsAt        string   `json:"starts_at"`
+	EndsAt          string   `json:"ends_at"`
+	DurationMinutes int      `json:"duration_minutes"`
+	Timezone        string   `json:"timezone"`
+	AttendeeIDs     []string `json:"attendee_ids"`
+	Reason          string   `json:"reason,omitempty"`
+}
+
 type LookupParams struct {
 	Query        string
 	ChannelID    string

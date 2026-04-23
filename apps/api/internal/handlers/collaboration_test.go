@@ -5808,6 +5808,90 @@ func TestPhase63EEntityAskStreamAndHistoryContracts(t *testing.T) {
 	})
 }
 
+func TestPhase63FAutoSummarizeAndComposeRealtimeContracts(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+	AIGateway = stubGateway{}
+	defer SetAIGateway(nil)
+
+	hub := realtime.NewHub()
+	go hub.Run()
+	SetRealtimeHub(hub)
+	defer SetRealtimeHub(nil)
+
+	client := realtime.NewTestClient(8)
+	hub.RegisterTestClient(client)
+	defer hub.UnregisterTestClient(client)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	db.DB.Create(&domain.Message{ID: "msg-1", ChannelID: "ch-1", UserID: "user-1", Content: "Launch Program owner is Nikko", CreatedAt: now.Add(-10 * time.Minute)})
+	db.DB.Create(&domain.Message{ID: "msg-2", ChannelID: "ch-1", UserID: "user-1", Content: "Timeline is still aligned for Friday review", CreatedAt: now.Add(-5 * time.Minute)})
+
+	router := gin.New()
+	router.GET("/api/v1/channels/:id/knowledge/auto-summarize", GetChannelKnowledgeAutoSummarize)
+	router.PUT("/api/v1/channels/:id/knowledge/auto-summarize", PutChannelKnowledgeAutoSummarize)
+	router.POST("/api/v1/channels/:id/knowledge/auto-summarize", RunChannelKnowledgeAutoSummarize)
+	router.POST("/api/v1/ai/compose", ComposeAI)
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/channels/ch-1/knowledge/auto-summarize", strings.NewReader(`{"is_enabled":true,"window_hours":12,"message_limit":25,"min_new_messages":2,"provider":"stub","model":"stub-model"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on auto summarize setting, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/channels/ch-1/knowledge/auto-summarize", strings.NewReader(`{"force":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on auto summarize run, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	assertRealtimeEventType(t, client, "channel.summary.updated")
+
+	var runPayload struct {
+		Setting domain.ChannelAutoSummarySetting `json:"setting"`
+		Summary domain.AISummary                 `json:"summary"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &runPayload); err != nil {
+		t.Fatalf("decode auto summarize run payload: %v", err)
+	}
+	if runPayload.Setting.ChannelID != "ch-1" || !runPayload.Setting.IsEnabled || runPayload.Summary.ScopeType != "channel" || runPayload.Summary.ScopeID != "ch-1" {
+		t.Fatalf("unexpected auto summarize payload: %#v", runPayload)
+	}
+	if runPayload.Setting.LastRunAt == nil || runPayload.Setting.LastMessageAt == nil {
+		t.Fatalf("expected setting run metadata, got %#v", runPayload.Setting)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/ai/compose", strings.NewReader(`{"channel_id":"ch-1","draft":"Can we schedule the Launch Program review?","intent":"schedule","limit":1}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on schedule compose, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	assertRealtimeEventType(t, client, "knowledge.compose.suggestion.generated")
+
+	var composePayload struct {
+		Compose struct {
+			ProposedSlots []struct {
+				StartsAt string `json:"starts_at"`
+				Duration int    `json:"duration_minutes"`
+				Timezone string `json:"timezone"`
+			} `json:"proposed_slots"`
+		} `json:"compose"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &composePayload); err != nil {
+		t.Fatalf("decode compose payload: %v", err)
+	}
+	if len(composePayload.Compose.ProposedSlots) == 0 || composePayload.Compose.ProposedSlots[0].Duration == 0 {
+		t.Fatalf("expected schedule proposed slots, got %#v", composePayload.Compose.ProposedSlots)
+	}
+}
+
 func TestMatchKnowledgeEntitiesInTextEndpoint(t *testing.T) {
 	setupTestDB(t)
 	now := time.Now().UTC()
@@ -6119,7 +6203,7 @@ func setupTestDB(t *testing.T) {
 	if err := db.DB.AutoMigrate(&domain.Organization{}, &domain.Team{}, &domain.User{}, &domain.Agent{}, &domain.Workspace{}, &domain.WorkspaceInvite{}, &domain.UserGroup{}, &domain.UserGroupMember{}, &domain.WorkflowDefinition{}, &domain.WorkflowRunStep{}, &domain.WorkflowRunLog{}, &domain.ToolDefinition{}, &domain.ToolRun{}, &domain.ToolRunLog{}, &domain.Channel{}, &domain.ChannelMember{}, &domain.ChannelPreference{}, &domain.WorkspaceList{}, &domain.WorkspaceListItem{}, &domain.Message{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
-	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.NotificationPreference{}, &domain.NotificationMuteRule{}, &domain.AIFeedback{}, &domain.AIComposeFeedback{}, &domain.AIConversation{}, &domain.AIConversationMessage{}, &domain.AISummary{}, &domain.KnowledgeEntityAskAnswer{}, &domain.Artifact{}, &domain.ArtifactVersion{}, &domain.FileAsset{}, &domain.FileAssetEvent{}, &domain.FileExtraction{}, &domain.FileExtractionChunk{}, &domain.FileComment{}, &domain.FileShare{}, &domain.StarredFile{}, &domain.MessageArtifactReference{}, &domain.MessageFileAttachment{}, &domain.KnowledgeEvidenceLink{}, &domain.KnowledgeEvidenceEntityRef{}, &domain.KnowledgeEntity{}, &domain.KnowledgeEntityRef{}, &domain.KnowledgeEntityLink{}, &domain.KnowledgeEvent{}, &domain.KnowledgeEntityFollow{}, &domain.KnowledgeDigestSchedule{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}, &domain.WorkflowRun{}); err != nil {
+	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.NotificationPreference{}, &domain.NotificationMuteRule{}, &domain.AIFeedback{}, &domain.AIComposeFeedback{}, &domain.AIConversation{}, &domain.AIConversationMessage{}, &domain.AISummary{}, &domain.ChannelAutoSummarySetting{}, &domain.KnowledgeEntityAskAnswer{}, &domain.Artifact{}, &domain.ArtifactVersion{}, &domain.FileAsset{}, &domain.FileAssetEvent{}, &domain.FileExtraction{}, &domain.FileExtractionChunk{}, &domain.FileComment{}, &domain.FileShare{}, &domain.StarredFile{}, &domain.MessageArtifactReference{}, &domain.MessageFileAttachment{}, &domain.KnowledgeEvidenceLink{}, &domain.KnowledgeEvidenceEntityRef{}, &domain.KnowledgeEntity{}, &domain.KnowledgeEntityRef{}, &domain.KnowledgeEntityLink{}, &domain.KnowledgeEvent{}, &domain.KnowledgeEntityFollow{}, &domain.KnowledgeDigestSchedule{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}, &domain.WorkflowRun{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 }

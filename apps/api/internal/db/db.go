@@ -61,6 +61,7 @@ func InitDB() error {
 		&domain.AIConversation{},
 		&domain.AIConversationMessage{},
 		&domain.AISummary{},
+		&domain.ChannelAutoSummarySetting{},
 		&domain.KnowledgeEntityAskAnswer{},
 		&domain.Artifact{},
 		&domain.ArtifactVersion{},

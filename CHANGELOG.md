@@ -2,6 +2,40 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.22] - 2026-04-23
+
+This release implements Codex Phase 63F, moving Relay's knowledge layer toward always-on AI assistance after Windsurf's `v0.6.21` entity Ask AI UI pass.
+
+### Added
+
+- **Channel auto-summarize APIs**:
+  - `GET /api/v1/channels/:id/knowledge/auto-summarize`
+  - `PUT /api/v1/channels/:id/knowledge/auto-summarize`
+  - `POST /api/v1/channels/:id/knowledge/auto-summarize`
+  - Persists per-channel settings and writes refreshed summaries into the existing `AISummary` channel cache.
+- **Realtime channel summary updates**:
+  - `POST /channels/:id/knowledge/auto-summarize` emits websocket `channel.summary.updated`.
+- **Collaborative compose visibility**:
+  - `POST /api/v1/ai/compose` and `POST /api/v1/ai/compose/stream` now emit websocket `knowledge.compose.suggestion.generated` after suggestions finalize.
+- **Structured schedule intent slots**:
+  - `schedule` compose responses now include additive `proposed_slots[]` with ISO start/end times, duration, timezone, attendee ids, and reason.
+
+### Windsurf Handoff
+
+- Add channel header/sidebar controls for `GET|PUT|POST /channels/:id/knowledge/auto-summarize`.
+- Listen for `channel.summary.updated` to refresh the channel summary card without a manual reload.
+- Listen for `knowledge.compose.suggestion.generated` where shared co-drafting visibility is useful.
+- Render `compose.proposed_slots[]` as calendar chips for schedule intent suggestions.
+
+### Verification Used For This Release
+
+- `go test ./internal/handlers -run TestPhase63F -count=1`
+- `go test ./internal/handlers -run 'TestPhase63' -count=1`
+- `go test ./...`
+- `GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+- `pnpm --filter relay-agent-workspace exec tsc --noEmit`
+
 ## [0.6.20] - 2026-04-23
 
 This release implements Codex Phase 63E, adding streamable and persistent Entity Ask AI APIs after Windsurf's `v0.6.19` composer UI pass.

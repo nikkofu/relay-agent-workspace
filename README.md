@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.6.20` is the current release line and includes:
+`v0.6.22` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -55,6 +55,8 @@ For product, design, and marketing, the short version is:
 - structured message `knowledge_digest` metadata for published channel digest messages
 - channel-scoped knowledge context via `GET /api/v1/channels/:id/knowledge`
 - channel-scoped knowledge summary via `GET /api/v1/channels/:id/knowledge/summary`
+- channel auto-summarize settings and execution via `GET|PUT|POST /api/v1/channels/:id/knowledge/auto-summarize`
+- realtime channel summary refresh broadcasts via websocket `channel.summary.updated`
 - channel-scoped knowledge digest preview via `GET /api/v1/channels/:id/knowledge/digest`
 - channel-scoped knowledge digest publish flow via `POST /api/v1/channels/:id/knowledge/digest/publish`
 - channel-scoped knowledge digest scheduling via `GET|PUT|DELETE /api/v1/channels/:id/knowledge/digest/schedule`
@@ -83,6 +85,8 @@ For product, design, and marketing, the short version is:
 - grounded channel/thread/DM composer suggestions via `POST /api/v1/ai/compose`
 - streaming grounded channel/thread/DM composer suggestions via `POST /api/v1/ai/compose/stream`
 - composer intent variants for `reply`, `summarize`, `followup`, and `schedule`
+- structured schedule intent slots via `compose.proposed_slots[]`
+- realtime compose suggestion broadcasts via websocket `knowledge.compose.suggestion.generated`
 - per-suggestion composer feedback capture via `POST /api/v1/ai/compose/:id/feedback`
 - composer feedback aggregation via `GET /api/v1/ai/compose/:id/feedback/summary`
 - weekly brief snapshot sharing via `POST /api/v1/knowledge/weekly-brief/:id/share`
@@ -192,6 +196,9 @@ For product, design, and marketing, the short version is:
 - Knowledge entity/wiki APIs:
   - `GET /api/v1/channels/:id/knowledge`
   - `GET /api/v1/channels/:id/knowledge/summary`
+  - `GET /api/v1/channels/:id/knowledge/auto-summarize`
+  - `PUT /api/v1/channels/:id/knowledge/auto-summarize`
+  - `POST /api/v1/channels/:id/knowledge/auto-summarize`
   - `GET /api/v1/channels/:id/knowledge/digest`
   - `POST /api/v1/channels/:id/knowledge/digest/publish`
   - `GET /api/v1/channels/:id/knowledge/digest/schedule`

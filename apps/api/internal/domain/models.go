@@ -373,6 +373,23 @@ type AISummary struct {
 	UpdatedAt     time.Time  `json:"updated_at"`
 }
 
+type ChannelAutoSummarySetting struct {
+	ID             string     `gorm:"primaryKey" json:"id"`
+	ChannelID      string     `gorm:"uniqueIndex;index" json:"channel_id"`
+	WorkspaceID    string     `gorm:"index" json:"workspace_id"`
+	CreatedBy      string     `gorm:"index" json:"created_by"`
+	IsEnabled      bool       `gorm:"index" json:"is_enabled"`
+	WindowHours    int        `json:"window_hours"`
+	MessageLimit   int        `json:"message_limit"`
+	MinNewMessages int        `json:"min_new_messages"`
+	Provider       string     `json:"provider"`
+	Model          string     `json:"model"`
+	LastRunAt      *time.Time `json:"last_run_at,omitempty"`
+	LastMessageAt  *time.Time `json:"last_message_at,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
+}
+
 type KnowledgeEntityAskAnswer struct {
 	ID            string    `gorm:"primaryKey" json:"id"`
 	EntityID      string    `gorm:"index" json:"entity_id"`

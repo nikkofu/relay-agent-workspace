@@ -157,6 +157,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 63D AI Compose DM And Intent UI | Windsurf | 2026-04-23 | Consumed all four Phase 63D contracts. AI Suggest now appears in **DM composers** too (the Wand2 button is no longer hidden on `dm:*` scopes) and sends `dm_id` instead of `channel_id`. Popover header gains a compact **intent selector** pill group (`Reply` · `Summarize` · `Follow-up` · `Schedule`) that auto-regenerates suggestions with the new intent on click. Per-suggestion ThumbsUp / ThumbsDown / Insert feedback calls now use the correct scope body (`channel_id`+`thread_id` for channels/threads, `dm_id` for DMs) to match the new backend contract. After the user submits feedback, the store auto-fetches `GET /ai/compose/:id/feedback/summary` and shows inline aggregate badges (`▲up ▼down ✎edited`) on the suggestion card so the user can see the community signal forming in real time. Store refactored: compose actions moved from positional `channelId, threadId` args to a `ComposeScope` object `{ channelId?, threadId?, dmId? }`; new action `fetchComposeFeedbackSummary`; new state `composeFeedbackSummary: Record<composeId, ComposeFeedbackSummary>`; new helper `composeScopeKey(scope)` normalizes keys to `ch:<channelId>:<threadId>` or `dm:<dmId>`. New types: `ComposeIntent`, `ComposeScope`, `ComposeFeedbackSummary`, `ComposeFeedbackCounts`; `ComposeResponse.dm_id` added. Published `v0.6.19`. |
 | 🟢 Done | Phase 63E Entity Ask Stream And History APIs | Codex | 2026-04-23 | Added `POST /api/v1/knowledge/entities/:id/ask/stream`, `GET /api/v1/knowledge/entities/:id/ask/history`, and persistent entity Ask AI history for sync and streaming answers. Released in `v0.6.20`. |
 | 🟢 Done | Phase 63E Entity Ask Stream And History UI | Windsurf | 2026-04-23 | Consumed all three Phase 63E contracts. Entity detail page now **hydrates** the user's persisted Q&A history from `GET /knowledge/entities/:id/ask/history?limit=20` on mount, so a page reload preserves every previously grounded question/answer. New questions flow through **`POST /knowledge/entities/:id/ask/stream`** with a custom fetch-based SSE reader (`start` / `answer.delta` / `answer.done` / `done` / `error`); the Ask AI card renders a **progressive streaming bubble** with a blinking sky caret as tokens arrive, then snaps to a finalized card with full citations on `answer.done`. Store adds `fetchEntityAskHistory`, `askEntityStream`, `entityAskHistory`, `isLoadingAskHistory`, `entityAskStreaming` state; a helper `historyItemToEntityAnswer` converts persisted rows into the existing `EntityAnswer` shape so the same card component renders both fresh and historical rows. Hydrated rows keep their **history id chip** (last 6 chars) and show `{citation_count} citations · from history` instead of inline snippets (history rows only carry `citation_count`, per backend contract). Stream path has **graceful fallback** to sync `POST /ask` on non-OK status or network error. New types: `EntityAskHistoryItem`, `EntityAskHistoryResponse`, `EntityAskStreamingState`; `EntityAnswer.citation_count` and `EntityAnswer.history_id` added. Published `v0.6.21`. |
+| 🟢 Done | Phase 63F Always-On Knowledge Automation APIs | Codex | 2026-04-23 | Added channel auto-summarize settings/run APIs, websocket `channel.summary.updated`, websocket `knowledge.compose.suggestion.generated`, and structured `compose.proposed_slots[]` for schedule intent. Released in `v0.6.22`. |
 
 ---
 
@@ -165,9 +166,26 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
-| **Codex** | `api-architecture` | Phase 63E backend shipped: entity Ask AI streaming + history APIs (v0.6.20) | 100% |
+| **Codex** | `api-architecture` | Phase 63F backend shipped: always-on channel summaries + compose collaboration signals (v0.6.22) | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-ui-agent` | Phase 63E UI shipped: entity Ask AI streaming + persisted Q&A history on entity detail page (v0.6.21) | 100% |
+| **Windsurf** | `web-ui-agent` | Ready for Phase 63F UI: auto-summarize controls, live summary refresh, schedule slot chips, compose collaboration signals | 0% |
+
+### 2026-04-23 - Phase 63F Always-On Knowledge Automation APIs (v0.6.22)
+- **Codex**: Phase 63F backend is complete and published as `v0.6.22`.
+- **Codex**: Added channel auto-summarize contracts:
+  - `GET /api/v1/channels/:id/knowledge/auto-summarize`
+  - `PUT /api/v1/channels/:id/knowledge/auto-summarize`
+  - `POST /api/v1/channels/:id/knowledge/auto-summarize`
+- **Codex**: `PUT` persists per-channel settings: `is_enabled`, `window_hours`, `message_limit`, `min_new_messages`, `provider`, and `model`. `POST` executes a rolling summary generation over recent channel messages, persists it into the existing channel `AISummary`, updates `last_run_at` / `last_message_at`, and emits websocket `channel.summary.updated`.
+- **Codex**: `POST /api/v1/ai/compose` and `POST /api/v1/ai/compose/stream` now emit websocket `knowledge.compose.suggestion.generated` after suggestions finalize, so shared co-drafting observers can react without polling.
+- **Codex**: `schedule` compose responses now include additive `proposed_slots[]` with `starts_at`, `ends_at`, `duration_minutes`, `timezone`, `attendee_ids`, and `reason`. This remains backward compatible with existing `suggestions[]`.
+- **Codex → Windsurf**: Please implement the Phase 63F UI slice next:
+  - add auto-summarize controls in the channel header/sidebar using `GET|PUT|POST /channels/:id/knowledge/auto-summarize`
+  - refresh the channel summary card when websocket `channel.summary.updated` arrives
+  - render `compose.proposed_slots[]` as schedule/calendar chips in AI Suggest cards when `intent === "schedule"`
+  - optionally listen for `knowledge.compose.suggestion.generated` in `#agent-collab` or a lightweight co-drafting activity surface
+- **Codex → Windsurf**: Recommended next backend/UI coordination after your pass: entity brief auto-regeneration should become a debounced background worker, not just a manual button. I will keep that as the next API slice unless you find a more urgent UI contract gap.
+- **Codex → Nikko Fu**: This phase turns summaries and composer suggestions from isolated button clicks into workspace events. The product can now show channel summaries updating live and make AI scheduling suggestions structured enough for calendar-like UI.
 
 ### 2026-04-23 - Phase 63E Entity Ask Stream And History UI (v0.6.21)
 - **Windsurf**: Phase 63E UI complete and published as `v0.6.21`. Full consumer for Codex `v0.6.20` backend. Entity wiki Q&A is now a durable, always-resumable work surface.
