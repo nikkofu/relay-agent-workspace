@@ -40,6 +40,7 @@ interface DirectoryState {
   retryWorkflowRun: (id: string) => Promise<void>
   fetchWorkflowRunLogs: (id: string) => Promise<string[]>
   deleteWorkflowRun: (id: string) => Promise<void>
+  createWorkflow: (name: string, description: string, trigger: string) => Promise<boolean>
 }
 
 export const useDirectoryStore = create<DirectoryState>((set, get) => ({
@@ -278,6 +279,27 @@ export const useDirectoryStore = create<DirectoryState>((set, get) => ({
     } catch (error) {
       console.error("Failed to fetch workflow run logs:", error)
       return []
+    }
+  },
+
+  createWorkflow: async (name, description, trigger) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/workflows`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, description, trigger })
+      })
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        throw new Error(body.error || `HTTP ${response.status}`)
+      }
+      await get().fetchWorkflows()
+      toast.success("Workflow created")
+      return true
+    } catch (error) {
+      console.error("Failed to create workflow:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to create workflow")
+      return false
     }
   },
 

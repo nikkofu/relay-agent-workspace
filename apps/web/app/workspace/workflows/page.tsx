@@ -38,7 +38,7 @@ export default function WorkflowsPage() {
     workflows, workflowRuns, isWorkflowLoading,
     fetchWorkflows, fetchWorkflowRuns, triggerWorkflow,
     fetchWorkflowRunDetail, cancelWorkflowRun, retryWorkflowRun,
-    fetchWorkflowRunLogs, deleteWorkflowRun
+    fetchWorkflowRunLogs, deleteWorkflowRun, createWorkflow
   } = useDirectoryStore()
   
   const [activeTab, setActiveTab] = useState("all")
@@ -47,6 +47,7 @@ export default function WorkflowsPage() {
   const [isViewingLogs, setIsViewingLogs] = useState(false)
   const [logs, setLogs] = useState<string[]>([])
   const [isLogsLoading, setIsLogsLoading] = useState(false)
+  const [runningId, setRunningId] = useState<string | null>(null)
   const [selectedWorkflow, setSelectedWorkflow] = useState<any>(null)
   const [isViewingSettings, setIsViewingSettings] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
@@ -60,8 +61,14 @@ export default function WorkflowsPage() {
   }, [fetchWorkflows, fetchWorkflowRuns])
 
   const handleRun = async (id: string) => {
-    await triggerWorkflow(id)
-    fetchWorkflowRuns()
+    if (runningId) return
+    setRunningId(id)
+    try {
+      await triggerWorkflow(id)
+      fetchWorkflowRuns()
+    } finally {
+      setRunningId(null)
+    }
   }
 
   const handleViewRun = async (runId: string) => {
@@ -147,10 +154,11 @@ export default function WorkflowsPage() {
                         size="sm" 
                         variant="ghost"
                         className="h-8 px-3 text-[10px] font-black uppercase tracking-widest gap-2 bg-green-500/5 text-green-600 hover:bg-green-500/10"
-                        onClick={() => handleRun(wf.id)}
+                        disabled={runningId === wf.id}
+                        onClick={(e) => { e.stopPropagation(); handleRun(wf.id) }}
                       >
-                        <Play className="w-3 h-3 fill-current" />
-                        Run Now
+                        {runningId === wf.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3 fill-current" />}
+                        {runningId === wf.id ? 'Running…' : 'Run Now'}
                       </Button>
                     </CardContent>
                   </Card>
@@ -362,7 +370,12 @@ export default function WorkflowsPage() {
             <Button variant="ghost" onClick={() => setIsViewingSettings(false)}>Close</Button>
             <Button
               className="bg-green-600 hover:bg-green-700 text-white"
-              onClick={() => { setIsViewingSettings(false); selectedWorkflow && handleRun(selectedWorkflow.id) }}
+              disabled={!!(selectedWorkflow && runningId === selectedWorkflow.id)}
+              onClick={() => {
+                const id = selectedWorkflow?.id
+                setIsViewingSettings(false)
+                if (id) requestAnimationFrame(() => handleRun(id))
+              }}
             >
               <Play className="w-3.5 h-3.5 mr-1.5 fill-current" />
               Run Now
@@ -409,18 +422,11 @@ export default function WorkflowsPage() {
               className="bg-amber-500 hover:bg-amber-600 text-white"
               disabled={!newWfName.trim()}
               onClick={async () => {
-                try {
-                  const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080/api/v1'}/workflows`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: newWfName.trim(), description: newWfDesc.trim(), trigger: newWfTrigger })
-                  })
-                  if (res.ok) {
-                    fetchWorkflows()
-                    setIsCreating(false)
-                    setNewWfName(''); setNewWfDesc(''); setNewWfTrigger('manual')
-                  }
-                } catch {}
+                const ok = await createWorkflow(newWfName.trim(), newWfDesc.trim(), newWfTrigger)
+                if (ok) {
+                  setIsCreating(false)
+                  setNewWfName(''); setNewWfDesc(''); setNewWfTrigger('manual')
+                }
               }}
             >
               Create Workflow
