@@ -309,11 +309,52 @@ type AIComposeActivity struct {
 	ChannelID        string    `gorm:"index" json:"channel_id,omitempty"`
 	DMConversationID string    `gorm:"index" json:"dm_id,omitempty"`
 	ThreadID         string    `gorm:"index" json:"thread_id,omitempty"`
+	UserID           string    `gorm:"index:idx_ai_compose_activity_user_created" json:"user_id,omitempty"`
 	Intent           string    `gorm:"index" json:"intent"`
 	SuggestionCount  int       `json:"suggestion_count"`
 	Provider         string    `json:"provider"`
 	Model            string    `json:"model"`
-	CreatedAt        time.Time `gorm:"index" json:"created_at"`
+	CreatedAt        time.Time `gorm:"index;index:idx_ai_compose_activity_user_created" json:"created_at"`
+}
+
+type AIAutomationJob struct {
+	ID            string     `gorm:"primaryKey" json:"id"`
+	JobType       string     `gorm:"index:idx_ai_automation_scope_status" json:"job_type"`
+	ScopeType     string     `gorm:"index:idx_ai_automation_scope_status;index:idx_ai_automation_scope_created" json:"scope_type"`
+	ScopeID       string     `gorm:"index:idx_ai_automation_scope_status;index:idx_ai_automation_scope_created" json:"scope_id"`
+	WorkspaceID   string     `gorm:"index" json:"workspace_id"`
+	Status        string     `gorm:"index:idx_ai_automation_scope_status" json:"status"`
+	TriggerReason string     `json:"trigger_reason"`
+	DedupeKey     string     `gorm:"index" json:"dedupe_key"`
+	AttemptCount  int        `json:"attempt_count"`
+	LastError     string     `json:"last_error,omitempty"`
+	ScheduledAt   time.Time  `json:"scheduled_at"`
+	StartedAt     *time.Time `json:"started_at,omitempty"`
+	FinishedAt    *time.Time `json:"finished_at,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
+}
+
+type AIScheduleBooking struct {
+	ID                    string    `gorm:"primaryKey" json:"id"`
+	WorkspaceID           string    `gorm:"index" json:"workspace_id"`
+	ChannelID             string    `gorm:"index" json:"channel_id,omitempty"`
+	DMConversationID      string    `gorm:"index" json:"dm_id,omitempty"`
+	RequestedBy           string    `gorm:"index" json:"requested_by"`
+	IntentSourceComposeID string    `gorm:"index" json:"compose_id"`
+	Title                 string    `json:"title"`
+	Description           string    `json:"description"`
+	StartsAt              time.Time `gorm:"index" json:"starts_at"`
+	EndsAt                time.Time `json:"ends_at"`
+	Timezone              string    `json:"timezone"`
+	AttendeeIDsJSON       string    `json:"attendee_ids_json"`
+	Provider              string    `json:"provider"`
+	Status                string    `gorm:"index" json:"status"`
+	ExternalRef           string    `json:"external_ref,omitempty"`
+	ICSContent            string    `json:"ics_content,omitempty"`
+	LastError             string    `json:"last_error,omitempty"`
+	CreatedAt             time.Time `json:"created_at"`
+	UpdatedAt             time.Time `json:"updated_at"`
 }
 
 type DMMessage struct {

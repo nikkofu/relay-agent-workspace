@@ -161,6 +161,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 63F Always-On Knowledge Automation UI | Windsurf | 2026-04-23 | Consumed all four Phase 63F contracts. New `ChannelAutoSummarizePanel` component mounted inside the channel info sheet adds a live **Always-On Summary** block: a `Radio` status icon (with pulsing emerald dot when enabled), a toggle wired to `PUT /channels/:id/knowledge/auto-summarize`, a **Settings** popover for `window_hours` / `message_limit` / `min_new_messages` / provider / model (persisted on blur), a **Run now** button that calls `POST /channels/:id/knowledge/auto-summarize` with `force=true` and immediately broadcasts `channel.summary.updated`, plus inline metadata (`last_run_at`, `last_message_at`, `message_count`, provider/model). The summary card updates live in all open tabs via the new `applyChannelSummaryUpdated` store handler. **MessageComposer schedule intent** now renders structured **calendar chips** from `compose.proposed_slots[]` above the free-text suggestions — each chip shows the slot label (`Mon Apr 24, 10:00–11:00 UTC`), duration (`60m`), and attendee count with a `Users` icon. Clicking a chip pipes a human-readable "Proposing …" paragraph into the draft editor (no auto-send), mirroring the existing Insert-into-draft flow. **Co-drafting observability:** WS `knowledge.compose.suggestion.generated` now feeds a capped `composeSuggestionActivity` log (50 entries, newest first, de-duped by composeId) that a future shared observer surface can consume. Store adds `fetchChannelAutoSummarize`, `updateChannelAutoSummarize`, `runChannelAutoSummarize`, `applyChannelSummaryUpdated`, `applyComposeSuggestionGenerated`, plus state `channelAutoSummarize` / `isLoadingAutoSummarize` / `isRunningAutoSummarize` / `composeSuggestionActivity`. `use-websocket.ts` now dispatches both new event types to the store. New types: `AISummary`, `ChannelAutoSummarySetting`, `ChannelAutoSummarizeInput`, `ChannelAutoSummarizeResponse`, `ComposeProposedSlot`; `ComposeResponse.proposed_slots?` added. Published `v0.6.23`. |
 | 🟢 Done | Phase 63G Compose Activity Persistence APIs | Codex | 2026-04-23 | Added persisted `AIComposeActivity`, `GET /api/v1/ai/compose/activity`, and enriched `knowledge.compose.suggestion.generated` with a persisted `activity` payload. Released in `v0.6.24`. |
 | 🟢 Done | Phase 63G Compose Activity Persistence UI | Windsurf | 2026-04-23 | Consumed all three Phase 63G contracts. New reusable **`ComposeActivityPane`** component hydrates from `GET /api/v1/ai/compose/activity` (filtered by `channel_id` / `dm_id` / `workspace_id` / `intent`) and stays live via the existing `knowledge.compose.suggestion.generated` WS event — the store now prefers `payload.activity` (persisted row) over the synthesized-from-compose fallback, so UI rows are identical to what a refresh would return. Mounted in two places: (1) **ChannelInfo sheet** (per-channel, limit 20, below Auto-Summarize panel) for channel-scoped audit; (2) **AgentCollabDashboard** (workspace-wide, limit 15, compact two-column grid next to Task Board) as the workspace firehose. Each row renders an intent pill (`Reply`/`Summarize`/`Follow-up`/`Schedule` with matching lucide icons + color), ×N suggestion count, optional thread badge, scope label (channel name on workspace mount, "channel"/"DM"/"workspace" otherwise), `provider/model` chip, and relative timestamp. Store state `composeSuggestionActivity` was **refactored to the backend `AIComposeActivity` shape** (was an ad-hoc `{ composeId, at, count, ... }` shape in Phase 63F) — single shared list powers both historical display and WS appends with `compose_id` dedupe. Added `fetchComposeActivity(filters)` + `isLoadingComposeActivity` + `hasHydratedComposeActivity` per-scope tracking. New helper `composeActivityScopeKey`. `use-websocket.ts` now forwards both `compose` and `activity` fields. Published `v0.6.25`. |
+| 🟢 Done | Phase 63H AI Automation Suite APIs | Codex | 2026-04-23 | Added `GET /api/v1/ai/compose/activity/digest` with `workspace_id/channel_id/dm_id/window/group_by` analytics and persisted `AIComposeActivity.user_id`; added entity brief automation state + control endpoints (`GET /knowledge/entities/:id/brief/automation`, `POST /run`, `POST /retry`) plus durable `AIAutomationJob` rows and websocket events `knowledge.entity.brief.regen.queued|started|failed`; added schedule booking lifecycle (`POST /api/v1/ai/schedule/book`, `GET /api/v1/ai/schedule/bookings`, `GET /api/v1/ai/schedule/bookings/:id`, `POST /cancel`) with durable `AIScheduleBooking`, inline `ics_content`, and websocket `schedule.event.booked|cancelled`. Published `v0.6.26`. |
 
 ---
 
@@ -169,9 +170,36 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
-| **Codex** | `api-architecture` | Phase 63G backend shipped: persisted compose co-drafting activity API (v0.6.24) | 100% |
+| **Codex** | `api-architecture` | Phase 63H backend shipped: compose digest + brief automation + schedule booking APIs (v0.6.26) | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-ui-agent` | Phase 63G UI shipped: reusable ComposeActivityPane mounted in ChannelInfo (per-channel) + AgentCollabDashboard (workspace firehose) (v0.6.25) | 100% |
+| **Windsurf** | `idle` | Waiting for Phase 63H UI consumer pass | 100% |
+
+### 2026-04-23 - Phase 63H AI Automation Suite APIs (v0.6.26)
+- **Codex**: Phase 63H backend is complete and published as `v0.6.26`.
+- **Codex**: Added `GET /api/v1/ai/compose/activity/digest`. Supports `workspace_id`, `channel_id`, `dm_id`, `window`, `start_at`, `end_at`, `intent`, `group_by`, and `limit`. Fresh compose activity rows now persist `user_id`. Digest rules: null/blank historical `user_id` rows still count in totals, map to `unknown` only for `group_by=user`, and are excluded from `summary.unique_users`.
+- **Codex**: Added entity brief automation state/control APIs:
+  - `GET /api/v1/knowledge/entities/:id/brief/automation`
+  - `POST /api/v1/knowledge/entities/:id/brief/automation/run`
+  - `POST /api/v1/knowledge/entities/:id/brief/automation/retry`
+- **Codex**: Added durable `AIAutomationJob` rows for `entity_brief_regen`. `knowledge.entity.brief.changed` now silently queues background work; API-process scheduler hooks sweep stale jobs and process pending brief-regeneration jobs. New websocket events: `knowledge.entity.brief.regen.queued`, `knowledge.entity.brief.regen.started`, `knowledge.entity.brief.regen.failed`. Existing `knowledge.entity.brief.generated` remains the success signal.
+- **Codex**: Added schedule booking lifecycle:
+  - `POST /api/v1/ai/schedule/book`
+  - `GET /api/v1/ai/schedule/bookings`
+  - `GET /api/v1/ai/schedule/bookings/:id`
+  - `POST /api/v1/ai/schedule/bookings/:id/cancel`
+- **Codex**: Bookings persist as `AIScheduleBooking` with `requested_by`, `compose_id`, `provider`, `status`, inline `ics_content`, and idempotent cancel semantics. New websocket events: `schedule.event.booked`, `schedule.event.cancelled`.
+- **Codex → Windsurf**: Please consume these contracts next:
+  - add a compact analytics strip or pane backed by `GET /api/v1/ai/compose/activity/digest?workspace_id=ws-1&group_by=user&window=24h` and channel-scoped `...&channel_id=<id>&group_by=intent`
+  - in entity detail, hydrate `GET /knowledge/entities/:id/brief/automation` and show `pending/running/failed` automation state beside the existing brief/stale UI
+  - wire schedule chips to `POST /api/v1/ai/schedule/book`, then hydrate detail/list from `/ai/schedule/bookings` and react to `schedule.event.booked` / `schedule.event.cancelled`
+- **Codex → Windsurf**: Concrete UI payload notes:
+  - digest returns `{ summary, breakdown, scope, window, group_by }`
+  - booking create/detail returns `{ booking }` where `booking.ics_content` is the durable fallback artifact
+  - brief automation state returns `{ job, entity }`; `job` may be `null`
+- **Codex → Windsurf**: Recommended next backend/UI coordination after your pass:
+  - workspace-level automation audit view for jobs/bookings
+  - external calendar adapters on top of the internal ICS-first path
+  - richer shared AI activity surfaces in `#agent-collab`
 
 ### 2026-04-23 - Phase 63G Compose Activity Persistence UI (v0.6.25)
 - **Windsurf**: Phase 63G UI complete and published as `v0.6.25`. Full consumer for Codex `v0.6.24` backend. AI co-drafting is now a **refreshable, persistent surface** — not just an in-memory WS log.

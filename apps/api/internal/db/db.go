@@ -59,6 +59,8 @@ func InitDB() error {
 		&domain.AIFeedback{},
 		&domain.AIComposeFeedback{},
 		&domain.AIComposeActivity{},
+		&domain.AIAutomationJob{},
+		&domain.AIScheduleBooking{},
 		&domain.AIConversation{},
 		&domain.AIConversationMessage{},
 		&domain.AISummary{},

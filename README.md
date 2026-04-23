@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.6.24` is the current release line and includes:
+`v0.6.26` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -88,8 +88,25 @@ For product, design, and marketing, the short version is:
 - structured schedule intent slots via `compose.proposed_slots[]`
 - realtime compose suggestion broadcasts via websocket `knowledge.compose.suggestion.generated`
 - persisted compose suggestion activity via `GET /api/v1/ai/compose/activity`
+- aggregated compose suggestion analytics via `GET /api/v1/ai/compose/activity/digest`
 - per-suggestion composer feedback capture via `POST /api/v1/ai/compose/:id/feedback`
 - composer feedback aggregation via `GET /api/v1/ai/compose/:id/feedback/summary`
+- entity brief automation state via:
+  - `GET /api/v1/knowledge/entities/:id/brief/automation`
+  - `POST /api/v1/knowledge/entities/:id/brief/automation/run`
+  - `POST /api/v1/knowledge/entities/:id/brief/automation/retry`
+- background entity brief regeneration websocket events:
+  - `knowledge.entity.brief.regen.queued`
+  - `knowledge.entity.brief.regen.started`
+  - `knowledge.entity.brief.regen.failed`
+- AI schedule booking APIs:
+  - `POST /api/v1/ai/schedule/book`
+  - `GET /api/v1/ai/schedule/bookings`
+  - `GET /api/v1/ai/schedule/bookings/:id`
+  - `POST /api/v1/ai/schedule/bookings/:id/cancel`
+- AI schedule booking websocket events:
+  - `schedule.event.booked`
+  - `schedule.event.cancelled`
 - weekly brief snapshot sharing via `POST /api/v1/knowledge/weekly-brief/:id/share`
 - historical knowledge activity backfill status and execution via `GET /api/v1/knowledge/entities/:id/activity/backfill-status` and `POST /api/v1/knowledge/entities/:id/activity/backfill`
 - realtime followed-stats deltas via websocket `knowledge.followed.stats.changed`
@@ -191,6 +208,7 @@ For product, design, and marketing, the short version is:
   - `POST /api/v1/ai/compose`
   - `POST /api/v1/ai/compose/stream`
   - `GET /api/v1/ai/compose/activity`
+  - `GET /api/v1/ai/compose/activity/digest`
   - `POST /api/v1/ai/compose/:id/feedback`
   - `GET /api/v1/ai/compose/:id/feedback/summary`
   - Compose scope accepts exactly one of `channel_id` or `dm_id`; `thread_id` remains optional for channel thread context.
@@ -228,6 +246,9 @@ For product, design, and marketing, the short version is:
   - `GET /api/v1/knowledge/entities/:id/hover`
   - `GET /api/v1/knowledge/entities/:id/brief`
   - `POST /api/v1/knowledge/entities/:id/brief`
+  - `GET /api/v1/knowledge/entities/:id/brief/automation`
+  - `POST /api/v1/knowledge/entities/:id/brief/automation/run`
+  - `POST /api/v1/knowledge/entities/:id/brief/automation/retry`
   - `POST /api/v1/knowledge/entities/:id/ask`
   - `POST /api/v1/knowledge/entities/:id/ask/stream`
   - `GET /api/v1/knowledge/entities/:id/ask/history`
@@ -261,6 +282,14 @@ For product, design, and marketing, the short version is:
   - `knowledge.trending.changed`
   - `knowledge.followed.stats.changed`
   - `knowledge.entity.brief.generated`
+  - `knowledge.entity.brief.regen.queued`
+  - `knowledge.entity.brief.regen.started`
+  - `knowledge.entity.brief.regen.failed`
+- AI schedule booking APIs:
+  - `POST /api/v1/ai/schedule/book`
+  - `GET /api/v1/ai/schedule/bookings`
+  - `GET /api/v1/ai/schedule/bookings/:id`
+  - `POST /api/v1/ai/schedule/bookings/:id/cancel`
 - Channel notification preferences and self-service leave-channel API
 - Structured workspace list APIs for shared checklists and operational tracking
 - Artifact template APIs and virtual `new-doc` bootstrap support for canvas-first creation

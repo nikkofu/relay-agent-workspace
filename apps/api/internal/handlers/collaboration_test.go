@@ -5947,6 +5947,260 @@ func TestPhase63GComposeActivityPersistsAndLists(t *testing.T) {
 	}
 }
 
+func TestPhase63HComposeActivityDigest(t *testing.T) {
+	setupTestDB(t)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.User{ID: "user-2", Name: "Jane Smith", Email: "jane@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+
+	db.DB.Create(&domain.AIComposeActivity{
+		ID:              "compose-activity-1",
+		ComposeID:       "compose-1",
+		WorkspaceID:     "ws-1",
+		ChannelID:       "ch-1",
+		UserID:          "user-1",
+		Intent:          "reply",
+		SuggestionCount: 2,
+		Provider:        "openrouter",
+		Model:           "nemotron",
+		CreatedAt:       now.Add(-20 * time.Minute),
+	})
+	db.DB.Create(&domain.AIComposeActivity{
+		ID:              "compose-activity-2",
+		ComposeID:       "compose-2",
+		WorkspaceID:     "ws-1",
+		ChannelID:       "ch-1",
+		UserID:          "",
+		Intent:          "reply",
+		SuggestionCount: 1,
+		Provider:        "openrouter",
+		Model:           "nemotron",
+		CreatedAt:       now.Add(-10 * time.Minute),
+	})
+	db.DB.Create(&domain.AIComposeActivity{
+		ID:              "compose-activity-3",
+		ComposeID:       "compose-3",
+		WorkspaceID:     "ws-1",
+		ChannelID:       "ch-1",
+		UserID:          "user-2",
+		Intent:          "schedule",
+		SuggestionCount: 3,
+		Provider:        "gemini",
+		Model:           "gemini-2.5-pro",
+		CreatedAt:       now.Add(-5 * time.Minute),
+	})
+
+	router := gin.New()
+	router.GET("/api/v1/ai/compose/activity/digest", GetAIComposeActivityDigest)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/ai/compose/activity/digest?workspace_id=ws-1&channel_id=ch-1&window=24h&group_by=user&limit=10", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 on compose activity digest, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Summary struct {
+			TotalRequests int `json:"total_requests"`
+			UniqueUsers   int `json:"unique_users"`
+		} `json:"summary"`
+		Breakdown []struct {
+			Key   string `json:"key"`
+			Count int    `json:"count"`
+		} `json:"breakdown"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode compose activity digest payload: %v", err)
+	}
+	if payload.Summary.TotalRequests != 3 {
+		t.Fatalf("expected 3 compose requests, got %#v", payload.Summary)
+	}
+	if payload.Summary.UniqueUsers != 2 {
+		t.Fatalf("expected null user rows to be excluded from unique_users, got %#v", payload.Summary)
+	}
+	if len(payload.Breakdown) < 2 {
+		t.Fatalf("expected grouped digest rows, got %#v", payload.Breakdown)
+	}
+	foundUnknown := false
+	for _, item := range payload.Breakdown {
+		if item.Key == "unknown" {
+			foundUnknown = true
+		}
+	}
+	if !foundUnknown {
+		t.Fatalf("expected null user rows to map to unknown in user grouping, got %#v", payload.Breakdown)
+	}
+}
+
+func TestPhase63HEntityBriefAutomationLifecycle(t *testing.T) {
+	setupTestDB(t)
+
+	hub := realtime.NewHub()
+	go hub.Run()
+	SetRealtimeHub(hub)
+	defer SetRealtimeHub(nil)
+
+	client := realtime.NewTestClient(8)
+	hub.RegisterTestClient(client)
+	defer hub.UnregisterTestClient(client)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.Workspace{ID: "ws-1", Name: "Relay"})
+	db.DB.Create(&domain.KnowledgeEntity{
+		ID:          "entity-1",
+		WorkspaceID: "ws-1",
+		Kind:        "project",
+		Title:       "Launch Program",
+		Status:      "active",
+		SourceKind:  "manual",
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	})
+	db.DB.Create(&domain.AISummary{
+		ScopeType: "knowledge_entity",
+		ScopeID:   "entity-1",
+		ChannelID: "",
+		Provider:  "openrouter",
+		Model:     "nemotron",
+		Content:   "Existing cached brief",
+		CreatedAt: now.Add(-time.Hour),
+		UpdatedAt: now.Add(-time.Hour),
+	})
+
+	router := gin.New()
+	router.GET("/api/v1/knowledge/entities/:id/brief/automation", GetKnowledgeEntityBriefAutomation)
+	router.POST("/api/v1/knowledge/entities/:id/brief/automation/run", RunKnowledgeEntityBriefAutomation)
+	router.POST("/api/v1/knowledge/entities/:id/brief/automation/retry", RetryKnowledgeEntityBriefAutomation)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/entities/entity-1/brief/automation/run", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("expected 202 when queueing entity brief automation, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	assertRealtimeEventType(t, client, "knowledge.entity.brief.regen.queued")
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/knowledge/entities/entity-1/brief/automation", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 when loading entity brief automation state, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Job domain.AIAutomationJob `json:"job"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode entity brief automation payload: %v", err)
+	}
+	if payload.Job.ScopeID != "entity-1" || payload.Job.Status != "pending" || payload.Job.JobType != "entity_brief_regen" {
+		t.Fatalf("unexpected entity brief automation job: %#v", payload.Job)
+	}
+
+	if err := db.DB.Model(&domain.AIAutomationJob{}).Where("id = ?", payload.Job.ID).Updates(map[string]any{
+		"status":      "failed",
+		"last_error":  "provider timeout",
+		"finished_at": now,
+	}).Error; err != nil {
+		t.Fatalf("mark automation job failed: %v", err)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/entities/entity-1/brief/automation/retry", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("expected 202 when retrying entity brief automation, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	assertRealtimeEventType(t, client, "knowledge.entity.brief.regen.queued")
+}
+
+func TestPhase63HScheduleBookingLifecycle(t *testing.T) {
+	setupTestDB(t)
+
+	hub := realtime.NewHub()
+	go hub.Run()
+	SetRealtimeHub(hub)
+	defer SetRealtimeHub(nil)
+
+	client := realtime.NewTestClient(8)
+	hub.RegisterTestClient(client)
+	defer hub.UnregisterTestClient(client)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.User{ID: "user-2", Name: "Jane Smith", Email: "jane@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	db.DB.Create(&domain.AIComposeActivity{
+		ID:              "compose-activity-1",
+		ComposeID:       "compose-1",
+		WorkspaceID:     "ws-1",
+		ChannelID:       "ch-1",
+		UserID:          "user-1",
+		Intent:          "schedule",
+		SuggestionCount: 1,
+		Provider:        "openrouter",
+		Model:           "nemotron",
+		CreatedAt:       now.Add(-15 * time.Minute),
+	})
+
+	router := gin.New()
+	router.POST("/api/v1/ai/schedule/book", BookAISchedule)
+	router.GET("/api/v1/ai/schedule/bookings", ListAIScheduleBookings)
+	router.GET("/api/v1/ai/schedule/bookings/:id", GetAIScheduleBooking)
+	router.POST("/api/v1/ai/schedule/bookings/:id/cancel", CancelAIScheduleBooking)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/ai/schedule/book", strings.NewReader(`{"compose_id":"compose-1","channel_id":"ch-1","title":"Launch standup","description":"Review release blockers","provider":"internal","slot":{"starts_at":"2026-04-23T09:00:00Z","ends_at":"2026-04-23T09:30:00Z","timezone":"UTC","attendee_ids":["user-1","user-2"]}}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 when booking schedule slot, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	assertRealtimeEventType(t, client, "schedule.event.booked")
+
+	var createPayload struct {
+		Booking struct {
+			ID          string `json:"id"`
+			RequestedBy string `json:"requested_by"`
+			Status      string `json:"status"`
+			Provider    string `json:"provider"`
+			ICSContent  string `json:"ics_content"`
+		} `json:"booking"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &createPayload); err != nil {
+		t.Fatalf("decode schedule booking payload: %v", err)
+	}
+	if createPayload.Booking.ID == "" || createPayload.Booking.Status != "booked" || createPayload.Booking.RequestedBy != "user-1" || createPayload.Booking.ICSContent == "" {
+		t.Fatalf("unexpected schedule booking payload: %#v", createPayload.Booking)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/ai/schedule/bookings?channel_id=ch-1", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 when listing schedule bookings, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/ai/schedule/bookings/"+createPayload.Booking.ID, nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 when fetching schedule booking detail, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/ai/schedule/bookings/"+createPayload.Booking.ID+"/cancel", nil)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 when cancelling schedule booking, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	assertRealtimeEventType(t, client, "schedule.event.cancelled")
+}
+
 func TestMatchKnowledgeEntitiesInTextEndpoint(t *testing.T) {
 	setupTestDB(t)
 	now := time.Now().UTC()
@@ -6258,7 +6512,7 @@ func setupTestDB(t *testing.T) {
 	if err := db.DB.AutoMigrate(&domain.Organization{}, &domain.Team{}, &domain.User{}, &domain.Agent{}, &domain.Workspace{}, &domain.WorkspaceInvite{}, &domain.UserGroup{}, &domain.UserGroupMember{}, &domain.WorkflowDefinition{}, &domain.WorkflowRunStep{}, &domain.WorkflowRunLog{}, &domain.ToolDefinition{}, &domain.ToolRun{}, &domain.ToolRunLog{}, &domain.Channel{}, &domain.ChannelMember{}, &domain.ChannelPreference{}, &domain.WorkspaceList{}, &domain.WorkspaceListItem{}, &domain.Message{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
-	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.NotificationPreference{}, &domain.NotificationMuteRule{}, &domain.AIFeedback{}, &domain.AIComposeFeedback{}, &domain.AIComposeActivity{}, &domain.AIConversation{}, &domain.AIConversationMessage{}, &domain.AISummary{}, &domain.ChannelAutoSummarySetting{}, &domain.KnowledgeEntityAskAnswer{}, &domain.Artifact{}, &domain.ArtifactVersion{}, &domain.FileAsset{}, &domain.FileAssetEvent{}, &domain.FileExtraction{}, &domain.FileExtractionChunk{}, &domain.FileComment{}, &domain.FileShare{}, &domain.StarredFile{}, &domain.MessageArtifactReference{}, &domain.MessageFileAttachment{}, &domain.KnowledgeEvidenceLink{}, &domain.KnowledgeEvidenceEntityRef{}, &domain.KnowledgeEntity{}, &domain.KnowledgeEntityRef{}, &domain.KnowledgeEntityLink{}, &domain.KnowledgeEvent{}, &domain.KnowledgeEntityFollow{}, &domain.KnowledgeDigestSchedule{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}, &domain.WorkflowRun{}); err != nil {
+	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.NotificationPreference{}, &domain.NotificationMuteRule{}, &domain.AIFeedback{}, &domain.AIComposeFeedback{}, &domain.AIComposeActivity{}, &domain.AIAutomationJob{}, &domain.AIScheduleBooking{}, &domain.AIConversation{}, &domain.AIConversationMessage{}, &domain.AISummary{}, &domain.ChannelAutoSummarySetting{}, &domain.KnowledgeEntityAskAnswer{}, &domain.Artifact{}, &domain.ArtifactVersion{}, &domain.FileAsset{}, &domain.FileAssetEvent{}, &domain.FileExtraction{}, &domain.FileExtractionChunk{}, &domain.FileComment{}, &domain.FileShare{}, &domain.StarredFile{}, &domain.MessageArtifactReference{}, &domain.MessageFileAttachment{}, &domain.KnowledgeEvidenceLink{}, &domain.KnowledgeEvidenceEntityRef{}, &domain.KnowledgeEntity{}, &domain.KnowledgeEntityRef{}, &domain.KnowledgeEntityLink{}, &domain.KnowledgeEvent{}, &domain.KnowledgeEntityFollow{}, &domain.KnowledgeDigestSchedule{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}, &domain.WorkflowRun{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 }

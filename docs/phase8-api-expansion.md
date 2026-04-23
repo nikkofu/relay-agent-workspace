@@ -185,9 +185,21 @@ Current backend surface already available:
 - `GET /api/v1/ai/conversations/:id`
 - `POST /api/v1/ai/compose`
 - `POST /api/v1/ai/compose/stream`
+- `GET /api/v1/ai/compose/activity`
+- `GET /api/v1/ai/compose/activity/digest`
 - `POST /api/v1/ai/compose/:id/feedback`
+- `GET /api/v1/ai/compose/:id/feedback/summary`
+- `POST /api/v1/ai/schedule/book`
+- `GET /api/v1/ai/schedule/bookings`
+- `GET /api/v1/ai/schedule/bookings/:id`
+- `POST /api/v1/ai/schedule/bookings/:id/cancel`
 - `POST /api/v1/ai/execute`
 - `POST /api/v1/ai/feedback`
+- `GET /api/v1/knowledge/entities/:id/brief`
+- `POST /api/v1/knowledge/entities/:id/brief`
+- `GET /api/v1/knowledge/entities/:id/brief/automation`
+- `POST /api/v1/knowledge/entities/:id/brief/automation/run`
+- `POST /api/v1/knowledge/entities/:id/brief/automation/retry`
 - `GET /api/v1/realtime`
 
 ## 4. Remaining Backend Targets
@@ -217,6 +229,13 @@ Baseline support now exists for:
 - `GET /api/v1/ai/conversations`
 - `GET /api/v1/ai/conversations/:id`
 - persisted AI history behind `POST /api/v1/ai/execute`
+- persisted compose activity behind `GET /api/v1/ai/compose/activity`
+- aggregated compose activity analytics behind `GET /api/v1/ai/compose/activity/digest`
+- durable schedule booking lifecycle behind:
+  - `POST /api/v1/ai/schedule/book`
+  - `GET /api/v1/ai/schedule/bookings`
+  - `GET /api/v1/ai/schedule/bookings/:id`
+  - `POST /api/v1/ai/schedule/bookings/:id/cancel`
 - `GET /api/v1/messages/:id/summary`
 - `POST /api/v1/messages/:id/summary`
 - `GET /api/v1/channels/:id/summary`
@@ -227,6 +246,7 @@ Likely follow-ups:
 - command execution and tool orchestration history
 - artifact outputs linked to AI conversations
 - intelligent or semantic retrieval routed through persisted workspace knowledge
+- real external calendar provider adapters on top of the internal ICS-first booking path
 
 ### 4.3 Canvas / Artifact Lifecycle
 
@@ -254,6 +274,30 @@ Likely follow-ups:
 - artifact templates and generation presets
 - richer template galleries grouped by workflow or team use case
 - richer fork lineage metadata and compare-original affordances
+
+### 4.3A Knowledge Automation
+
+Baseline support now exists for:
+
+- cached entity briefs:
+  - `GET /api/v1/knowledge/entities/:id/brief`
+  - `POST /api/v1/knowledge/entities/:id/brief`
+- durable entity brief automation state:
+  - `GET /api/v1/knowledge/entities/:id/brief/automation`
+  - `POST /api/v1/knowledge/entities/:id/brief/automation/run`
+  - `POST /api/v1/knowledge/entities/:id/brief/automation/retry`
+- websocket events:
+  - `knowledge.entity.brief.changed`
+  - `knowledge.entity.brief.generated`
+  - `knowledge.entity.brief.regen.queued`
+  - `knowledge.entity.brief.regen.started`
+  - `knowledge.entity.brief.regen.failed`
+
+Likely follow-ups:
+
+- richer automation inspection UI per entity and per workspace
+- retry/backoff policy tuning
+- generic automation audit views once more job types exist
 
 ### 4.4 Files
 

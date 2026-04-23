@@ -1379,6 +1379,7 @@ func persistComposeActivity(response composePayload) (domain.AIComposeActivity, 
 		composeID = ids.NewPrefixedUUID("compose")
 	}
 	workspaceID := composeWorkspaceID(response)
+	currentUser, _ := getCurrentUser()
 	now := time.Now().UTC()
 	activity := domain.AIComposeActivity{
 		ID:               ids.NewPrefixedUUID("compose-activity"),
@@ -1387,6 +1388,7 @@ func persistComposeActivity(response composePayload) (domain.AIComposeActivity, 
 		ChannelID:        response.ChannelID,
 		DMConversationID: response.DMID,
 		ThreadID:         response.ThreadID,
+		UserID:           currentUser.ID,
 		Intent:           response.Intent,
 		SuggestionCount:  len(response.Suggestions),
 		Provider:         response.Provider,

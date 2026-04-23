@@ -1533,6 +1533,7 @@ func emitKnowledgeBriefChanged(entityID, reason string) error {
 	if err != nil {
 		return err
 	}
+	_, _, _ = queueKnowledgeEntityBriefAutomation(entity, strings.TrimSpace(reason), time.Now().UTC())
 	return broadcastKnowledgeEvent("knowledge.entity.brief.changed", entity.WorkspaceID, "", entity.ID, gin.H{
 		"brief": gin.H{
 			"entity_id":    entity.ID,

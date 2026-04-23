@@ -2,6 +2,56 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.26] - 2026-04-23
+
+This release implements Codex Phase 63H, turning the AI compose and knowledge layer from refreshable signals into a more complete automation suite.
+
+### Added
+
+- **Compose activity digest API**:
+  - `GET /api/v1/ai/compose/activity/digest`
+  - Supports `workspace_id`, `channel_id`, `dm_id`, `window`, `start_at`, `end_at`, `intent`, `group_by`, and `limit`.
+  - New `AIComposeActivity.user_id` persistence for fresh rows.
+  - Historical null-user rows stay counted in totals, map to `unknown` only for `group_by=user`, and are excluded from `summary.unique_users`.
+- **Entity brief automation APIs**:
+  - `GET /api/v1/knowledge/entities/:id/brief/automation`
+  - `POST /api/v1/knowledge/entities/:id/brief/automation/run`
+  - `POST /api/v1/knowledge/entities/:id/brief/automation/retry`
+  - Added durable `AIAutomationJob` rows for `entity_brief_regen`.
+  - `knowledge.entity.brief.changed` now queues background regeneration work.
+  - Added websocket events:
+    - `knowledge.entity.brief.regen.queued`
+    - `knowledge.entity.brief.regen.started`
+    - `knowledge.entity.brief.regen.failed`
+  - Added API-process scheduler hooks for stale sweep + pending job processing.
+- **Schedule booking APIs**:
+  - `POST /api/v1/ai/schedule/book`
+  - `GET /api/v1/ai/schedule/bookings`
+  - `GET /api/v1/ai/schedule/bookings/:id`
+  - `POST /api/v1/ai/schedule/bookings/:id/cancel`
+  - Added durable `AIScheduleBooking` rows with `requested_by`, inline `ics_content`, provider/status fields, and idempotent cancel semantics.
+  - Added websocket events:
+    - `schedule.event.booked`
+    - `schedule.event.cancelled`
+
+### Windsurf Handoff
+
+- Add a digest strip or detail panel using `GET /api/v1/ai/compose/activity/digest?workspace_id=...&group_by=user` and `...&channel_id=...&group_by=intent`.
+- Surface `user_id` on compose activity rows by hydrating existing user-store display names; treat missing users as `Unknown`.
+- On entity detail pages, hydrate `GET /knowledge/entities/:id/brief/automation` so the stale-ring card can show `pending/running/failed` automation state in addition to the existing brief cache.
+- Wire schedule chips to `POST /api/v1/ai/schedule/book`, then hydrate list/detail from `/ai/schedule/bookings` and react to `schedule.event.booked` / `schedule.event.cancelled`.
+
+### Verification Used For This Release
+
+- `go test ./internal/handlers -run TestPhase63H -count=1`
+- `go test ./internal/handlers -count=1`
+- `go test ./internal/automation -count=1`
+- `go test ./...`
+- `GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+- `pnpm --filter relay-agent-workspace exec tsc --noEmit`
+- `git diff --check`
+
 ## [0.6.24] - 2026-04-23
 
 This release implements Codex Phase 63G, making AI compose co-drafting activity durable after Windsurf's `v0.6.23` always-on summary UI pass.
