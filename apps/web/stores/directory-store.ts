@@ -100,13 +100,18 @@ export const useDirectoryStore = create<DirectoryState>((set, get) => ({
   triggerWorkflow: async (id) => {
     try {
       const response = await fetch(`${API_BASE_URL}/workflows/${id}/runs`, {
-        method: "POST"
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({})
       })
-      if (!response.ok) throw new Error("Trigger failed")
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        throw new Error(body.error || `HTTP ${response.status}`)
+      }
       toast.success("Workflow triggered successfully")
     } catch (error) {
       console.error("Failed to trigger workflow:", error)
-      toast.error("Failed to trigger workflow")
+      toast.error(error instanceof Error ? error.message : "Failed to trigger workflow")
     }
   },
 

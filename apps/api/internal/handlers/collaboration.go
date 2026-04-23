@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -19,6 +21,7 @@ import (
 	"github.com/nikkofu/relay-agent-workspace/api/internal/domain"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/ids"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/knowledge"
+	"github.com/nikkofu/relay-agent-workspace/api/internal/llm"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/realtime"
 )
 
@@ -1512,6 +1515,94 @@ func CreateDMMessage(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"message": message})
+
+	// Trigger AI auto-reply in background if the other DM participant is an AI user
+	go triggerAIDMReply(dmID, input.Content, input.UserID)
+}
+
+func isAIUser(user domain.User) bool {
+	name := strings.ToLower(strings.TrimSpace(user.Name))
+	email := strings.ToLower(strings.TrimSpace(user.Email))
+	return strings.Contains(name, "ai assistant") ||
+		strings.Contains(name, "assistant") ||
+		strings.HasPrefix(email, "ai@") ||
+		strings.Contains(email, "ai-assistant")
+}
+
+func buildDMAIPrompt(aiUser domain.User, recentMessages []domain.DMMessage, latestMessage string) string {
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "You are %s, a helpful AI assistant embedded in a team collaboration workspace.\n", aiUser.Name)
+	sb.WriteString("Respond helpfully and concisely to the user's message. Be conversational and professional.\n\n")
+	if len(recentMessages) > 0 {
+		sb.WriteString("Recent conversation context (oldest first):\n")
+		for i := len(recentMessages) - 1; i >= 0; i-- {
+			msg := recentMessages[i]
+			role := "User"
+			if msg.UserID == aiUser.ID {
+				role = aiUser.Name
+			}
+			fmt.Fprintf(&sb, "%s: %s\n", role, msg.Content)
+		}
+		sb.WriteString("\n")
+	}
+	fmt.Fprintf(&sb, "User's latest message: %s\n\nYour response:", latestMessage)
+	return sb.String()
+}
+
+func triggerAIDMReply(dmID, userMessage, senderUserID string) {
+	if AIGateway == nil {
+		return
+	}
+	var otherMember domain.DMMember
+	if err := db.DB.Where("dm_conversation_id = ? AND user_id <> ?", dmID, senderUserID).First(&otherMember).Error; err != nil {
+		return
+	}
+	var aiUser domain.User
+	if err := db.DB.First(&aiUser, "id = ?", otherMember.UserID).Error; err != nil {
+		return
+	}
+	if !isAIUser(aiUser) {
+		return
+	}
+	var recentMessages []domain.DMMessage
+	_ = db.DB.Where("dm_conversation_id = ?", dmID).Order("created_at desc").Limit(10).Find(&recentMessages).Error
+	prompt := buildDMAIPrompt(aiUser, recentMessages, userMessage)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	session, err := AIGateway.Stream(ctx, llm.Request{Prompt: prompt})
+	if err != nil {
+		log.Printf("[ai-dm] gateway error: %v", err)
+		return
+	}
+	var reply strings.Builder
+	for event := range session.Events {
+		if event.Type == "chunk" {
+			reply.WriteString(event.Text)
+		}
+	}
+	replyContent := strings.TrimSpace(reply.String())
+	if replyContent == "" {
+		return
+	}
+	now := time.Now().UTC()
+	aiMessage := domain.DMMessage{
+		ID:               ids.NewPrefixedUUID("dm-msg"),
+		DMConversationID: dmID,
+		UserID:           aiUser.ID,
+		Content:          replyContent,
+		CreatedAt:        now,
+	}
+	if err := db.DB.Create(&aiMessage).Error; err != nil {
+		log.Printf("[ai-dm] failed to save reply: %v", err)
+		return
+	}
+	_ = broadcastDMRealtimeEvent(dmID, aiMessage.ID, gin.H{
+		"id":         aiMessage.ID,
+		"dm_id":      aiMessage.DMConversationID,
+		"user_id":    aiMessage.UserID,
+		"content":    aiMessage.Content,
+		"created_at": aiMessage.CreatedAt,
+	})
 }
 
 func GetActivity(c *gin.Context) {

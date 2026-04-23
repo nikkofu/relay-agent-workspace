@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -659,6 +660,177 @@ func DeleteUserGroup(c *gin.Context) {
 
 func GetWorkflows(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"workflows": listActiveWorkflows()})
+}
+
+func CreateWorkflowDefinition(c *gin.Context) {
+	var input struct {
+		Name        string `json:"name" binding:"required"`
+		Description string `json:"description"`
+		Trigger     string `json:"trigger"`
+		Category    string `json:"category"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	now := time.Now().UTC()
+	wf := domain.WorkflowDefinition{
+		ID:          ids.NewPrefixedUUID("wf"),
+		Name:        strings.TrimSpace(input.Name),
+		Description: strings.TrimSpace(input.Description),
+		Trigger:     defaultString(strings.TrimSpace(input.Trigger), "manual"),
+		Category:    defaultString(strings.TrimSpace(input.Category), "custom"),
+		IsActive:    true,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	if err := db.DB.Create(&wf).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create workflow"})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"workflow": wf})
+}
+
+func GetActivityFeed(c *gin.Context) {
+	workspaceID := strings.TrimSpace(c.Query("workspace_id"))
+	limitStr := strings.TrimSpace(c.Query("limit"))
+	cursor := strings.TrimSpace(c.Query("cursor"))
+	limit := 20
+	if n, err := strconv.Atoi(limitStr); err == nil && n > 0 && n <= 100 {
+		limit = n
+	}
+
+	type feedItem struct {
+		ID          string         `json:"id"`
+		Type        string         `json:"type"`
+		WorkspaceID string         `json:"workspace_id"`
+		ActorID     string         `json:"actor_id"`
+		Actor       domain.User    `json:"actor"`
+		Content     string         `json:"content"`
+		Metadata    map[string]any `json:"metadata"`
+		CreatedAt   time.Time      `json:"created_at"`
+	}
+
+	items := make([]feedItem, 0, limit*4)
+	var cursorTime time.Time
+	if cursor != "" {
+		cursorTime, _ = time.Parse(time.RFC3339Nano, cursor)
+	}
+
+	// 1. Channel messages
+	var messages []domain.Message
+	msgQ := db.DB.Order("created_at desc").Limit(limit)
+	if workspaceID != "" {
+		var channelIDs []string
+		db.DB.Model(&domain.Channel{}).Where("workspace_id = ?", workspaceID).Pluck("id", &channelIDs)
+		if len(channelIDs) > 0 {
+			msgQ = msgQ.Where("channel_id IN ? AND thread_id = ''", channelIDs)
+		} else {
+			msgQ = msgQ.Where("1=0")
+		}
+	}
+	if !cursorTime.IsZero() {
+		msgQ = msgQ.Where("created_at < ?", cursorTime)
+	}
+	_ = msgQ.Find(&messages).Error
+	for _, m := range messages {
+		var actor domain.User
+		_ = db.DB.First(&actor, "id = ?", m.UserID).Error
+		items = append(items, feedItem{
+			ID: m.ID, Type: "message", WorkspaceID: workspaceID,
+			ActorID: m.UserID, Actor: enrichUser(actor),
+			Content: m.Content, Metadata: map[string]any{"channel_id": m.ChannelID},
+			CreatedAt: m.CreatedAt,
+		})
+	}
+
+	// 2. Compose activities
+	var composeActivities []domain.AIComposeActivity
+	compQ := db.DB.Order("created_at desc").Limit(limit)
+	if workspaceID != "" {
+		compQ = compQ.Where("workspace_id = ?", workspaceID)
+	}
+	if !cursorTime.IsZero() {
+		compQ = compQ.Where("created_at < ?", cursorTime)
+	}
+	_ = compQ.Find(&composeActivities).Error
+	for _, a := range composeActivities {
+		var actor domain.User
+		_ = db.DB.First(&actor, "id = ?", a.UserID).Error
+		items = append(items, feedItem{
+			ID: a.ID, Type: "compose_activity", WorkspaceID: a.WorkspaceID,
+			ActorID: a.UserID, Actor: enrichUser(actor),
+			Content:   "Used AI Compose (" + a.Intent + ")",
+			Metadata:  map[string]any{"intent": a.Intent, "channel_id": a.ChannelID, "provider": a.Provider, "model": a.Model},
+			CreatedAt: a.CreatedAt,
+		})
+	}
+
+	// 3. Knowledge ask answers
+	var askAnswers []domain.KnowledgeEntityAskAnswer
+	askQ := db.DB.Order("created_at desc").Limit(limit)
+	if workspaceID != "" {
+		askQ = askQ.Where("workspace_id = ?", workspaceID)
+	}
+	if !cursorTime.IsZero() {
+		askQ = askQ.Where("created_at < ?", cursorTime)
+	}
+	_ = askQ.Find(&askAnswers).Error
+	for _, a := range askAnswers {
+		var actor domain.User
+		_ = db.DB.First(&actor, "id = ?", a.UserID).Error
+		items = append(items, feedItem{
+			ID: a.ID, Type: "knowledge_ask", WorkspaceID: a.WorkspaceID,
+			ActorID: a.UserID, Actor: enrichUser(actor),
+			Content:   "Asked knowledge: " + a.Question,
+			Metadata:  map[string]any{"entity_id": a.EntityID},
+			CreatedAt: a.CreatedAt,
+		})
+	}
+
+	// 4. Workflow runs (automation_job)
+	var runs []domain.WorkflowRun
+	runQ := db.DB.Order("started_at desc").Limit(limit)
+	if !cursorTime.IsZero() {
+		runQ = runQ.Where("started_at < ?", cursorTime)
+	}
+	_ = runQ.Find(&runs).Error
+	for _, r := range runs {
+		var actor domain.User
+		_ = db.DB.First(&actor, "id = ?", r.StartedBy).Error
+		var wf domain.WorkflowDefinition
+		_ = db.DB.First(&wf, "id = ?", r.WorkflowID).Error
+		items = append(items, feedItem{
+			ID: r.ID, Type: "automation_job", WorkspaceID: workspaceID,
+			ActorID: r.StartedBy, Actor: enrichUser(actor),
+			Content:   "Triggered workflow: " + wf.Name,
+			Metadata:  map[string]any{"workflow_id": r.WorkflowID, "status": r.Status},
+			CreatedAt: r.StartedAt,
+		})
+	}
+
+	// Sort all items by created_at desc
+	sortFeedItems := func(a, b feedItem) bool { return a.CreatedAt.After(b.CreatedAt) }
+	for i := 1; i < len(items); i++ {
+		for j := i; j > 0 && sortFeedItems(items[j], items[j-1]); j-- {
+			items[j], items[j-1] = items[j-1], items[j]
+		}
+	}
+
+	// Trim to limit
+	if len(items) > limit {
+		items = items[:limit]
+	}
+
+	var nextCursor string
+	if len(items) == limit {
+		nextCursor = items[len(items)-1].CreatedAt.Format(time.RFC3339Nano)
+	}
+
+	var total int64
+	_ = db.DB.Model(&domain.Message{}).Where("thread_id = ''").Count(&total).Error
+
+	c.JSON(http.StatusOK, gin.H{"items": items, "next_cursor": nextCursor, "total": total})
 }
 
 func GetTools(c *gin.Context) {

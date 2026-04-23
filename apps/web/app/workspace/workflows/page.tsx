@@ -23,6 +23,9 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -44,6 +47,12 @@ export default function WorkflowsPage() {
   const [isViewingLogs, setIsViewingLogs] = useState(false)
   const [logs, setLogs] = useState<string[]>([])
   const [isLogsLoading, setIsLogsLoading] = useState(false)
+  const [selectedWorkflow, setSelectedWorkflow] = useState<any>(null)
+  const [isViewingSettings, setIsViewingSettings] = useState(false)
+  const [isCreating, setIsCreating] = useState(false)
+  const [newWfName, setNewWfName] = useState('')
+  const [newWfDesc, setNewWfDesc] = useState('')
+  const [newWfTrigger, setNewWfTrigger] = useState('manual')
 
   useEffect(() => {
     fetchWorkflows()
@@ -92,7 +101,7 @@ export default function WorkflowsPage() {
           <Zap className="w-5 h-5 text-amber-500 fill-amber-500" />
           <h1 className="text-lg font-black tracking-tight uppercase">Automations & Workflows</h1>
         </div>
-        <Button variant="outline" size="sm" className="h-8 text-xs font-bold gap-2 border-amber-500/20 bg-amber-500/5 text-amber-600">
+        <Button variant="outline" size="sm" className="h-8 text-xs font-bold gap-2 border-amber-500/20 bg-amber-500/5 text-amber-600" onClick={() => setIsCreating(true)}>
           <PlusBadge className="w-3.5 h-3.5" />
           Create Workflow
         </Button>
@@ -121,6 +130,7 @@ export default function WorkflowsPage() {
                           variant="ghost" 
                           size="icon" 
                           className="h-8 w-8 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => { setSelectedWorkflow(wf); setIsViewingSettings(true) }}
                         >
                           <Settings className="w-4 h-4" />
                         </Button>
@@ -308,6 +318,113 @@ export default function WorkflowsPage() {
             {(selectedRun?.status === 'failed' || selectedRun?.status === 'cancelled') && (
               <Button className="bg-[#3f0e40] text-white" onClick={() => handleRetryRun(selectedRun.id)}>Retry Workflow</Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Workflow Settings Dialog */}
+      <Dialog open={isViewingSettings} onOpenChange={setIsViewingSettings}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black flex items-center gap-2">
+              <Settings className="w-5 h-5 text-amber-500" />
+              Workflow Settings
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Configuration details for this workflow definition.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedWorkflow && (
+            <div className="space-y-4 py-2">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Name</Label>
+                <p className="text-sm font-bold">{selectedWorkflow.name}</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Description</Label>
+                <p className="text-sm text-muted-foreground">{selectedWorkflow.description || '—'}</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Trigger</Label>
+                <p className="text-sm font-mono bg-muted/50 px-3 py-1.5 rounded-lg">{selectedWorkflow.trigger || 'manual'}</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Workflow ID</Label>
+                <p className="text-xs font-mono text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-lg select-all">{selectedWorkflow.id}</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Last Updated</Label>
+                <p className="text-sm">{selectedWorkflow.updatedAt && !isNaN(new Date(selectedWorkflow.updatedAt).getTime()) ? formatDistanceToNow(new Date(selectedWorkflow.updatedAt), { addSuffix: true }) : '—'}</p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsViewingSettings(false)}>Close</Button>
+            <Button
+              className="bg-green-600 hover:bg-green-700 text-white"
+              onClick={() => { setIsViewingSettings(false); selectedWorkflow && handleRun(selectedWorkflow.id) }}
+            >
+              <Play className="w-3.5 h-3.5 mr-1.5 fill-current" />
+              Run Now
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Workflow Dialog */}
+      <Dialog open={isCreating} onOpenChange={v => { setIsCreating(v); if (!v) { setNewWfName(''); setNewWfDesc(''); setNewWfTrigger('manual') } }}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black">Create Workflow</DialogTitle>
+            <DialogDescription className="text-xs">
+              Define a new automation workflow. You can trigger it manually or via events.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="wf-name">Name <span className="text-red-500">*</span></Label>
+              <Input id="wf-name" placeholder="e.g. Weekly Report Sender" value={newWfName} onChange={e => setNewWfName(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="wf-desc">Description</Label>
+              <Textarea id="wf-desc" placeholder="What does this workflow do?" className="resize-none" rows={3} value={newWfDesc} onChange={e => setNewWfDesc(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="wf-trigger">Trigger</Label>
+              <select
+                id="wf-trigger"
+                value={newWfTrigger}
+                onChange={e => setNewWfTrigger(e.target.value)}
+                className="w-full h-10 px-3 rounded-md border bg-background text-sm font-mono"
+              >
+                <option value="manual">manual</option>
+                <option value="schedule">schedule</option>
+                <option value="event">event</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsCreating(false)}>Cancel</Button>
+            <Button
+              className="bg-amber-500 hover:bg-amber-600 text-white"
+              disabled={!newWfName.trim()}
+              onClick={async () => {
+                try {
+                  const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080/api/v1'}/workflows`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: newWfName.trim(), description: newWfDesc.trim(), trigger: newWfTrigger })
+                  })
+                  if (res.ok) {
+                    fetchWorkflows()
+                    setIsCreating(false)
+                    setNewWfName(''); setNewWfDesc(''); setNewWfTrigger('manual')
+                  }
+                } catch {}
+              }}
+            >
+              Create Workflow
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

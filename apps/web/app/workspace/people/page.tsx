@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useUserStore } from "@/stores/user-store"
 import { useDirectoryStore } from "@/stores/directory-store"
-import { Search, Filter, Users, Building, Clock, ChevronRight, Plus, Trash2, Shield, MoreVertical, Mail, MapPin, Phone, X } from "lucide-react"
+import { Search, Filter, Users, Building, Clock, ChevronRight, Plus, Trash2, Shield, MoreVertical, Mail, MapPin, Phone } from "lucide-react"
 import { 
   Tabs, 
   TabsContent, 
@@ -442,9 +442,6 @@ export default function PeopleDirectoryPage() {
                       )}
                     </div>
                   </div>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 -mt-1 -mr-1" onClick={() => setSelectedPerson(null)}>
-                    <X className="w-4 h-4" />
-                  </Button>
                 </div>
               </DialogHeader>
               <div className="space-y-3 py-2">
