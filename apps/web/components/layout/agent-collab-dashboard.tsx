@@ -5,6 +5,7 @@ import { AgentStateCard } from "./agent-state-card"
 import { useCollabStore } from "@/stores/collab-store"
 import { useWorkspaceStore } from "@/stores/workspace-store"
 import { ComposeActivityPane } from "@/components/knowledge/compose-activity-pane"
+import { ComposeActivityDigestStrip } from "@/components/knowledge/compose-activity-digest-strip"
 
 export function AgentCollabDashboard() {
   const { agents, tasks, fetchSnapshot } = useCollabStore()
@@ -53,16 +54,26 @@ export function AgentCollabDashboard() {
           <div />
         )}
 
-        {/* Phase 63G: workspace-wide co-drafting firehose — hydrates from
-            GET /api/v1/ai/compose/activity?workspace_id=... and updates live via
-            the knowledge.compose.suggestion.generated websocket event. */}
-        <ComposeActivityPane
-          workspaceId={currentWorkspaceId}
-          limit={15}
-          title="Team co-drafting"
-          showChannelLabel
-          emptyLabel="No AI Suggest activity in this workspace yet."
-        />
+        {/* Phase 63G + 63H: workspace-wide co-drafting column */}
+        <div className="space-y-3">
+          {/* Phase 63H: 24h rolling digest (counts by intent) */}
+          {currentWorkspaceId && (
+            <ComposeActivityDigestStrip
+              workspaceId={currentWorkspaceId}
+              window="24h"
+              groupBy="intent"
+              topN={4}
+            />
+          )}
+          {/* Phase 63G: live activity firehose */}
+          <ComposeActivityPane
+            workspaceId={currentWorkspaceId}
+            limit={15}
+            title="Team co-drafting"
+            showChannelLabel
+            emptyLabel="No AI Suggest activity in this workspace yet."
+          />
+        </div>
       </div>
     </div>
   )

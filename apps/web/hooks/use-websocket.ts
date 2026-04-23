@@ -233,6 +233,23 @@ export function useWebsocket() {
               activity: payload.activity,
             })
           }
+        } else if (
+          data.type === 'knowledge.entity.brief.regen.queued' ||
+          data.type === 'knowledge.entity.brief.regen.started' ||
+          data.type === 'knowledge.entity.brief.regen.failed'
+        ) {
+          // Phase 63H: entity brief automation job lifecycle.
+          // Payload: { job: AIAutomationJob, entity: KnowledgeEntity, reason? }
+          const payload = data.payload || {}
+          useKnowledgeStore.getState().applyEntityBriefAutomationEvent(data.type, payload)
+        } else if (
+          data.type === 'schedule.event.booked' ||
+          data.type === 'schedule.event.cancelled'
+        ) {
+          // Phase 63H: AI schedule booking lifecycle.
+          // Payload: { booking: AIScheduleBooking }
+          const payload = data.payload || {}
+          useKnowledgeStore.getState().applyScheduleBookingEvent(data.type, payload)
         } else if (data.type === 'knowledge.digest.published') {
           const payload = data.payload || {}
           const channelId = payload.channel_id || payload.channel?.id

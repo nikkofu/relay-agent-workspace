@@ -52,6 +52,12 @@ import type {
   ChannelAutoSummarizeInput,
   ChannelAutoSummarizeResponse,
   AIComposeActivity,
+  AIComposeActivityDigest,
+  AIComposeActivityDigestFilters,
+  AIAutomationJob,
+  EntityBriefAutomationState,
+  AIScheduleBooking,
+  AIScheduleBookingInput,
 } from "@/types"
 
 interface KnowledgeState {
@@ -123,6 +129,32 @@ interface KnowledgeState {
   // don't re-fetch the same scope repeatedly. Keys are produced by `composeActivityScopeKey`.
   isLoadingComposeActivity: Record<string, boolean>
   hasHydratedComposeActivity: Record<string, boolean>
+
+  // ── Phase 63H: compose activity digest analytics ──────────────────────
+  // Keyed by a `digestCacheKey(filters)` so multiple strips (different
+  // window/group_by) can coexist without collision. Empty default.
+  composeActivityDigests: Record<string, AIComposeActivityDigest>
+  isLoadingComposeActivityDigest: Record<string, boolean>
+
+  // ── Phase 63H: entity brief automation (background regen job) ─────────
+  // Keyed by entity id. `null` means "no job has ever been created for this
+  // entity" (maps to backend `{ job: null }` response); `undefined` means
+  // "not yet fetched".
+  entityBriefAutomation: Record<string, AIAutomationJob | null>
+  isLoadingEntityBriefAutomation: Record<string, boolean>
+
+  // ── Phase 63H: AI schedule booking lifecycle ─────────────────────────
+  // One flat list scoped to the current user (backend filters by
+  // requested_by). Newest-first, deduped by booking id. Scoped UI (e.g. per
+  // channel) filters this list client-side, mirroring Phase 63G compose
+  // activity UX. The WS `schedule.event.booked|cancelled` handlers upsert
+  // rows here so any open mount stays fresh.
+  scheduleBookings: AIScheduleBooking[]
+  isLoadingScheduleBookings: Record<string, boolean>
+  hasHydratedScheduleBookings: Record<string, boolean>
+  // Tracks the most recently booked compose_id so MessageComposer can flip
+  // the calendar chip to a "Booked ✓" pill immediately on success.
+  lastBookedComposeIds: Record<string, string> // compose_id → booking_id
 
   pushLiveUpdate: (update: KnowledgeUpdate) => void
   handleEntityCreated: (entity: KnowledgeEntity) => void
@@ -218,6 +250,37 @@ interface KnowledgeState {
   // scoped by channel / DM / workspace / intent. Merges into the single shared
   // `composeSuggestionActivity` list so WS appends stay consistent.
   fetchComposeActivity: (filters: { channelId?: string; dmId?: string; workspaceId?: string; intent?: string; limit?: number }) => Promise<AIComposeActivity[] | null>
+
+  // ── Phase 63H actions ───────────────────────────────────────────────────
+
+  // GET /api/v1/ai/compose/activity/digest — counts-by-(intent|user|channel|
+  // dm|workspace|provider|model) over a rolling window. Requires exactly one
+  // scope (workspace/channel/dm). Cached per `digestCacheKey(filters)`.
+  fetchComposeActivityDigest: (filters: AIComposeActivityDigestFilters) => Promise<AIComposeActivityDigest | null>
+
+  // GET /api/v1/knowledge/entities/:id/brief/automation
+  fetchEntityBriefAutomation: (entityId: string) => Promise<EntityBriefAutomationState | null>
+  // POST /api/v1/knowledge/entities/:id/brief/automation/run — queues
+  // (idempotent: if one is already pending/running, server returns the
+  // existing job with HTTP 200 instead of 202).
+  runEntityBriefAutomation: (entityId: string) => Promise<AIAutomationJob | null>
+  // POST /api/v1/knowledge/entities/:id/brief/automation/retry — only valid
+  // when the latest job is in `failed` / `cancelled` state; server returns
+  // 409 otherwise.
+  retryEntityBriefAutomation: (entityId: string) => Promise<AIAutomationJob | null>
+  // WS fan-in for knowledge.entity.brief.regen.{queued,started,failed}.
+  // Unified handler so consumers don't have to special-case per-event.
+  applyEntityBriefAutomationEvent: (eventType: string, payload: { job?: AIAutomationJob; entity?: KnowledgeEntity; reason?: string }) => void
+
+  // POST /api/v1/ai/schedule/book — creates a booking from a ComposeProposedSlot
+  bookAISchedule: (input: AIScheduleBookingInput) => Promise<AIScheduleBooking | null>
+  // GET /api/v1/ai/schedule/bookings?channel_id|dm_id
+  fetchAIScheduleBookings: (filters?: { channelId?: string; dmId?: string }) => Promise<AIScheduleBooking[] | null>
+  // POST /api/v1/ai/schedule/bookings/:id/cancel (idempotent on server)
+  cancelAIScheduleBooking: (bookingId: string) => Promise<AIScheduleBooking | null>
+  // WS fan-in for schedule.event.{booked,cancelled} — upserts the booking
+  // and, on booked events, stamps `lastBookedComposeIds` for the composer.
+  applyScheduleBookingEvent: (eventType: string, payload: { booking?: AIScheduleBooking }) => void
 }
 
 // Phase 63D: normalize a compose scope into a stable key used for
@@ -244,6 +307,32 @@ function composeActivityScopeKey(filters: {
   if (filters.workspaceId) parts.push(`ws:${filters.workspaceId}`)
   if (filters.intent) parts.push(`intent:${filters.intent}`)
   return parts.length > 0 ? parts.join('|') : 'all'
+}
+
+// Phase 63H: normalize a digest filter set into a stable cache key. Includes
+// window + group_by so different strips (e.g. 24h-by-user vs 7d-by-intent)
+// get independent cache slots and don't overwrite each other.
+function digestCacheKey(filters: AIComposeActivityDigestFilters): string {
+  const scope = filters.channelId
+    ? `ch:${filters.channelId}`
+    : filters.dmId
+      ? `dm:${filters.dmId}`
+      : filters.workspaceId
+        ? `ws:${filters.workspaceId}`
+        : 'none'
+  const win = filters.window || '24h'
+  const groupBy = filters.groupBy || 'intent'
+  const intent = filters.intent ? `|intent:${filters.intent}` : ''
+  const custom = filters.window === 'custom' ? `|${filters.startAt || ''}-${filters.endAt || ''}` : ''
+  return `${scope}|${win}|${groupBy}${intent}${custom}`
+}
+
+// Phase 63H: scope key for hydration tracking of GET /ai/schedule/bookings.
+function scheduleBookingsScopeKey(filters?: { channelId?: string; dmId?: string }): string {
+  if (!filters) return 'all'
+  if (filters.channelId) return `ch:${filters.channelId}`
+  if (filters.dmId) return `dm:${filters.dmId}`
+  return 'all'
 }
 
 // Phase 63E: Convert a persisted history row into an EntityAnswer-shaped object
@@ -315,6 +404,15 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   composeSuggestionActivity: [],
   isLoadingComposeActivity: {},
   hasHydratedComposeActivity: {},
+  // Phase 63H
+  composeActivityDigests: {},
+  isLoadingComposeActivityDigest: {},
+  entityBriefAutomation: {},
+  isLoadingEntityBriefAutomation: {},
+  scheduleBookings: [],
+  isLoadingScheduleBookings: {},
+  hasHydratedScheduleBookings: {},
+  lastBookedComposeIds: {},
 
   pushLiveUpdate: (update) => set({ liveUpdate: update }),
 
@@ -1894,6 +1992,235 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
       console.error("Failed to fetch compose feedback summary:", error)
       return null
     }
+  },
+
+  // ── Phase 63H: Compose activity digest analytics ─────────────────────────
+
+  fetchComposeActivityDigest: async (filters) => {
+    const key = digestCacheKey(filters)
+    if (get().isLoadingComposeActivityDigest[key]) return null
+    set(state => ({ isLoadingComposeActivityDigest: { ...state.isLoadingComposeActivityDigest, [key]: true } }))
+    try {
+      const params = new URLSearchParams()
+      if (filters.channelId) params.set('channel_id', filters.channelId)
+      else if (filters.dmId) params.set('dm_id', filters.dmId)
+      else if (filters.workspaceId) params.set('workspace_id', filters.workspaceId)
+      if (filters.window) params.set('window', filters.window)
+      if (filters.startAt) params.set('start_at', filters.startAt)
+      if (filters.endAt) params.set('end_at', filters.endAt)
+      if (filters.intent) params.set('intent', filters.intent)
+      if (filters.groupBy) params.set('group_by', filters.groupBy)
+      if (filters.limit != null) params.set('limit', String(filters.limit))
+      const res = await fetch(`${API_BASE_URL}/ai/compose/activity/digest?${params}`)
+      if (!res.ok) {
+        set(state => ({ isLoadingComposeActivityDigest: { ...state.isLoadingComposeActivityDigest, [key]: false } }))
+        return null
+      }
+      const data = await res.json() as AIComposeActivityDigest
+      set(state => ({
+        composeActivityDigests: { ...state.composeActivityDigests, [key]: data },
+        isLoadingComposeActivityDigest: { ...state.isLoadingComposeActivityDigest, [key]: false },
+      }))
+      return data
+    } catch (err) {
+      console.error('Failed to fetch compose activity digest:', err)
+      set(state => ({ isLoadingComposeActivityDigest: { ...state.isLoadingComposeActivityDigest, [key]: false } }))
+      return null
+    }
+  },
+
+  // ── Phase 63H: Entity brief automation ───────────────────────────────────
+
+  fetchEntityBriefAutomation: async (entityId) => {
+    set(state => ({ isLoadingEntityBriefAutomation: { ...state.isLoadingEntityBriefAutomation, [entityId]: true } }))
+    try {
+      const res = await fetch(`${API_BASE_URL}/knowledge/entities/${encodeURIComponent(entityId)}/brief/automation`)
+      if (!res.ok) {
+        set(state => ({ isLoadingEntityBriefAutomation: { ...state.isLoadingEntityBriefAutomation, [entityId]: false } }))
+        return null
+      }
+      const data = await res.json() as { job: AIAutomationJob | null; entity?: import('@/types').KnowledgeEntity }
+      set(state => ({
+        entityBriefAutomation: { ...state.entityBriefAutomation, [entityId]: data.job ?? null },
+        isLoadingEntityBriefAutomation: { ...state.isLoadingEntityBriefAutomation, [entityId]: false },
+      }))
+      return data
+    } catch (err) {
+      console.error('Failed to fetch entity brief automation:', err)
+      set(state => ({ isLoadingEntityBriefAutomation: { ...state.isLoadingEntityBriefAutomation, [entityId]: false } }))
+      return null
+    }
+  },
+
+  runEntityBriefAutomation: async (entityId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/knowledge/entities/${encodeURIComponent(entityId)}/brief/automation/run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      if (!res.ok) {
+        toast.error('Failed to queue brief regeneration')
+        return null
+      }
+      const data = await res.json() as { job: AIAutomationJob; entity?: import('@/types').KnowledgeEntity }
+      set(state => ({ entityBriefAutomation: { ...state.entityBriefAutomation, [entityId]: data.job } }))
+      return data.job
+    } catch (err) {
+      console.error('Failed to run entity brief automation:', err)
+      toast.error('Failed to queue brief regeneration')
+      return null
+    }
+  },
+
+  retryEntityBriefAutomation: async (entityId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/knowledge/entities/${encodeURIComponent(entityId)}/brief/automation/retry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      if (res.status === 409) {
+        toast.error('Cannot retry: job is not in a failed state')
+        return null
+      }
+      if (!res.ok) {
+        toast.error('Failed to retry brief regeneration')
+        return null
+      }
+      const data = await res.json() as { job: AIAutomationJob; entity?: import('@/types').KnowledgeEntity }
+      set(state => ({ entityBriefAutomation: { ...state.entityBriefAutomation, [entityId]: data.job } }))
+      return data.job
+    } catch (err) {
+      console.error('Failed to retry entity brief automation:', err)
+      toast.error('Failed to retry brief regeneration')
+      return null
+    }
+  },
+
+  // Unified WS handler for knowledge.entity.brief.regen.{queued,started,failed}.
+  // Upserts the job into the automation state map and shows a toast on failure.
+  applyEntityBriefAutomationEvent: (eventType, payload) => {
+    const job = payload.job
+    if (!job?.scope_id) return
+    set(state => ({
+      entityBriefAutomation: { ...state.entityBriefAutomation, [job.scope_id]: job },
+    }))
+    if (eventType === 'knowledge.entity.brief.regen.failed' && payload.reason) {
+      toast.error(`Brief automation failed: ${payload.reason}`)
+    }
+  },
+
+  // ── Phase 63H: AI schedule booking lifecycle ─────────────────────────────
+
+  bookAISchedule: async (input) => {
+    try {
+      const body: Record<string, unknown> = {
+        compose_id: input.compose_id,
+        title: input.title,
+        description: input.description,
+        provider: input.provider,
+        slot: input.slot,
+      }
+      if (input.channel_id) body['channel_id'] = input.channel_id
+      if (input.dm_id) body['dm_id'] = input.dm_id
+      const res = await fetch(`${API_BASE_URL}/ai/schedule/book`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        toast.error((data as { error?: string }).error || 'Failed to book schedule slot')
+        return null
+      }
+      const data = await res.json() as { booking: AIScheduleBooking }
+      const booking = data.booking
+      set(state => ({
+        scheduleBookings: [booking, ...state.scheduleBookings.filter(b => b.id !== booking.id)],
+        lastBookedComposeIds: { ...state.lastBookedComposeIds, [booking.compose_id]: booking.id },
+      }))
+      toast.success('Schedule slot booked ✓')
+      return booking
+    } catch (err) {
+      console.error('Failed to book AI schedule:', err)
+      toast.error('Failed to book schedule slot')
+      return null
+    }
+  },
+
+  fetchAIScheduleBookings: async (filters) => {
+    const key = scheduleBookingsScopeKey(filters)
+    if (get().isLoadingScheduleBookings[key]) return null
+    set(state => ({ isLoadingScheduleBookings: { ...state.isLoadingScheduleBookings, [key]: true } }))
+    try {
+      const params = new URLSearchParams()
+      if (filters?.channelId) params.set('channel_id', filters.channelId)
+      if (filters?.dmId) params.set('dm_id', filters.dmId)
+      const res = await fetch(`${API_BASE_URL}/ai/schedule/bookings?${params}`)
+      if (!res.ok) {
+        set(state => ({
+          isLoadingScheduleBookings: { ...state.isLoadingScheduleBookings, [key]: false },
+        }))
+        return null
+      }
+      const data = await res.json() as { bookings: AIScheduleBooking[] }
+      const fetched: AIScheduleBooking[] = data.bookings || []
+      set(state => ({
+        // Merge fetched rows with any rows already in state (WS-appended may be newer)
+        scheduleBookings: Object.values(
+          [...fetched, ...state.scheduleBookings].reduce<Record<string, AIScheduleBooking>>((acc, b) => {
+            if (!acc[b.id] || new Date(b.updated_at) >= new Date(acc[b.id].updated_at)) acc[b.id] = b
+            return acc
+          }, {})
+        ).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+        isLoadingScheduleBookings: { ...state.isLoadingScheduleBookings, [key]: false },
+        hasHydratedScheduleBookings: { ...state.hasHydratedScheduleBookings, [key]: true },
+      }))
+      return fetched
+    } catch (err) {
+      console.error('Failed to fetch schedule bookings:', err)
+      set(state => ({ isLoadingScheduleBookings: { ...state.isLoadingScheduleBookings, [key]: false } }))
+      return null
+    }
+  },
+
+  cancelAIScheduleBooking: async (bookingId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/ai/schedule/bookings/${encodeURIComponent(bookingId)}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      if (!res.ok) {
+        toast.error('Failed to cancel booking')
+        return null
+      }
+      const data = await res.json() as { booking: AIScheduleBooking }
+      const booking = data.booking
+      set(state => ({
+        scheduleBookings: state.scheduleBookings.map(b => b.id === booking.id ? booking : b),
+      }))
+      return booking
+    } catch (err) {
+      console.error('Failed to cancel schedule booking:', err)
+      toast.error('Failed to cancel booking')
+      return null
+    }
+  },
+
+  // Unified WS handler for schedule.event.{booked,cancelled}.
+  // Upserts the booking into `scheduleBookings` and, on booked, stamps
+  // `lastBookedComposeIds` so the calendar chip in the composer can flip.
+  applyScheduleBookingEvent: (eventType, payload) => {
+    const booking = payload.booking
+    if (!booking?.id) return
+    set(state => {
+      const next = state.scheduleBookings.some(b => b.id === booking.id)
+        ? state.scheduleBookings.map(b => b.id === booking.id ? booking : b)
+        : [booking, ...state.scheduleBookings]
+      const nextLastBooked = eventType === 'schedule.event.booked'
+        ? { ...state.lastBookedComposeIds, [booking.compose_id]: booking.id }
+        : state.lastBookedComposeIds
+      return { scheduleBookings: next, lastBookedComposeIds: nextLastBooked }
+    })
   },
 
   // ── Phase 62: Live bulk-read update from websocket (multi-tab inbox sync) ─

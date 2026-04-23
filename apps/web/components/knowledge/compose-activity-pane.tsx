@@ -20,6 +20,7 @@ import { formatDistanceToNow } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { useKnowledgeStore } from "@/stores/knowledge-store"
 import { useChannelStore } from "@/stores/channel-store"
+import { useUserStore } from "@/stores/user-store"
 import { cn } from "@/lib/utils"
 import type { AIComposeActivity } from "@/types"
 
@@ -62,6 +63,26 @@ const INTENT_PILL_CLASSES: Record<string, string> = {
   emerald: 'bg-emerald-500/10 border-emerald-400/40 text-emerald-700 dark:text-emerald-400',
   amber: 'bg-amber-500/10 border-amber-400/40 text-amber-700 dark:text-amber-400',
   slate: 'bg-slate-500/10 border-slate-400/40 text-slate-700 dark:text-slate-400',
+}
+
+// Phase 63H: Resolves a user_id to display name via the user store.
+// Renders nothing when user_id is empty/undefined (historical pre-63H rows).
+function UserChip({ userId, compact }: { userId?: string; compact?: boolean }) {
+  const users = useUserStore(s => s.users)
+  if (!userId) return null
+  const user = users.find(u => u.id === userId)
+  const label = user?.name || user?.email || userId.slice(-8)
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded border bg-sky-500/10 text-sky-700 dark:text-sky-300 px-1 py-0.5 shrink-0 font-medium",
+        compact ? "text-[8px]" : "text-[9px]",
+      )}
+      title={`User: ${userId}`}
+    >
+      {label}
+    </span>
+  )
 }
 
 export function ComposeActivityPane({
@@ -239,6 +260,8 @@ export function ComposeActivityPane({
                     <Sparkles className="w-2 h-2 mr-0.5" /> thread
                   </span>
                 )}
+
+                <UserChip userId={row.user_id} compact={compact} />
 
                 <span
                   className={cn(

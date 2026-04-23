@@ -41,6 +41,8 @@ import { useFileStore } from "@/stores/file-store"
 import { UserAvatar } from "@/components/common/user-avatar"
 import { ChannelAutoSummarizePanel } from "@/components/channel/channel-auto-summarize-panel"
 import { ComposeActivityPane } from "@/components/knowledge/compose-activity-pane"
+import { ComposeActivityDigestStrip } from "@/components/knowledge/compose-activity-digest-strip"
+import { ScheduleBookingsPanel } from "@/components/knowledge/schedule-bookings-panel"
 import { formatDistanceToNow } from "date-fns"
 
 export function ChannelInfo({ trigger }: { trigger: React.ReactNode }) {
@@ -181,12 +183,27 @@ export function ChannelInfo({ trigger }: { trigger: React.ReactNode }) {
               {/* Phase 63F: Rolling always-on auto-summarize (persistent, live-updated via WS) */}
               <ChannelAutoSummarizePanel channelId={currentChannel.id} />
 
+              {/* Phase 63H: per-channel AI co-drafting analytics digest (24h, by intent) */}
+              <ComposeActivityDigestStrip
+                channelId={currentChannel.id}
+                window="24h"
+                groupBy="intent"
+                topN={4}
+                className="py-1"
+              />
+
               {/* Phase 63G: Per-channel co-drafting activity (hydrated from GET /ai/compose/activity, live via WS) */}
               <ComposeActivityPane
                 channelId={currentChannel.id}
                 limit={20}
                 title="AI co-drafting in this channel"
                 emptyLabel="No AI Suggest activity in this channel yet. When a member uses the AI Suggest button, it will appear here with intent, provider, and timestamp."
+              />
+
+              {/* Phase 63H: AI schedule bookings for this channel */}
+              <ScheduleBookingsPanel
+                channelId={currentChannel.id}
+                compact={false}
               />
 
               {/* Purpose Section */}

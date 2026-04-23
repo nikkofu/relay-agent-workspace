@@ -25,6 +25,7 @@ import { format } from "date-fns"
 import type { KnowledgeEntity, KnowledgeEntityRef, KnowledgeEntityLink, KnowledgeEvent, KnowledgeGraph, KnowledgeGraphEdge } from "@/types"
 import { EntityFollowButton } from "@/components/knowledge/entity-follow-button"
 import { EntityActivitySparkline } from "@/components/knowledge/entity-activity-sparkline"
+import { EntityBriefAutomationBanner } from "@/components/knowledge/entity-brief-automation-banner"
 
 const KIND_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string; badgeClass: string; bgClass: string }> = {
   person:       { label: "Person",       icon: User2,       color: "text-sky-600",    badgeClass: "bg-sky-500/10 text-sky-700 border-sky-300 dark:border-sky-700",         bgClass: "bg-sky-500/5" },
@@ -270,6 +271,9 @@ function EntityDetailContent({ id }: { id: string }) {
                   {entity.ref_count !== undefined && <div className="space-y-1"><p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Evidence Refs</p><p className="text-sm font-bold">{entity.ref_count}</p></div>}
                   {entity.updated_at && <div className="space-y-1"><p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Last Updated</p><p className="text-sm font-bold">{format(new Date(entity.updated_at), "PPp")}</p></div>}
                 </div>
+
+                {/* Phase 63H: brief automation job state (run / retry) */}
+                <EntityBriefAutomationBanner entityId={id} />
 
                 {/* Phase 61/63A: AI Brief Card with stale pulse */}
                 {(() => {

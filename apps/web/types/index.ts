@@ -545,11 +545,164 @@ export interface AIComposeActivity {
   channel_id?: string
   dm_id?: string
   thread_id?: string
+  // Phase 63H: populated on all newly-created rows; may be empty on historical
+  // rows written before 63H, so treat as optional.
+  user_id?: string
   intent: string
   suggestion_count: number
   provider: string
   model: string
   created_at: string
+}
+
+// ── Phase 63H: compose activity digest analytics ────────────────────────────
+//
+// Source: GET /api/v1/ai/compose/activity/digest
+// Required scope: exactly one of workspace_id / channel_id / dm_id
+// window: '1h' | '24h' | '7d' | 'custom' (custom needs start_at+end_at)
+// group_by: 'intent' (default) | 'user' | 'channel' | 'dm' | 'workspace' | 'provider' | 'model'
+
+export type AIComposeActivityDigestWindow = '1h' | '24h' | '7d' | 'custom'
+export type AIComposeActivityDigestGroupBy =
+  | 'intent'
+  | 'user'
+  | 'channel'
+  | 'dm'
+  | 'workspace'
+  | 'provider'
+  | 'model'
+
+export interface AIComposeActivityDigestSummary {
+  total_requests: number
+  unique_users: number
+}
+
+export interface AIComposeActivityDigestRow {
+  key: string
+  count: number
+  // Omitted by backend when zero; normalize to 0 client-side when reading.
+  unique_users?: number
+  suggestion_sum?: number
+}
+
+export interface AIComposeActivityDigestScope {
+  type: 'channel' | 'dm' | 'workspace'
+  value: string
+}
+
+export interface AIComposeActivityDigest {
+  window: AIComposeActivityDigestWindow
+  scope: AIComposeActivityDigestScope
+  group_by: AIComposeActivityDigestGroupBy
+  summary: AIComposeActivityDigestSummary
+  breakdown: AIComposeActivityDigestRow[]
+}
+
+export interface AIComposeActivityDigestFilters {
+  workspaceId?: string
+  channelId?: string
+  dmId?: string
+  window?: AIComposeActivityDigestWindow
+  startAt?: string
+  endAt?: string
+  intent?: string
+  groupBy?: AIComposeActivityDigestGroupBy
+  limit?: number
+}
+
+// ── Phase 63H: entity brief automation jobs ─────────────────────────────────
+//
+// Source: GET /api/v1/knowledge/entities/:id/brief/automation → { job, entity }
+// Also emitted by WS events:
+//   - knowledge.entity.brief.regen.queued
+//   - knowledge.entity.brief.regen.started
+//   - knowledge.entity.brief.regen.failed
+// The existing knowledge.entity.brief.generated fires on success with { brief }
+// and the job transitions to `succeeded` server-side (not broadcast as a job
+// event).
+
+export type AIAutomationJobStatus =
+  | 'pending'
+  | 'running'
+  | 'succeeded'
+  | 'failed'
+  | 'cancelled'
+  | string // forward-compatible for new statuses
+
+export interface AIAutomationJob {
+  id: string
+  job_type: string
+  scope_type: string
+  scope_id: string
+  workspace_id: string
+  status: AIAutomationJobStatus
+  trigger_reason: string
+  dedupe_key: string
+  attempt_count: number
+  last_error?: string
+  scheduled_at: string
+  started_at?: string | null
+  finished_at?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface EntityBriefAutomationState {
+  job: AIAutomationJob | null
+  // `entity` is only returned when the job lookup succeeds; UI relies on the
+  // already-hydrated entity from the detail page.
+  entity?: KnowledgeEntity
+}
+
+// ── Phase 63H: AI schedule booking lifecycle ────────────────────────────────
+//
+// Source:
+//   POST  /api/v1/ai/schedule/book              → { booking }
+//   GET   /api/v1/ai/schedule/bookings          → { bookings: [...] }
+//   GET   /api/v1/ai/schedule/bookings/:id      → { booking }
+//   POST  /api/v1/ai/schedule/bookings/:id/cancel → { booking }
+// WS: schedule.event.booked, schedule.event.cancelled → payload { booking }
+
+export type AIScheduleBookingStatus = 'booked' | 'cancelled' | string
+
+export interface AIScheduleBooking {
+  id: string
+  workspace_id: string
+  channel_id?: string
+  dm_id?: string
+  requested_by: string
+  compose_id: string
+  title: string
+  description: string
+  starts_at: string
+  ends_at: string
+  timezone: string
+  attendee_ids: string[]
+  provider: string
+  status: AIScheduleBookingStatus
+  external_ref?: string
+  // Inline ICS artifact — the fallback "always present" deliverable that the
+  // UI can offer as a Download / copy-to-clipboard action today, before any
+  // external calendar provider is wired up.
+  ics_content?: string
+  last_error?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface AIScheduleBookingInput {
+  compose_id: string
+  channel_id?: string
+  dm_id?: string
+  title?: string
+  description?: string
+  provider?: string
+  slot: {
+    starts_at: string
+    ends_at: string
+    timezone: string
+    attendee_ids: string[]
+  }
 }
 
 // ── Phase 63C: streaming + feedback ─────────────────────────────────────────

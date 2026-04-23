@@ -33,6 +33,7 @@ import { useFileStore } from "@/stores/file-store"
 import { useKnowledgeStore } from "@/stores/knowledge-store"
 import { useWorkspaceStore } from "@/stores/workspace-store"
 import { useChannelStore } from "@/stores/channel-store"
+import { CheckCircle2 } from "lucide-react"
 import type { EntitySuggestResult, EntityTextMatch, ComposeSuggestion, ComposeIntent, ComposeScope, ComposeProposedSlot } from "@/types"
 
 interface MessageComposerProps {
@@ -90,6 +91,7 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
     clearComposeResult, composeResults, isComposing,
     suggestComposeStream, sendComposeFeedback, composeStreaming, composeFeedback,
     fetchComposeFeedbackSummary, composeFeedbackSummary,
+    bookAISchedule, lastBookedComposeIds, composeSuggestionActivity,
   } = useKnowledgeStore()
   const { currentWorkspace } = useWorkspaceStore()
   const { currentChannel } = useChannelStore()
@@ -682,34 +684,81 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
                     {composeResult.proposed_slots.map((slot, i) => {
                       const label = formatSlotRange(slot)
                       const attendeeCount = slot.attendee_ids?.length || 0
+                      // Phase 63H: look up compose_id from the most recent activity row for this scope.
+                      const scopeActivity = composeSuggestionActivity.find(a =>
+                        composeScope?.channelId ? a.channel_id === composeScope.channelId
+                          : composeScope?.dmId ? a.dm_id === composeScope.dmId
+                          : false
+                      )
+                      const currentComposeId = scopeActivity?.compose_id
+                      const bookedId = currentComposeId ? lastBookedComposeIds[currentComposeId] : undefined
+                      const alreadyBooked = !!bookedId
                       return (
-                        <button
-                          key={`${slot.starts_at}-${i}`}
-                          type="button"
-                          onClick={() => handleInsertSlot(slot)}
-                          className="inline-flex items-center gap-1.5 text-[10px] rounded-md border border-amber-400/40 bg-background/70 hover:bg-amber-500/10 hover:border-amber-500/60 text-amber-800 dark:text-amber-300 px-2 py-1 transition-colors group"
-                          title={slot.reason ? `${label} · ${slot.reason}` : label}
-                        >
-                          <CalendarClock className="w-2.5 h-2.5 shrink-0 text-amber-600" />
-                          <span className="font-bold">{label}</span>
-                          {slot.duration_minutes ? (
-                            <span className="text-[9px] font-mono text-amber-700/80 dark:text-amber-300/80">
-                              {slot.duration_minutes}m
-                            </span>
-                          ) : null}
-                          {attendeeCount > 0 && (
-                            <span className="inline-flex items-center gap-0.5 text-[9px] text-amber-700/80 dark:text-amber-300/80">
-                              <Users className="w-2.5 h-2.5" />
-                              {attendeeCount}
-                            </span>
-                          )}
-                          <Sparkles className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity text-amber-600" />
-                        </button>
+                        <div key={`slot-group-${slot.starts_at}-${i}`} className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleInsertSlot(slot)}
+                            className="inline-flex items-center gap-1.5 text-[10px] rounded-md border border-amber-400/40 bg-background/70 hover:bg-amber-500/10 hover:border-amber-500/60 text-amber-800 dark:text-amber-300 px-2 py-1 transition-colors group"
+                            title={slot.reason ? `${label} · ${slot.reason}` : label}
+                          >
+                            <CalendarClock className="w-2.5 h-2.5 shrink-0 text-amber-600" />
+                            <span className="font-bold">{label}</span>
+                            {slot.duration_minutes ? (
+                              <span className="text-[9px] font-mono text-amber-700/80 dark:text-amber-300/80">
+                                {slot.duration_minutes}m
+                              </span>
+                            ) : null}
+                            {attendeeCount > 0 && (
+                              <span className="inline-flex items-center gap-0.5 text-[9px] text-amber-700/80 dark:text-amber-300/80">
+                                <Users className="w-2.5 h-2.5" />
+                                {attendeeCount}
+                              </span>
+                            )}
+                            <Sparkles className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity text-amber-600" />
+                          </button>
+                          {/* Phase 63H: Book-this-slot — calls POST /ai/schedule/book */}
+                          <button
+                            type="button"
+                            disabled={alreadyBooked}
+                            onClick={async () => {
+                              if (!currentComposeId) {
+                                toast.error('No compose session to attach booking to')
+                                return
+                              }
+                              await bookAISchedule({
+                                compose_id: currentComposeId,
+                                channel_id: composeScope?.channelId,
+                                dm_id: composeScope?.dmId,
+                                title: `Meeting: ${formatSlotRange(slot)}`,
+                                description: slot.reason,
+                                provider: composeResult.provider,
+                                slot: {
+                                  starts_at: slot.starts_at,
+                                  ends_at: slot.ends_at,
+                                  timezone: slot.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+                                  attendee_ids: slot.attendee_ids,
+                                },
+                              })
+                            }}
+                            className={cn(
+                              "inline-flex items-center gap-1 text-[10px] rounded-md border px-2 py-1 transition-colors shrink-0",
+                              alreadyBooked
+                                ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 cursor-default"
+                                : "border-amber-400/40 bg-background/70 hover:bg-emerald-500/10 hover:border-emerald-500/60 text-amber-800 dark:text-amber-300"
+                            )}
+                            title={alreadyBooked ? 'Already booked' : 'Book this slot'}
+                          >
+                            {alreadyBooked
+                              ? <><CheckCircle2 className="w-2.5 h-2.5" /> Booked</>
+                              : 'Book'
+                            }
+                          </button>
+                        </div>
                       )
                     })}
                   </div>
                   <p className="text-[9px] text-muted-foreground italic">
-                    Click a slot to draft a scheduling proposal. You can still edit before sending.
+                    Click a slot to draft a scheduling proposal, or Book to confirm it.
                   </p>
                 </div>
               )}
