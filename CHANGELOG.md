@@ -2,6 +2,25 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.30] - 2026-04-23
+
+This release closes Phase 63 as an AI automation arc and prepares Phase 64 for broader Slack-core convergence.
+
+### Fixed
+
+- `POST /api/v1/knowledge/entities` now accepts UI-created entities that omit `workspace_id` when a primary workspace exists.
+- `tags[]` on knowledge entity creation is preserved into `metadata_json`, fixing file/wiki creation flows such as `{ "title": "Principles of Game Design", "kind": "file", "tags": [...] }`.
+
+### Improved
+
+- `GET /api/v1/knowledge/ask/recent` now returns denormalized `entity_title` and `entity_kind` on each item, so Windsurf can render shared ask feed rows without falling back to truncated entity IDs.
+- Added Phase 64 planning document for Slack Core Convergence and AI-native workspace observability.
+
+### Verification Used For This Release
+
+- `go test ./internal/handlers -run 'Test(KnowledgeEntityCRUDEndpoints|Phase63IEntityAskRecentFeedAndRealtime)' -count=1`
+- Full release verification listed in `docs/releases/v0.6.30.md`.
+
 ## [0.6.28] - 2026-04-23
 
 This release implements Codex Phase 63I, closing the next always-on AI loops after Windsurf's `v0.6.27` UI pass.

@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.6.28` is the current release line and includes:
+`v0.6.30` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -48,6 +48,7 @@ For product, design, and marketing, the short version is:
 - unified AI citation lookup across file chunks, messages, threads, and artifact sections
 - `apps/api/internal/knowledge/` evidence lookup layer for later wiki and graph phases
 - first-class knowledge entity APIs for wiki-style entity pages, refs, timeline, links, and graph previews
+- knowledge entity creation now defaults to the primary workspace when UI flows omit `workspace_id`, and preserves `tags[]` into entity metadata
 - realtime knowledge entity/wiki websocket events for live entity, ref, event, and link refresh
 - live knowledge event ingestion via `POST /api/v1/knowledge/events/ingest`
 - deterministic knowledge entity auto-linking from newly created messages and uploaded files
@@ -110,6 +111,7 @@ For product, design, and marketing, the short version is:
   - `schedule.event.cancelled`
 - workspace automation audit API via `GET /api/v1/ai/automation/jobs`
 - recent cross-entity ask feed via `GET /api/v1/knowledge/ask/recent`
+- recent cross-entity ask feed rows include `entity_title` and `entity_kind` for stable UI rendering
 - realtime entity ask answer broadcasts via websocket `knowledge.entity.ask.answered`
 - weekly brief snapshot sharing via `POST /api/v1/knowledge/weekly-brief/:id/share`
 - historical knowledge activity backfill status and execution via `GET /api/v1/knowledge/entities/:id/activity/backfill-status` and `POST /api/v1/knowledge/entities/:id/activity/backfill`

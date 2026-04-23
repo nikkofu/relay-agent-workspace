@@ -1,6 +1,7 @@
 package knowledge
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html"
@@ -262,9 +263,32 @@ func attachEntityFromKnowledgeRef(database *gorm.DB, citation *Citation, evidenc
 
 func CreateEntity(database *gorm.DB, input CreateEntityInput) (domain.KnowledgeEntity, error) {
 	now := time.Now().UTC()
+	workspaceID := strings.TrimSpace(input.WorkspaceID)
+	if workspaceID == "" {
+		var workspace domain.Workspace
+		if err := database.Order("id asc").First(&workspace).Error; err == nil {
+			workspaceID = workspace.ID
+		} else if err != gorm.ErrRecordNotFound {
+			return domain.KnowledgeEntity{}, err
+		}
+	}
+	metadata := strings.TrimSpace(input.Metadata)
+	if metadata == "" && len(input.Tags) > 0 {
+		tags := make([]string, 0, len(input.Tags))
+		for _, tag := range input.Tags {
+			if trimmed := strings.TrimSpace(tag); trimmed != "" {
+				tags = append(tags, trimmed)
+			}
+		}
+		if len(tags) > 0 {
+			if payload, err := json.Marshal(map[string][]string{"tags": tags}); err == nil {
+				metadata = string(payload)
+			}
+		}
+	}
 	entity := domain.KnowledgeEntity{
 		ID:          newKnowledgeID("entity"),
-		WorkspaceID: strings.TrimSpace(input.WorkspaceID),
+		WorkspaceID: workspaceID,
 		Kind:        defaultString(strings.TrimSpace(input.Kind), "custom"),
 		Title:       strings.TrimSpace(input.Title),
 		Summary:     strings.TrimSpace(input.Summary),
@@ -272,7 +296,7 @@ func CreateEntity(database *gorm.DB, input CreateEntityInput) (domain.KnowledgeE
 		OwnerUserID: strings.TrimSpace(input.OwnerUserID),
 		SourceKind:  defaultString(strings.TrimSpace(input.SourceKind), "manual"),
 		SourceRef:   strings.TrimSpace(input.SourceRef),
-		Metadata:    strings.TrimSpace(input.Metadata),
+		Metadata:    metadata,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}

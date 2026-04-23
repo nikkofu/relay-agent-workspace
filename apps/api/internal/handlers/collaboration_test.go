@@ -3769,6 +3769,7 @@ func TestKnowledgeEntityModelsPersist(t *testing.T) {
 
 func TestKnowledgeEntityCRUDEndpoints(t *testing.T) {
 	setupTestDB(t)
+	db.DB.Create(&domain.Workspace{ID: "ws-1", Name: "Relay"})
 
 	router := gin.New()
 	router.GET("/api/v1/knowledge/entities", ListKnowledgeEntities)
@@ -3792,6 +3793,23 @@ func TestKnowledgeEntityCRUDEndpoints(t *testing.T) {
 	}
 	if createPayload.Entity.ID == "" || createPayload.Entity.Title != "Launch Program" {
 		t.Fatalf("unexpected create payload: %#v", createPayload)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/knowledge/entities", strings.NewReader(`{"kind":"file","title":"Principles of Game Design","tags":["game","design","md"]}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 when creating entity without explicit workspace, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var filePayload struct {
+		Entity domain.KnowledgeEntity `json:"entity"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &filePayload); err != nil {
+		t.Fatalf("decode file entity create: %v", err)
+	}
+	if filePayload.Entity.WorkspaceID != "ws-1" || filePayload.Entity.Kind != "file" || !strings.Contains(filePayload.Entity.Metadata, `"tags":["game","design","md"]`) {
+		t.Fatalf("expected default workspace and tags metadata, got %#v", filePayload.Entity)
 	}
 
 	rec = httptest.NewRecorder()
@@ -6161,6 +6179,8 @@ func TestPhase63IEntityAskRecentFeedAndRealtime(t *testing.T) {
 			WorkspaceID string `json:"workspace_id"`
 			UserID      string `json:"user_id"`
 			Question    string `json:"question"`
+			EntityTitle string `json:"entity_title"`
+			EntityKind  string `json:"entity_kind"`
 		} `json:"items"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
@@ -6171,6 +6191,9 @@ func TestPhase63IEntityAskRecentFeedAndRealtime(t *testing.T) {
 	}
 	if payload.Items[0].EntityID != "entity-2" || payload.Items[0].WorkspaceID != "ws-1" || payload.Items[0].UserID != "user-1" {
 		t.Fatalf("expected newest item to be freshly asked entity-2 row, got %#v", payload.Items[0])
+	}
+	if payload.Items[0].EntityTitle != "Billing Service" || payload.Items[0].EntityKind != "service" {
+		t.Fatalf("expected denormalized entity metadata on recent ask row, got %#v", payload.Items[0])
 	}
 }
 

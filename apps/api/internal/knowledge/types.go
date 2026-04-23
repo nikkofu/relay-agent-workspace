@@ -51,15 +51,16 @@ type LookupParams struct {
 }
 
 type CreateEntityInput struct {
-	WorkspaceID string `json:"workspace_id"`
-	Kind        string `json:"kind"`
-	Title       string `json:"title"`
-	Summary     string `json:"summary"`
-	Status      string `json:"status"`
-	OwnerUserID string `json:"owner_user_id"`
-	SourceKind  string `json:"source_kind"`
-	SourceRef   string `json:"source_ref"`
-	Metadata    string `json:"metadata_json"`
+	WorkspaceID string   `json:"workspace_id"`
+	Kind        string   `json:"kind"`
+	Title       string   `json:"title"`
+	Summary     string   `json:"summary"`
+	Status      string   `json:"status"`
+	OwnerUserID string   `json:"owner_user_id"`
+	SourceKind  string   `json:"source_kind"`
+	SourceRef   string   `json:"source_ref"`
+	Metadata    string   `json:"metadata_json"`
+	Tags        []string `json:"tags"`
 }
 
 type UpdateEntityInput struct {

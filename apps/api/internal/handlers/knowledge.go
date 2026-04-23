@@ -492,7 +492,50 @@ func GetRecentKnowledgeEntityAsks(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"items": items})
+	c.JSON(http.StatusOK, gin.H{"items": buildRecentKnowledgeAskItems(items)})
+}
+
+type recentKnowledgeAskItem struct {
+	domain.KnowledgeEntityAskAnswer
+	EntityTitle string `json:"entity_title,omitempty"`
+	EntityKind  string `json:"entity_kind,omitempty"`
+}
+
+func buildRecentKnowledgeAskItems(items []domain.KnowledgeEntityAskAnswer) []recentKnowledgeAskItem {
+	if len(items) == 0 {
+		return []recentKnowledgeAskItem{}
+	}
+
+	entityIDs := make([]string, 0, len(items))
+	seen := map[string]bool{}
+	for _, item := range items {
+		if item.EntityID == "" || seen[item.EntityID] {
+			continue
+		}
+		seen[item.EntityID] = true
+		entityIDs = append(entityIDs, item.EntityID)
+	}
+
+	entitiesByID := map[string]domain.KnowledgeEntity{}
+	if len(entityIDs) > 0 {
+		var entities []domain.KnowledgeEntity
+		if err := db.DB.Where("id IN ?", entityIDs).Find(&entities).Error; err == nil {
+			for _, entity := range entities {
+				entitiesByID[entity.ID] = entity
+			}
+		}
+	}
+
+	response := make([]recentKnowledgeAskItem, 0, len(items))
+	for _, item := range items {
+		row := recentKnowledgeAskItem{KnowledgeEntityAskAnswer: item}
+		if entity, ok := entitiesByID[item.EntityID]; ok {
+			row.EntityTitle = entity.Title
+			row.EntityKind = entity.Kind
+		}
+		response = append(response, row)
+	}
+	return response
 }
 
 func GetKnowledgeEntityAskHistory(c *gin.Context) {
