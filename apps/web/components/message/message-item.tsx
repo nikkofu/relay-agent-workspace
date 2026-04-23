@@ -15,6 +15,7 @@ import { toast } from "sonner"
 import { Pin, FileCode, FileText, MoreVertical, Copy } from "lucide-react"
 import { FileAttachmentCard } from "./file-attachment-card"
 import { EntityMentionChip } from "./entity-mention-chip"
+import { UserMentionChips } from "./user-mention-chips"
 import { KnowledgeDigestCard } from "./knowledge-digest-card"
 import { Button } from "@/components/ui/button"
 import {
@@ -95,6 +96,11 @@ export function MessageItem({ message, sender, isCompact, showActions = true }: 
         {/* Knowledge Digest Card (published digest message) */}
         {message.metadata?.knowledge_digest && (
           <KnowledgeDigestCard digest={message.metadata.knowledge_digest} />
+        )}
+
+        {/* User Mentions */}
+        {message.metadata?.user_mentions && message.metadata.user_mentions.length > 0 && (
+          <UserMentionChips mentions={message.metadata.user_mentions} />
         )}
 
         {/* Entity Mentions */}

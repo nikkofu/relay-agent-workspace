@@ -19,7 +19,7 @@ export function useWebsocket() {
   const { setCollabData } = useCollabStore()
   const { updatePresence, setTyping } = usePresenceStore()
   const { updateArtifactLocally } = useArtifactStore()
-  const { markAsReadLocally, appendUnifiedFeedItem } = useActivityStore()
+  const { markAsReadLocally, appendUnifiedFeedItem, appendMentionItem } = useActivityStore()
   const { fetchWorkflowRuns } = useDirectoryStore()
 
   useEffect(() => {
@@ -100,6 +100,65 @@ export function useWebsocket() {
               body: data.payload.message?.content,
               occurred_at: reaction.created_at ?? new Date().toISOString(),
               meta: { message_id: reaction.message_id, emoji: reaction.emoji },
+            })
+          }
+        } else if (data.type === 'mention.created') {
+          // Phase 65A: live user mention — wire to mentions store + unified feed
+          const p = data.payload || {}
+          const currentUserId = useUserStore.getState().currentUser?.id
+          const mentionId = `mention:${p.message_id}:${p.mentioned_user_id}`
+          const channelName = p.channel_id ? `#${p.channel_id}` : 'DM'
+          const actorName = p.mentioned_by_user_id
+            ? (useUserStore.getState().users.find((u: any) => u.id === p.mentioned_by_user_id)?.name ?? 'Someone')
+            : 'Someone'
+          // Append to unified feed rail
+          appendUnifiedFeedItem({
+            id: mentionId,
+            event_type: 'mention',
+            workspace_id: p.workspace_id,
+            actor_id: p.mentioned_by_user_id,
+            actor_name: actorName,
+            channel_id: p.channel_id || undefined,
+            dm_id: p.dm_id || undefined,
+            link: p.channel_id
+              ? `/workspace?c=${p.channel_id}&m=${p.message_id}`
+              : p.dm_id
+              ? `/workspace/dms/${p.dm_id}`
+              : undefined,
+            title: `${actorName} mentioned you${p.channel_id ? ` in ${channelName}` : p.dm_id ? ' in a DM' : ''}`,
+            body: p.mention_text,
+            occurred_at: new Date().toISOString(),
+            meta: {
+              mention_kind: p.mention_kind ?? 'user',
+              message_id: p.message_id,
+              mentioned_user_id: p.mentioned_user_id,
+              mentioned_by_user_id: p.mentioned_by_user_id,
+              mention_text: p.mention_text,
+            },
+          })
+          // Prepend to Mentions tab if this mention is for the current user
+          if (p.mentioned_user_id && p.mentioned_user_id === currentUserId) {
+            appendMentionItem({
+              id: mentionId,
+              type: 'mention',
+              user: { id: p.mentioned_by_user_id, name: actorName },
+              channel: p.channel_id ? { id: p.channel_id } : undefined,
+              message: p.message_id ? { id: p.message_id, dm_id: p.dm_id } : undefined,
+              target: p.channel_id ? channelName : 'DM',
+              summary: `mentioned you${p.channel_id ? ` in ${channelName}` : ' in a DM'}`,
+              occurredAt: new Date().toISOString(),
+              isRead: false,
+            })
+            toast(`${actorName} mentioned you`, {
+              description: p.mention_text ? `"${String(p.mention_text).slice(0, 80)}"` : undefined,
+              duration: 5000,
+              action: p.channel_id || p.dm_id ? {
+                label: 'View',
+                onClick: () => {
+                  if (p.channel_id) window.location.href = `/workspace?c=${p.channel_id}`
+                  else if (p.dm_id) window.location.href = `/workspace/dms/${p.dm_id}`
+                }
+              } : undefined,
             })
           }
         } else if (data.type === 'agent_collab.sync') {

@@ -37,12 +37,13 @@ interface UnifiedActivityRailProps {
   defaultTab?: TabId
 }
 
-type TabId = 'ai' | 'all' | 'messages' | 'files' | 'bookings'
+type TabId = 'ai' | 'all' | 'messages' | 'mentions' | 'files' | 'bookings'
 
 const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'ai',       label: 'AI Events',  icon: Wand2 },
   { id: 'all',      label: 'All',        icon: Activity },
   { id: 'messages', label: 'Messages',   icon: MessageSquare },
+  { id: 'mentions', label: 'Mentions',   icon: AtSign },
   { id: 'files',    label: 'Files',      icon: Paperclip },
   { id: 'bookings', label: 'Bookings',   icon: CalendarCheck },
 ]
@@ -51,9 +52,12 @@ const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
 
 type EventCfg = { label: string; icon: React.ElementType; pill: string }
 
+const MENTION_USER_CFG: EventCfg  = { label: 'Mention',        icon: AtSign,    pill: 'bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-300 border-fuchsia-400/30' }
+const MENTION_ENTITY_CFG: EventCfg = { label: 'Entity Mention', icon: Tag,       pill: 'bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-400/30' }
+
 const EVENT_CONFIG: Partial<Record<UnifiedActivityEventType, EventCfg>> = {
   message:          { label: 'Message',      icon: MessageSquare, pill: 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-400/30' },
-  mention:          { label: 'Mention',      icon: AtSign,        pill: 'bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-400/30' },
+  mention:          MENTION_USER_CFG,
   reaction:         { label: 'Reaction',     icon: ThumbsUp,      pill: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-400/30' },
   reply:            { label: 'Reply',        icon: MessageSquare, pill: 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-400/30' },
   channel_join:     { label: 'Joined',       icon: UserPlus,      pill: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-400/30' },
@@ -146,7 +150,10 @@ function useAIFeedItems(workspaceId?: string): UnifiedActivityFeedItem[] {
 // ── Row component ─────────────────────────────────────────────────────────────
 
 function FeedRow({ item, compact }: { item: UnifiedActivityFeedItem; compact: boolean }) {
-  const cfg = getEventCfg(item.event_type)
+  // Phase 65B: distinguish user mentions (fuchsia @) from entity mentions (violet tag)
+  const cfg = item.event_type === 'mention'
+    ? (item.meta?.mention_kind === 'entity' ? MENTION_ENTITY_CFG : MENTION_USER_CFG)
+    : getEventCfg(item.event_type)
   const Icon = cfg.icon
   const KindIcon = getKindIcon(item.entity_kind)
   const kindColor = getKindColor(item.entity_kind)
@@ -250,6 +257,8 @@ export function UnifiedActivityRail({
       fetchUnifiedFeed({ workspaceId: wsId, eventType: 'file_uploaded', limit: 40 })
     } else if (activeTab === 'bookings') {
       fetchUnifiedFeed({ workspaceId: wsId, eventType: 'schedule_booking', limit: 40 })
+    } else if (activeTab === 'mentions') {
+      fetchUnifiedFeed({ workspaceId: wsId, eventType: 'mention', limit: 40 })
     } else if (activeTab === 'messages') {
       fetchActivities()
     }
@@ -262,11 +271,12 @@ export function UnifiedActivityRail({
   const visibleAI = showMore ? aiFeedItems : aiFeedItems.slice(0, 30)
   const visibleAll = showMore ? unifiedFeedItems : unifiedFeedItems.slice(0, 30)
 
-  const isLoading = ['all', 'files', 'bookings'].includes(activeTab) ? isLoadingUnifiedFeed : false
+  const isLoading = ['all', 'mentions', 'files', 'bookings'].includes(activeTab) ? isLoadingUnifiedFeed : false
   const isEmpty = {
     ai:       aiFeedItems.length === 0,
     all:      unifiedFeedItems.length === 0 && !isLoadingUnifiedFeed,
     messages: messageItems.length === 0,
+    mentions: unifiedFeedItems.length === 0 && !isLoadingUnifiedFeed,
     files:    unifiedFeedItems.length === 0 && !isLoadingUnifiedFeed,
     bookings: unifiedFeedItems.length === 0 && !isLoadingUnifiedFeed,
   }[activeTab]
@@ -323,6 +333,26 @@ export function UnifiedActivityRail({
               onClick={() => fetchUnifiedFeed({ workspaceId: wsId, limit: 50, cursor: unifiedFeedCursor ?? undefined })}
               className="w-full py-2 text-[10px] text-muted-foreground hover:text-foreground flex items-center justify-center gap-1 hover:bg-muted/20 transition-colors">
               <ChevronDown className="w-3 h-3" /> Load more
+            </button>
+          )}
+        </>
+      )
+    }
+
+    if (activeTab === 'mentions') {
+      if (unifiedFeedItems.length === 0) return (
+        <div className="px-3 py-4 space-y-1">
+          <p className="text-[11px] text-muted-foreground italic">No mentions yet.</p>
+          <p className="text-[10px] text-muted-foreground/60">You'll see @user and @entity mentions here as they happen.</p>
+        </div>
+      )
+      return (
+        <>
+          {visibleAll.map(item => <FeedRow key={item.id} item={item} compact={compact} />)}
+          {(unifiedFeedItems.length > 30 && !showMore) && (
+            <button type="button" onClick={() => setShowMore(true)}
+              className="w-full py-2 text-[10px] text-muted-foreground hover:text-foreground flex items-center justify-center gap-1 hover:bg-muted/20 transition-colors">
+              <ChevronDown className="w-3 h-3" /> Show {unifiedFeedItems.length - 30} more
             </button>
           )}
         </>

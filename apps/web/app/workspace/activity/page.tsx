@@ -8,7 +8,6 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useActivityStore, ActivityItem } from "@/stores/activity-store"
 import { useChannelStore } from "@/stores/channel-store"
-import { useDMStore } from "@/stores/dm-store"
 import { useEffect, useState } from "react"
 import { formatDistanceToNow } from "date-fns"
 import { useRouter } from "next/navigation"
@@ -35,7 +34,6 @@ export default function ActivityPage() {
     fetchActivities, fetchInbox, fetchMentions, markAsRead
   } = useActivityStore()
   const { setCurrentChannelById } = useChannelStore()
-  const { conversations, setCurrentConversation } = useDMStore()
   const currentWorkspace = useWorkspaceStore(s => s.currentWorkspace)
   const router = useRouter()
   const [activeTab, setActiveTab] = useState("feed")
@@ -56,9 +54,7 @@ export default function ActivityPage() {
       setCurrentChannelById(item.channel.id)
       router.push(`/workspace?c=${item.channel.id}`)
     } else if (item.message?.dm_id) {
-      const conv = conversations.find(c => c.id === item.message.dm_id)
-      if (conv) setCurrentConversation(conv)
-      router.push(`/workspace/dms?id=${item.message.dm_id}`)
+      router.push(`/workspace/dms/${item.message.dm_id}`)
     }
   }
 

@@ -23,6 +23,7 @@ interface ActivityState {
   fetchMentions: () => Promise<void>
   markAsRead: (itemIds: string[]) => Promise<void>
   markAsReadLocally: (itemIds: string[]) => void
+  appendMentionItem: (item: ActivityItem) => void
   // Phase 64A: unified activity feed
   unifiedFeedItems: UnifiedActivityFeedItem[]
   isLoadingUnifiedFeed: boolean
@@ -124,6 +125,17 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
         itemIds.includes(item.id) ? { ...item, isRead: true } : item
       )
     }))
+  },
+  appendMentionItem: (item) => {
+    set(state => {
+      if (state.mentionItems.some(i => i.id === item.id)) return state
+      return {
+        mentionItems: [item, ...state.mentionItems].slice(0, 200),
+        activities: state.activities.some(i => i.id === item.id)
+          ? state.activities
+          : [item, ...state.activities].slice(0, 200),
+      }
+    })
   },
 
   // ── Phase 64A: Unified Activity Feed ──────────────────────────────────────

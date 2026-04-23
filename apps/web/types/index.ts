@@ -1107,6 +1107,12 @@ export interface Reaction {
   userIds: string[]
 }
 
+export interface MessageUserMention {
+  user_id: string
+  name: string
+  mention_text: string
+}
+
 export interface MessageEntityMention {
   entity_id: string
   entity_title: string
@@ -1130,6 +1136,7 @@ export interface Message {
   isPinned?: boolean
   attachments?: MessageAttachment[]
   metadata?: {
+    user_mentions?: MessageUserMention[]
     entity_mentions?: MessageEntityMention[]
     knowledge_digest?: ChannelKnowledgeDigest
     [key: string]: unknown
