@@ -122,6 +122,8 @@ export const useArtifactStore = create<ArtifactState>((set, get) => ({
   },
 
   fetchArtifactDetail: async (id) => {
+    if (get().isLoading) return
+    set({ isLoading: true })
     try {
       const channelId = get().activeArtifact?.channelId
       const url = id === "new-doc" 
@@ -135,6 +137,8 @@ export const useArtifactStore = create<ArtifactState>((set, get) => ({
       if (id === "new-doc") set({ versions: [] })
     } catch (error) {
       console.error("Failed to fetch artifact detail:", error)
+    } finally {
+      set({ isLoading: false })
     }
   },
 
@@ -190,6 +194,7 @@ export const useArtifactStore = create<ArtifactState>((set, get) => ({
   },
 
   fetchReferences: async (id) => {
+    if (get().isReferencesLoading) return
     try {
       set({ isReferencesLoading: true })
       const response = await fetch(`${API_BASE_URL}/artifacts/${id}/references`)

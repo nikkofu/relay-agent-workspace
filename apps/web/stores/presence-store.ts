@@ -107,6 +107,7 @@ export const usePresenceStore = create<PresenceState>((set, get) => ({
   },
 
   updatePresence: (userData: any) => {
+    if (!userData) return
     // This will be called from websocket
     const mappedUser = {
       ...userData,

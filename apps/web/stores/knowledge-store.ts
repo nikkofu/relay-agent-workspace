@@ -1038,6 +1038,8 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
 
   // ── Phase 59: Trending entities for workspace ───────────────────────────
   fetchTrendingEntities: async (workspaceId, days = 7, limit = 5) => {
+    if (get().isLoadingTrending) return []
+    if (get().trendingWorkspaceId === workspaceId && get().trendingEntities.length > 0) return get().trendingEntities
     set({ isLoadingTrending: true })
     try {
       const url = `${API_BASE_URL}/knowledge/trending?workspace_id=${encodeURIComponent(workspaceId)}&days=${days}&limit=${limit}`

@@ -111,7 +111,10 @@ export function HomeDashboard() {
           <div className="p-8 max-w-6xl mx-auto w-full space-y-12 pb-32">
             {/* Quick Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 -mt-20 relative z-20">
-              <Card className="bg-white dark:bg-[#222529] border-none shadow-2xl hover:translate-y-[-4px] transition-all duration-300">
+              <Card
+                className="bg-white dark:bg-[#222529] border-none shadow-2xl hover:translate-y-[-4px] transition-all duration-300 cursor-pointer"
+                onClick={() => router.push('/workspace/activity')}
+              >
                 <CardContent className="p-6 flex items-center gap-5">
                   <div className="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-600 shrink-0">
                     <MessageSquare className="w-6 h-6" />
@@ -122,7 +125,10 @@ export function HomeDashboard() {
                   </div>
                 </CardContent>
               </Card>
-              <Card className="bg-white dark:bg-[#222529] border-none shadow-2xl hover:translate-y-[-4px] transition-all duration-300">
+              <Card
+                className="bg-white dark:bg-[#222529] border-none shadow-2xl hover:translate-y-[-4px] transition-all duration-300 cursor-pointer"
+                onClick={() => router.push('/workspace/activity')}
+              >
                 <CardContent className="p-6 flex items-center gap-5">
                   <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-600 shrink-0">
                     <Clock className="w-6 h-6" />
@@ -133,7 +139,10 @@ export function HomeDashboard() {
                   </div>
                 </CardContent>
               </Card>
-              <Card className="bg-white dark:bg-[#222529] border-none shadow-2xl hover:translate-y-[-4px] transition-all duration-300">
+              <Card
+                className="bg-white dark:bg-[#222529] border-none shadow-2xl hover:translate-y-[-4px] transition-all duration-300 cursor-pointer"
+                onClick={() => router.push('/workspace/knowledge')}
+              >
                 <CardContent className="p-6 flex items-center gap-5">
                   <div className="w-12 h-12 rounded-2xl bg-green-500/10 flex items-center justify-center text-green-600 shrink-0">
                     <Sparkles className="w-6 h-6" />
@@ -333,7 +342,7 @@ export function HomeDashboard() {
                   </h3>
                   <div className="bg-muted/30 rounded-3xl p-2 border">
                     {userGroups.slice(0, 3).map(group => (
-                      <div key={group.id} className="p-4 hover:bg-white dark:hover:bg-black rounded-2xl flex items-center justify-between transition-all cursor-pointer group shadow-sm hover:shadow-md mb-1 last:mb-0">
+                      <div key={group.id} onClick={() => router.push('/workspace/people')} className="p-4 hover:bg-white dark:hover:bg-black rounded-2xl flex items-center justify-between transition-all cursor-pointer group shadow-sm hover:shadow-md mb-1 last:mb-0">
                         <div>
                           <p className="text-sm font-bold group-hover:text-purple-600 transition-colors">{group.name}</p>
                           <p className="text-[10px] text-muted-foreground font-black uppercase tracking-tighter mt-0.5">{group.memberCount} members</p>
@@ -341,7 +350,7 @@ export function HomeDashboard() {
                         <ChevronRight className="w-4 h-4 text-muted-foreground opacity-30 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
                       </div>
                     ))}
-                    <Button variant="ghost" className="w-full text-xs font-black uppercase tracking-widest text-muted-foreground hover:text-purple-600 h-12 rounded-2xl">
+                    <Button variant="ghost" onClick={() => router.push('/workspace/people')} className="w-full text-xs font-black uppercase tracking-widest text-muted-foreground hover:text-purple-600 h-12 rounded-2xl">
                       View All Groups
                     </Button>
                   </div>
@@ -355,7 +364,7 @@ export function HomeDashboard() {
                   </h3>
                   <div className="grid gap-3">
                     {workflows.slice(0, 3).map(wf => (
-                      <div key={wf.id} className="p-4 border rounded-2xl flex items-center gap-4 hover:border-amber-500/50 hover:bg-amber-500/5 transition-all group cursor-pointer">
+                      <div key={wf.id} onClick={() => router.push('/workspace/workflows')} className="p-4 border rounded-2xl flex items-center gap-4 hover:border-amber-500/50 hover:bg-amber-500/5 transition-all group cursor-pointer">
                         <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600 group-hover:scale-110 transition-transform">
                           <Zap className="w-5 h-5 fill-current" />
                         </div>
@@ -376,7 +385,7 @@ export function HomeDashboard() {
                   </h3>
                   <div className="grid grid-cols-2 gap-3">
                     {tools.slice(0, 4).map(tool => (
-                      <button key={tool.id} className="p-4 border rounded-2xl hover:bg-muted transition-all text-left group hover:border-blue-500/30">
+                      <button key={tool.id} onClick={() => router.push('/workspace/tools')} className="p-4 border rounded-2xl hover:bg-muted transition-all text-left group hover:border-blue-500/30">
                         <p className="text-xs font-bold group-hover:text-blue-600 transition-colors">{tool.name}</p>
                         <p className="text-[10px] text-muted-foreground uppercase font-black tracking-tighter mt-1">{tool.category}</p>
                       </button>
