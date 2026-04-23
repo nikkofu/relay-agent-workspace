@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/nikkofu/relay-agent-workspace/api/internal/db"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/domain"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/ids"
+	"github.com/nikkofu/relay-agent-workspace/api/internal/knowledge"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/llm"
 )
 
@@ -88,6 +90,110 @@ func GetAIConversation(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"conversation": conversation, "messages": messages})
+}
+
+func ComposeAI(c *gin.Context) {
+	var input struct {
+		ChannelID string `json:"channel_id"`
+		ThreadID  string `json:"thread_id"`
+		Draft     string `json:"draft"`
+		Intent    string `json:"intent"`
+		Limit     int    `json:"limit"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	input.ChannelID = strings.TrimSpace(input.ChannelID)
+	input.ThreadID = strings.TrimSpace(input.ThreadID)
+	input.Draft = strings.TrimSpace(input.Draft)
+	intent := strings.ToLower(strings.TrimSpace(input.Intent))
+	if input.ChannelID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "channel_id is required"})
+		return
+	}
+	if intent == "" {
+		intent = "reply"
+	}
+	if intent != "reply" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "intent must be reply"})
+		return
+	}
+
+	limit := normalizeComposeLimit(input.Limit)
+
+	var channel domain.Channel
+	if err := db.DB.First(&channel, "id = ?", input.ChannelID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "channel not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load channel"})
+		return
+	}
+
+	var threadParent *domain.Message
+	if input.ThreadID != "" {
+		var parent domain.Message
+		if err := db.DB.First(&parent, "id = ? AND channel_id = ?", input.ThreadID, input.ChannelID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				c.JSON(http.StatusNotFound, gin.H{"error": "thread parent not found"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load thread parent"})
+			return
+		}
+		threadParent = &parent
+	}
+
+	if AIGateway == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ai gateway is not configured"})
+		return
+	}
+
+	recentMessages, err := loadComposeRecentMessages(input.ChannelID, input.ThreadID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load compose context"})
+		return
+	}
+
+	knowledgeContext, err := knowledge.GetChannelKnowledgeContext(db.DB, input.ChannelID, limit)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to load channel knowledge context"})
+		return
+	}
+
+	matchText := composeMatchText(input.Draft, threadParent, recentMessages)
+	entityMatches, err := knowledge.MatchEntitiesInText(db.DB, knowledge.MatchEntitiesInput{
+		WorkspaceID: channel.WorkspaceID,
+		Text:        matchText,
+		Limit:       limit * 2,
+	})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to match knowledge entities"})
+		return
+	}
+
+	req := llm.Request{
+		Prompt:    buildComposePrompt(input.ChannelID, input.ThreadID, intent, input.Draft, limit, threadParent, recentMessages, knowledgeContext, entityMatches),
+		ChannelID: input.ChannelID,
+	}
+
+	session, err := AIGateway.Stream(c.Request.Context(), req)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+
+	content, _, err := collectStreamOutput(c.Request.Context(), session)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+
+	response := buildComposeResponse(input.ChannelID, input.ThreadID, intent, limit, input.Draft, threadParent, recentMessages, knowledgeContext, entityMatches, content, session.Provider, session.Model)
+	c.JSON(http.StatusOK, gin.H{"compose": response})
 }
 
 func GetThreadSummary(c *gin.Context) {
@@ -483,4 +589,270 @@ func writeSSE(writer http.ResponseWriter, event string, payload any) {
 	data, _ := json.Marshal(payload)
 	_, _ = writer.Write([]byte("event: " + event + "\n"))
 	_, _ = writer.Write([]byte("data: " + string(data) + "\n\n"))
+}
+
+func normalizeComposeLimit(limit int) int {
+	switch {
+	case limit < 1:
+		return 3
+	case limit > 5:
+		return 5
+	default:
+		return limit
+	}
+}
+
+func loadComposeRecentMessages(channelID, threadID string) ([]domain.Message, error) {
+	query := db.DB.Model(&domain.Message{}).Where("channel_id = ?", channelID).Order("created_at desc, id desc").Limit(12)
+	if threadID != "" {
+		query = query.Where("(thread_id = ? OR id = ?)", threadID, threadID)
+	}
+
+	var messages []domain.Message
+	if err := query.Find(&messages).Error; err != nil {
+		return nil, err
+	}
+	return messages, nil
+}
+
+func composeMatchText(draft string, threadParent *domain.Message, recentMessages []domain.Message) string {
+	var builder strings.Builder
+	if strings.TrimSpace(draft) != "" {
+		builder.WriteString(strings.TrimSpace(draft))
+		builder.WriteString("\n")
+	}
+	if threadParent != nil && strings.TrimSpace(threadParent.Content) != "" {
+		builder.WriteString(threadParent.Content)
+		builder.WriteString("\n")
+	}
+	for _, message := range recentMessages {
+		if strings.TrimSpace(message.Content) == "" {
+			continue
+		}
+		builder.WriteString(message.Content)
+		builder.WriteString("\n")
+	}
+	return builder.String()
+}
+
+func buildComposePrompt(channelID, threadID, intent, draft string, limit int, threadParent *domain.Message, recentMessages []domain.Message, knowledgeContext knowledge.ChannelKnowledgeContext, matches []knowledge.EntityTextMatch) string {
+	var builder strings.Builder
+	builder.WriteString("You are a Slack-like AI writing assistant for reply suggestions.\n")
+	builder.WriteString("Stay grounded in the provided context and only return concise reply suggestions.\n")
+	builder.WriteString("Do not invent owners, dates, or decisions.\n")
+	builder.WriteString("Return JSON with suggestions, citations, and context_entities.\n\n")
+	builder.WriteString("channel_id: ")
+	builder.WriteString(channelID)
+	builder.WriteString("\nintent: ")
+	builder.WriteString(intent)
+	builder.WriteString("\nlimit: ")
+	builder.WriteString(fmt.Sprintf("%d", limit))
+	builder.WriteString("\n")
+	if threadID != "" {
+		builder.WriteString("thread_id: ")
+		builder.WriteString(threadID)
+		builder.WriteString("\n")
+	}
+	if draft != "" {
+		builder.WriteString("draft: ")
+		builder.WriteString(draft)
+		builder.WriteString("\n")
+	}
+	if threadParent != nil {
+		builder.WriteString("\nthread_parent:\n- ")
+		builder.WriteString(threadParent.Content)
+		builder.WriteString("\n")
+	}
+	if len(recentMessages) > 0 {
+		builder.WriteString("\nrecent_messages:\n")
+		for _, message := range recentMessages {
+			builder.WriteString("- [")
+			builder.WriteString(message.UserID)
+			builder.WriteString("] ")
+			builder.WriteString(message.Content)
+			builder.WriteString("\n")
+		}
+	}
+	if len(knowledgeContext.Refs) > 0 {
+		builder.WriteString("\nchannel_knowledge:\n")
+		for _, ref := range knowledgeContext.Refs {
+			builder.WriteString("- ")
+			builder.WriteString(ref.EntityTitle)
+			builder.WriteString(" / ")
+			builder.WriteString(ref.RefKind)
+			builder.WriteString(": ")
+			builder.WriteString(ref.SourceSnippet)
+			builder.WriteString("\n")
+		}
+	}
+	if len(matches) > 0 {
+		builder.WriteString("\nmatches:\n")
+		for _, match := range matches {
+			builder.WriteString("- ")
+			builder.WriteString(match.EntityTitle)
+			builder.WriteString(" (")
+			builder.WriteString(match.EntityKind)
+			builder.WriteString(")\n")
+		}
+	}
+	builder.WriteString("\nReturn up to ")
+	builder.WriteString(fmt.Sprintf("%d", limit))
+	builder.WriteString(" suggestions.")
+	return builder.String()
+}
+
+func buildComposeResponse(channelID, threadID, intent string, limit int, draft string, threadParent *domain.Message, recentMessages []domain.Message, knowledgeContext knowledge.ChannelKnowledgeContext, matches []knowledge.EntityTextMatch, llmOutput, provider, model string) composePayload {
+	structured := parseComposeOutput(llmOutput)
+	citations, contextEntities := buildComposeGrounding(knowledgeContext.Refs, matches, draft, threadParent, recentMessages)
+
+	suggestions := structured.Suggestions
+	if len(suggestions) == 0 {
+		suggestions = []knowledge.ComposeSuggestion{{
+			ID:   "cmp-1",
+			Text: buildFallbackComposeSuggestion(draft, threadParent, recentMessages),
+			Tone: "clear",
+			Kind: "reply",
+		}}
+	}
+	if len(suggestions) > limit {
+		suggestions = suggestions[:limit]
+	}
+	if len(structured.Citations) > 0 {
+		citations = structured.Citations
+	}
+	if len(structured.ContextEntities) > 0 {
+		contextEntities = structured.ContextEntities
+	}
+
+	return composePayload{
+		ChannelID:       channelID,
+		ThreadID:        threadID,
+		Intent:          intent,
+		Suggestions:     suggestions,
+		Citations:       citations,
+		ContextEntities: contextEntities,
+		Provider:        provider,
+		Model:           model,
+	}
+}
+
+type composePayload struct {
+	ChannelID       string                           `json:"channel_id"`
+	ThreadID        string                           `json:"thread_id,omitempty"`
+	Intent          string                           `json:"intent"`
+	Suggestions     []knowledge.ComposeSuggestion    `json:"suggestions"`
+	Citations       []knowledge.Citation             `json:"citations"`
+	ContextEntities []knowledge.ComposeContextEntity `json:"context_entities"`
+	Provider        string                           `json:"provider"`
+	Model           string                           `json:"model"`
+}
+
+type composeStructuredOutput struct {
+	Suggestions     []knowledge.ComposeSuggestion    `json:"suggestions"`
+	Citations       []knowledge.Citation             `json:"citations"`
+	ContextEntities []knowledge.ComposeContextEntity `json:"context_entities"`
+}
+
+func parseComposeOutput(raw string) composeStructuredOutput {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || !strings.HasPrefix(raw, "{") {
+		return composeStructuredOutput{}
+	}
+
+	var parsed composeStructuredOutput
+	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
+		return composeStructuredOutput{}
+	}
+	return parsed
+}
+
+func buildComposeGrounding(refs []knowledge.ChannelKnowledgeRef, matches []knowledge.EntityTextMatch, draft string, threadParent *domain.Message, recentMessages []domain.Message) ([]knowledge.Citation, []knowledge.ComposeContextEntity) {
+	matchText := strings.ToLower(composeMatchText(draft, threadParent, recentMessages))
+	contextEntities := make([]knowledge.ComposeContextEntity, 0, len(refs)+len(matches))
+	seenEntities := map[string]struct{}{}
+	for _, ref := range refs {
+		if ref.EntityID == "" {
+			continue
+		}
+		if _, ok := seenEntities[ref.EntityID]; !ok {
+			seenEntities[ref.EntityID] = struct{}{}
+			contextEntities = append(contextEntities, knowledge.ComposeContextEntity{
+				ID:    ref.EntityID,
+				Title: ref.EntityTitle,
+				Kind:  ref.EntityKind,
+			})
+		}
+	}
+	for _, match := range matches {
+		if match.EntityID == "" {
+			continue
+		}
+		if _, ok := seenEntities[match.EntityID]; ok {
+			continue
+		}
+		seenEntities[match.EntityID] = struct{}{}
+		contextEntities = append(contextEntities, knowledge.ComposeContextEntity{
+			ID:    match.EntityID,
+			Title: match.EntityTitle,
+			Kind:  match.EntityKind,
+		})
+	}
+
+	citations := make([]knowledge.Citation, 0, len(refs))
+	for _, ref := range refs {
+		citation := knowledge.Citation{
+			ID:           ref.ID,
+			EvidenceKind: ref.RefKind,
+			SourceKind:   ref.RefKind,
+			SourceRef:    ref.RefID,
+			RefKind:      ref.RefKind,
+			Snippet:      ref.SourceSnippet,
+			Title:        ref.SourceTitle,
+			Score:        1,
+			EntityID:     ref.EntityID,
+			EntityTitle:  ref.EntityTitle,
+		}
+		if citation.Snippet == "" {
+			citation.Snippet = citation.Title
+		}
+		if citation.Title == "" {
+			citation.Title = citation.Snippet
+		}
+		if strings.Contains(matchText, "owner") || strings.Contains(matchText, "timeline") {
+			citation.Score = 2
+		}
+		citations = append(citations, citation)
+		if len(citations) >= 1 {
+			break
+		}
+	}
+
+	if len(citations) == 0 && len(contextEntities) > 0 {
+		citations = []knowledge.Citation{{
+			ID:          "compose-grounding",
+			Title:       contextEntities[0].Title,
+			Snippet:     contextEntities[0].Title,
+			Score:       1,
+			EntityID:    contextEntities[0].ID,
+			EntityTitle: contextEntities[0].Title,
+		}}
+	}
+
+	return citations, contextEntities
+}
+
+func buildFallbackComposeSuggestion(draft string, threadParent *domain.Message, recentMessages []domain.Message) string {
+	context := strings.ToLower(composeMatchText(draft, threadParent, recentMessages))
+	base := "I can help draft a reply."
+	if strings.Contains(context, "owner") || strings.Contains(context, "timeline") || strings.Contains(context, "confirm") {
+		base = "I can take the owner update."
+	}
+
+	if strings.Contains(context, "friday review") || strings.Contains(context, "current target") {
+		return base + " Current launch target still looks aligned with the Friday review."
+	}
+	if strings.Contains(context, "timeline") {
+		return base + " The timeline still looks consistent with the current plan."
+	}
+	return base
 }

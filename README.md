@@ -27,7 +27,7 @@ For product, design, and marketing, the short version is:
 
 ## Current Status
 
-`v0.6.12` is the current release line and includes:
+`v0.6.14` is the current release line and includes:
 
 - Go + Gin API service under `apps/api`
 - SQLite persistence via GORM
@@ -78,6 +78,7 @@ For product, design, and marketing, the short version is:
 - per-user followed knowledge weekly briefs via `POST /api/v1/knowledge/weekly-brief`
 - cached weekly followed-knowledge brief hydration via `GET /api/v1/knowledge/weekly-brief`
 - entity-scoped grounded Q&A via `POST /api/v1/knowledge/entities/:id/ask`
+- grounded channel/thread composer suggestions via `POST /api/v1/ai/compose`
 - weekly brief snapshot sharing via `POST /api/v1/knowledge/weekly-brief/:id/share`
 - historical knowledge activity backfill status and execution via `GET /api/v1/knowledge/entities/:id/activity/backfill-status` and `POST /api/v1/knowledge/entities/:id/activity/backfill`
 - realtime followed-stats deltas via websocket `knowledge.followed.stats.changed`

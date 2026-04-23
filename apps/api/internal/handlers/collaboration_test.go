@@ -5214,6 +5214,119 @@ func TestPhase63EntityAskWeeklyShareAndBriefInvalidation(t *testing.T) {
 	}
 }
 
+func TestPhase63BAIComposeContract(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+	AIGateway = stubGateway{}
+	defer SetAIGateway(nil)
+
+	now := time.Now().UTC()
+	db.DB.Create(&domain.User{ID: "user-1", OrganizationID: "org-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "launch", Type: "public"})
+	db.DB.Create(&domain.ChannelMember{ChannelID: "ch-1", UserID: "user-1"})
+	db.DB.Create(&domain.Message{ID: "msg-parent", ChannelID: "ch-1", UserID: "user-1", Content: "Can we confirm the launch owner and timeline?", CreatedAt: now.Add(-2 * time.Hour)})
+	db.DB.Create(&domain.Message{ID: "msg-thread-1", ChannelID: "ch-1", ThreadID: "msg-parent", UserID: "user-1", Content: "The Friday review is still the current target.", CreatedAt: now.Add(-90 * time.Minute)})
+	db.DB.Create(&domain.KnowledgeEntity{ID: "entity-1", WorkspaceID: "ws-1", Kind: "project", Title: "Launch Program", Summary: "AI-native launch workspace", Status: "active", CreatedAt: now, UpdatedAt: now})
+	db.DB.Create(&domain.KnowledgeEntityRef{ID: "kref-1", WorkspaceID: "ws-1", EntityID: "entity-1", RefKind: "message", RefID: "msg-parent", Role: "discussion", CreatedAt: now.Add(-2 * time.Hour)})
+
+	router := gin.New()
+	router.POST("/api/v1/ai/compose", ComposeAI)
+
+	assertCompose := func(t *testing.T, rec *httptest.ResponseRecorder, wantChannelID, wantThreadID string) {
+		t.Helper()
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+		}
+
+		var payload struct {
+			Compose struct {
+				ChannelID   string `json:"channel_id"`
+				ThreadID    string `json:"thread_id"`
+				Intent      string `json:"intent"`
+				Suggestions []struct {
+					ID   string `json:"id"`
+					Text string `json:"text"`
+					Tone string `json:"tone"`
+					Kind string `json:"kind"`
+				} `json:"suggestions"`
+				Citations []struct {
+					ID           string `json:"id"`
+					EvidenceKind string `json:"evidence_kind"`
+					SourceKind   string `json:"source_kind"`
+					SourceRef    string `json:"source_ref"`
+					RefKind      string `json:"ref_kind"`
+					Snippet      string `json:"snippet"`
+					Title        string `json:"title"`
+					Score        int    `json:"score"`
+					EntityID     string `json:"entity_id"`
+					EntityTitle  string `json:"entity_title"`
+				} `json:"citations"`
+				ContextEntities []struct {
+					ID    string `json:"id"`
+					Title string `json:"title"`
+					Kind  string `json:"kind"`
+				} `json:"context_entities"`
+			} `json:"compose"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("failed to decode compose payload: %v", err)
+		}
+
+		if payload.Compose.ChannelID != wantChannelID || payload.Compose.ThreadID != wantThreadID || payload.Compose.Intent != "reply" {
+			t.Fatalf("unexpected compose envelope: %#v", payload.Compose)
+		}
+		if len(payload.Compose.Suggestions) == 0 {
+			t.Fatalf("expected 1 suggestion, got %#v", payload.Compose.Suggestions)
+		}
+		if got := payload.Compose.Suggestions[0]; got.ID == "" || got.Text == "" || got.Tone == "" || got.Kind != "reply" {
+			t.Fatalf("unexpected suggestion: %#v", got)
+		}
+		if len(payload.Compose.Citations) == 0 {
+			t.Fatalf("expected at least 1 citation, got %#v", payload.Compose.Citations)
+		}
+		if got := payload.Compose.Citations[0]; got.ID == "" || got.EvidenceKind == "" || got.SourceRef == "" || got.EntityID != "entity-1" || got.EntityTitle != "Launch Program" {
+			t.Fatalf("unexpected citation: %#v", got)
+		}
+		if len(payload.Compose.ContextEntities) != 1 {
+			t.Fatalf("expected 1 context entity, got %#v", payload.Compose.ContextEntities)
+		}
+		if got := payload.Compose.ContextEntities[0]; got.ID != "entity-1" || got.Title != "Launch Program" || got.Kind != "project" {
+			t.Fatalf("unexpected context entity: %#v", got)
+		}
+	}
+
+	t.Run("channel compose", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/ai/compose", strings.NewReader(`{"channel_id":"ch-1","draft":"Can we confirm the launch owner and timeline?","intent":"reply","limit":3}`))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		assertCompose(t, rec, "ch-1", "")
+	})
+
+	t.Run("thread compose", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/ai/compose", strings.NewReader(`{"channel_id":"ch-1","thread_id":"msg-parent","draft":"The Friday review is still the current target.","intent":"reply","limit":3}`))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		assertCompose(t, rec, "ch-1", "msg-parent")
+	})
+
+	t.Run("missing ai gateway", func(t *testing.T) {
+		SetAIGateway(nil)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/ai/compose", strings.NewReader(`{"channel_id":"ch-1","draft":"Can we confirm the launch owner and timeline?","intent":"reply","limit":3}`))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusServiceUnavailable {
+			t.Fatalf("expected 503, got %d body=%s", rec.Code, rec.Body.String())
+		}
+	})
+}
+
 func TestMatchKnowledgeEntitiesInTextEndpoint(t *testing.T) {
 	setupTestDB(t)
 	now := time.Now().UTC()

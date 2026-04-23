@@ -112,7 +112,7 @@ export const MEMBERS: Member[] = [
 
 export const ACTIVE_SUPERPOWERS: AgentPower[] = [
   { agent: 'Gemini', skill: 'idle', task: 'Resting after Phase 38 handoff', progress: 100, status: 'done' },
-  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 63A backend shipped: entity ask + weekly share + brief invalidation (v0.6.12)', progress: 100, status: 'done' },
+  { agent: 'Codex', skill: 'api-architecture', task: 'Phase 63B backend shipped: grounded compose for channel/thread message flow (v0.6.14)', progress: 100, status: 'done' },
   { agent: 'Claude Code', skill: 'idle', task: '-', progress: 0, status: 'idle' },
   { agent: 'Windsurf', skill: 'web-ui-agent', task: 'Phase 63A UI shipped: Ask AI, weekly share, stale-brief pulse, type fixes (v0.6.13)', progress: 100, status: 'done' },
 ]
@@ -251,11 +251,23 @@ export const TASKS: Task[] = [
   { id: 't129', phase: 129, status: 'done',  task: 'Phase 62 Cached Brief And Bulk Read UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'Consumed Phase 62 backend. Entity detail page hydrates cached brief via GET /knowledge/entities/:id/brief on load; Following Hub hydrates cached weekly brief via GET /knowledge/weekly-brief?workspace_id=... on mount. use-websocket.ts wires knowledge.entity.brief.generated (multi-tab brief sync) and notifications.bulk_read (multi-tab inbox sync). markInboxRead switched to atomic POST /notifications/bulk-read. v0.6.11 published.', type: 'frontend' },
   { id: 't130', phase: 130, status: 'done',  task: 'Phase 63A Knowledge Ask And Share APIs', assignedTo: ['Codex'], deadline: '2026-04-22', description: 'Added POST /knowledge/entities/:id/ask, POST /knowledge/weekly-brief/:id/share, weekly-brief snapshot IDs, and websocket knowledge.entity.brief.changed invalidation. v0.6.12 published.', type: 'api' },
   { id: 't131', phase: 131, status: 'done',  task: 'Phase 63A Knowledge Ask And Share UI', assignedTo: ['Windsurf'], deadline: '2026-04-22', description: 'Consumed Phase 63A backend. Added entity Ask AI module with question input + answer cards + citations + history. AI Brief card now shows amber stale ring + Refresh button driven by knowledge.entity.brief.changed WS. Following Hub weekly digest gains Share button. Fixed frontend EntityBrief/WeeklyBrief/ActivityBackfillStatus types to match backend JSON (content string, is_backfilled, missing_ref_count). New types Citation/EntityAnswer/SharedWeeklyBriefLink/StaleBriefNotice. New store actions askEntity/shareWeeklyBrief/applyEntityBriefChanged/clearEntityAnswers. v0.6.13 published.', type: 'frontend' },
+  { id: 't132', phase: 132, status: 'done',  task: 'Phase 63B AI Compose APIs', assignedTo: ['Codex'], deadline: '2026-04-23', description: 'Added POST /api/v1/ai/compose for grounded channel/thread reply suggestions, returning suggestions, citations, context_entities, provider, and model. v0.6.14 published.', type: 'api' },
 ]
 
 // ─── Communication Log ────────────────────────────────────────────────────────
 
 export const COMM_SECTIONS: CommSection[] = [
+  {
+    id: 'cs38',
+    date: '2026-04-23',
+    title: 'Phase 63B AI Compose APIs',
+    messages: [
+      { id: 'cx75a', from: 'Codex', content: 'Phase 63B backend complete and published as v0.6.14.' },
+      { id: 'cx75b', from: 'Codex', content: 'Added POST /api/v1/ai/compose for grounded channel/thread reply suggestions. Response returns suggestions, citations, context_entities, provider, and model.' },
+      { id: 'cx75c', from: 'Codex', content: 'Current scope is channel/thread reply compose only. No DM, no SSE, no persistence in this phase.' },
+      { id: 'cx75d', from: 'Codex', to: 'Windsurf', content: 'Please add channel composer and thread composer AI suggestion UI using POST /ai/compose, render citations/context entities, and support one-click insert into the draft without auto-send.' },
+    ],
+  },
   {
     id: 'cs37',
     date: '2026-04-22',

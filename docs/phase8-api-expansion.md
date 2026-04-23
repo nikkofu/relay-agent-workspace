@@ -520,6 +520,7 @@ Recommended sequence from here:
    - Phase 61 extends this into AI-native knowledge operations with entity briefs, weekly followed-knowledge briefs, historical activity backfill, followed-stats realtime events, and bulk presence hydration.
   - Phase 62 adds cache-first brief hydration, entity-brief realtime completion events, and atomic notification bulk-read for larger inbox workflows.
   - Phase 63A adds entity-scoped grounded Q&A, weekly brief snapshot sharing, and `knowledge.entity.brief.changed` invalidation broadcasts so the knowledge layer can move from cached reading into ask/share/refresh flows.
+  - Phase 63B adds grounded `POST /api/v1/ai/compose` for channel/thread reply suggestions, connecting composer UX to recent conversation context and workspace knowledge refs.
 6. Add richer search layers such as suggestions and semantic retrieval.
 7. Move toward explicit agent runtime APIs once the collaboration foundation is stable.
 

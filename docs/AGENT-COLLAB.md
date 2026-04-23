@@ -149,6 +149,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 62 Cached Brief And Bulk Read UI | Windsurf | 2026-04-22 | Consumed all Phase 62 backend contracts. Entity detail page hydrates cached brief via `GET /knowledge/entities/:id/brief` on load (zero LLM cost). Following Hub hydrates cached weekly brief via `GET /knowledge/weekly-brief?workspace_id=...` on workspace switch. `use-websocket.ts` wires `knowledge.entity.brief.generated` → `applyEntityBriefGenerated` (multi-tab brief sync) and `notifications.bulk_read` → `applyNotificationsBulkRead` (multi-tab inbox read-state sync). `markInboxRead` store action switched from `POST /notifications/read` to atomic `POST /notifications/bulk-read` (de-duplicated, single transaction). Published `v0.6.11`. |
 | 🟢 Done | Phase 63A Knowledge Ask And Share APIs | Codex | 2026-04-22 | Added `POST /api/v1/knowledge/entities/:id/ask`, `POST /api/v1/knowledge/weekly-brief/:id/share`, weekly-brief snapshot IDs, and websocket `knowledge.entity.brief.changed` invalidation. Released in `v0.6.12`. |
 | 🟢 Done | Phase 63A Knowledge Ask And Share UI | Windsurf | 2026-04-22 | Consumed all Phase 63A backend contracts. Entity detail page gets a full **Ask AI** module (question input, answer cards with citations, clear history). AI Brief card shows an **amber stale ring + Refresh button** when `knowledge.entity.brief.changed` arrives, with the stale `reason` surfaced inline. Following Hub Weekly Digest gets a **Share button** that calls `POST /knowledge/weekly-brief/:id/share` and copies the snapshot link to clipboard. Frontend `EntityBrief` / `WeeklyBrief` / `ActivityBackfillStatus` types corrected to match backend JSON (`content` string, `is_backfilled`, `missing_ref_count`, etc.) — fixes broken Phase 61 rendering. New types: `Citation`, `EntityAnswer`, `SharedWeeklyBriefLink`, `StaleBriefNotice`. New store actions: `askEntity`, `shareWeeklyBrief`, `applyEntityBriefChanged`, `clearEntityAnswers`. Published `v0.6.13`. |
+| 🟢 Done | Phase 63B AI Compose APIs | Codex | 2026-04-23 | Added `POST /api/v1/ai/compose` for grounded channel/thread reply suggestions, returning `suggestions[]`, `citations[]`, and `context_entities[]`. Released in `v0.6.14`. |
 
 ---
 
@@ -157,9 +158,19 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
-| **Codex** | `api-architecture` | Phase 63A backend shipped: entity ask + weekly share + brief invalidation (v0.6.12) | 100% |
+| **Codex** | `api-architecture` | Phase 63B backend shipped: grounded compose for channel/thread message flow (v0.6.14) | 100% |
 | **Claude Code**| `idle` | - | - |
 | **Windsurf** | `web-ui-agent` | Phase 63A UI shipped: Ask AI module, weekly share, stale-brief pulse, type fixes (v0.6.13) | 100% |
+
+### 2026-04-23 - Phase 63B AI Compose APIs (v0.6.14)
+- **Codex**: Phase 63B backend is complete and published as `v0.6.14`.
+- **Codex**: Added `POST /api/v1/ai/compose` for grounded reply suggestions in channel and thread composers.
+- **Codex**: The endpoint accepts `channel_id`, optional `thread_id`, optional `draft`, optional `intent` (`reply` only in this phase), and optional `limit`. It returns `suggestions[]`, `citations[]`, `context_entities[]`, `provider`, and `model`.
+- **Codex → Windsurf**: Please consume this contract next:
+  - add channel composer and thread composer AI suggestion UI using `POST /ai/compose`
+  - render returned `citations[]` and `context_entities[]`
+  - allow inserting a suggestion into the draft without auto-send
+- **Codex → Nikko Fu**: This phase pushes AI-native capability directly into the Slack-style core workflow: writing messages. It is the bridge from entity-centric intelligence into day-to-day channel execution.
 
 ### 2026-04-22 - Phase 63A Knowledge Ask And Share UI (v0.6.13)
 - **Windsurf**: Phase 63A UI complete and published as `v0.6.13`. Full consumer for Codex `v0.6.12` backend.
@@ -410,6 +421,14 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 ---
 
 ## 💬 Communication Log
+
+### 2026-04-23 - Phase 63B AI Compose APIs
+- **Codex**: Phase 63B backend complete and published as `v0.6.14`.
+- **Codex**: Added `POST /api/v1/ai/compose` for grounded channel/thread reply suggestions, returning `suggestions[]`, `citations[]`, `context_entities[]`, `provider`, and `model`.
+- **Codex → Windsurf**: Please build the UI consumer pass:
+  - channel composer and thread composer suggestion rail or popover using `POST /ai/compose`
+  - citation/context entity display for each suggestion
+  - one-click insert into draft without auto-send
 
 ### 2026-04-22 - Phase 63A Knowledge Ask And Share APIs
 - **Codex**: Phase 63A backend complete and published as `v0.6.12`.

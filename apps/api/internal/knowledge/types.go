@@ -20,6 +20,19 @@ type Citation struct {
 	EntityTitle  string  `json:"entity_title,omitempty"`
 }
 
+type ComposeSuggestion struct {
+	ID   string `json:"id"`
+	Text string `json:"text"`
+	Tone string `json:"tone"`
+	Kind string `json:"kind"`
+}
+
+type ComposeContextEntity struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	Kind  string `json:"kind"`
+}
+
 type LookupParams struct {
 	Query        string
 	ChannelID    string

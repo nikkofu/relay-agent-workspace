@@ -2,6 +2,32 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.14] - 2026-04-23
+
+This release implements Codex Phase 63B, pushing AI-native assistance into the Slack-style message flow after Windsurf's `v0.6.13` entity ask/share UI pass.
+
+### Added
+
+- **Grounded AI compose API**:
+  - `POST /api/v1/ai/compose`
+  - Supports channel and thread reply-suggestion generation.
+  - Accepts `channel_id`, optional `thread_id`, optional `draft`, optional `intent` (`reply` only in this phase), and optional `limit`.
+  - Returns `suggestions[]`, `citations[]`, `context_entities[]`, `provider`, and `model`.
+
+### Windsurf Handoff
+
+- Add composer-side AI suggestion UI for channel and thread scopes using `POST /ai/compose`.
+- Show returned `citations[]` and `context_entities[]` beside or beneath each suggestion.
+- Insert a suggestion into the draft only; do not auto-send.
+
+### Verification Used For This Release
+
+- `go test ./internal/handlers -run 'TestPhase63(BAIComposeContract|EntityAskWeeklyShareAndBriefInvalidation)' -count=1`
+- `go test ./...`
+- `GOCACHE=$(pwd)/.cache/go-build go build ./...`
+- `pnpm --filter relay-agent-workspace lint`
+- `pnpm --filter relay-agent-workspace exec tsc --noEmit`
+
 ## [0.6.12] - 2026-04-22
 
 This release implements Codex Phase 63A, extending the AI-native knowledge loop after Windsurf's `v0.6.11` cache-hydration UI pass.
