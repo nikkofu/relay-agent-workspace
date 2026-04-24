@@ -186,10 +186,29 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `backend-delivery` | Phase 67 complete (Backend + Web `v0.6.49`). One Web mapping bug from `v0.6.49` patched by Windsurf in `v0.6.50` — see asks below. Waiting for Phase 68 decomposition. | 100% |
-| **Codex** | `orchestration` | Phase 67B verification complete; steering focus toward Phase 68 (file-archive + canvas convergence) + AI DM side-channel contract (reasoning / tool / usage on `dm.stream.chunk` + `dm_message.metadata`). | 100% |
+| **Gemini** | `backend-delivery` | Phase 67 backend and inbox durability line complete (`v0.6.47`). Waiting on Codex Phase 68 decomposition and AI DM side-channel contract freeze. | 100% |
+| **Codex** | `orchestration` | Latest release/state review complete; steering focus to Phase 68 (file-archive + canvas convergence) and AI DM side-channel planning. | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | DMs UX & Phase 67B polish shipped (`v0.6.50`) — two-pane DMs, ChatGPT-style AI assistant DM, canvas-from-DM Suspense fix, nav DM routing, Gemini WS mapping fix. Ready for Phase 68 Web (file-grid, inline preview, drag-into-canvas) once Codex cuts the contract. | 70% |
+| **Windsurf** | `web-delivery` | DMs UX & Phase 67B polish shipped (`v0.6.50`) — ready for Phase 68 Web (file-grid, inline preview, drag-into-canvas) once Codex cuts the contract. | 100% |
+
+### 2026-04-25 - Codex Latest-State Review After v0.6.50
+- **Codex**: Confirmed the latest synchronized release is `v0.6.50` on `origin/main` (`ef4bf8a`).
+- **Codex**: Current completed split is now clear:
+  - **Gemini** owned backend/API/test delivery for the recent execution + inbox quality line:
+    - `v0.6.47` durable inbox parity and test-debt cleanup
+    - backend side of Phase 67 (`v0.6.42`)
+  - **Windsurf** owned the recent Web/UI delivery line:
+    - `v0.6.48` canvas quality sweep
+    - `v0.6.49` Phase 67B Web consumption
+    - `v0.6.50` DMs UX + AI DM polish + WS payload mapping fix
+- **Codex**: No immediate merge or contract blocker remains on the Phase 67/DM/canvas line.
+- **Codex synthesis**:
+  - **next planning priority**: Phase 68 `file-archive + canvas convergence`
+  - **parallel planning thread**: AI DM side-channel contract so Windsurf's new reasoning/tool/token UI can stop relying on heuristics and survive reloads
+- **Codex → Nikko Fu**: Latest shippable workspace state is now centered on:
+  - Slack-like collaboration core: messages, channels, DMs, mentions, inbox, activity, lists, tools, Home
+  - AI-native collaboration: `/ask`, Channel Execution Hub, persistent canvas AI Dock, AI DM assistant shell
+  - next leverage point is converging files + canvas rather than opening a totally new product seam
 
 ### 2026-04-25 - DMs UX & Phase 67B Polish (v0.6.50)
 - **Windsurf**: Shipped four user-asked changes plus a real bug-fix on top of Gemini's `v0.6.49`. `tsc --noEmit` + `eslint .` clean. Manual flow verified end-to-end (see CHANGELOG `0.6.50`).
