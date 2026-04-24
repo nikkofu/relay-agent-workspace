@@ -24,6 +24,10 @@ interface ActivityState {
   markAsRead: (itemIds: string[]) => Promise<void>
   markAsReadLocally: (itemIds: string[]) => void
   appendMentionItem: (item: ActivityItem) => void
+  // Phase 67B: lightweight unread counts
+  unreadMentionCount: number
+  fetchUnreadCounts: () => Promise<void>
+  setUnreadMentionCount: (count: number) => void
   // Phase 64A: unified activity feed
   unifiedFeedItems: UnifiedActivityFeedItem[]
   isLoadingUnifiedFeed: boolean
@@ -53,6 +57,7 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
   activities: [],
   inboxItems: [],
   mentionItems: [],
+  unreadMentionCount: 0,
   // Phase 64A initial state
   unifiedFeedItems: [],
   isLoadingUnifiedFeed: false,
@@ -90,17 +95,7 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
 
     try {
       // Optimistic update
-      set((state) => ({
-        inboxItems: state.inboxItems.map(item => 
-          itemIds.includes(item.id) ? { ...item, isRead: true } : item
-        ),
-        mentionItems: state.mentionItems.map(item => 
-          itemIds.includes(item.id) ? { ...item, isRead: true } : item
-        ),
-        activities: state.activities.map(item => 
-          itemIds.includes(item.id) ? { ...item, isRead: true } : item
-        )
-      }))
+      get().markAsReadLocally(itemIds)
 
       await fetch(`${API_BASE_URL}/notifications/read`, {
         method: "POST",
@@ -109,22 +104,24 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
       })
     } catch (error) {
       console.error("Failed to mark as read:", error)
-      // We could revert here, but for simple read state, 
-      // it's usually fine to just let the next fetch fix it
     }
   },
   markAsReadLocally: (itemIds) => {
-    set((state) => ({
-      inboxItems: state.inboxItems.map(item => 
-        itemIds.includes(item.id) ? { ...item, isRead: true } : item
-      ),
-      mentionItems: state.mentionItems.map(item => 
-        itemIds.includes(item.id) ? { ...item, isRead: true } : item
-      ),
-      activities: state.activities.map(item => 
-        itemIds.includes(item.id) ? { ...item, isRead: true } : item
-      )
-    }))
+    set((state) => {
+      const newlyRead = state.mentionItems.filter(i => itemIds.includes(i.id) && !i.isRead).length
+      return {
+        inboxItems: state.inboxItems.map(item => 
+          itemIds.includes(item.id) ? { ...item, isRead: true } : item
+        ),
+        mentionItems: state.mentionItems.map(item => 
+          itemIds.includes(item.id) ? { ...item, isRead: true } : item
+        ),
+        activities: state.activities.map(item => 
+          itemIds.includes(item.id) ? { ...item, isRead: true } : item
+        ),
+        unreadMentionCount: Math.max(0, state.unreadMentionCount - newlyRead)
+      }
+    })
   },
   appendMentionItem: (item) => {
     set(state => {
@@ -134,9 +131,23 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
         activities: state.activities.some(i => i.id === item.id)
           ? state.activities
           : [item, ...state.activities].slice(0, 200),
+        unreadMentionCount: state.unreadMentionCount + (item.isRead ? 0 : 1)
       }
     })
   },
+
+  fetchUnreadCounts: async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/me/unread-counts`)
+      if (!response.ok) return
+      const data = await response.json()
+      set({ unreadMentionCount: data.counts?.unread_mention_count || 0 })
+    } catch (error) {
+      console.error("Failed to fetch unread counts:", error)
+    }
+  },
+
+  setUnreadMentionCount: (count) => set({ unreadMentionCount: count }),
 
   // ── Phase 64A: Unified Activity Feed ──────────────────────────────────────
   //

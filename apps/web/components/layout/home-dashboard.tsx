@@ -38,7 +38,7 @@ function stripHtml(html: string): string {
 export function HomeDashboard() {
   const router = useRouter()
   const { userGroups, workflows, tools, fetchUserGroups, fetchWorkflows, fetchTools } = useDirectoryStore()
-  const { homeData, fetchHome, currentWorkspace } = useWorkspaceStore()
+  const { homeData, fetchHome, currentWorkspace, isHomeExecutionStale } = useWorkspaceStore()
   const { currentUser } = useUserStore()
   const { setCurrentChannelById } = useChannelStore()
   const { openCanvas } = useUIStore()
@@ -55,6 +55,14 @@ export function HomeDashboard() {
     fetchTools()
     fetchHome()
   }, [fetchUserGroups, fetchWorkflows, fetchTools, fetchHome])
+
+  // Phase 67B: Silently refresh Home if execution data is marked stale via WS
+  useEffect(() => {
+    if (mounted && isHomeExecutionStale) {
+      console.log("Home execution data is stale, refreshing...")
+      fetchHome()
+    }
+  }, [mounted, isHomeExecutionStale, fetchHome])
 
   if (!mounted) return null
 

@@ -2,6 +2,33 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.49] - 2026-04-24
+
+Execution Live Layer Web Consumption (Phase 67B). Makes the execution panel,
+message list, and home dashboard reactive to real-time events.
+
+### Added
+
+- **Source message jump + flash highlight** — Clicking a "From msg" chip in the 
+  execution panel now scrolls the message list to the target and applies a 
+  1.5 s violet flash highlight for immediate visual orientation.
+- **Real-time execution sync** — Execution panels and Home blocks now update 
+  incrementally via `list.item.*` and `tool.run.*` WebSocket events. 
+  No full-page refresh required to see task progress or tool completion.
+- **Lightweight unread sync** — Switched Activity mention badge refresh to use 
+  the dedicated `/me/unread-counts` endpoint for faster, more frequent 
+  coordination.
+- **Execution momentum signals** — Channel Execution Pulse rows on Home now 
+  render 7-day deltas for open items (red/green badges) and flaky tool 
+  failure counts (amber alert badges).
+
+### Changed
+
+- **Home background refresh** — Home now uses event-driven stale marking plus 
+  debounced refresh to keep aggregates accurate without row-level overhead.
+- **Auto-scroll logic** — Message list auto-scroll-to-bottom is suppressed 
+  when a deep-link hash (#msg-) is present in the URL.
+
 ## [0.6.48] - 2026-04-24
 
 Canvas Quality Sweep (Web). Ten user-reported bugs + ten new behaviours

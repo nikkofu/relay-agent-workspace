@@ -20,6 +20,7 @@ export function MessageList({ messages, className }: MessageListProps) {
   const { users } = useUserStore()
   const { currentChannel } = useChannelStore()
   const { getLastRead, markAsRead } = useUnreadStore()
+  const [highlightedId, setHighlightedId] = useState<string | null>(null)
 
   const lastRead = currentChannel ? getLastRead(currentChannel.id) : null
   let unreadDividerShown = false
@@ -31,8 +32,36 @@ export function MessageList({ messages, className }: MessageListProps) {
     }
   }, [currentChannel, markAsRead])
 
+  // Phase 67B: Handle source-message jump and flash highlight
+  useEffect(() => {
+    if (!mounted) return
+
+    const handleHashChange = () => {
+      const hash = window.location.hash
+      if (hash && hash.startsWith('#msg-')) {
+        const messageId = hash.replace('#msg-', '')
+        const element = document.getElementById(`msg-${messageId}`)
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          setHighlightedId(messageId)
+          // Clear highlight after 2s animation finishes
+          setTimeout(() => setHighlightedId(null), 2000)
+        }
+      }
+    }
+
+    // Initial check
+    handleHashChange()
+
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
+  }, [mounted, messages])
+
   // Auto-scroll to bottom on new messages
   useEffect(() => {
+    // Only auto-scroll if we don't have a specific message to jump to in the hash
+    if (window.location.hash?.startsWith('#msg-')) return
+
     if (scrollRef.current) {
       const scrollContainer = scrollRef.current.querySelector('[data-radix-scroll-area-viewport]')
       if (scrollContainer) {
@@ -73,7 +102,7 @@ export function MessageList({ messages, className }: MessageListProps) {
             if (showUnreadDivider) unreadDividerShown = true
 
             return (
-              <div key={msg.id}>
+              <div key={msg.id} className={cn(highlightedId === msg.id && "animate-flash-highlight")}>
                 {showDateSeparator && (
                   <div className="flex items-center gap-4 my-6 relative">
                     <div className="h-[1px] bg-border flex-1" />

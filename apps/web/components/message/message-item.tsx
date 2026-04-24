@@ -56,11 +56,14 @@ export function MessageItem({ message, sender, isCompact, showActions = true }: 
   }
 
   return (
-    <div className={cn(
-      "group flex items-start gap-3 hover:bg-muted/50 -mx-4 px-4 py-1 transition-colors relative",
-      isCompact ? "py-0.5" : "py-2 mt-2",
-      message.isPinned && "bg-amber-500/5 hover:bg-amber-500/10"
-    )}>
+    <div 
+      id={`msg-${message.id}`}
+      className={cn(
+        "group flex items-start gap-3 hover:bg-muted/50 -mx-4 px-4 py-1 transition-colors relative",
+        isCompact ? "py-0.5" : "py-2 mt-2",
+        message.isPinned && "bg-amber-500/5 hover:bg-amber-500/10"
+      )}
+    >
       {message.isPinned && (
         <div className="absolute top-1.5 left-1.5 z-10">
           <Pin className="w-3 h-3 text-amber-500 fill-amber-500 rotate-45" />

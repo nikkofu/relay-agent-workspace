@@ -73,6 +73,9 @@ interface ListState {
   
   addItem: (listId: string, content: string) => Promise<void>
   addItemWithSource: (listId: string, input: AddItemWithSourceInput) => Promise<WorkspaceListItem | null>
+  addItemLocally: (item: WorkspaceListItem) => void
+  updateItemLocally: (listId: string, item: WorkspaceListItem) => void
+  removeItemLocally: (listId: string, itemId: string) => void
   aiDraftListItem: (input: { messageId: string, listId: string, channelId?: string, context?: string }) => Promise<ListItemDraftResult | null>
   toggleItem: (listId: string, itemId: string, isCompleted: boolean) => Promise<void>
   deleteItem: (listId: string, itemId: string) => Promise<void>
@@ -205,9 +208,6 @@ export const useListStore = create<ListState>((set, get) => ({
     }
   },
 
-  // Phase 66 T08: create a list item that carries source-message metadata so
-  // the persisted row points back at the originating message. Per frozen
-  // Codex contract (Q1), fields are flat on the request body.
   addItemWithSource: async (listId, input) => {
     try {
       const body: Record<string, any> = { content: input.content }
@@ -225,7 +225,11 @@ export const useListStore = create<ListState>((set, get) => ({
       if (!response.ok) throw new Error("Add item failed")
       const data = await response.json().catch(() => ({}))
       const created = data?.item ? mapItem(data.item) : null
-      await get().fetchListDetail(listId)
+      
+      // Phase 67B: addItemLocally will be called by use-websocket if enabled,
+      // but manual call here ensures immediate feedback if WS is slow.
+      if (created) get().addItemLocally(created)
+      
       toast.success(input.sourceMessageId ? "Added to list from message" : "Item added")
       return created
     } catch (error) {
@@ -233,6 +237,63 @@ export const useListStore = create<ListState>((set, get) => ({
       toast.error("Failed to add to list")
       return null
     }
+  },
+
+  addItemLocally: (item) => {
+    set((state) => {
+      const existingList = state.lists.find(l => l.id === item.listId)
+      if (!existingList) return state
+
+      // Avoid duplicates
+      if (existingList.items?.find(i => i.id === item.id)) return state
+
+      const updatedItems = [...(existingList.items || []), item].sort((a, b) => a.position - b.position)
+      const updatedList = { ...existingList, items: updatedItems, itemCount: (existingList.itemCount || 0) + 1 }
+      
+      return {
+        lists: state.lists.map(l => l.id === item.listId ? updatedList : l),
+        activeList: state.activeList?.id === item.listId ? updatedList : state.activeList
+      }
+    })
+  },
+
+  updateItemLocally: (listId, item) => {
+    set((state) => {
+      const existingList = state.lists.find(l => l.id === listId)
+      if (!existingList) return state
+
+      const updatedItems = (existingList.items || []).map(i => i.id === item.id ? item : i)
+      const updatedList = { 
+        ...existingList, 
+        items: updatedItems,
+        completedCount: updatedItems.filter(i => i.isCompleted).length
+      }
+
+      return {
+        lists: state.lists.map(l => l.id === listId ? updatedList : l),
+        activeList: state.activeList?.id === listId ? updatedList : state.activeList
+      }
+    })
+  },
+
+  removeItemLocally: (listId, itemId) => {
+    set((state) => {
+      const existingList = state.lists.find(l => l.id === listId)
+      if (!existingList) return state
+
+      const updatedItems = (existingList.items || []).filter(i => i.id !== itemId)
+      const updatedList = { 
+        ...existingList, 
+        items: updatedItems,
+        itemCount: Math.max(0, (existingList.itemCount || 0) - 1),
+        completedCount: updatedItems.filter(i => i.isCompleted).length
+      }
+
+      return {
+        lists: state.lists.map(l => l.id === listId ? updatedList : l),
+        activeList: state.activeList?.id === listId ? updatedList : state.activeList
+      }
+    })
   },
 
   // Phase 66 T08: call AI draft endpoint. Per frozen Codex contract (Q2) the

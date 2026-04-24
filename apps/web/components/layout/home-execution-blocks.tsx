@@ -13,7 +13,7 @@
 
 import { useRouter } from "next/navigation"
 import {
-  ListTodo, Terminal, Zap, AlertCircle, Clock, CheckCircle2, XCircle,
+  ListTodo, Terminal, Zap, AlertCircle, Clock, CheckCircle2, XCircle, TrendingUp, TrendingDown,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatDistanceToNow } from "date-fns"
@@ -147,30 +147,52 @@ export function HomeExecutionBlocks({ homeData }: HomeExecutionBlocksProps) {
             tint="sky"
           >
             <div className="space-y-1.5">
-              {pulse.slice(0, 5).map((row: any) => (
-                <button
-                  key={row.channel_id}
-                  type="button"
-                  onClick={() => row.channel_id && router.push(`/workspace?c=${row.channel_id}`)}
-                  className="w-full text-left px-2 py-1.5 rounded hover:bg-sky-500/10 transition-colors group"
-                >
-                  <div className="flex items-center justify-between gap-1.5">
-                    <p className="text-[11px] font-semibold truncate group-hover:text-sky-700 dark:group-hover:text-sky-300">
-                      #{row.channel_name}
-                    </p>
-                    {row.overdue_count > 0 && (
-                      <span className="text-[8px] font-black uppercase tracking-widest px-1 py-0.5 rounded bg-rose-500/10 text-rose-700 dark:text-rose-300 shrink-0">
-                        {row.overdue_count} late
-                      </span>
+              {pulse.slice(0, 5).map((row: any) => {
+                const openDelta = row.open_item_delta_7d || 0
+                const toolFailures = row.recent_tool_failure_count || 0
+
+                return (
+                  <button
+                    key={row.channel_id}
+                    type="button"
+                    onClick={() => row.channel_id && router.push(`/workspace?c=${row.channel_id}`)}
+                    className="w-full text-left px-2 py-1.5 rounded hover:bg-sky-500/10 transition-colors group"
+                  >
+                    <div className="flex items-center justify-between gap-1.5">
+                      <p className="text-[11px] font-semibold truncate group-hover:text-sky-700 dark:group-hover:text-sky-300">
+                        #{row.channel_name}
+                      </p>
+                      <div className="flex items-center gap-1">
+                        {openDelta !== 0 && (
+                          <span className={cn(
+                            "flex items-center text-[8px] font-black px-1 py-0.5 rounded shrink-0",
+                            openDelta > 0 ? "bg-rose-500/10 text-rose-700" : "bg-emerald-500/10 text-emerald-700"
+                          )}>
+                            {openDelta > 0 ? <TrendingUp className="w-2 h-2 mr-0.5" /> : <TrendingDown className="w-2 h-2 mr-0.5" />}
+                            {Math.abs(openDelta)}
+                          </span>
+                        )}
+                        {toolFailures > 0 && (
+                          <span className="flex items-center text-[8px] font-black px-1 py-0.5 rounded bg-amber-500/10 text-amber-700 shrink-0">
+                            <AlertCircle className="w-2 h-2 mr-0.5" />
+                            {toolFailures}
+                          </span>
+                        )}
+                        {row.overdue_count > 0 && (
+                          <span className="text-[8px] font-black uppercase tracking-widest px-1 py-0.5 rounded bg-rose-500/10 text-rose-700 dark:text-rose-300 shrink-0">
+                            {row.overdue_count} late
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {row.summary && (
+                      <p className="text-[9px] text-muted-foreground/80 leading-snug mt-0.5 line-clamp-2">
+                        {row.summary}
+                      </p>
                     )}
-                  </div>
-                  {row.summary && (
-                    <p className="text-[9px] text-muted-foreground/80 leading-snug mt-0.5 line-clamp-2">
-                      {row.summary}
-                    </p>
-                  )}
-                </button>
-              ))}
+                  </button>
+                )
+              })}
             </div>
           </ExecutionCard>
         )}

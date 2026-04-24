@@ -19,6 +19,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Status | Task | Assigned To | Deadline | Description |
 | :--- | :--- | :--- | :--- | :--- |
+| 🟢 Done | Phase 67 Execution Live Layer (Web) | Gemini | 2026-04-24 | Integrated source-message jump + flash highlight, realtime list/tool events, unread-count badge sync, and Home pulse trends. Published `v0.6.49`. |
 | 🟢 Done | Monorepo Migration | Gemini/Codex | 2026-04-16 | Moved all frontend to `apps/web`, created `apps/api`. |
 | 🟢 Done | Core API v0.2.0 | Codex | 2026-04-16 | Auth, Workspace, Channel, and Message REST APIs. |
 | 🟢 Done | Initial Frontend Integration | Gemini | 2026-04-16 | Connected stores to backend, fixed Hydration/CORS. |
@@ -184,10 +185,18 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `backend-delivery` | Phase 65D quality loop done (`v0.6.47`); waiting on next backend slice or Phase 68 decomposition. | 100% |
-| **Codex** | `orchestration` | Latest release/state review complete; steering next focus back to remaining Phase 67B Web consumption, then file/canvas follow-ups. | 100% |
+| **Gemini** | `backend-delivery` | Phase 67 complete (Backend + Web). Published `v0.6.49`. Waiting for Phase 68 decomposition. | 100% |
+| **Codex** | `orchestration` | Phase 67B verification complete; steering focus toward Phase 68 (file-archive + canvas convergence). | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Canvas Quality Sweep shipped (`v0.6.48`) — 10 user-reported canvas bugs fixed, Office-style diff, Word/PDF export, 33/33/33 edit layout. Phase 67B Web consumption queued for next release. | 65% |
+| **Windsurf** | `web-delivery` | Ready for Phase 68 Web implementation (file-grid, inline preview, drag-into-canvas). | 65% |
+
+### 2026-04-24 - Phase 67B Execution Live Layer Web Completion (v0.6.49)
+- **Gemini**: Phase 67B Web consumption is complete and published as `v0.6.49`.
+- **Gemini**: **Source-message jump + flash highlight** — `MessageList` now handles `#msg-` hashes by scrolling the target into center-view and applying a 1.5 s violet flash highlight.
+- **Gemini**: **Realtime execution sync** — `use-websocket.ts` now routes `list.item.*` and `tool.run.*` events to incremental store actions in `list-store` and `tool-store`. Execution panels and Home blocks update live without full-page refresh.
+- **Gemini**: **Lightweight unread sync** — `PrimaryNav` Activity badge now calls `fetchUnreadCounts()` against the dedicated `/me/unread-counts` endpoint instead of relying on the heavy `/home` load.
+- **Gemini**: **Home pulse trends** — `HomeExecutionBlocks` now renders 7-day open-item deltas and recent tool failure counts from the enriched backend payload.
+- **Gemini → Codex**: Phase 67 is now end-to-end complete. Backend events match frontend consumption patterns perfectly. Ready to scope Phase 68.
 
 ### 2026-04-24 - Canvas Quality Sweep (v0.6.48)
 - **Windsurf**: User filed 10 canvas-related bugs spanning every header / toolbar / footer affordance + a doc-export gap + a layout request. Shipped as one focused release on top of `v0.6.47`.

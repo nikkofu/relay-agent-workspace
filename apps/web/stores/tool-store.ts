@@ -42,6 +42,8 @@ interface ToolState {
   
   fetchToolRuns: (channelId?: string) => Promise<void>
   fetchRunDetail: (id: string) => Promise<void>
+  addRunLocally: (run: ToolRun) => void
+  updateRunLocally: (run: ToolRun) => void
   executeTool: (
     toolId: string,
     input: any,
@@ -65,7 +67,7 @@ const mapToolRun = (r: any): ToolRun => ({
   writeback: r.writeback || undefined,
 })
 
-export const useToolStore = create<ToolState>((set) => ({
+export const useToolStore = create<ToolState>((set, get) => ({
   toolRuns: [],
   activeRun: null,
   isLoading: false,
@@ -93,6 +95,22 @@ export const useToolStore = create<ToolState>((set) => ({
     }
   },
 
+  addRunLocally: (run) => {
+    set((state) => {
+      if (state.toolRuns.find(r => r.id === run.id)) return state
+      return { toolRuns: [run, ...state.toolRuns].sort((a, b) => 
+        new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
+      ) }
+    })
+  },
+
+  updateRunLocally: (run) => {
+    set((state) => ({
+      toolRuns: state.toolRuns.map(r => r.id === run.id ? run : r),
+      activeRun: state.activeRun?.id === run.id ? run : state.activeRun
+    }))
+  },
+
   executeTool: async (toolId, input, channelId, writeback) => {
     try {
       const body: Record<string, any> = { input, channel_id: channelId }
@@ -109,7 +127,10 @@ export const useToolStore = create<ToolState>((set) => ({
       if (!response.ok) throw new Error(data.message || "Execution failed")
 
       const newRun = mapToolRun(data.run)
-      set((state) => ({ toolRuns: [newRun, ...state.toolRuns] }))
+      
+      // Phase 67B: addRunLocally ensures immediate UI feedback
+      get().addRunLocally(newRun)
+      
       const wbLabel = writeback?.target === "message"
         ? " → message"
         : writeback?.target === "list_item"

@@ -12,6 +12,8 @@ import { useKnowledgeStore } from '@/stores/knowledge-store'
 import { useChannelStore } from '@/stores/channel-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { useUserStore } from '@/stores/user-store'
+import { useListStore } from '@/stores/list-store'
+import { useToolStore } from '@/stores/tool-store'
 
 export function useWebsocket() {
   const socketRef = useRef<WebSocket | null>(null)
@@ -21,6 +23,8 @@ export function useWebsocket() {
   const { updateArtifactLocally } = useArtifactStore()
   const { markAsReadLocally, appendUnifiedFeedItem, appendMentionItem } = useActivityStore()
   const { fetchWorkflowRuns } = useDirectoryStore()
+  const { addItemLocally, updateItemLocally, removeItemLocally } = useListStore()
+  const { addRunLocally, updateRunLocally } = useToolStore()
 
   useEffect(() => {
     // Convert http://... to ws://...
@@ -160,6 +164,42 @@ export function useWebsocket() {
                 }
               } : undefined,
             })
+          }
+        } else if (data.type === 'list.item.created') {
+          // Phase 67B: handle live list item creation
+          const item = data.payload.item
+          if (item) {
+            addItemLocally(item)
+            useWorkspaceStore.getState().markHomeExecutionStale?.()
+          }
+        } else if (data.type === 'list.item.updated') {
+          // Phase 67B: handle live list item updates
+          const item = data.payload.item
+          const listId = data.payload.list_id
+          if (item && listId) {
+            updateItemLocally(listId, item)
+            useWorkspaceStore.getState().markHomeExecutionStale?.()
+          }
+        } else if (data.type === 'list.item.deleted') {
+          // Phase 67B: handle live list item deletion
+          const { list_id, item_id } = data.payload
+          if (list_id && item_id) {
+            removeItemLocally(list_id, item_id)
+            useWorkspaceStore.getState().markHomeExecutionStale?.()
+          }
+        } else if (data.type === 'tool.run.started') {
+          // Phase 67B: handle live tool run starts
+          const run = data.payload.run
+          if (run) {
+            addRunLocally(run)
+            useWorkspaceStore.getState().markHomeExecutionStale?.()
+          }
+        } else if (data.type === 'tool.run.completed' || data.type === 'tool.run.updated') {
+          // Phase 67B: handle live tool run completion or progress
+          const run = data.payload.run
+          if (run) {
+            updateRunLocally(run)
+            useWorkspaceStore.getState().markHomeExecutionStale?.()
           }
         } else if (data.type === 'agent_collab.sync') {
           console.log("Syncing Agent Collab data from backend...")

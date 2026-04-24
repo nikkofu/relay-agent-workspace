@@ -36,10 +36,12 @@ export function PrimaryNav() {
   const { conversations } = useDMStore()
   const { setCurrentChannel } = useChannelStore()
   const { knowledgeInboxUnreadCount, fetchKnowledgeInbox } = useKnowledgeStore()
-  // Phase 65C: prefer durable backend counter; fall back to local Mentions tab count
-  const homeData = useWorkspaceStore(s => s.homeData)
-  const fetchHome = useWorkspaceStore(s => s.fetchHome)
+  
+  // Phase 67B: prefer lightweight count endpoint
+  const unreadMentionCount = useActivityStore(s => s.unreadMentionCount)
+  const fetchUnreadCounts = useActivityStore(s => s.fetchUnreadCounts)
   const mentionsCount = useActivityStore(s => s.mentionItems.length)
+  
   const { theme, setTheme } = useTheme()
   const router = useRouter()
   const pathname = usePathname()
@@ -48,9 +50,9 @@ export function PrimaryNav() {
   useEffect(() => {
     setMounted(true)
     fetchKnowledgeInbox('all', 50).catch(() => { /* silent */ })
-    // Phase 65C: hydrate unread mention counter from /home on workspace load
-    if (!homeData) fetchHome().catch(() => { /* silent */ })
-  }, [fetchKnowledgeInbox, fetchHome, homeData])
+    // Phase 67B: hydrate unread mention counter from lightweight endpoint
+    fetchUnreadCounts().catch(() => { /* silent */ })
+  }, [fetchKnowledgeInbox, fetchUnreadCounts])
 
   const handleNavItemClick = (item: typeof NAV_ITEMS[0]) => {
     if (item.label === "Home") {
@@ -91,14 +93,9 @@ export function PrimaryNav() {
           if (item.label === "Knowledge") {
             unreadCount = knowledgeInboxUnreadCount
           }
-          // Phase 65C: Activity icon reflects unread user mentions (durable)
+          // Phase 65C + 67B: Activity icon reflects unread user mentions (durable + lightweight)
           if (item.label === "Activity") {
-            unreadCount = (
-              homeData?.activity_summary?.unread_mention_count
-              ?? homeData?.unread_mention_count
-              ?? mentionsCount
-              ?? 0
-            )
+            unreadCount = unreadMentionCount || mentionsCount || 0
           }
 
           return (

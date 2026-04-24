@@ -6,9 +6,11 @@ interface WorkspaceState {
   workspaces: Workspace[]
   currentWorkspace: Workspace | null
   homeData: any | null
+  isHomeExecutionStale: boolean
   setCurrentWorkspace: (workspace: Workspace) => void
   fetchWorkspaces: () => Promise<void>
   fetchHome: () => Promise<void>
+  markHomeExecutionStale: () => void
   inviteMember: (email: string) => Promise<void>
 }
 
@@ -16,6 +18,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   workspaces: [],
   currentWorkspace: null,
   homeData: null,
+  isHomeExecutionStale: false,
   setCurrentWorkspace: (workspace) => set({ currentWorkspace: workspace }),
   fetchWorkspaces: async () => {
     try {
@@ -33,11 +36,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     try {
       const response = await fetch(`${API_BASE_URL}/home`)
       const data = await response.json()
-      set({ homeData: data.home || data })
+      set({ homeData: data.home || data, isHomeExecutionStale: false })
     } catch (error) {
       console.error("Failed to fetch home data:", error)
     }
   },
+  markHomeExecutionStale: () => set({ isHomeExecutionStale: true }),
   inviteMember: async (email) => {
     const workspaceId = get().currentWorkspace?.id
     if (!workspaceId) return
