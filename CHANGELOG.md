@@ -2,6 +2,51 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.44] - 2026-04-24
+
+Canvas AI Dock (Web). Replaces the previous modal AI-edit dialog with a
+persistent, ChatGPT/Gemini Canvas-style chat rail at the bottom of the
+Canvas panel for document-type artifacts.
+
+### Added
+
+- **Persistent AI composer dock** (`canvas-ai-dock.tsx`) — always available
+  at the bottom of the Canvas panel while editing a doc-type artifact.
+  Streams via `POST /api/v1/ai/execute` (`event: chunk` / `{text}`).
+- **Slash commands** in the composer — `/` opens a menu with `/expand`,
+  `/shorten`, `/rephrase`, `/fix`, `/formal`, `/casual`, `/bullets`,
+  `/outline`, `/summary`, `/continue`, `/translate-en`, `/translate-zh`.
+  Arrow-key navigation, `Tab`/`Enter` to insert, free text after the command
+  is forwarded as additional user instructions.
+- **Chat-bubble history** with per-message actions:
+  **Apply to selection/document**, **Insert at cursor**, **Copy**, **Retry**.
+  Each AI response remembers the target scope captured at send-time so Apply
+  behaves predictably even if the user changes their selection mid-stream.
+- **Live target chip** — shows "Applies to selection (42 chars)" vs
+  "Applies to whole document (1,230 chars)" and updates as the user selects
+  text in the editor (polled at 400 ms).
+- **Keyboard shortcuts** — `⌘K` focuses the composer from anywhere in the
+  Canvas, `Enter` sends, `Shift+Enter` newline, `Esc` closes the slash menu.
+  The TipTap toolbar's **Ask AI / AI Rewrite** button now focuses the dock
+  instead of opening a modal.
+
+### Changed
+
+- `CanvasTipTapEditor` is now a `forwardRef` component exposing a
+  `CanvasEditorHandle` with `getSelectionText`, `getDocText`, `hasSelection`,
+  `applyHtmlToSelection`, `applyHtmlToDoc`, `insertHtmlAtCursor`, `focus`.
+  This lets the dock talk to the editor without lifting editor state up.
+
+### Removed
+
+- `canvas-ai-edit-dialog.tsx` — the modal AI edit dialog is superseded by
+  the dock. No backend changes.
+
+### Verification Used For This Release
+
+- `cd apps/web && pnpm exec tsc --noEmit`
+- `cd apps/web && pnpm exec eslint .`
+
 ## [0.6.43] - 2026-04-24
 
 Canvas bug-fix release (Web). Addresses two user-reported issues:

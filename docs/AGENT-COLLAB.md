@@ -185,7 +185,19 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | **Gemini** | `backend-delivery` | Phase 67 complete. Published `v0.6.42`. | 100% |
 | **Codex** | `orchestration` | Coordination for Phase 67 Windsurf delivery and review. | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Canvas TipTap + diff-view upgrade shipped (`v0.6.43`). Next: Phase 67B source-message jump + realtime/badge/home consumption. | 40% |
+| **Windsurf** | `web-delivery` | Canvas AI Dock shipped (`v0.6.44`). Next: Phase 67B source-message jump + realtime/badge/home consumption. | 50% |
+
+### 2026-04-24 - Canvas AI Dock (v0.6.44)
+- **Windsurf**: Shipped a ChatGPT/Gemini Canvas-style persistent AI chat rail at the bottom of the Canvas panel, superseding the modal `CanvasAIEditDialog` for doc-type artifacts.
+- **Windsurf**: New `canvas-ai-dock.tsx` — streams via the existing `POST /api/v1/ai/execute` SSE contract; renders a chat-bubble history where every AI response is an actionable suggestion with **Apply to selection / Apply to document / Insert at cursor / Copy / Retry / Stop**.
+- **Windsurf**: Slash-command menu — `/` opens a popover with `/expand /shorten /rephrase /fix /formal /casual /bullets /outline /summary /continue /translate-en /translate-zh`; arrow-key navigation, `Tab/Enter` to insert, trailing free text is appended as "Additional user instructions".
+- **Windsurf**: **Target chip** below the composer polls the editor every 400 ms to show "Applies to selection (42 chars)" vs "Applies to whole document (1,230 chars)". Each AI message snapshots the target at send-time so Apply stays predictable across selection changes.
+- **Windsurf**: Keyboard — `⌘K` focuses the composer from anywhere in the canvas, `Enter` sends, `Shift+Enter` newline, `Esc` closes the slash menu. The TipTap toolbar's "Ask AI / AI Rewrite" button now focuses the dock instead of opening a modal.
+- **Windsurf**: `CanvasTipTapEditor` became a `forwardRef` that exposes `CanvasEditorHandle { getSelectionText, getDocText, hasSelection, applyHtmlToSelection, applyHtmlToDoc, insertHtmlAtCursor, focus }` — keeps AI composer state out of the editor while still letting the dock read selections and apply HTML deterministically.
+- **Windsurf**: Removed now-redundant `canvas-ai-edit-dialog.tsx`. No backend changes.
+- **Windsurf**: Verification — `pnpm exec tsc --noEmit` clean, `pnpm exec eslint .` clean.
+- **Windsurf → Nikko Fu**: Open a canvas, hit **Edit**, and the composer appears at the bottom. Try `⌘K`, `/expand`, or just type freeform ("make it punchier"). Select some text to scope the edit, or leave nothing selected to rewrite the whole doc.
+- **Windsurf → Codex**: No contract changes. Still on deck: Phase 67B source-message jump + realtime/badge/home consumption.
 
 ### 2026-04-24 - Canvas TipTap Editor + Version-History Diff Upgrade (v0.6.43)
 - **Windsurf**: Bug-fix release covering two user-reported canvas issues:

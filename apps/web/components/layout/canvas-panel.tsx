@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useUIStore } from "@/stores/ui-store"
 import { useArtifactStore, ArtifactVersion } from "@/stores/artifact-store"
 import { useChannelStore } from "@/stores/channel-store"
@@ -12,7 +12,8 @@ import { cn } from "@/lib/utils"
 import { UserAvatar } from "@/components/common/user-avatar"
 import { formatDistanceToNow, format } from "date-fns"
 import { ArtifactDiffView } from "./artifact-diff-view"
-import { CanvasTipTapEditor } from "./canvas-tiptap-editor"
+import { CanvasTipTapEditor, type CanvasEditorHandle } from "./canvas-tiptap-editor"
+import { CanvasAIDock, type CanvasAIDockHandle } from "./canvas-ai-dock"
 
 export function CanvasPanel() {
   const { isCanvasOpen, closeCanvas, activeCanvasId } = useUIStore()
@@ -45,6 +46,11 @@ export function CanvasPanel() {
   
   const [content, setContent] = useState("")
   const [isEditing, setIsEditing] = useState(false)
+
+  // Imperative handles for the rich editor + AI dock so the toolbar's "Ask AI"
+  // button can focus the dock composer without lifting editor state up.
+  const editorRef = useRef<CanvasEditorHandle>(null)
+  const dockRef = useRef<CanvasAIDockHandle>(null)
   const [showHistory, setShowHistory] = useState(false)
   const [showReferences, setShowReferences] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
@@ -505,6 +511,7 @@ export function CanvasPanel() {
               toVersionMeta={versions.find(v => v.version === currentDiff.toVersion)}
             />
           ) : (
+            <>
             <ScrollArea className="flex-1">
               <div className="p-8 max-w-3xl mx-auto">
                 {isEditing && !selectedVersion ? (
@@ -517,10 +524,12 @@ export function CanvasPanel() {
                     />
                   ) : (
                     <CanvasTipTapEditor
+                      ref={editorRef}
                       content={content}
                       onChange={setContent}
                       channelId={activeArtifact.channelId || currentChannel?.id || ""}
                       autoFocus
+                      onRequestAIEdit={() => dockRef.current?.focusInput()}
                     />
                   )
                 ) : (
@@ -534,6 +543,18 @@ export function CanvasPanel() {
                 )}
               </div>
             </ScrollArea>
+            {/* Persistent AI chat dock — only while actively editing a doc-type
+                canvas. Replaces the old modal CanvasAIEditDialog so the user
+                never loses cursor / selection context. */}
+            {isEditing && !selectedVersion && activeArtifact.type !== "code" && (
+              <CanvasAIDock
+                ref={dockRef}
+                editorRef={editorRef}
+                channelId={activeArtifact.channelId || currentChannel?.id || ""}
+                artifactTitle={activeArtifact.title}
+              />
+            )}
+            </>
           )}
         </div>
       </div>

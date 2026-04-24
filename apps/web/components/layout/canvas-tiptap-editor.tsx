@@ -1,17 +1,21 @@
 "use client"
 
-// ── Canvas TipTap editor (Bug fix) ────────────────────────────────────────────
+// ── Canvas TipTap editor ──────────────────────────────────────────────────────
 //
-// Replaces the plain <textarea> previously used for document-type canvases.
-// Emits HTML via `editor.getHTML()` so it stays wire-compatible with the
-// existing `dangerouslySetInnerHTML` view-mode renderer and with the server's
+// Rich-text editor for document-type canvases. Emits HTML via
+// `editor.getHTML()` so it stays wire-compatible with the existing
+// `dangerouslySetInnerHTML` view-mode renderer and with the server's
 // Artifact.Content field.
 //
-// Includes a fixed toolbar and a purple "AI Edit" button that opens a small
-// prompt-driven dialog (see canvas-ai-edit-dialog.tsx). AI edits operate on
-// the current selection when one exists, otherwise on the whole document.
+// Exposes an imperative handle (see CanvasEditorHandle) so sibling components
+// — most notably the Canvas AI Dock — can read the current selection and
+// apply AI-produced HTML without lifting the editor state all the way up.
+//
+// The toolbar's purple "AI" button no longer opens a modal dialog; it calls
+// the optional `onRequestAIEdit` prop (the dock focuses its composer so the
+// user can keep their cursor / selection context intact).
 
-import { useEffect, useRef, useState } from "react"
+import { forwardRef, useEffect, useImperativeHandle } from "react"
 import { useEditor, EditorContent, Editor } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Placeholder from "@tiptap/extension-placeholder"
@@ -23,7 +27,26 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { CanvasAIEditDialog } from "./canvas-ai-edit-dialog"
+
+// Imperative surface exposed to sibling components (canvas-ai-dock.tsx) via
+// a ref. Keeps the AI composer out of the editor's internal state while
+// still letting it read selections and apply AI output deterministically.
+export interface CanvasEditorHandle {
+  /** Plain text of the current selection, or "" when nothing is selected. */
+  getSelectionText: () => string
+  /** Plain text of the entire document. */
+  getDocText: () => string
+  /** True when the selection is non-empty. */
+  hasSelection: () => boolean
+  /** Replace the current selection with HTML; if no selection, replace the whole doc. */
+  applyHtmlToSelection: (html: string) => void
+  /** Replace the whole document with HTML. */
+  applyHtmlToDoc: (html: string) => void
+  /** Insert HTML at the current cursor position (no deletion). */
+  insertHtmlAtCursor: (html: string) => void
+  /** Move focus back into the editor. */
+  focus: () => void
+}
 
 interface CanvasTipTapEditorProps {
   content: string
@@ -32,21 +55,18 @@ interface CanvasTipTapEditorProps {
   autoFocus?: boolean
   readOnly?: boolean
   placeholder?: string
+  /** Invoked when the toolbar's AI button is pressed. Parent typically focuses
+   *  the Canvas AI dock composer here. */
+  onRequestAIEdit?: () => void
 }
 
-export function CanvasTipTapEditor({
-  content,
-  onChange,
-  channelId,
-  autoFocus = true,
-  readOnly = false,
-  placeholder = "Start writing, or press the AI button to draft something…",
-}: CanvasTipTapEditorProps) {
-  const [showAIDialog, setShowAIDialog] = useState(false)
-  // Track the selection range to apply AI edit to (from, to). When the user
-  // has no selection, these default to (0, doc.size) meaning "whole document".
-  const aiTargetRef = useRef<{ from: number; to: number } | null>(null)
-
+export const CanvasTipTapEditor = forwardRef<CanvasEditorHandle, CanvasTipTapEditorProps>(
+  function CanvasTipTapEditor(
+    { content, onChange, autoFocus = true, readOnly = false,
+      placeholder = "Start writing, or press ⌘K / the AI button to draft with AI…",
+      onRequestAIEdit },
+    ref,
+  ) {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -75,6 +95,41 @@ export function CanvasTipTapEditor({
     },
   })
 
+  // Expose imperative commands to parent via ref so the AI dock can talk to
+  // the editor without us lifting editor state. All methods no-op safely
+  // while the editor is still initializing.
+  useImperativeHandle(ref, () => ({
+    getSelectionText: () => {
+      if (!editor) return ""
+      const { from, to } = editor.state.selection
+      if (from === to) return ""
+      return editor.state.doc.textBetween(from, to, "\n\n")
+    },
+    getDocText: () => editor?.state.doc.textContent ?? "",
+    hasSelection: () => {
+      if (!editor) return false
+      return editor.state.selection.from !== editor.state.selection.to
+    },
+    applyHtmlToSelection: (html: string) => {
+      if (!editor) return
+      const { from, to } = editor.state.selection
+      if (from === to) {
+        editor.chain().focus().setContent(html).run()
+        return
+      }
+      editor.chain().focus().deleteRange({ from, to }).insertContentAt(from, html).run()
+    },
+    applyHtmlToDoc: (html: string) => {
+      if (!editor) return
+      editor.chain().focus().setContent(html).run()
+    },
+    insertHtmlAtCursor: (html: string) => {
+      if (!editor) return
+      editor.chain().focus().insertContent(html).run()
+    },
+    focus: () => { editor?.commands.focus() },
+  }), [editor])
+
   // Keep external content changes in sync (e.g. after save/version restore).
   // We compare against the current HTML first so the cursor position is
   // preserved during normal typing — the effect only runs when the parent
@@ -95,53 +150,21 @@ export function CanvasTipTapEditor({
     )
   }
 
-  const openAIEdit = () => {
-    const { from, to } = editor.state.selection
-    if (from === to) {
-      aiTargetRef.current = { from: 0, to: editor.state.doc.content.size }
-    } else {
-      aiTargetRef.current = { from, to }
-    }
-    setShowAIDialog(true)
-  }
-
-  const applyAIResult = (html: string) => {
-    if (!editor || !aiTargetRef.current) return
-    const { from, to } = aiTargetRef.current
-    editor
-      .chain()
-      .focus()
-      .deleteRange({ from, to })
-      .insertContentAt(from, html)
-      .run()
-    aiTargetRef.current = null
-  }
-
-  // Text captured for the dialog: selection text (if any) or whole doc text.
-  const aiTargetText = (() => {
-    if (!aiTargetRef.current) return editor.state.doc.textContent
-    const { from, to } = aiTargetRef.current
-    return editor.state.doc.textBetween(from, to, "\n\n")
-  })()
-
   const hasSelection = editor.state.selection.from !== editor.state.selection.to
 
   return (
     <div className="flex flex-col gap-3">
       {!readOnly && (
-        <Toolbar editor={editor} onAIEdit={openAIEdit} hasSelection={hasSelection} />
+        <Toolbar
+          editor={editor}
+          onAIEdit={() => onRequestAIEdit?.()}
+          hasSelection={hasSelection}
+        />
       )}
       <EditorContent editor={editor} />
-      <CanvasAIEditDialog
-        open={showAIDialog}
-        onOpenChange={setShowAIDialog}
-        channelId={channelId}
-        targetText={aiTargetText}
-        onApply={applyAIResult}
-      />
     </div>
   )
-}
+})
 
 // ── Toolbar ──────────────────────────────────────────────────────────────────
 
@@ -300,10 +323,11 @@ function Toolbar({ editor, onAIEdit, hasSelection }: ToolbarProps) {
           variant="outline"
           className="h-7 gap-1.5 text-xs font-bold border-purple-500/30 text-purple-700 dark:text-purple-300 hover:bg-purple-500/10"
           onClick={onAIEdit}
-          title={hasSelection ? "Rewrite selection with AI" : "Rewrite document with AI"}
+          title={hasSelection ? "Rewrite selection with AI (⌘K)" : "Ask AI (⌘K)"}
         >
           <Wand2 className="w-3 h-3" />
-          AI {hasSelection ? "Rewrite selection" : "Edit"}
+          {hasSelection ? "AI Rewrite" : "Ask AI"}
+          <kbd className="ml-1 text-[9px] px-1 py-0 bg-muted/60 rounded font-mono">⌘K</kbd>
         </Button>
       </div>
     </div>
