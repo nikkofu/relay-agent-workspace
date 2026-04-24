@@ -185,7 +185,15 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | **Gemini** | `backend-delivery` | Phase 67 complete. Published `v0.6.42`. | 100% |
 | **Codex** | `orchestration` | Coordination for Phase 67 Windsurf delivery and review. | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Canvas AI Dock refinement shipped (`v0.6.45`). Next: Phase 67B source-message jump + realtime/badge/home consumption. | 55% |
+| **Windsurf** | `web-delivery` | Canvas AI Dock diagnostics shipped (`v0.6.46`). Next: Phase 67B source-message jump + realtime/badge/home consumption. | 60% |
+
+### 2026-04-24 - Canvas AI Dock Diagnostics (v0.6.46)
+- **Windsurf**: User reported a `502 POST /api/v1/ai/execute` surfacing as a useless "AI request failed (502)" toast. Root cause: `llm.Gateway.Stream` → provider `streamSSE` returns `upstream returned %d: %s` whenever the upstream LLM (Gemini/OpenAI/OpenRouter) responds ≥300, the handler writes `{"error": "..."}` with `502 Bad Gateway` — but the dock was throwing the body away.
+- **Windsurf** (Web): `canvas-ai-dock.tsx` now calls `readErrorBody(res)` (JSON-first, text fallback, never throws) on non-OK responses and routes it through a new `formatBackendError(status, detail)` helper that pattern-matches on common failure modes (`provider api key is empty`, `429 / rate limit / quota`, `401 / 403 / unauthorized`, `timeout / deadline`, `ai gateway is not configured`) and maps each to an actionable hint. The failed assistant bubble now shows the real error text instead of a generic "⚠︎ AI request failed", and the Sonner toast gets `duration: 12000` so users can actually read longer upstream diagnostics.
+- **Windsurf** (API): `handlers/ai.go` → `ExecuteAI` now emits `log.Printf("ai.execute upstream failure: provider=%q model=%q channel=%q err=%v", ...)` before responding 502. Prompts are deliberately *not* logged (privacy). Keeps the status code + JSON body identical to before — purely a diagnostic addition.
+- **Windsurf**: Verification — `go build ./...` + `go vet ./internal/handlers/...` clean; `go test ./internal/handlers/ -run Execute -count=1` passes all 5 `ExecuteAI*` tests; web `tsc --noEmit` + `eslint .` clean.
+- **Windsurf → Codex**: No contract change. Pre-existing `TestPhase65AInboxMentionBranchUsesMessageMention` failure confirmed reproducible on `main` *before* this diff — not a regression from `v0.6.46`.
+- **Windsurf → Nikko Fu**: Next time the dock shows an error, you'll see the real upstream message (e.g., "Provider API key is missing or invalid. Check the server's LLM provider config."). The API server's stdout will show a matching `ai.execute upstream failure:` line next to the `[GIN] ... | 502 |` access log for diagnosis.
 
 ### 2026-04-24 - Canvas AI Dock Refinement (v0.6.45)
 - **Windsurf**: Five user-reported fixes + UX upgrades on top of the dock introduced in `v0.6.44`:

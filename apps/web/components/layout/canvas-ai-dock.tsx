@@ -295,7 +295,15 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
           body: JSON.stringify({ prompt, channel_id: channelId }),
           signal: ctrl.signal,
         })
-        if (!res.ok || !res.body) throw new Error(`AI request failed (${res.status})`)
+        // On non-OK (502/503/etc) the server replies with a JSON body like
+        // `{"error":"upstream returned 401: ..."}`. Surface that real message
+        // to the user instead of a generic status code so they can actually
+        // diagnose the problem (bad API key, model unavailable, rate limit…).
+        if (!res.ok) {
+          const detail = await readErrorBody(res)
+          throw new Error(formatBackendError(res.status, detail))
+        }
+        if (!res.body) throw new Error(`AI request failed (${res.status}) — empty body`)
 
         const reader = res.body.getReader()
         const decoder = new TextDecoder()
@@ -355,11 +363,24 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
         const isAbort = err instanceof DOMException && err.name === "AbortError"
         if (!isAbort) {
           console.error("Canvas AI dock failed:", err)
-          toast.error(err instanceof Error ? err.message : "AI request failed")
+          const msg = err instanceof Error ? err.message : "AI request failed"
+          // Longer-lived toast so users can actually read upstream errors
+          // like "provider api key is empty" or "upstream returned 429".
+          toast.error("AI request failed", {
+            description: msg,
+            duration: 12000,
+          })
           setMessages(prev =>
             prev.map(m =>
               m.id === aiMsgId
-                ? { ...m, text: m.text || "⚠︎ AI request failed. Try Retry.", isStreaming: false, errored: true }
+                ? {
+                    ...m,
+                    // Keep any partial assistant text we received, but fall
+                    // back to the diagnostic so the bubble isn't just "failed".
+                    text: m.text || `⚠︎ ${msg}`,
+                    isStreaming: false,
+                    errored: true,
+                  }
                 : m,
             ),
           )
@@ -1054,6 +1075,59 @@ function TargetChip({
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Read an error response body, preferring the `{error: "..."}` JSON shape
+ *  the backend uses, and falling back to raw text. Never throws. */
+async function readErrorBody(res: Response): Promise<string> {
+  try {
+    const text = await res.text()
+    if (!text) return ""
+    try {
+      const parsed = JSON.parse(text)
+      if (typeof parsed?.error === "string") return parsed.error
+      if (typeof parsed?.message === "string") return parsed.message
+      return text
+    } catch {
+      return text
+    }
+  } catch {
+    return ""
+  }
+}
+
+/** Build a user-facing error string from status + backend detail, with
+ *  heuristic hints for the most common configuration / quota failures so the
+ *  next step is obvious. */
+function formatBackendError(status: number, detail: string): string {
+  const d = detail.trim()
+  const lower = d.toLowerCase()
+
+  // Service-level: gateway not configured at all.
+  if (status === 503 || lower.includes("ai gateway is not configured")) {
+    return "AI gateway is not configured on the server. Set an LLM provider (OPENAI_API_KEY / GEMINI_API_KEY / …) and restart the API."
+  }
+
+  // Common upstream diagnostics we can act on.
+  if (lower.includes("api key is empty") || lower.includes("api key")) {
+    return `Provider API key is missing or invalid. Check the server's LLM provider config. (${d || status})`
+  }
+  if (lower.includes("provider not configured") || lower.includes("provider disabled")) {
+    return `Requested LLM provider is not available. (${d || status})`
+  }
+  if (lower.includes("429") || lower.includes("rate limit") || lower.includes("quota")) {
+    return `LLM provider rate-limited or over quota. Wait and retry. (${d || status})`
+  }
+  if (lower.includes("401") || lower.includes("403") || lower.includes("unauthorized")) {
+    return `LLM provider rejected the API key (${status}). ${d}`
+  }
+  if (lower.includes("timeout") || lower.includes("deadline")) {
+    return `LLM provider timed out. Try again or shorten the selection. (${d || status})`
+  }
+
+  // Fall back to the raw server error.
+  if (d) return `${d} (HTTP ${status})`
+  return `AI request failed (HTTP ${status})`
+}
 
 function plainTextToHtml(text: string): string {
   return text

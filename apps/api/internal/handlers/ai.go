@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -741,6 +742,14 @@ func ExecuteAI(c *gin.Context) {
 
 	session, err := AIGateway.Stream(c.Request.Context(), input)
 	if err != nil {
+		// Surface provider / upstream failures in server logs so 502s can
+		// actually be diagnosed (which provider? which model? what did the
+		// upstream say?). The user's prompt is *not* logged to avoid leaking
+		// sensitive content.
+		log.Printf(
+			"ai.execute upstream failure: provider=%q model=%q channel=%q err=%v",
+			input.Provider, input.Model, input.ChannelID, err,
+		)
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}
@@ -1763,7 +1772,7 @@ func AISlashCommandAsk(c *gin.Context) {
 	}
 
 	question := strings.TrimPrefix(input.Content, "/ask ")
-	
+
 	// Create AI response placeholder
 	aiMsg := domain.Message{
 		ID:        ids.NewPrefixedUUID("msg"),
@@ -1783,7 +1792,7 @@ func AISlashCommandAsk(c *gin.Context) {
 		time.Sleep(500 * time.Millisecond)
 		answer := "I've analyzed the channel context for your question: '" + question + "'. Here is what I found..."
 		db.DB.Model(&domain.Message{}).Where("id = ?", aiMsg.ID).Update("content", answer)
-		
+
 		if RealtimeHub != nil {
 			broadcastRealtimeEvent("message.created", aiMsg, aiMsg)
 		}

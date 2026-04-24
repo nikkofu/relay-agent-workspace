@@ -2,6 +2,42 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.46] - 2026-04-24
+
+Canvas AI Dock diagnostics (Web + API). Makes `POST /api/v1/ai/execute`
+502s actually diagnosable — the previous "AI request failed (502)" toast
+was hiding a real upstream error body the backend was already sending.
+
+### Fixed
+
+- **Frontend surfaces real backend error.** On non-OK replies to
+  `/api/v1/ai/execute`, the dock now parses the `{"error": "..."}` JSON body
+  (falling back to raw text) and displays it in both the Sonner toast
+  (duration 12 s) and the failed assistant bubble. Heuristic hints map common
+  upstream failures (`provider api key is empty`, `429 / quota`,
+  `401 / 403 / unauthorized`, `timeout / deadline`, `ai gateway is not
+  configured`) to concrete next-step text so the user knows whether to fix
+  their server config, wait out a rate limit, or shorten the prompt.
+
+### Added
+
+- **Server-side log line on upstream LLM failures.** `ExecuteAI` now emits a
+  `log.Printf` before returning 502 — `ai.execute upstream failure:
+  provider=… model=… channel=… err=…` — so the actual provider / status /
+  upstream message lands in Gin's stdout next to the `502` access log line.
+  The user's prompt content is deliberately *not* logged.
+
+### Verification Used For This Release
+
+- `cd apps/api && go build ./... && go vet ./internal/handlers/...`
+- `cd apps/api && go test ./internal/handlers/ -run Execute -count=1` — all
+  `ExecuteAI*` tests pass.
+- `cd apps/web && pnpm exec tsc --noEmit && pnpm exec eslint .`
+
+**Note**: A pre-existing test failure in
+`TestPhase65AInboxMentionBranchUsesMessageMention` is unrelated to this
+change (reproducible on `main` before the diff) and tracked separately.
+
 ## [0.6.45] - 2026-04-24
 
 Canvas AI Dock refinement (Web). Five user-reported fixes + UX upgrades.
