@@ -31,8 +31,13 @@ function WorkspaceContent() {
   const { fetchChannelKnowledge, channelKnowledge, fetchChannelKnowledgeSummary, channelSummary } = useKnowledgeStore()
   const searchParams = useSearchParams()
   const channelIdFromUrl = searchParams.get("c")
+  const canvasIdFromUrl = searchParams.get("canvas")
   const [showKnowledgePanel, setShowKnowledgePanel] = useState(false)
   const [showExecutionPanel, setShowExecutionPanel] = useState(false)
+  // Track which canvas-id we already auto-opened so subsequent re-renders
+  // (or the user closing the canvas) don't keep re-opening it on every
+  // searchParams update.
+  const [openedCanvasId, setOpenedCanvasId] = useState<string | null>(null)
 
   // Right panels are mutually exclusive
   const toggleKnowledge = () => {
@@ -62,6 +67,21 @@ function WorkspaceContent() {
       fetchChannelKnowledgeSummary(currentChannel.id)
     }
   }, [currentChannel, fetchArtifacts, fetchChannelKnowledge, fetchChannelKnowledgeSummary])
+
+  // Auto-open the canvas referenced by ?canvas=:id once the workspace has
+  // mounted (and, when also given ?c=:channelId, once that channel resolves).
+  // This is what powers the Canvas panel's "Open in new tab" / "Copy link"
+  // share actions: a fresh tab on the link should land directly on the
+  // doc instead of forcing the user to click through the channel.
+  useEffect(() => {
+    if (!canvasIdFromUrl) return
+    if (openedCanvasId === canvasIdFromUrl) return
+    // If a channel was also pinned in the URL, wait for it to resolve so
+    // the channel context is correct when the canvas opens.
+    if (channelIdFromUrl && currentChannel?.id !== channelIdFromUrl) return
+    openCanvas(canvasIdFromUrl)
+    setOpenedCanvasId(canvasIdFromUrl)
+  }, [canvasIdFromUrl, channelIdFromUrl, currentChannel, openCanvas, openedCanvasId])
 
   if (!currentChannel) {
     return <HomeDashboard />

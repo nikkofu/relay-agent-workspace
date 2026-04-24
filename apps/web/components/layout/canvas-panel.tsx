@@ -1,11 +1,15 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { useUIStore } from "@/stores/ui-store"
 import { useArtifactStore, ArtifactVersion } from "@/stores/artifact-store"
 import { useChannelStore } from "@/stores/channel-store"
 import { useUserStore } from "@/stores/user-store"
-import { X, Maximize2, RotateCcw, Share2, Save, Wand2, History, MessageSquare, Copy, Code, Type, ExternalLink, MoreVertical, ChevronLeft, Loader2, GitCompare, Sparkles } from "lucide-react"
+import {
+  X, Maximize2, Minimize2, RotateCcw, Share2, Save, Wand2, History, MessageSquare,
+  Copy, Code, Type, ExternalLink, MoreVertical, ChevronLeft, Loader2, GitCompare,
+  Sparkles, Pencil, Link as LinkIcon, FileDown, FileText,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
@@ -14,9 +18,19 @@ import { formatDistanceToNow, format } from "date-fns"
 import { ArtifactDiffView } from "./artifact-diff-view"
 import { CanvasTipTapEditor, type CanvasEditorHandle } from "./canvas-tiptap-editor"
 import { CanvasAIDock, type CanvasAIDockHandle, type CanvasAIDockLayout } from "./canvas-ai-dock"
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu"
+import { toast } from "sonner"
+import { exportArtifactAsPDF, exportArtifactAsWord } from "@/lib/export-artifact"
 
 export function CanvasPanel() {
-  const { isCanvasOpen, closeCanvas, activeCanvasId } = useUIStore()
+  const {
+    isCanvasOpen, closeCanvas, activeCanvasId,
+    isCanvasEditing, setCanvasEditing,
+    isCanvasMaximized, toggleCanvasMaximized,
+  } = useUIStore()
   const { 
     activeArtifact, 
     fetchArtifactDetail, 
@@ -46,6 +60,14 @@ export function CanvasPanel() {
   
   const [content, setContent] = useState("")
   const [isEditing, setIsEditing] = useState(false)
+
+  // Inline title rename state. The title is shown as a label by default and
+  // flips to a text input when clicked (or when the pencil is hit). `Enter`
+  // commits, `Escape` cancels; blur commits as well so the workflow is
+  // forgiving.
+  const [isRenaming, setIsRenaming] = useState(false)
+  const [titleDraft, setTitleDraft] = useState("")
+  const titleInputRef = useRef<HTMLInputElement>(null)
 
   // Imperative handles for the rich editor + AI dock so the toolbar's "Ask AI"
   // button can focus the dock composer without lifting editor state up.
@@ -109,12 +131,101 @@ export function CanvasPanel() {
         })
         if (created) {
           setIsEditing(false)
+          setCanvasEditing(false)
         }
         return
       }
       await updateArtifact(activeArtifact.id, { content })
       setIsEditing(false)
+      setCanvasEditing(false)
     }
+  }
+
+  // Enter edit mode + broadcast to the workspace layout so it can widen the
+  // right side to give the editor + AI chat dock a 33/33/33 split with the
+  // message column (request #10).
+  const handleEnterEdit = () => {
+    setIsEditing(true)
+    setCanvasEditing(true)
+  }
+
+  // ── Inline title rename ─────────────────────────────────────────────────
+  const handleStartRename = () => {
+    if (!activeArtifact || activeArtifact.id === "new-doc") return
+    setTitleDraft(activeArtifact.title || "")
+    setIsRenaming(true)
+    // Defer to let the input mount before focusing.
+    setTimeout(() => {
+      titleInputRef.current?.focus()
+      titleInputRef.current?.select()
+    }, 0)
+  }
+  const handleCommitRename = async () => {
+    if (!activeArtifact || activeArtifact.id === "new-doc") {
+      setIsRenaming(false)
+      return
+    }
+    const next = titleDraft.trim()
+    const prev = activeArtifact.title || ""
+    if (!next || next === prev) {
+      setIsRenaming(false)
+      return
+    }
+    await updateArtifact(activeArtifact.id, { title: next })
+    setIsRenaming(false)
+  }
+  const handleCancelRename = () => {
+    setIsRenaming(false)
+    setTitleDraft("")
+  }
+
+  // ── Deep link + Open in new tab ─────────────────────────────────────────
+  // Build a shareable URL that loads the workspace on this channel and
+  // auto-opens the canvas via the `canvas` query param (the workspace page
+  // reads it on mount).
+  const canvasDeepLink = useMemo(() => {
+    if (typeof window === "undefined" || !activeArtifact) return ""
+    const url = new URL(window.location.origin + "/workspace")
+    if (activeArtifact.channelId || currentChannel?.id) {
+      url.searchParams.set("c", activeArtifact.channelId || currentChannel?.id || "")
+    }
+    url.searchParams.set("canvas", activeArtifact.id)
+    return url.toString()
+  }, [activeArtifact, currentChannel])
+
+  const handleOpenInTab = () => {
+    if (!canvasDeepLink) return
+    window.open(canvasDeepLink, "_blank", "noopener,noreferrer")
+  }
+
+  const handleCopyLink = async () => {
+    if (!canvasDeepLink) return
+    try {
+      await navigator.clipboard.writeText(canvasDeepLink)
+      toast.success("Canvas link copied to clipboard")
+    } catch {
+      toast.error("Copy failed\u00a0— clipboard permission denied")
+    }
+  }
+
+  const handleShareInChannel = () => {
+    // Future: POST an inline canvas reference into the current channel's
+    // composer. For now fall back to clipboard so the user can paste the
+    // link into any conversation.
+    handleCopyLink()
+    toast.info("Paste the link into any channel or DM to share")
+  }
+
+  // ── Export ──────────────────────────────────────────────────────────────
+  const handleExportWord = () => {
+    if (!activeArtifact) return
+    exportArtifactAsWord({ title: activeArtifact.title || "Untitled", html: content })
+    toast.success("Exported as Word (.doc)")
+  }
+  const handleExportPDF = () => {
+    if (!activeArtifact) return
+    const ok = exportArtifactAsPDF({ title: activeArtifact.title || "Untitled", html: content })
+    if (!ok) toast.error("Popup blocked — please allow popups for PDF export")
   }
 
   const handleToggleHistory = () => {
@@ -291,7 +402,44 @@ export function CanvasPanel() {
             {activeArtifact.type === 'code' ? <Code className="w-4 h-4 text-blue-600" /> : <Type className="w-4 h-4 text-blue-600" />}
           </div>
           <div className="flex flex-col min-w-0">
-            <h3 className="font-bold text-sm truncate">{isComparing ? 'Comparison View' : displayArtifact.title}</h3>
+            {/* Inline rename (bug #1). Click the title or the pencil icon
+                to edit; Enter / blur commits, Escape cancels. Disabled while
+                comparing, previewing a version, or for unsaved placeholders. */}
+            {isComparing ? (
+              <h3 className="font-bold text-sm truncate">Comparison View</h3>
+            ) : isRenaming ? (
+              <input
+                ref={titleInputRef}
+                value={titleDraft}
+                onChange={(e) => setTitleDraft(e.target.value)}
+                onBlur={handleCommitRename}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); handleCommitRename() }
+                  if (e.key === "Escape") { e.preventDefault(); handleCancelRename() }
+                }}
+                placeholder="Untitled"
+                className="font-bold text-sm bg-transparent outline-none border-b border-purple-500/60 focus:border-purple-600 px-0.5 py-px w-full max-w-[420px]"
+                maxLength={120}
+              />
+            ) : (
+              <div className="flex items-center gap-1 group/title min-w-0">
+                <button
+                  type="button"
+                  onClick={handleStartRename}
+                  className="font-bold text-sm truncate text-left hover:text-purple-600 transition-colors"
+                  title={activeArtifact.id === "new-doc" ? "Save the canvas before renaming" : "Click to rename"}
+                  disabled={activeArtifact.id === "new-doc"}
+                >
+                  {displayArtifact.title || "Untitled"}
+                </button>
+                {activeArtifact.id !== "new-doc" && !selectedVersion && (
+                  <Pencil
+                    className="w-3 h-3 text-muted-foreground/40 opacity-0 group-hover/title:opacity-100 transition-opacity cursor-pointer hover:text-purple-600"
+                    onClick={handleStartRename}
+                  />
+                )}
+              </div>
+            )}
             <div className="flex items-center gap-1.5">
               <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider whitespace-nowrap">
                 {isComparing ? `v${currentDiff.fromVersion} → v${currentDiff.toVersion}` : `v${displayArtifact.version} • ${activeArtifact.type}`}
@@ -332,12 +480,43 @@ export function CanvasPanel() {
               Save
             </Button>
           ) : (
-            <Button size="sm" variant="ghost" className="h-8 font-bold text-[#1164a3]" onClick={() => setIsEditing(true)}>
+            <Button size="sm" variant="ghost" className="h-8 font-bold text-[#1164a3]" onClick={handleEnterEdit}>
               Edit
             </Button>
           )}
-          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
-            <Share2 className="w-4 h-4" />
+          {/* Share dropdown (bug #5) */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" title="Share">
+                <Share2 className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel className="text-[9px] uppercase tracking-widest">Share canvas</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleCopyLink}>
+                <LinkIcon className="w-3.5 h-3.5 mr-2" />
+                Copy link
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleShareInChannel}>
+                <MessageSquare className="w-3.5 h-3.5 mr-2" />
+                Share in channel…
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleOpenInTab}>
+                <ExternalLink className="w-3.5 h-3.5 mr-2" />
+                Open in new tab
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {/* Maximize / minimize (bug #6) */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-full"
+            onClick={toggleCanvasMaximized}
+            title={isCanvasMaximized ? "Restore size" : "Maximize canvas"}
+          >
+            {isCanvasMaximized ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </Button>
           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={closeCanvas}>
             <X className="w-4 h-4" />
@@ -409,8 +588,45 @@ export function CanvasPanel() {
           </div>
         )}
         <div className="ml-auto flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="h-7 w-7"><Maximize2 className="w-3.5 h-3.5" /></Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7"><MoreVertical className="w-3.5 h-3.5" /></Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={toggleCanvasMaximized}
+            title={isCanvasMaximized ? "Restore size" : "Maximize canvas"}
+          >
+            {isCanvasMaximized ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+          </Button>
+          {/* MoreVertical menu (bug #7) — Duplicate / Export / Delete / Open-in-Tab */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-7 w-7" title="More actions">
+                <MoreVertical className="w-3.5 h-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuLabel className="text-[9px] uppercase tracking-widest">Actions</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleDuplicate} disabled={isLoading}>
+                <Copy className="w-3.5 h-3.5 mr-2" />
+                Duplicate
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleOpenInTab}>
+                <ExternalLink className="w-3.5 h-3.5 mr-2" />
+                Open in new tab
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-[9px] uppercase tracking-widest">Export</DropdownMenuLabel>
+              <DropdownMenuItem onClick={handleExportWord}>
+                <FileText className="w-3.5 h-3.5 mr-2" />
+                Export as Word (.doc)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportPDF}>
+                <FileDown className="w-3.5 h-3.5 mr-2" />
+                Export as PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -529,7 +745,13 @@ export function CanvasPanel() {
             />
           ) : (() => {
             const dockVisible = isEditing && !selectedVersion && activeArtifact.type !== "code"
-            const useRail = dockVisible && aiDockLayout === "rail"
+            // While the global edit mode is on, the workspace layout widens
+            // the canvas panel to ~67% — so we also pin the dock to rail and
+            // give it 50% of the canvas (yielding the 33/33/33 split with
+            // the message column, request #10). Outside edit mode we honour
+            // the user's saved bottom/rail preference.
+            const forceRail = isCanvasEditing && dockVisible
+            const useRail = dockVisible && (aiDockLayout === "rail" || forceRail)
             return (
               <div className={cn(
                 "flex-1 min-h-0 flex",
@@ -571,7 +793,11 @@ export function CanvasPanel() {
                     sidebar so editor + chat each have dedicated scroll areas
                     (request #5). `layout="bottom"` keeps the compact bottom dock. */}
                 {dockVisible && (
-                  <div className={cn(useRail ? "w-[400px] shrink-0" : "shrink-0")}> 
+                  <div className={cn(
+                    useRail
+                      ? (forceRail ? "flex-1 min-w-0 border-l" : "w-[400px] shrink-0")
+                      : "shrink-0",
+                  )}> 
                     <CanvasAIDock
                       ref={dockRef}
                       editorRef={editorRef}
@@ -595,7 +821,13 @@ export function CanvasPanel() {
             <MessageSquare className="w-3 h-3" />
             Refers to #general discussion
           </div>
-          <Button variant="ghost" size="sm" className="h-8 text-[10px] font-bold uppercase tracking-widest">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-[10px] font-bold uppercase tracking-widest"
+            onClick={handleOpenInTab}
+            title="Open this canvas in a new browser tab"
+          >
             Open in Tab
             <ExternalLink className="w-3 h-3 ml-1.5" />
           </Button>

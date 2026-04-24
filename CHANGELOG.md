@@ -2,6 +2,99 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.48] - 2026-04-24
+
+Canvas Quality Sweep (Web). Ten user-reported bugs + ten new behaviours
+on the Canvas panel — every header / toolbar / footer affordance now has a
+real interaction, the diff view reads like Microsoft Word's Review pane,
+and clicking **Edit** widens the canvas into a clean 33 / 33 / 33 split
+between channel messages, the editor, and the AI chat dock.
+
+### Fixed
+
+- **Inline title rename (#1)**. The title in the canvas header now
+  becomes editable on click (or via the hover pencil affordance). `Enter`
+  / blur commits via `PATCH /artifacts/:id`; `Escape` cancels. Disabled
+  for unsaved `new-doc` placeholders and version-preview mode.
+- **Diff view leaked raw `<p></p>` markup (#4)**. Both inline and
+  side-by-side modes were rendering TipTap-produced HTML strings as plain
+  text, so users saw literal `<p>` / `</p>` / `<br>` tags inside the
+  highlighted diff bands. The new view runs `htmlToPlainText()` on both
+  sides *before* comparing, so paragraph breaks become real newlines and
+  no markup leaks through.
+- **Compare lacked clear word-level diff (#3)**. Added a new default
+  **Review** mode (icon: `FileDiff`) that renders a Microsoft Word-style
+  Review pane: word-level Myers LCS with green-underlined insertions and
+  red-strikethrough deletions, a compact +N / −M words counter in the
+  header, and a small legend at the bottom. **Inline** (server spans /
+  unified diff) and **Side-by-side** modes are kept as fallbacks for
+  code-type artifacts where line granularity matters.
+- **Share icon was inert (#5)**. Now opens a dropdown with **Copy link**
+  (writes a `?c=:channelId&canvas=:id` URL to clipboard via
+  `navigator.clipboard.writeText`), **Share in channel…** (clipboard +
+  toast hint, awaiting message-composer integration), and **Open in new
+  tab**.
+- **Maximize / minimize was inert (#6)**. The two `Maximize2` buttons
+  (header right-side and toolbar right-side) now toggle the new
+  `isCanvasMaximized` flag in `ui-store`, which collapses the message
+  column to ~5 % so canvas + dock take the viewport. Icon flips to
+  `Minimize2` while maximized; click again to restore the saved layout.
+- **Toolbar `MoreVertical` was inert (#7)**. Now opens a dropdown with
+  **Duplicate**, **Open in new tab**, plus an **Export** section
+  (Word `.doc` and PDF — see #9).
+- **Footer `Open in Tab` was inert (#8)**. Computes a deep-link via
+  `useMemo` (`/workspace?c=:channelId&canvas=:id`) and `window.open`s
+  it. The workspace page (`apps/web/app/workspace/page.tsx`) now also
+  honours `?canvas=:id` on load and auto-calls `openCanvas(id)` once
+  the channel resolves, so the new tab lands directly on the doc.
+
+### Added
+
+- **Word + PDF export (#9)**. New `apps/web/lib/export-artifact.ts`
+  (zero dependencies). `exportArtifactAsWord({title, html})` builds a
+  Word-compatible HTML envelope (with `urn:schemas-microsoft-com:office`
+  namespaces + `Word.Document` ProgId) and downloads it as `.doc`. Word,
+  Pages, and Google Docs all open it as a rich document.
+  `exportArtifactAsPDF({title, html})` opens a same-origin print window
+  with print-ready CSS (A4, 20 mm margins, light theme) and triggers
+  `window.print()` so the user's OS dialog handles "Save as PDF" — no
+  PDF library shipped to clients.
+- **33 / 33 / 33 split on Edit (#10)**. New `isCanvasEditing` +
+  `isCanvasMaximized` flags in `ui-store`. The workspace layout
+  (`app/workspace/layout.tsx`) computes a layout mode
+  (`none` / `side` / `canvas` / `canvas-edit` / `canvas-max`) and
+  re-mounts the `ResizablePanelGroup` with a matching `key={layoutMode}`
+  so `defaultSize` actually re-applies (the library only consults
+  `defaultSize` on mount). In `canvas-edit` mode the outer split is
+  33 / 67, and the canvas panel internally pins the AI dock to **rail**
+  with `flex-1` width — yielding the 33 / 33 / 33 split between channel
+  messages, editor, and AI chat the user requested.
+- **Word-level diff library** (`apps/web/lib/word-diff.ts`).
+  Dependency-free Myers LCS over a word + whitespace + punctuation
+  tokenizer, plus `htmlToPlainText()` that uses DOM when available and
+  falls back to a regex strip for SSR. Used by the new Review pane.
+
+### Verification Used For This Release
+
+- `cd apps/web && pnpm exec tsc --noEmit` — clean.
+- `cd apps/web && pnpm exec eslint .` — clean.
+- Manual flow: open any document canvas → click title (renames) → click
+  Share → Copy link, paste in a fresh tab (canvas auto-opens) → click
+  Edit (layout collapses to 33 / 33 / 33; AI dock becomes rail) → open
+  Version History → Compare two versions → switch between Review /
+  Inline / Side modes → ⋮ → Export as Word, Export as PDF → click
+  Maximize (messages collapse) → Minimize restores.
+
+### Known Deferral
+
+Phase 67B Web consumption (source-message jump + flash-highlight,
+`list.item.*` / `tool.run.*` realtime, unread-count badges, Home pulse
+trends) is intentionally **deferred** out of this release. This sweep
+focused on the user-reported canvas quality bugs to keep the diff
+reviewable. Next release will pick up the Phase 67B execution-quality
+work as Codex's `2026-04-24 Codex Latest-State Review After v0.6.46`
+note recommended.
+
 ## [0.6.47] - 2026-04-24
 
 Backend Stability & Inbox Parity. Fixes test debt and completes the durable inbox story.

@@ -22,15 +22,18 @@ export default function WorkspaceLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { isThreadOpen, isAIPanelOpen, isCanvasOpen, closeThread, closeAIPanel, closeCanvas } = useUIStore()
+  const {
+    isThreadOpen, isAIPanelOpen, isCanvasOpen,
+    isCanvasEditing, isCanvasMaximized,
+    closeThread, closeAIPanel, closeCanvas,
+  } = useUIStore()
   const { fetchWorkspaces, currentWorkspace } = useWorkspaceStore()
   const { fetchChannels, currentChannel } = useChannelStore()
   const { fetchMe, fetchUsers } = useUserStore()
   const { fetchPresence, sendHeartbeat, fetchScopedPresence } = usePresenceStore()
   const { fetchDrafts } = useDraftStore()
   const [mounted, setMounted] = useState(false)
-  const showRightPanel = isThreadOpen || isAIPanelOpen || isCanvasOpen
-  
+
   useWebsocket()
   
   const workspacesFetched = useRef(false)
@@ -95,24 +98,60 @@ export default function WorkspaceLayout({
         <Suspense fallback={<nav className="w-[260px] bg-[#3f0e40] dark:bg-[#19171d] shrink-0" />}>
           <ChannelSidebar />
         </Suspense>
-        {mounted ? (
-          <ResizablePanelGroup direction="horizontal" className="flex-1">
-            <ResizablePanel defaultSize={showRightPanel ? (isCanvasOpen ? 50 : 65) : 100} minSize={30}>
-              {children}
-            </ResizablePanel>
-            
-            {showRightPanel && (
-              <>
-                <ResizableHandle withHandle />
-                <ResizablePanel defaultSize={isCanvasOpen ? 50 : 35} minSize={25}>
-                  {isThreadOpen && <ThreadPanel />}
-                  {isAIPanelOpen && <AIChatPanel />}
-                  {isCanvasOpen && <CanvasPanel />}
-                </ResizablePanel>
-              </>
-            )}
-          </ResizablePanelGroup>
-        ) : (
+        {mounted ? (() => {
+          // Resolve panel layout mode declaratively so the (left messages /
+          // right side panel) split adapts to user intent:
+          //
+          //   • canvas-max  → 5 / 95   (Maximize button — collapses messages)
+          //   • canvas-edit → 33 / 67  (Edit clicked → with inner 50/50 dock
+          //                            the result is the 33/33/33 split the
+          //                            user asked for in request #10)
+          //   • canvas      → 50 / 50  (canvas open, read-only preview)
+          //   • side        → 65 / 35  (thread or AI panel)
+          //   • none        → 100 / 0  (no right panel)
+          //
+          // We `key={layoutMode}` the group because react-resizable-panels
+          // only consults `defaultSize` on mount; remounting on mode change
+          // is the cleanest way to apply new defaults without taking on
+          // imperative ref forwarding.
+          let layoutMode: "none" | "side" | "canvas" | "canvas-edit" | "canvas-max" = "none"
+          let leftSize = 100
+          let rightSize = 0
+          if (isCanvasOpen) {
+            if (isCanvasMaximized) { layoutMode = "canvas-max"; leftSize = 5;  rightSize = 95 }
+            else if (isCanvasEditing) { layoutMode = "canvas-edit"; leftSize = 33; rightSize = 67 }
+            else { layoutMode = "canvas"; leftSize = 50; rightSize = 50 }
+          } else if (isThreadOpen || isAIPanelOpen) {
+            layoutMode = "side"; leftSize = 65; rightSize = 35
+          }
+          const showRight = rightSize > 0
+          return (
+            <ResizablePanelGroup
+              key={layoutMode}
+              direction="horizontal"
+              className="flex-1"
+            >
+              <ResizablePanel
+                defaultSize={leftSize}
+                minSize={isCanvasMaximized ? 4 : 25}
+                collapsible={isCanvasMaximized}
+              >
+                {children}
+              </ResizablePanel>
+
+              {showRight && (
+                <>
+                  <ResizableHandle withHandle />
+                  <ResizablePanel defaultSize={rightSize} minSize={25}>
+                    {isThreadOpen && <ThreadPanel />}
+                    {isAIPanelOpen && <AIChatPanel />}
+                    {isCanvasOpen && <CanvasPanel />}
+                  </ResizablePanel>
+                </>
+              )}
+            </ResizablePanelGroup>
+          )
+        })() : (
           <div className="flex-1 overflow-hidden">
             {children}
           </div>
