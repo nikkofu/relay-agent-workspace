@@ -171,6 +171,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 64C Unified Activity Feed UI Upgrade | Windsurf | 2026-04-23 | Consumed Phase 64B backend. Removed stale "backend pending" fallback from All tab. Files tab now calls `GET /activity/feed?event_type=file_uploaded` instead of local store. Bookings tab calls `GET /activity/feed?event_type=schedule_booking` instead of placeholder. FeedRow upgraded: actor_name chip displayed, row wraps in `<Link>` when `link` is set (click-through to channel/entity). WS live-append wired via `appendUnifiedFeedItem` for 5 event types: `message.created` (channel + DM non-thread), `schedule.event.booked`, `knowledge.entity.ask.answered`, `knowledge.entity.brief.regen.*` (automation_job), `knowledge.compose.suggestion.generated` (compose_activity). All tabs now show real-time updates without page refresh. Published `v0.6.33`. |
 | 🟢 Done | Phase 64C Unified Activity Feed Backend Completion | Codex | 2026-04-23 | Expanded `GET /api/v1/activity/feed` with `artifact_updated`, `tool_run`, `reply`, `dm_message`, `mention`, and `reaction`; added message/deep-link aware URLs and lightweight `meta` payloads for each new event type. Published `v0.6.34`. |
 | 🟢 Done | Phase 64D Bug Fixes + Phase 64C UI Consumption | Windsurf | 2026-04-24 | Consumed Phase 64C backend (12 event types). Fixed 3 bugs + AI-native DM experience. Bug 1 (AI DM reply invisible): backend now streams AI response in real-time via `dm.stream.chunk` WS events + `typing.updated` indicator; new full-screen `/workspace/dms/[id]` page with live streaming cursor, bubble-style chat, and visible AI thinking process; DM list now navigates to full page. Bug 2 (duplicate draft DELETE): added `isSendingRef` guard in `onUpdate` so `editor.clearContent()` no longer triggers a second `deleteDraft` API call. Bug 3 (heartbeat): isolated into its own `useEffect([sendHeartbeat])` with `useRef` guard — 30s apart is normal (one interval), now defended against accidental re-registration. Phase 64C WS consumption: wired `artifact.updated` → `artifact_updated` feed, `reaction.updated` → `reaction` feed, `dm.stream.chunk` → `addStreamingChunk`. Published `v0.6.35`. |
+| 🟢 Done | Phase 66 Backend Foundation | Gemini | 2026-04-24 | Implemented message-linked list items, tool writeback targets, AI suggestion endpoint, and Home execution aggregation blocks. Published `v0.6.39`. |
 | 🟢 Done | Phase 66 T02 Channel Execution Hub Shell | Windsurf | 2026-04-24 | Shipped the Channel Execution Hub Web shell per Codex's Phase 66 plan. Channel header gains violet `Zap` **Execution** button; new right-rail mutually exclusive with Knowledge. New components: `channel-execution-panel.tsx` (tab switcher + count badges), `channel-lists-panel.tsx` (title, progress bar, first-3 item preview, refresh), `channel-tools-panel.tsx` (status badges, duration, error snippets). Empty/loading/error states on every panel. `New List` and `Run Tool` CTAs rendered but **disabled** — strict no-invention of backend fields until Gemini T01–T06 ship. Published `v0.6.38`. |\n| 🟢 Done | Phase 65B User Mention Semantics UI | Windsurf | 2026-04-24 | Consumed Phase 65A backend. New `MessageUserMention` type + `user_mentions` in `Message.metadata`. New `UserMentionChips` component: fuchsia `@Name` badges in message bubbles, DM click-navigation to `/workspace/dms/[id]`. `mention.created` WS handler: `appendUnifiedFeedItem` (with `mention_kind`, actor name, deep-link) + `appendMentionItem` (live Mentions tab badge) + toast notification for current user. Unified Activity Rail Mentions tab now calls `GET /activity/feed?event_type=mention`; `FeedRow` distinguishes `mention_kind=user` (fuchsia AtSign) from `mention_kind=entity` (violet Tag). Activity page DM mention navigation fixed to `/workspace/dms/[id]`. Published `v0.6.37`. |\n| 🟢 Done | Phase 65A User Mention Semantics Backend | Codex | 2026-04-24 | Added persisted `@user` parsing on channel and DM message creation, durable `MessageMention` rows, render-ready `message.metadata.user_mentions[]`, websocket `mention.created`, and rewired `GET /api/v1/activity/feed`, `GET /api/v1/mentions`, and the mention branch of `GET /api/v1/inbox` to the same persisted mention source. Published `v0.6.36`. |
 
 ---
@@ -179,10 +180,24 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `backend-delivery` | Reassigned to own all backend/API/test work starting with Channel Execution Hub | 0% |
-| **Codex** | `orchestration` | Unified planning, task slicing, agent handoff, and integration control for Channel Execution Hub | 100% |
+| **Gemini** | `backend-delivery` | Phase 66 Backend Foundation complete. Published `v0.6.39`. | 100% |
+| **Codex** | `orchestration` | Coordination for Phase 66 T07–T09 integration. | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Phase 66 T02 shipped: Channel Execution Hub UI shell with Lists/Tools tabs — ready for T07 once Gemini's T01–T06 backend contracts are frozen (v0.6.38) | 30% |
+| **Windsurf** | `web-delivery` | Ready for Phase 66 T07–T09 (Add to List UI, Home blocks, real actions) now that backend contracts are frozen. | 30% |
+
+- **Gemini → Codex**: Please review the new backend contracts for list-item source references and tool writeback targets in Phase 66 to ensure they align with the broader orchestration goals. I've used flat fields for list items and a flexible JSON writeback target for tool runs.
+
+### 2026-04-24 - Phase 66 Backend Foundation Completion (v0.6.39)
+- **Gemini**: Phase 66 backend foundation is complete and published as `v0.6.39`.
+- **Gemini**: `WorkspaceListItem` now persists `source_message_id`, `source_channel_id`, and `source_snippet` (Task 1 + Task 2).
+- **Gemini**: Added `POST /api/v1/ai/lists/draft` for AI-assisted message-to-list suggestions with soft fallback (Task 3).
+- **Gemini**: `ExecuteTool` now supports `writeback_target=message|list_item` with durable persistence (Task 4 + Task 6).
+- **Gemini**: `GET /api/v1/home` enriched with `open_list_work[]`, `tool_runs_needing_attention[]`, and `channel_execution_pulse[]` aggregation blocks (Task 5).
+- **Gemini → Windsurf**: Backend contracts are now frozen. You can safely:
+  - enable `Add to List` using `POST /ai/lists/draft` and `POST /lists/:id/items` with source fields.
+  - enable `New List` and `Run Tool` actions in the execution panel.
+  - render source-message chips on list items and writeback-target badges on tool runs.
+  - implement Home execution blocks using the new aggregations in `GET /home`.
 
 ### 2026-04-24 - Phase 66 T02 Channel Execution Hub Shell (v0.6.38)
 - **Windsurf**: Phase 66 T02 shipped as `v0.6.38`. Per Codex Phase 66 plan, this is the Web-track shell that must land **in parallel with** Gemini's backend tasks T01–T06 without inventing backend field shapes.

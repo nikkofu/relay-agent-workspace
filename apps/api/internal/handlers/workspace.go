@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
@@ -481,6 +482,9 @@ func GetHome(c *gin.Context) {
 			"recent_lists":             listRecentWorkspaceLists(currentUser.ID, 5),
 			"recent_tool_runs":         listRecentToolRunsForHome(currentUser.ID, 5),
 			"recent_files":             listRecentFilesForHome(currentUser.ID, 5),
+			"open_list_work":              listOpenWorkForHome(currentUser.ID, 5),
+			"tool_runs_needing_attention": listToolRunsNeedingAttentionForHome(currentUser.ID, 5),
+			"channel_execution_pulse":     listChannelExecutionPulseForHome(currentUser.ID, 5),
 			"knowledge_inbox_count":    knowledgeInboxCount,
 			"recent_knowledge_digests": knowledgeDigests,
 		},
@@ -2296,4 +2300,77 @@ func primaryWorkspaceID() string {
 		return ""
 	}
 	return workspace.ID
+}
+
+func listOpenWorkForHome(userID string, limit int) []any {
+	var items []domain.WorkspaceListItem
+	// Find items assigned to user or created by user that are not completed
+	db.DB.Where("(assigned_to = ? OR created_by = ?) AND is_completed = ?", userID, userID, false).
+		Order("due_at asc, updated_at desc").
+		Limit(limit).
+		Find(&items)
+	
+	results := make([]any, 0, len(items))
+	for _, item := range items {
+		var list domain.WorkspaceList
+		db.DB.First(&list, "id = ?", item.ListID)
+		results = append(results, gin.H{
+			"item":    hydrateWorkspaceListItem(item),
+			"channel_id": list.ChannelID,
+			"list_title": list.Title,
+		})
+	}
+	return results
+}
+
+func listToolRunsNeedingAttentionForHome(userID string, limit int) []any {
+	var runs []domain.ToolRun
+	// Find failed runs or running runs triggered by user
+	db.DB.Where("triggered_by = ? AND status IN ?", userID, []string{"failed", "running"}).
+		Order("updated_at desc").
+		Limit(limit).
+		Find(&runs)
+	
+	results := make([]any, 0, len(runs))
+	for _, run := range runs {
+		results = append(results, hydrateToolRun(run, false))
+	}
+	return results
+}
+
+func listChannelExecutionPulseForHome(userID string, limit int) []any {
+	// Find channels with recent execution activity
+	var channels []domain.Channel
+	db.DB.Limit(limit).Find(&channels) // Simplified for now
+	
+	results := make([]any, 0, len(channels))
+	for _, channel := range channels {
+		var openItemCount int64
+		db.DB.Model(&domain.WorkspaceListItem{}).
+			Joins("JOIN workspace_lists ON workspace_lists.id = workspace_list_items.list_id").
+			Where("workspace_lists.channel_id = ? AND workspace_list_items.is_completed = ?", channel.ID, false).
+			Count(&openItemCount)
+		
+		var overdueCount int64
+		db.DB.Model(&domain.WorkspaceListItem{}).
+			Joins("JOIN workspace_lists ON workspace_lists.id = workspace_list_items.list_id").
+			Where("workspace_lists.channel_id = ? AND workspace_list_items.is_completed = ? AND due_at < ?", channel.ID, false, time.Now().UTC()).
+			Count(&overdueCount)
+		
+		if openItemCount > 0 {
+			summary := fmt.Sprintf("%d open items in #%s", openItemCount, channel.Name)
+			if overdueCount > 0 {
+				summary += fmt.Sprintf(" (%d overdue)", overdueCount)
+			}
+
+			results = append(results, gin.H{
+				"channel_id":      channel.ID,
+				"channel_name":    channel.Name,
+				"open_item_count": openItemCount,
+				"overdue_count":   overdueCount,
+				"summary":         summary,
+			})
+		}
+	}
+	return results
 }

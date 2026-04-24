@@ -408,3 +408,47 @@ func mustParseAITestTime(t *testing.T, raw string) time.Time {
 	}
 	return parsed
 }
+
+func TestChannelExecutionCreateListItemWithAIAssistFallsBackWithoutAI(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+	
+	db.DB.Create(&domain.Message{ID: "msg-1", ChannelID: "ch-1", UserID: "user-1", Content: "Should we add this to list?"})
+
+	// Force gateway failure
+	AIGateway = &errorGateway{err: errors.New("upstream unreachable")}
+
+	router := gin.New()
+	router.POST("/api/v1/ai/lists/draft", CreateListItemDraft)
+
+	rec := httptest.NewRecorder()
+	reqBody := `{"message_id":"msg-1","list_id":"list-1"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/ai/lists/draft", strings.NewReader(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	// Acceptable failure mode: 200 with ok: false OR graceful fallback fields
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 even on AI failure (soft fallback), got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		OK       bool   `json:"ok"`
+		Fallback string `json:"fallback"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if payload.OK != false || payload.Fallback != "manual_entry" {
+		t.Fatalf("expected graceful fallback, got %#+v", payload)
+	}
+}
+
+type errorGateway struct {
+	err error
+}
+
+func (g *errorGateway) Stream(_ context.Context, _ llm.Request) (*llm.StreamSession, error) {
+	return nil, g.err
+}

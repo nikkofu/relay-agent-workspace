@@ -348,3 +348,113 @@ func TestArtifactTemplatesAndVirtualNewDoc(t *testing.T) {
 	}
 	assertPrefixedUUID(t, createPayload.Artifact.ID, "artifact")
 }
+
+func TestChannelExecutionListItemPersistsMessageReference(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.User{ID: "user-1", OrganizationID: "org-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Workspace{ID: "ws-1", OrganizationID: "org-1", Name: "Relay"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "ops", Type: "public"})
+	db.DB.Create(&domain.WorkspaceList{ID: "list-1", WorkspaceID: "ws-1", ChannelID: "ch-1", CreatedBy: "user-1", Title: "Tasks"})
+
+	router := gin.New()
+	router.POST("/api/v1/lists/:id/items", CreateWorkspaceListItem)
+
+	rec := httptest.NewRecorder()
+	reqBody := `{"content":"Review release notes","source_message_id":"msg-123","source_channel_id":"ch-1","source_snippet":"The release notes are ready..."}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/lists/list-1/items", bytes.NewBufferString(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Item struct {
+			ID              uint   `json:"id"`
+			SourceMessageID string `json:"source_message_id"`
+			SourceChannelID string `json:"source_channel_id"`
+			SourceSnippet   string `json:"source_snippet"`
+		} `json:"item"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode payload: %v", err)
+	}
+
+	if payload.Item.SourceMessageID != "msg-123" || payload.Item.SourceChannelID != "ch-1" || payload.Item.SourceSnippet != "The release notes are ready..." {
+		t.Fatalf("unexpected source message fields: %#+v", payload.Item)
+	}
+}
+
+func TestChannelExecutionToolExecuteSupportsMessageWriteback(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.User{ID: "user-1", OrganizationID: "org-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.ToolDefinition{ID: "tool-1", Name: "Summary Generator", IsEnabled: true})
+	db.DB.Create(&domain.Workspace{ID: "ws-1", OrganizationID: "org-1", Name: "Relay"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "ops", Type: "public"})
+
+	router := gin.New()
+	router.POST("/api/v1/tools/:id/execute", ExecuteTool)
+
+	rec := httptest.NewRecorder()
+	reqBody := `{"channel_id":"ch-1","input":{"topic":"Phase 66"},"writeback_target":"message","writeback":{"channel_id":"ch-1"}}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/tools/tool-1/execute", bytes.NewBufferString(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Run struct {
+			ID              string `json:"id"`
+			WritebackTarget string `json:"writeback_target"`
+		} `json:"run"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode payload: %v", err)
+	}
+
+	if payload.Run.WritebackTarget != "message" {
+		t.Fatalf("expected writeback_target to be message, got %s", payload.Run.WritebackTarget)
+	}
+
+	// Verify message was created
+	var count int64
+	db.DB.Model(&domain.Message{}).Where("channel_id = ? AND user_id = ?", "ch-1", "user-1").Count(&count)
+	if count == 0 {
+		t.Fatal("expected a writeback message to be created")
+	}
+}
+
+func TestChannelExecutionToolExecuteSupportsListItemWriteback(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.User{ID: "user-1", OrganizationID: "org-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.ToolDefinition{ID: "tool-1", Name: "Task Generator", IsEnabled: true})
+	db.DB.Create(&domain.Workspace{ID: "ws-1", OrganizationID: "org-1", Name: "Relay"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "ops", Type: "public"})
+	db.DB.Create(&domain.WorkspaceList{ID: "list-1", WorkspaceID: "ws-1", ChannelID: "ch-1", CreatedBy: "user-1", Title: "Tasks"})
+
+	router := gin.New()
+	router.POST("/api/v1/tools/:id/execute", ExecuteTool)
+
+	rec := httptest.NewRecorder()
+	reqBody := `{"input":{"task":"New Task"},"writeback_target":"list_item","writeback":{"list_id":"list-1"}}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/tools/tool-1/execute", bytes.NewBufferString(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var count int64
+	db.DB.Model(&domain.WorkspaceListItem{}).Where("list_id = ?", "list-1").Count(&count)
+	if count == 0 {
+		t.Fatal("expected a writeback list item to be created")
+	}
+}

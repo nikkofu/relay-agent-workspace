@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"sort"
 	"strings"
@@ -16,19 +17,22 @@ import (
 )
 
 type workspaceListItemResponse struct {
-	ID           uint         `json:"id"`
-	ListID       string       `json:"list_id"`
-	Content      string       `json:"content"`
-	Position     int          `json:"position"`
-	IsCompleted  bool         `json:"is_completed"`
-	AssignedTo   string       `json:"assigned_to,omitempty"`
-	DueAt        *time.Time   `json:"due_at,omitempty"`
-	CompletedAt  *time.Time   `json:"completed_at,omitempty"`
-	AssignedUser *domain.User `json:"assigned_user,omitempty"`
-	CreatedBy    string       `json:"created_by"`
-	UserID       string       `json:"user_id"`
-	CreatedAt    time.Time    `json:"created_at"`
-	UpdatedAt    time.Time    `json:"updated_at"`
+	ID              uint         `json:"id"`
+	ListID          string       `json:"list_id"`
+	Content         string       `json:"content"`
+	Position        int          `json:"position"`
+	IsCompleted     bool         `json:"is_completed"`
+	AssignedTo      string       `json:"assigned_to,omitempty"`
+	DueAt           *time.Time   `json:"due_at,omitempty"`
+	CompletedAt     *time.Time   `json:"completed_at,omitempty"`
+	AssignedUser    *domain.User `json:"assigned_user,omitempty"`
+	CreatedBy       string       `json:"created_by"`
+	SourceMessageID string       `json:"source_message_id,omitempty"`
+	SourceChannelID string       `json:"source_channel_id,omitempty"`
+	SourceSnippet   string       `json:"source_snippet,omitempty"`
+	UserID          string       `json:"user_id"`
+	CreatedAt       time.Time    `json:"created_at"`
+	UpdatedAt       time.Time    `json:"updated_at"`
 }
 
 type workspaceListResponse struct {
@@ -61,6 +65,8 @@ type toolRunResponse struct {
 	Status          string               `json:"status"`
 	Summary         string               `json:"summary"`
 	Input           map[string]any       `json:"input"`
+	WritebackTarget string               `json:"writeback_target,omitempty"`
+	Writeback       map[string]any       `json:"writeback,omitempty"`
 	TriggeredBy     string               `json:"triggered_by"`
 	UserID          string               `json:"user_id"`
 	ChannelID       string               `json:"channel_id,omitempty"`
@@ -231,10 +237,13 @@ func CreateWorkspaceListItem(c *gin.Context) {
 	}
 
 	var input struct {
-		Content    string     `json:"content" binding:"required"`
-		AssignedTo string     `json:"assigned_to"`
-		DueAt      *time.Time `json:"due_at"`
-		Position   *int       `json:"position"`
+		Content         string     `json:"content" binding:"required"`
+		AssignedTo      string     `json:"assigned_to"`
+		DueAt           *time.Time `json:"due_at"`
+		Position        *int       `json:"position"`
+		SourceMessageID string     `json:"source_message_id"`
+		SourceChannelID string     `json:"source_channel_id"`
+		SourceSnippet   string     `json:"source_snippet"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -250,15 +259,18 @@ func CreateWorkspaceListItem(c *gin.Context) {
 		position = *input.Position
 	}
 	item := domain.WorkspaceListItem{
-		ListID:      list.ID,
-		Content:     strings.TrimSpace(input.Content),
-		Position:    position,
-		AssignedTo:  strings.TrimSpace(input.AssignedTo),
-		DueAt:       input.DueAt,
-		CreatedBy:   currentUser.ID,
-		IsCompleted: false,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		ListID:          list.ID,
+		Content:         strings.TrimSpace(input.Content),
+		Position:        position,
+		AssignedTo:      strings.TrimSpace(input.AssignedTo),
+		DueAt:           input.DueAt,
+		CreatedBy:       currentUser.ID,
+		SourceMessageID: input.SourceMessageID,
+		SourceChannelID: input.SourceChannelID,
+		SourceSnippet:   input.SourceSnippet,
+		IsCompleted:     false,
+		CreatedAt:       now,
+		UpdatedAt:       now,
 	}
 	if err := db.DB.Create(&item).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create workspace list item"})
@@ -387,8 +399,10 @@ func ExecuteTool(c *gin.Context) {
 	}
 
 	var input struct {
-		ChannelID string         `json:"channel_id"`
-		Input     map[string]any `json:"input"`
+		ChannelID       string         `json:"channel_id"`
+		Input           map[string]any `json:"input"`
+		WritebackTarget string         `json:"writeback_target"`
+		Writeback       map[string]any `json:"writeback"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -402,6 +416,13 @@ func ExecuteTool(c *gin.Context) {
 		}
 	}
 
+	rawWriteback := "{}"
+	if len(input.Writeback) > 0 {
+		if bytes, err := json.Marshal(input.Writeback); err == nil {
+			rawWriteback = string(bytes)
+		}
+	}
+
 	now := time.Now().UTC()
 	if strings.TrimSpace(input.ChannelID) != "" {
 		if input.Input == nil {
@@ -412,20 +433,58 @@ func ExecuteTool(c *gin.Context) {
 		}
 	}
 	run := domain.ToolRun{
-		ID:          ids.NewPrefixedUUID("toolrun"),
-		ToolID:      tool.ID,
-		TriggeredBy: currentUser.ID,
-		Status:      "success",
-		Input:       rawInput,
-		Summary:     "Executed " + tool.Name,
-		StartedAt:   now,
-		CompletedAt: &now,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		ID:              ids.NewPrefixedUUID("toolrun"),
+		ToolID:          tool.ID,
+		TriggeredBy:     currentUser.ID,
+		Status:          "success",
+		Input:           rawInput,
+		Summary:         "Executed " + tool.Name,
+		WritebackTarget: input.WritebackTarget,
+		WritebackData:   rawWriteback,
+		StartedAt:       now,
+		CompletedAt:     &now,
+		CreatedAt:       now,
+		UpdatedAt:       now,
 	}
 	if err := db.DB.Create(&run).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to execute tool"})
 		return
+	}
+
+	// Handle writeback
+	if input.WritebackTarget != "" {
+		if input.WritebackTarget == "message" {
+			destChannelID, _ := input.Writeback["channel_id"].(string)
+			if destChannelID == "" {
+				destChannelID = input.ChannelID
+			}
+			if destChannelID != "" {
+				msg := domain.Message{
+					ID:        ids.NewPrefixedUUID("msg"),
+					ChannelID: destChannelID,
+					UserID:    currentUser.ID,
+					Content:   fmt.Sprintf("Tool %s executed: %s", tool.Name, run.Summary),
+					CreatedAt: now,
+					Metadata:  fmt.Sprintf(`{"tool_run_id":"%s","tool_id":"%s"}`, run.ID, tool.ID),
+				}
+				db.DB.Create(&msg)
+			}
+		} else if input.WritebackTarget == "list_item" {
+			listID, _ := input.Writeback["list_id"].(string)
+			if listID != "" {
+				var maxPosition int
+				db.DB.Model(&domain.WorkspaceListItem{}).Where("list_id = ?", listID).Select("coalesce(max(position), 0)").Scan(&maxPosition)
+				item := domain.WorkspaceListItem{
+					ListID:    listID,
+					Content:   fmt.Sprintf("%s result: %s", tool.Name, run.Summary),
+					Position:  maxPosition + 1,
+					CreatedBy: currentUser.ID,
+					CreatedAt: now,
+					UpdatedAt: now,
+				}
+				db.DB.Create(&item)
+			}
+		}
 	}
 
 	logs := []domain.ToolRunLog{
@@ -563,19 +622,22 @@ func loadWorkspaceListItems(listID string) []workspaceListItemResponse {
 
 func hydrateWorkspaceListItem(item domain.WorkspaceListItem) workspaceListItemResponse {
 	return workspaceListItemResponse{
-		ID:           item.ID,
-		ListID:       item.ListID,
-		Content:      item.Content,
-		Position:     item.Position,
-		IsCompleted:  item.IsCompleted,
-		AssignedTo:   item.AssignedTo,
-		DueAt:        item.DueAt,
-		CompletedAt:  item.CompletedAt,
-		AssignedUser: optionalEnrichedUser(item.AssignedTo),
-		CreatedBy:    item.CreatedBy,
-		UserID:       item.CreatedBy,
-		CreatedAt:    item.CreatedAt,
-		UpdatedAt:    item.UpdatedAt,
+		ID:              item.ID,
+		ListID:          item.ListID,
+		Content:         item.Content,
+		Position:        item.Position,
+		IsCompleted:     item.IsCompleted,
+		AssignedTo:      item.AssignedTo,
+		DueAt:           item.DueAt,
+		CompletedAt:     item.CompletedAt,
+		AssignedUser:    optionalEnrichedUser(item.AssignedTo),
+		CreatedBy:       item.CreatedBy,
+		SourceMessageID: item.SourceMessageID,
+		SourceChannelID: item.SourceChannelID,
+		SourceSnippet:   item.SourceSnippet,
+		UserID:          item.CreatedBy,
+		CreatedAt:       item.CreatedAt,
+		UpdatedAt:       item.UpdatedAt,
 	}
 }
 
@@ -606,6 +668,11 @@ func hydrateToolRun(run domain.ToolRun, includeLogs bool) toolRunResponse {
 		durationMS = int(run.CompletedAt.Sub(run.StartedAt).Milliseconds())
 	}
 
+	writeback := map[string]any{}
+	if strings.TrimSpace(run.WritebackData) != "" {
+		_ = json.Unmarshal([]byte(run.WritebackData), &writeback)
+	}
+
 	response := toolRunResponse{
 		ID:              run.ID,
 		ToolID:          run.ToolID,
@@ -614,6 +681,8 @@ func hydrateToolRun(run domain.ToolRun, includeLogs bool) toolRunResponse {
 		Status:          run.Status,
 		Summary:         run.Summary,
 		Input:           input,
+		WritebackTarget: run.WritebackTarget,
+		Writeback:       writeback,
 		TriggeredBy:     run.TriggeredBy,
 		UserID:          run.TriggeredBy,
 		ChannelID:       channelID,

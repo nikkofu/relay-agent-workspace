@@ -7342,3 +7342,89 @@ func setupTestDB(t *testing.T) {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 }
+
+func TestChannelExecutionHomeIncludesExecutionBlocks(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.User{ID: "user-1", OrganizationID: "org-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Workspace{ID: "ws-1", OrganizationID: "org-1", Name: "Relay"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "ops", Type: "public"})
+	
+	// Add some data to be aggregated
+	db.DB.Create(&domain.WorkspaceList{ID: "list-1", WorkspaceID: "ws-1", ChannelID: "ch-1", CreatedBy: "user-1", Title: "Tasks"})
+	db.DB.Create(&domain.WorkspaceListItem{ListID: "list-1", Content: "Open Task", AssignedTo: "user-1", IsCompleted: false})
+	db.DB.Create(&domain.ToolDefinition{ID: "tool-1", Name: "Tester", IsEnabled: true})
+	db.DB.Create(&domain.ToolRun{ID: "run-1", ToolID: "tool-1", Status: "failed", TriggeredBy: "user-1", Summary: "Failed Run", CreatedAt: time.Now()})
+
+	router := gin.New()
+	router.GET("/api/v1/home", GetHome)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/home", nil)
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	var payload struct {
+		Home struct {
+			OpenListWork             []any `json:"open_list_work"`
+			ToolRunsNeedingAttention []any `json:"tool_runs_needing_attention"`
+			ChannelExecutionPulse    []any `json:"channel_execution_pulse"`
+		} `json:"home"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if payload.Home.OpenListWork == nil {
+		t.Fatal("expected open_list_work block in home response")
+	}
+	if payload.Home.ToolRunsNeedingAttention == nil {
+		t.Fatal("expected tool_runs_needing_attention block in home response")
+	}
+	if payload.Home.ChannelExecutionPulse == nil {
+		t.Fatal("expected channel_execution_pulse block in home response")
+	}
+}
+
+func TestChannelExecutionHomeSummaryIncludesOverdue(t *testing.T) {
+	setupTestDB(t)
+
+	db.DB.Create(&domain.User{ID: "user-1", OrganizationID: "org-1", Name: "Nikko Fu", Email: "nikko@example.com"})
+	db.DB.Create(&domain.Workspace{ID: "ws-1", OrganizationID: "org-1", Name: "Relay"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "ops", Type: "public"})
+	
+	db.DB.Create(&domain.WorkspaceList{ID: "list-1", WorkspaceID: "ws-1", ChannelID: "ch-1", CreatedBy: "user-1", Title: "Tasks"})
+	
+	overdue := time.Now().Add(-24 * time.Hour)
+	db.DB.Create(&domain.WorkspaceListItem{ListID: "list-1", Content: "Overdue Task", AssignedTo: "user-1", IsCompleted: false, DueAt: &overdue})
+
+	router := gin.New()
+	router.GET("/api/v1/home", GetHome)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/home", nil)
+	router.ServeHTTP(rec, req)
+
+	var payload struct {
+		Home struct {
+			ChannelExecutionPulse []struct {
+				Summary string `json:"summary"`
+			} `json:"channel_execution_pulse"`
+		} `json:"home"`
+	}
+	json.Unmarshal(rec.Body.Bytes(), &payload)
+
+	found := false
+	for _, pulse := range payload.Home.ChannelExecutionPulse {
+		if strings.Contains(pulse.Summary, "overdue") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("expected summary to contain 'overdue'")
+	}
+}

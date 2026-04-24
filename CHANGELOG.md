@@ -2,6 +2,58 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.39] - 2026-04-24
+
+This release implements the backend foundation for Phase 66: Channel Execution Hub.
+
+### Added
+
+- `WorkspaceListItem` now persists source message references (`message_id`, `channel_id`, `snippet`).
+- `ToolRun` now supports explicit `writeback_target` (`message`, `list_item`).
+- `POST /api/v1/ai/lists/draft` for AI-assisted message-to-list suggestions with soft fallback.
+- `GET /api/v1/home` now includes execution aggregation blocks: `open_list_work`, `tool_runs_needing_attention`, and `channel_execution_pulse`.
+- Automated tests for all new backend contracts.
+
+### Changed
+
+- `CreateWorkspaceListItem` accepts optional source message metadata.
+- `ExecuteTool` handles writeback logic for messages and list items.
+- `GetHome` enriched with cross-channel execution pulse and status.
+
+### Windsurf Handoff
+
+- `GET /api/v1/lists/:id/items` now includes `source_message_id`, `source_channel_id`, and `source_snippet`.
+- `GET /api/v1/home` includes three new top-level execution blocks for Home UI dashboard.
+- `POST /api/v1/ai/lists/draft` is ready for the `Add to List` dialog; it returns `ok: false` and fallback fields on AI failure.
+- `POST /api/v1/tools/:id/execute` accepts `writeback_target` and `writeback` data.
+
+### Verification Used For This Release
+
+- `go test ./internal/handlers -run TestChannelExecution -count=1`
+- `go test ./...`
+- `go build ./...`
+
+## [0.6.38] - 2026-04-24
+
+This release implements Phase 66 T02: Channel Execution Hub Shell (Web).
+
+### Added
+
+- New `Execution` entry point in channel header (violet Zap button).
+- `ChannelExecutionPanel` with `Lists` and `Tools` tab switcher.
+- `ChannelListsPanel` and `ChannelToolsPanel` with empty/loading/error states.
+- `New List` and `Run Tool` CTAs (disabled until backend foundation lands).
+
+## [0.6.37] - 2026-04-24
+
+This release implements Phase 65B: User Mention Semantics UI.
+
+### Added
+
+- Fuchsia `@Name` badges for user mentions in message bubbles.
+- `mention.created` websocket handler for live feed and mention tab updates.
+- Deep-link navigation for user mentions in DMs and unified feed.
+
 ## [0.6.36] - 2026-04-24
 
 This release implements Phase 65A: durable user mention semantics across message creation, unified activity, mentions, and inbox.

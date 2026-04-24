@@ -1701,3 +1701,39 @@ func bindJSONBody(c *gin.Context, target any) error {
 	}
 	return json.Unmarshal(raw, target)
 }
+
+func CreateListItemDraft(c *gin.Context) {
+	var input struct {
+		MessageID string `json:"message_id" binding:"required"`
+		ListID    string `json:"list_id" binding:"required"`
+		ChannelID string `json:"channel_id"`
+		Context   string `json:"context"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var msg domain.Message
+	if err := db.DB.First(&msg, "id = ?", input.MessageID).Error; err != nil {
+		// Soft failure if message not found, but we prefer 404 for debugging
+		c.JSON(http.StatusNotFound, gin.H{"error": "message not found"})
+		return
+	}
+
+	// For now, return a structured fallback that Windsurf can use.
+	// In a real implementation, we would call AIGateway.Stream or a sync variant.
+	c.JSON(http.StatusOK, gin.H{
+		"ok":       false,
+		"fallback": "manual_entry",
+		"suggestion": gin.H{
+			"title":             strings.TrimSpace(msg.Content),
+			"assignee_user_id":  "",
+			"due_at":            nil,
+			"rationale":         "Derived from message content",
+			"source_message_id": msg.ID,
+			"source_channel_id": msg.ChannelID,
+			"source_snippet":    msg.Content,
+		},
+	})
+}

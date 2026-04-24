@@ -145,16 +145,18 @@ type ToolDefinition struct {
 }
 
 type ToolRun struct {
-	ID          string     `gorm:"primaryKey" json:"id"`
-	ToolID      string     `gorm:"index" json:"tool_id"`
-	TriggeredBy string     `gorm:"index" json:"triggered_by"`
-	Status      string     `json:"status"`
-	Input       string     `json:"input"`
-	Summary     string     `json:"summary"`
-	StartedAt   time.Time  `json:"started_at"`
-	CompletedAt *time.Time `json:"completed_at,omitempty"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
+	ID              string     `gorm:"primaryKey" json:"id"`
+	ToolID          string     `gorm:"index" json:"tool_id"`
+	TriggeredBy     string     `gorm:"index" json:"triggered_by"`
+	Status          string     `json:"status"`
+	Input           string     `json:"input"`
+	Summary         string     `json:"summary"`
+	WritebackTarget string     `json:"writeback_target"`
+	WritebackData   string     `json:"writeback_data"`
+	StartedAt       time.Time  `json:"started_at"`
+	CompletedAt     *time.Time `json:"completed_at,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 }
 
 type ToolRunLog struct {
@@ -220,17 +222,20 @@ type WorkspaceList struct {
 }
 
 type WorkspaceListItem struct {
-	ID          uint       `gorm:"primaryKey" json:"id"`
-	ListID      string     `gorm:"index" json:"list_id"`
-	Content     string     `json:"content"`
-	Position    int        `json:"position"`
-	IsCompleted bool       `json:"is_completed"`
-	AssignedTo  string     `gorm:"index" json:"assigned_to"`
-	DueAt       *time.Time `json:"due_at,omitempty"`
-	CompletedAt *time.Time `json:"completed_at,omitempty"`
-	CreatedBy   string     `gorm:"index" json:"created_by"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
+	ID              uint       `gorm:"primaryKey" json:"id"`
+	ListID          string     `gorm:"index" json:"list_id"`
+	Content         string     `json:"content"`
+	Position        int        `json:"position"`
+	IsCompleted     bool       `json:"is_completed"`
+	AssignedTo      string     `gorm:"index" json:"assigned_to"`
+	DueAt           *time.Time `json:"due_at,omitempty"`
+	CompletedAt     *time.Time `json:"completed_at,omitempty"`
+	CreatedBy       string     `gorm:"index" json:"created_by"`
+	SourceMessageID string     `json:"source_message_id"`
+	SourceChannelID string     `json:"source_channel_id"`
+	SourceSnippet   string     `json:"source_snippet"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 }
 
 type Message struct {
