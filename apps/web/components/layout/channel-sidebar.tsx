@@ -52,10 +52,18 @@ export function ChannelSidebar() {
     router.push(`/workspace?c=${channel.id}`)
   }
 
+  // Clicking a DM in the nav now navigates to the full-page DM view
+  // (`/workspace/dms/:dmId`) instead of opening a small docked chat. This
+  // keeps the experience consistent with the new WhatsApp-style two-pane
+  // DMs surface — request #4.
   const handleDMClick = (conv: DirectMessage) => {
-    const otherUserId = conv.userIds?.find(id => id !== currentUser?.id)
-    if (otherUserId) {
-      openDockedChat(otherUserId)
+    setCurrentConversation(conv)
+    if (conv.id) {
+      router.push(`/workspace/dms/${conv.id}`)
+    } else {
+      // Fallback for placeholder conversations that don't have an id yet.
+      const otherUserId = conv.userIds?.find(id => id !== currentUser?.id)
+      if (otherUserId) openDockedChat(otherUserId)
     }
   }
 

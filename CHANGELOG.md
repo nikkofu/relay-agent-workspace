@@ -2,6 +2,113 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.50] - 2026-04-25
+
+DMs UX & Phase 67B Polish (Web). Refactors the Direct Messages surface
+into a two-pane WhatsApp / WeChat-style experience, adds ChatGPT-style
+reasoning / tools / token affordances to the AI Assistant DM, fixes a
+Next.js 16 cacheComponents Suspense crash that fired when opening the
+canvas from a DM, rewires the primary-nav DM rows, and patches a real
+data-mapping bug in Gemini's `v0.6.49` realtime list / tool-run
+ingestion.
+
+### Fixed
+
+- **Phase 67B WS payload mapping bug (Gemini's `v0.6.49`)**. The new
+  `list.item.created` / `list.item.updated` / `tool.run.started` /
+  `tool.run.updated` handlers were calling `addItemLocally` /
+  `updateItemLocally` / `addRunLocally` / `updateRunLocally` with the raw
+  snake_case payload from Go (`list_id`, `is_completed`, `tool_id`,
+  `started_at`, `duration_ms`, …). The store consumers expect the
+  camelCase `WorkspaceListItem` / `ToolRun` shape and silently lose every
+  one of those fields, so live-arrived items / runs slip out of every
+  downstream filter / sort / status check. Fix: exported the existing
+  `mapListItem` (renamed from internal `mapItem`) and `mapToolRun`
+  mappers and pipe WS payloads through them in `use-websocket.ts`.
+- **Canvas-from-DM Suspense crash (#3)**. Clicking the AI Canvas /
+  `/canvas` button inside the DM composer used to throw _"Data that
+  blocks navigation was accessed outside of <Suspense>"_ because the
+  Next.js 16 `cacheComponents: true` mode requires every `useParams()` /
+  `useSearchParams()` call to live inside a Suspense boundary, and the
+  DM page chain didn't have one. Adding the new `app/workspace/dms/
+  layout.tsx` wraps both the conversation list (which uses `useParams`
+  for active-row highlighting) and the active conversation (which uses
+  `useParams` for the `dmId`) in `<Suspense>` boundaries, killing the
+  error.
+- **DM message metadata was being discarded by `mapMessage`**. The
+  reducer parsed the JSON, took `reactions` / `attachments`, and threw
+  the rest away — so `message.metadata.user_mentions` /
+  `entity_mentions` / `knowledge_digest` (consumed by `MessageItem`)
+  always came back undefined, even though the backend was sending them.
+  `mapMessage` now preserves the full parsed metadata object.
+
+### Added
+
+- **Two-pane DMs surface (#1)**. New
+  `apps/web/app/workspace/dms/layout.tsx` renders the WhatsApp /
+  WeChat-style split: a left rail of conversations
+  (`apps/web/components/dm/dm-conversation-list.tsx`) with searchable
+  rows, presence dots, AI badges, last-message timestamps, and unread
+  badges, plus a right pane that hosts either the empty state
+  (`/workspace/dms`) or an active conversation
+  (`/workspace/dms/:dmId`). The active row is derived from
+  `useParams()` so URL drives selection; the rail re-sorts by
+  `lastMessageAt` so the most recent contact is always on top.
+- **ChatGPT-style AI Assistant DM (#2)**. The active-conversation page
+  now renders three new affordances on AI bubbles:
+  - **Reasoning panel** — collapsible "Thinking…" block above the
+    answer, pulsing while streaming and persisted (closed by default)
+    after the message finalises. Reads `metadata.reasoning` /
+    `metadata.thinking` from the backend.
+  - **Tool timeline** — ordered list of tool calls with status pills
+    (running / success / failed) and per-step duration. Reads
+    `metadata.tool_calls` / `metadata.tools` from the backend.
+  - **Token / action footer** — every AI bubble shows a `# tok` chip
+    (uses `metadata.usage.total_tokens` when present, otherwise a
+    client-side estimate at ~4 chars / token), a Copy button on hover,
+    and a Regenerate button on the last AI bubble. The header shows a
+    cumulative session token meter (`N in · M out`) for AI DMs.
+- **Primary-nav DM routing (#4)**.
+  `components/layout/channel-sidebar.tsx → handleDMClick` now
+  `router.push`es `/workspace/dms/:dmId` and updates
+  `currentConversation` state, instead of opening the small docked-chat
+  popover. Falls back to the docked window only for placeholder
+  conversations that have no real id yet.
+- **`mapListItem` / `mapToolRun` exports**. Both stores now expose their
+  payload mappers so any code that ingests raw API or WS payloads can
+  produce the canonical camelCase shape without duplicating the
+  field-rename logic.
+
+### Verification Used For This Release
+
+- `cd apps/web && pnpm exec tsc --noEmit` — clean.
+- `cd apps/web && pnpm exec eslint .` — clean.
+- Manual flow: open DMs from the primary nav → row navigates to
+  `/workspace/dms/:dmId` (request #4) → list rail visible on the left
+  with active highlight (#1) → switch between AI Assistant and a teammate
+  → AI bubbles show Thinking / Tools / token chips + session token meter
+  (#2) → click the AI Canvas button in the composer → no Suspense error
+  (#3) → live `list.item.*` / `tool.run.*` events update the execution
+  panel + Home pulse trends correctly (verifies Gemini's mapping bug fix).
+
+### Codex / Backend Asks (logged in `docs/AGENT-COLLAB.md`)
+
+To take the AI DM experience past the visual polish in this release:
+
+1. **Stream reasoning + tool steps over `dm.stream.chunk`** as a typed
+   payload, e.g. `{ type: "thought" | "tool" | "answer", … }` so the
+   frontend can populate the Thinking panel and Tool timeline live
+   instead of waiting for the final message.
+2. **Persist `metadata.reasoning`, `metadata.tool_calls`, and
+   `metadata.usage`** on AI DM messages when the LLM run finishes, so
+   reloading the conversation keeps the chips intact (right now only the
+   final answer survives).
+3. **Real token usage** from the LLM SDKs (input / output / total / cost)
+   on `dm_message.metadata.usage` — the client-side 4-char heuristic
+   becomes a fallback.
+4. **Phase 68 (file-archive + canvas convergence)** scope is still owed;
+   I'll take the Web side once you cut the contract.
+
 ## [0.6.49] - 2026-04-24
 
 Execution Live Layer Web Consumption (Phase 67B). Makes the execution panel,

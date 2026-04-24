@@ -12,8 +12,8 @@ import { useKnowledgeStore } from '@/stores/knowledge-store'
 import { useChannelStore } from '@/stores/channel-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { useUserStore } from '@/stores/user-store'
-import { useListStore } from '@/stores/list-store'
-import { useToolStore } from '@/stores/tool-store'
+import { useListStore, mapListItem } from '@/stores/list-store'
+import { useToolStore, mapToolRun } from '@/stores/tool-store'
 
 export function useWebsocket() {
   const socketRef = useRef<WebSocket | null>(null)
@@ -166,18 +166,21 @@ export function useWebsocket() {
             })
           }
         } else if (data.type === 'list.item.created') {
-          // Phase 67B: handle live list item creation
+          // Phase 67B: handle live list item creation. The WS payload
+          // arrives in raw snake_case from Go; pipe through `mapListItem`
+          // so the store receives the camelCase shape it stores everywhere
+          // else (`listId`, `isCompleted`, `createdAt`, …).
           const item = data.payload.item
           if (item) {
-            addItemLocally(item)
+            addItemLocally(mapListItem(item))
             useWorkspaceStore.getState().markHomeExecutionStale?.()
           }
         } else if (data.type === 'list.item.updated') {
-          // Phase 67B: handle live list item updates
+          // Phase 67B: handle live list item updates (snake_case → camelCase).
           const item = data.payload.item
           const listId = data.payload.list_id
           if (item && listId) {
-            updateItemLocally(listId, item)
+            updateItemLocally(listId, mapListItem(item))
             useWorkspaceStore.getState().markHomeExecutionStale?.()
           }
         } else if (data.type === 'list.item.deleted') {
@@ -188,17 +191,17 @@ export function useWebsocket() {
             useWorkspaceStore.getState().markHomeExecutionStale?.()
           }
         } else if (data.type === 'tool.run.started') {
-          // Phase 67B: handle live tool run starts
+          // Phase 67B: handle live tool run starts (snake_case → camelCase).
           const run = data.payload.run
           if (run) {
-            addRunLocally(run)
+            addRunLocally(mapToolRun(run))
             useWorkspaceStore.getState().markHomeExecutionStale?.()
           }
         } else if (data.type === 'tool.run.completed' || data.type === 'tool.run.updated') {
-          // Phase 67B: handle live tool run completion or progress
+          // Phase 67B: handle live tool run completion or progress (snake_case → camelCase).
           const run = data.payload.run
           if (run) {
-            updateRunLocally(run)
+            updateRunLocally(mapToolRun(run))
             useWorkspaceStore.getState().markHomeExecutionStale?.()
           }
         } else if (data.type === 'agent_collab.sync') {

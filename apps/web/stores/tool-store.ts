@@ -52,7 +52,11 @@ interface ToolState {
   ) => Promise<ToolRun | null>
 }
 
-const mapToolRun = (r: any): ToolRun => ({
+// Exported so the realtime WS handler (`use-websocket.ts`) can normalise
+// raw snake_case `tool.run.*` payloads into the `ToolRun` shape the store
+// expects before invoking the local-only update actions. Without this,
+// WS-delivered runs lose `toolId` / `startedAt` / `durationMs` / etc.
+export const mapToolRun = (r: any): ToolRun => ({
   ...r,
   toolId: r.tool_id,
   toolName: r.tool_name,

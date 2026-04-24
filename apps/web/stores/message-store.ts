@@ -34,13 +34,19 @@ interface MessageState {
 }
 
 const mapMessage = (m: any): Message => {
-  let reactions = []
-  let attachments = []
+  let reactions: any[] = []
+  let attachments: any[] = []
+  let parsedMeta: Record<string, unknown> | undefined
   if (m.metadata) {
     try {
       const meta = typeof m.metadata === 'string' ? JSON.parse(m.metadata) : m.metadata
       reactions = meta.reactions || []
       attachments = meta.attachments || []
+      // Keep the full metadata bag around so the AI-side-channel fields
+      // (`reasoning`, `tool_calls`, `usage`, `thinking_ms`, …) survive
+      // the mapping. Without this the DM render path can't show the
+      // ChatGPT-style thinking / tools / token chips.
+      parsedMeta = meta
     } catch (e) {
       console.error("Failed to parse metadata", e)
     }
@@ -57,7 +63,8 @@ const mapMessage = (m: any): Message => {
     attachments,
     replyCount: m.reply_count,
     lastReplyAt: m.last_reply_at,
-    isPinned: m.is_pinned
+    isPinned: m.is_pinned,
+    metadata: parsedMeta as Message["metadata"],
   }
 }
 

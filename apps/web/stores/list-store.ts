@@ -90,10 +90,15 @@ const mapList = (l: any): WorkspaceList => ({
   createdAt: l.created_at,
   updatedAt: l.updated_at,
   assignedUser: l.assigned_user,
-  items: (l.items || []).map(mapItem)
+  items: (l.items || []).map(mapListItem)
 })
 
-const mapItem = (i: any): WorkspaceListItem => ({
+// Exported so realtime WS handlers (`use-websocket.ts`) can normalise raw
+// snake_case payloads into the `WorkspaceListItem` shape the store
+// internally relies on. Without this, WS-delivered items end up missing
+// `listId` / `isCompleted` / `createdAt` etc. and slip out of every
+// downstream computation that depends on them.
+export const mapListItem = (i: any): WorkspaceListItem => ({
   ...i,
   listId: i.list_id,
   userId: i.user_id,
@@ -224,7 +229,7 @@ export const useListStore = create<ListState>((set, get) => ({
       })
       if (!response.ok) throw new Error("Add item failed")
       const data = await response.json().catch(() => ({}))
-      const created = data?.item ? mapItem(data.item) : null
+      const created = data?.item ? mapListItem(data.item) : null
       
       // Phase 67B: addItemLocally will be called by use-websocket if enabled,
       // but manual call here ensures immediate feedback if WS is slow.
