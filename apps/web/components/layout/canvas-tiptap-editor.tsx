@@ -28,6 +28,9 @@ import {
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
+/** Range inside the ProseMirror document: [from, to) positions. */
+export interface EditorRange { from: number; to: number }
+
 // Imperative surface exposed to sibling components (canvas-ai-dock.tsx) via
 // a ref. Keeps the AI composer out of the editor's internal state while
 // still letting it read selections and apply AI output deterministically.
@@ -38,12 +41,20 @@ export interface CanvasEditorHandle {
   getDocText: () => string
   /** True when the selection is non-empty. */
   hasSelection: () => boolean
-  /** Replace the current selection with HTML; if no selection, replace the whole doc. */
-  applyHtmlToSelection: (html: string) => void
-  /** Replace the whole document with HTML. */
-  applyHtmlToDoc: (html: string) => void
-  /** Insert HTML at the current cursor position (no deletion). */
-  insertHtmlAtCursor: (html: string) => void
+  /** Current selection range, even when empty (from === to). */
+  getSelectionRange: () => EditorRange | null
+  /** Replace the current selection with HTML; if no selection, replace the whole
+   *  doc. Returns the range of the newly-inserted content, or null on failure. */
+  applyHtmlToSelection: (html: string) => EditorRange | null
+  /** Replace the whole document with HTML. Returns the new full range. */
+  applyHtmlToDoc: (html: string) => EditorRange | null
+  /** Insert HTML at the current cursor position (no deletion). Returns the
+   *  range of the newly-inserted content. */
+  insertHtmlAtCursor: (html: string) => EditorRange | null
+  /** Select a range (highlights it visually) and scroll it into view. */
+  highlightRange: (range: EditorRange) => void
+  /** Collapse the current selection (removes highlight). */
+  clearSelection: () => void
   /** Move focus back into the editor. */
   focus: () => void
 }
@@ -110,22 +121,61 @@ export const CanvasTipTapEditor = forwardRef<CanvasEditorHandle, CanvasTipTapEdi
       if (!editor) return false
       return editor.state.selection.from !== editor.state.selection.to
     },
+    getSelectionRange: () => {
+      if (!editor) return null
+      const { from, to } = editor.state.selection
+      return { from, to }
+    },
     applyHtmlToSelection: (html: string) => {
-      if (!editor) return
+      if (!editor) return null
       const { from, to } = editor.state.selection
       if (from === to) {
+        // No selection — replace the whole document. The new full range is
+        // [0, docSize) after setContent.
         editor.chain().focus().setContent(html).run()
-        return
+        const size = editor.state.doc.content.size
+        return { from: 0, to: size }
       }
-      editor.chain().focus().deleteRange({ from, to }).insertContentAt(from, html).run()
+      editor
+        .chain()
+        .focus()
+        .deleteRange({ from, to })
+        .insertContentAt(from, html)
+        .run()
+      // After insertContentAt, the selection sits at the end of the inserted
+      // content. Compute the new [from, inserted-end) range.
+      const newTo = editor.state.selection.to
+      return { from, to: newTo }
     },
     applyHtmlToDoc: (html: string) => {
-      if (!editor) return
+      if (!editor) return null
       editor.chain().focus().setContent(html).run()
+      const size = editor.state.doc.content.size
+      return { from: 0, to: size }
     },
     insertHtmlAtCursor: (html: string) => {
-      if (!editor) return
+      if (!editor) return null
+      const from = editor.state.selection.to
       editor.chain().focus().insertContent(html).run()
+      const to = editor.state.selection.to
+      return { from, to }
+    },
+    highlightRange: (range: EditorRange) => {
+      if (!editor) return
+      const size = editor.state.doc.content.size
+      const from = Math.max(0, Math.min(range.from, size))
+      const to = Math.max(from, Math.min(range.to, size))
+      editor
+        .chain()
+        .focus()
+        .setTextSelection({ from, to })
+        .scrollIntoView()
+        .run()
+    },
+    clearSelection: () => {
+      if (!editor) return
+      const pos = editor.state.selection.to
+      editor.chain().focus().setTextSelection(pos).run()
     },
     focus: () => { editor?.commands.focus() },
   }), [editor])

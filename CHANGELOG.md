@@ -2,6 +2,55 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.45] - 2026-04-24
+
+Canvas AI Dock refinement (Web). Five user-reported fixes + UX upgrades.
+
+### Fixed
+
+- **Sparkles icon alignment** — the ✨ icon in the AI Dock composer used
+  `items-end` + `mt-1`, which pushed it below the textarea's first line.
+  Now aligned with `self-start mt-[7px]` so it matches the first line of
+  text while the buttons on the right still stay pinned to the growing
+  textarea's bottom.
+- **Apply was "invisible"** — after Apply / Insert, the user lost all visual
+  feedback on where the change landed. The editor now refocuses, selects the
+  newly-inserted range (native selection highlight), and scrolls it into
+  view. A Sonner toast with a one-click **Undo** action (6.5 s) is fired so
+  the change is easy to revert. Each applied chat bubble also gains a
+  **"Show in canvas"** button that re-highlights the applied range on demand.
+
+### Added
+
+- **ChatGPT-style selection reference pill** — when the user has text
+  selected in the editor, the composer shows a quote card above the input
+  with a preview + char count + a ✕ button to "clear selection / rewrite
+  whole document". Makes it crystal-clear what the next run will operate on.
+- **AI reasoning / thinking display** — the dock now captures
+  `event: reasoning` tokens from `/api/v1/ai/execute` (backend already emits
+  them) and renders them as a collapsible amber "Thinking" panel with its
+  own scroll. Auto-expanded while streaming, auto-collapses after the final
+  answer lands (respects user toggle).
+- **Rail / bottom layout toggle** — a **PanelRight** button in the composer
+  pulls the dock out as a full-height ~400 px right sidebar inside the
+  Canvas panel. Editor ScrollArea and chat column each get dedicated scroll
+  areas — no more vertical competition between editor and chat history.
+  A **PanelBottom** button in the rail header flips back. Choice persists
+  via `localStorage` (`canvas-ai-dock-layout`).
+
+### Changed
+
+- `CanvasEditorHandle` extended: `applyHtmlToSelection` / `applyHtmlToDoc` /
+  `insertHtmlAtCursor` now return the resulting `EditorRange`; added
+  `getSelectionRange`, `highlightRange`, `clearSelection`. Enables the dock
+  to re-select an applied range, scroll it into view, and dismiss the
+  selection pill without lifting editor state.
+
+### Verification Used For This Release
+
+- `cd apps/web && pnpm exec tsc --noEmit`
+- `cd apps/web && pnpm exec eslint .`
+
 ## [0.6.44] - 2026-04-24
 
 Canvas AI Dock (Web). Replaces the previous modal AI-edit dialog with a

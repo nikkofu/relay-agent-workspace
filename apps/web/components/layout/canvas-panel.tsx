@@ -13,7 +13,7 @@ import { UserAvatar } from "@/components/common/user-avatar"
 import { formatDistanceToNow, format } from "date-fns"
 import { ArtifactDiffView } from "./artifact-diff-view"
 import { CanvasTipTapEditor, type CanvasEditorHandle } from "./canvas-tiptap-editor"
-import { CanvasAIDock, type CanvasAIDockHandle } from "./canvas-ai-dock"
+import { CanvasAIDock, type CanvasAIDockHandle, type CanvasAIDockLayout } from "./canvas-ai-dock"
 
 export function CanvasPanel() {
   const { isCanvasOpen, closeCanvas, activeCanvasId } = useUIStore()
@@ -51,6 +51,23 @@ export function CanvasPanel() {
   // button can focus the dock composer without lifting editor state up.
   const editorRef = useRef<CanvasEditorHandle>(null)
   const dockRef = useRef<CanvasAIDockHandle>(null)
+
+  // Persisted AI-dock layout preference so it survives reloads / re-opens.
+  // "bottom" (default) keeps the composer compact under the editor; "rail"
+  // pulls it out to a full-height right sidebar — both editor + chat then
+  // have their own dedicated scroll areas (the #5 request).
+  const [aiDockLayout, setAIDockLayout] = useState<CanvasAIDockLayout>("bottom")
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const saved = window.localStorage.getItem("canvas-ai-dock-layout")
+    if (saved === "rail" || saved === "bottom") setAIDockLayout(saved)
+  }, [])
+  const handleLayoutChange = (next: CanvasAIDockLayout) => {
+    setAIDockLayout(next)
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("canvas-ai-dock-layout", next)
+    }
+  }
   const [showHistory, setShowHistory] = useState(false)
   const [showReferences, setShowReferences] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
@@ -510,52 +527,64 @@ export function CanvasPanel() {
               fromVersionMeta={versions.find(v => v.version === currentDiff.fromVersion)}
               toVersionMeta={versions.find(v => v.version === currentDiff.toVersion)}
             />
-          ) : (
-            <>
-            <ScrollArea className="flex-1">
-              <div className="p-8 max-w-3xl mx-auto">
-                {isEditing && !selectedVersion ? (
-                  activeArtifact.type === "code" ? (
-                    <textarea
-                      className="w-full min-h-[500px] bg-transparent border-none outline-none resize-none font-mono text-sm leading-relaxed"
-                      value={content}
-                      onChange={(e) => setContent(e.target.value)}
-                      spellCheck={false}
-                    />
-                  ) : (
-                    <CanvasTipTapEditor
-                      ref={editorRef}
-                      content={content}
-                      onChange={setContent}
-                      channelId={activeArtifact.channelId || currentChannel?.id || ""}
-                      autoFocus
-                      onRequestAIEdit={() => dockRef.current?.focusInput()}
-                    />
-                  )
-                ) : (
-                  <div 
-                    className={cn(
-                      "prose dark:prose-invert max-w-none",
-                      activeArtifact.type === 'code' && "font-mono text-sm bg-slate-50 dark:bg-slate-900/50 p-6 rounded-xl border border-slate-100 dark:border-slate-800 whitespace-pre"
+          ) : (() => {
+            const dockVisible = isEditing && !selectedVersion && activeArtifact.type !== "code"
+            const useRail = dockVisible && aiDockLayout === "rail"
+            return (
+              <div className={cn(
+                "flex-1 min-h-0 flex",
+                useRail ? "flex-row" : "flex-col",
+              )}>
+                <ScrollArea className={cn(useRail ? "flex-1 min-w-0" : "flex-1")}>
+                  <div className="p-8 max-w-3xl mx-auto">
+                    {isEditing && !selectedVersion ? (
+                      activeArtifact.type === "code" ? (
+                        <textarea
+                          className="w-full min-h-[500px] bg-transparent border-none outline-none resize-none font-mono text-sm leading-relaxed"
+                          value={content}
+                          onChange={(e) => setContent(e.target.value)}
+                          spellCheck={false}
+                        />
+                      ) : (
+                        <CanvasTipTapEditor
+                          ref={editorRef}
+                          content={content}
+                          onChange={setContent}
+                          channelId={activeArtifact.channelId || currentChannel?.id || ""}
+                          autoFocus
+                          onRequestAIEdit={() => dockRef.current?.focusInput()}
+                        />
+                      )
+                    ) : (
+                      <div 
+                        className={cn(
+                          "prose dark:prose-invert max-w-none",
+                          activeArtifact.type === 'code' && "font-mono text-sm bg-slate-50 dark:bg-slate-900/50 p-6 rounded-xl border border-slate-100 dark:border-slate-800 whitespace-pre"
+                        )}
+                        dangerouslySetInnerHTML={{ __html: content }}
+                      />
                     )}
-                    dangerouslySetInnerHTML={{ __html: content }}
-                  />
+                  </div>
+                </ScrollArea>
+                {/* Persistent AI chat dock — only while actively editing a
+                    doc-type canvas. `layout="rail"` pulls it out as a full-height
+                    sidebar so editor + chat each have dedicated scroll areas
+                    (request #5). `layout="bottom"` keeps the compact bottom dock. */}
+                {dockVisible && (
+                  <div className={cn(useRail ? "w-[400px] shrink-0" : "shrink-0")}> 
+                    <CanvasAIDock
+                      ref={dockRef}
+                      editorRef={editorRef}
+                      channelId={activeArtifact.channelId || currentChannel?.id || ""}
+                      artifactTitle={activeArtifact.title}
+                      layout={aiDockLayout}
+                      onLayoutChange={handleLayoutChange}
+                    />
+                  </div>
                 )}
               </div>
-            </ScrollArea>
-            {/* Persistent AI chat dock — only while actively editing a doc-type
-                canvas. Replaces the old modal CanvasAIEditDialog so the user
-                never loses cursor / selection context. */}
-            {isEditing && !selectedVersion && activeArtifact.type !== "code" && (
-              <CanvasAIDock
-                ref={dockRef}
-                editorRef={editorRef}
-                channelId={activeArtifact.channelId || currentChannel?.id || ""}
-                artifactTitle={activeArtifact.title}
-              />
-            )}
-            </>
-          )}
+            )
+          })()}
         </div>
       </div>
 

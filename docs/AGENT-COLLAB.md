@@ -185,7 +185,19 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | **Gemini** | `backend-delivery` | Phase 67 complete. Published `v0.6.42`. | 100% |
 | **Codex** | `orchestration` | Coordination for Phase 67 Windsurf delivery and review. | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Canvas AI Dock shipped (`v0.6.44`). Next: Phase 67B source-message jump + realtime/badge/home consumption. | 50% |
+| **Windsurf** | `web-delivery` | Canvas AI Dock refinement shipped (`v0.6.45`). Next: Phase 67B source-message jump + realtime/badge/home consumption. | 55% |
+
+### 2026-04-24 - Canvas AI Dock Refinement (v0.6.45)
+- **Windsurf**: Five user-reported fixes + UX upgrades on top of the dock introduced in `v0.6.44`:
+  - **Icon alignment** — the Sparkles ✨ on the composer was sitting below the first text line because the flex row was `items-end`. Kept `items-end` for send/button cluster but aligned the icon with `self-start mt-[7px]` so it lines up with the first line of text even as the textarea grows.
+  - **ChatGPT-style selection reference pill** — when the editor has a non-empty selection the composer now shows a quote card above the input (`→ Referencing selection · N chars / "preview…"`) with a ✕ that collapses the selection back to whole-document scope. Polled every 350 ms from the editor handle so it stays in sync with the user's selection actions.
+  - **Reasoning / "Thinking…" display** — the dock now captures `event: reasoning` tokens from `/api/v1/ai/execute` (backend was already emitting them via `ai.ExecuteAI`) and renders them as a collapsible amber panel with its own scroll, stuck-to-bottom while streaming and auto-collapsed after the final answer. Shows a token/word count in the header.
+  - **Visible Apply confirmation + Undo** — after Apply / Insert the editor refocuses, selects the newly-inserted `EditorRange` so the native highlight is visible, and scrolls it into view. Fires a Sonner toast ("Selection applied · ⌘Z to undo") with a `duration: 6500` and a one-click **Undo** action so the user can revert even after dismissing the highlight. Each applied bubble also gains a **"Show in canvas"** button that re-highlights the range on demand.
+  - **Rail layout toggle (pair of windows)** — new `layout: "bottom" | "rail"` prop on `CanvasAIDock`. A **PanelRight** button in the composer promotes the dock to a full-height ~400 px right sidebar; a **PanelBottom** button in the rail header flips it back. Editor ScrollArea + chat each get their own dedicated scroll area — no vertical competition (request #5). Preference persists in `localStorage` (`canvas-ai-dock-layout`).
+- **Windsurf**: `CanvasEditorHandle` extended — apply methods now return the resulting `EditorRange`, plus new `getSelectionRange / highlightRange / clearSelection`. All dock ↔ editor interactions still go through this one handle, no editor state lifted.
+- **Windsurf**: Verification — `pnpm exec tsc --noEmit` clean, `pnpm exec eslint .` clean.
+- **Windsurf → Nikko Fu**: Try selecting a paragraph in the canvas — you'll see the quote pill appear in the composer. Hit **PanelRight** (the →| icon) in the composer to pop the dock out as a full-height rail next to the editor. While AI is streaming, watch the amber "Thinking" panel to follow the model's reasoning. After Apply, the changed region is highlighted + scrolled into view, and the toast gives you an **Undo** escape hatch.
+- **Windsurf → Codex**: Still no backend contract changes. On deck: Phase 67B source-message jump + realtime/badge/home consumption.
 
 ### 2026-04-24 - Canvas AI Dock (v0.6.44)
 - **Windsurf**: Shipped a ChatGPT/Gemini Canvas-style persistent AI chat rail at the bottom of the Canvas panel, superseding the modal `CanvasAIEditDialog` for doc-type artifacts.

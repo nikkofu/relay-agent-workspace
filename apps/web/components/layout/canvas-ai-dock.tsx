@@ -2,39 +2,47 @@
 
 // ── Canvas AI Dock ───────────────────────────────────────────────────────────
 //
-// A ChatGPT/Gemini Canvas-style AI chat rail that lives at the bottom of the
-// Canvas panel while a document-type artifact is being edited. It replaces
-// the previous modal AI-edit dialog so the user never loses cursor / selection
-// context while iterating with the model.
+// A ChatGPT / Gemini Canvas–style AI chat rail that lives inside the Canvas
+// panel while a document-type artifact is being edited. Replaces the previous
+// modal AI-edit dialog so the user never loses cursor / selection context.
 //
-// Features:
-//   • Persistent composer with streaming SSE preview (reuses `/api/v1/ai/execute`
-//     contract: event:"chunk" / {text:"…"}).
-//   • Slash-command menu (/expand /shorten /rephrase /fix /formal /casual /bullets
-//     /outline /summary /continue /translate-en /translate-zh) — arrow-key
-//     navigation, Tab/Enter to insert.
-//   • Target awareness — a live chip shows whether the next run will rewrite
-//     the current selection or the whole document, with char counts.
-//   • Chat-bubble history with per-message Apply / Insert at cursor / Copy /
-//     Retry / Stop actions.
-//   • Keyboard: ⌘K focuses the composer, Enter sends, Shift+Enter newline,
-//     Esc closes the slash menu.
-//
-// The dock talks to the editor through a `CanvasEditorHandle` ref (see
-// canvas-tiptap-editor.tsx) — no need to lift editor state up.
+// Features
+//   • Persistent composer with streaming SSE preview (reuses `/api/v1/ai/execute`,
+//     `event: chunk` / `{text}`) — plus `event: reasoning` is captured and
+//     rendered as a collapsible "Thinking…" block with its own scroll so users
+//     can follow the model's reasoning.
+//   • Slash-command menu (`/expand`, `/shorten`, `/rephrase`, `/fix`,
+//     `/formal`, `/casual`, `/bullets`, `/outline`, `/summary`, `/continue`,
+//     `/translate-en`, `/translate-zh`).
+//   • **Selection-reference pill** — when the user has text selected in the
+//     editor, the composer shows a ChatGPT-style quote card above the input
+//     with a preview + ✕ to clear. Makes it obvious that the next run will
+//     operate on just the quoted slice.
+//   • **Post-apply confirmation** — after Apply / Insert at cursor, the
+//     editor auto-focuses, selects the newly-inserted range, scrolls it into
+//     view, and a Sonner toast offers a one-click **Undo** (6s) so users can
+//     see + safely revert the change even though their original cursor
+//     position is gone.
+//   • **Two layouts** — `bottom` (compact bar under the editor, default) and
+//     `rail` (full-height ~400 px sidebar). Toggleable; the parent persists the
+//     preference in localStorage.
+//   • Chat-bubble history with per-message actions: Apply / Insert / Copy /
+//     Retry / Stop.
+//   • Keyboard: ⌘K focuses, Enter sends, Shift+Enter newline, Esc closes
+//     slash menu.
 
 import {
   forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState,
 } from "react"
 import {
   Sparkles, Send, X, Loader2, Check, RefreshCw, ChevronDown, ChevronUp,
-  Copy, Wand2, Trash2,
+  Copy, Wand2, Trash2, Brain, Quote, PanelRight, PanelBottom,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { API_BASE_URL } from "@/lib/constants"
 import { toast } from "sonner"
-import type { CanvasEditorHandle } from "./canvas-tiptap-editor"
+import type { CanvasEditorHandle, EditorRange } from "./canvas-tiptap-editor"
 
 // ── Public handle ────────────────────────────────────────────────────────────
 
@@ -43,13 +51,16 @@ export interface CanvasAIDockHandle {
   focusInput: () => void
 }
 
+// ── Layout mode ──────────────────────────────────────────────────────────────
+
+export type CanvasAIDockLayout = "bottom" | "rail"
+
 // ── Slash commands ───────────────────────────────────────────────────────────
 
 interface SlashCommand {
   cmd: string
   label: string
   instruction: string
-  /** Emoji / glyph shown in the menu. */
   glyph: string
 }
 
@@ -85,16 +96,19 @@ const SLASH_COMMANDS: SlashCommand[] = [
 interface DockMessage {
   id: string
   role: "user" | "assistant"
-  /** For user messages: the label shown in the bubble (the prompt). For
-   *  assistant messages: the streaming accumulator. */
   text: string
-  /** Only on assistant messages — the full instruction sent to the LLM
-   *  (used by Retry). */
+  /** Only on assistant messages — the instruction sent to the LLM (Retry). */
   instruction?: string
-  /** Target scope captured at send-time so Retry/Apply honor the original
-   *  intent even if the user changes their selection mid-stream. */
+  /** Accumulated reasoning tokens from `event: reasoning`. Only assistant. */
+  reasoning?: string
+  /** Target scope captured at send-time. */
   targetRange?: "selection" | "document"
   targetPreview?: string
+  /** Full target text captured at send-time (for Retry with identical scope). */
+  capturedTargetText?: string
+  /** Editor range where this message's content was applied (for the Undo
+   *  toast to know what to re-select on undo). */
+  appliedRange?: EditorRange
   isStreaming?: boolean
   applied?: boolean
   errored?: boolean
@@ -105,19 +119,21 @@ interface DockMessage {
 interface CanvasAIDockProps {
   editorRef: React.RefObject<CanvasEditorHandle | null>
   channelId: string
-  /** Shown at top of the dock when no chat yet — e.g. "Drafting: My launch plan". */
   artifactTitle?: string
+  /** Current layout; defaults to "bottom". */
+  layout?: CanvasAIDockLayout
+  /** Called when the user toggles layout from the dock header. */
+  onLayoutChange?: (layout: CanvasAIDockLayout) => void
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
 
 export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
-  function CanvasAIDock({ editorRef, channelId, artifactTitle }, ref) {
+  function CanvasAIDock({ editorRef, channelId, artifactTitle, layout = "bottom", onLayoutChange }, ref) {
     const [input, setInput] = useState("")
-    const [expanded, setExpanded] = useState(false)
+    const [expanded, setExpanded] = useState(layout === "rail")
     const [messages, setMessages] = useState<DockMessage[]>([])
 
-    // Slash-menu state — derived from `input`.
     const [showSlashMenu, setShowSlashMenu] = useState(false)
     const [slashFilter, setSlashFilter] = useState("")
     const [slashSelected, setSlashSelected] = useState(0)
@@ -127,6 +143,38 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
     const inputRef = useRef<HTMLTextAreaElement>(null)
     const chatEndRef = useRef<HTMLDivElement>(null)
 
+    // Cached target info — polled from the editor so the selection pill and
+    // the status chip can re-render as the user changes the selection.
+    const [targetInfo, setTargetInfo] = useState<{
+      hasSel: boolean
+      selText: string
+      selPreview: string
+      docLen: number
+    }>({ hasSel: false, selText: "", selPreview: "", docLen: 0 })
+
+    useEffect(() => {
+      const poll = () => {
+        const h = editorRef.current
+        if (!h) return
+        const hasSel = h.hasSelection()
+        const selText = hasSel ? h.getSelectionText() : ""
+        const docText = h.getDocText()
+        const selPreview = selText.length > 180 ? selText.slice(0, 180) + "…" : selText
+        setTargetInfo(prev => {
+          if (
+            prev.hasSel === hasSel &&
+            prev.selText.length === selText.length &&
+            prev.docLen === docText.length &&
+            prev.selPreview === selPreview
+          ) return prev
+          return { hasSel, selText, selPreview, docLen: docText.length }
+        })
+      }
+      poll()
+      const interval = setInterval(poll, 350)
+      return () => clearInterval(interval)
+    }, [editorRef])
+
     // Expose `focusInput` to parent.
     useImperativeHandle(ref, () => ({
       focusInput: () => {
@@ -134,6 +182,12 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
         setTimeout(() => inputRef.current?.focus(), 30)
       },
     }), [])
+
+    // Layout switching side-effect: ensure the dock is expanded in rail mode
+    // so the conversation is actually visible as a full-height column.
+    useEffect(() => {
+      if (layout === "rail") setExpanded(true)
+    }, [layout])
 
     const filteredCommands = useMemo(() => {
       if (!slashFilter) return SLASH_COMMANDS
@@ -164,8 +218,6 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
     useEffect(() => {
       const handler = (e: KeyboardEvent) => {
         if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
-          // Only hijack when the canvas panel is actually in the document — the
-          // dock is only rendered in that case, so this is safe.
           e.preventDefault()
           setExpanded(true)
           setTimeout(() => inputRef.current?.focus(), 30)
@@ -175,7 +227,7 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
       return () => window.removeEventListener("keydown", handler)
     }, [])
 
-    // Compute target (selection vs document) at the moment we send.
+    // Snapshot the editor target (selection vs document) at send-time.
     const snapshotTarget = useCallback((): {
       range: "selection" | "document"
       text: string
@@ -216,9 +268,11 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
           id: aiMsgId,
           role: "assistant",
           text: "",
+          reasoning: "",
           instruction,
           targetRange: target.range,
           targetPreview: target.preview,
+          capturedTargetText: target.text,
           isStreaming: true,
         },
       ])
@@ -246,7 +300,8 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
         const reader = res.body.getReader()
         const decoder = new TextDecoder()
         let buffer = ""
-        let acc = ""
+        let accText = ""
+        let accReasoning = ""
 
         while (true) {
           const { value, done } = await reader.read()
@@ -265,26 +320,33 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
             if (!data) continue
             try {
               const parsed = JSON.parse(data)
+              const chunk =
+                (typeof parsed.text === "string" && parsed.text) ||
+                (typeof parsed.content === "string" && parsed.content) ||
+                (typeof parsed.delta === "string" && parsed.delta) ||
+                ""
               if (evt === "chunk" || evt === "message" || evt === "token") {
-                const chunk =
-                  (typeof parsed.text === "string" && parsed.text) ||
-                  (typeof parsed.content === "string" && parsed.content) ||
-                  (typeof parsed.delta === "string" && parsed.delta) ||
-                  ""
                 if (chunk) {
-                  acc += chunk
+                  accText += chunk
                   setMessages(prev =>
-                    prev.map(m => m.id === aiMsgId ? { ...m, text: acc } : m),
+                    prev.map(m => m.id === aiMsgId ? { ...m, text: accText } : m),
+                  )
+                }
+              } else if (evt === "reasoning") {
+                if (chunk) {
+                  accReasoning += chunk
+                  setMessages(prev =>
+                    prev.map(m => m.id === aiMsgId ? { ...m, reasoning: accReasoning } : m),
                   )
                 }
               } else if (evt === "error") {
                 throw new Error(parsed.message || "AI streaming error")
               }
-              // "start", "reasoning", "done", "conversation" are intentionally ignored.
+              // "start", "done", "conversation" are ignored.
             } catch {
-              acc += data
+              accText += data
               setMessages(prev =>
-                prev.map(m => m.id === aiMsgId ? { ...m, text: acc } : m),
+                prev.map(m => m.id === aiMsgId ? { ...m, text: accText } : m),
               )
             }
           }
@@ -311,13 +373,11 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
       }
     }, [channelId])
 
-    // ── Send the current input. ──────────────────────────────────────────────
+    // ── Send ─────────────────────────────────────────────────────────────────
     const handleSend = useCallback(() => {
       const trimmed = input.trim()
       if (!trimmed) return
 
-      // Slash-command expansion: `/cmd optional trailing text` → that command's
-      // instruction, with the trailing text appended as extra guidance.
       const slashMatch = SLASH_COMMANDS.find(c =>
         trimmed === c.cmd || trimmed.startsWith(c.cmd + " "),
       )
@@ -341,9 +401,8 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
       setShowSlashMenu(false)
     }, [input, runAI, snapshotTarget])
 
-    // ── Composer keydown. ────────────────────────────────────────────────────
+    // ── Composer keydown ─────────────────────────────────────────────────────
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      // Slash menu navigation takes priority.
       if (showSlashMenu && filteredCommands.length > 0) {
         if (e.key === "ArrowDown") {
           e.preventDefault()
@@ -363,8 +422,6 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
           return
         }
         if (e.key === "Enter" && !e.shiftKey) {
-          // Enter with a partial slash — if the input *is* exactly a slash command
-          // (or "/cmd <arg>"), fall through to send. Otherwise pick the highlighted one.
           const exactMatch = SLASH_COMMANDS.some(c =>
             input.trim() === c.cmd || input.trim().startsWith(c.cmd + " "),
           )
@@ -383,32 +440,67 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
         }
       }
 
-      // Send shortcuts.
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault()
         handleSend()
       }
     }
 
-    // ── Per-message actions. ─────────────────────────────────────────────────
+    // ── Post-apply feedback ──────────────────────────────────────────────────
+    //
+    // After Apply / Insert we:
+    //  1. Refocus the editor (the button click stole focus).
+    //  2. Select the newly-inserted range so the browser shows its highlight.
+    //  3. Scroll that range into view.
+    //  4. Fire a Sonner toast with an Undo action (calls the editor's own
+    //     undo history so the transform is a single ⌘Z step).
+    //
+    // This is important because the user's original selection + cursor is
+    // gone after the mutation, so without a visual confirmation they'd be
+    // staring at a rewritten doc with no idea what changed where.
+    const showAppliedToast = (scopeLabel: string) => {
+      toast.success(`${scopeLabel} applied`, {
+        description: "The highlighted range shows what changed. ⌘Z to undo.",
+        duration: 6500,
+        action: {
+          label: "Undo",
+          onClick: () => {
+            // TipTap's undo history captures our insertContent txn as one step.
+            // We dispatch via the DOM since we don't have a direct reference to
+            // editor.commands here (would be cleaner as an additional handle
+            // method, but the ⌘Z path is equivalent + already wired via the
+            // toolbar's Undo button).
+            const evt = new KeyboardEvent("keydown", {
+              key: "z",
+              code: "KeyZ",
+              metaKey: true,
+              bubbles: true,
+              cancelable: true,
+            })
+            document.dispatchEvent(evt)
+            // Best-effort: the editor has its own keydown handler, and the
+            // toolbar's Undo button also wires up — either path undoes the
+            // last transaction.
+            editorRef.current?.focus()
+          },
+        },
+      })
+    }
+
     const handleApply = (msgId: string) => {
       const msg = messages.find(m => m.id === msgId)
       if (!msg?.text.trim()) return
       const h = editorRef.current
       if (!h) return
       const html = plainTextToHtml(msg.text)
-      if (msg.targetRange === "selection") {
-        // We snapshotted the intent at send-time; apply to current selection.
-        h.applyHtmlToSelection(html)
-      } else {
-        h.applyHtmlToDoc(html)
-      }
-      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, applied: true } : m))
-      toast.success(
-        msg.targetRange === "selection"
-          ? "Applied to selection"
-          : "Applied to document",
-      )
+      const range = msg.targetRange === "selection"
+        ? h.applyHtmlToSelection(html)
+        : h.applyHtmlToDoc(html)
+      setMessages(prev => prev.map(m =>
+        m.id === msgId ? { ...m, applied: true, appliedRange: range ?? undefined } : m,
+      ))
+      if (range) h.highlightRange(range)
+      showAppliedToast(msg.targetRange === "selection" ? "Selection" : "Document")
     }
 
     const handleInsert = (msgId: string) => {
@@ -416,9 +508,12 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
       if (!msg?.text.trim()) return
       const h = editorRef.current
       if (!h) return
-      h.insertHtmlAtCursor(plainTextToHtml(msg.text))
-      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, applied: true } : m))
-      toast.success("Inserted at cursor")
+      const range = h.insertHtmlAtCursor(plainTextToHtml(msg.text))
+      setMessages(prev => prev.map(m =>
+        m.id === msgId ? { ...m, applied: true, appliedRange: range ?? undefined } : m,
+      ))
+      if (range) h.highlightRange(range)
+      showAppliedToast("Insertion at cursor")
     }
 
     const handleCopy = async (text: string) => {
@@ -435,7 +530,6 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
       if (!msg?.instruction) return
       const idx = messages.findIndex(m => m.id === msgId)
       const userMsg = idx > 0 ? messages[idx - 1] : null
-      // Fresh snapshot — selection may have changed since the original send.
       const target = snapshotTarget()
       runAI(msg.instruction, userMsg?.text ?? "Retry", target)
     }
@@ -444,35 +538,103 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
 
     const handleClear = () => {
       setMessages([])
-      setExpanded(false)
+      if (layout === "bottom") setExpanded(false)
+    }
+
+    /** Collapse the current selection in the editor (the "clear quote" button
+     *  on the selection-reference pill). */
+    const handleClearSelection = () => {
+      editorRef.current?.clearSelection()
+      // Re-focus the composer so the user can keep typing.
+      setTimeout(() => inputRef.current?.focus(), 30)
     }
 
     // ── Render ───────────────────────────────────────────────────────────────
+    const isRail = layout === "rail"
     const showHistory = expanded && messages.length > 0
 
     return (
-      <div className="border-t bg-gradient-to-b from-white to-purple-50/30 dark:from-[#1a1d21] dark:to-purple-950/10 shrink-0">
-        {/* Chat history — only while expanded & we have something to show. */}
-        {showHistory && (
-          <div className="max-h-[280px] overflow-y-auto p-3 space-y-3 border-b border-purple-500/10">
-            {messages.map(m => (
-              <ChatBubble
-                key={m.id}
-                message={m}
-                onApply={() => handleApply(m.id)}
-                onInsert={() => handleInsert(m.id)}
-                onCopy={() => handleCopy(m.text)}
-                onRetry={() => handleRetry(m.id)}
-                onStop={handleStop}
-                isStreaming={streamingId === m.id}
-              />
-            ))}
+      <div className={cn(
+        "flex flex-col bg-gradient-to-b from-white to-purple-50/30 dark:from-[#1a1d21] dark:to-purple-950/10 shrink-0",
+        isRail
+          ? "h-full w-full border-l"
+          : "border-t",
+      )}>
+        {/* Rail header — only in rail mode. */}
+        {isRail && (
+          <div className="h-9 px-3 border-b flex items-center justify-between shrink-0 bg-muted/20">
+            <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-purple-700 dark:text-purple-300">
+              <Wand2 className="w-3 h-3" />
+              AI Assistant
+            </div>
+            <div className="flex items-center gap-1">
+              {messages.length > 0 && !streamingId && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:text-red-600"
+                  onClick={handleClear}
+                  title="Clear chat history"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground"
+                onClick={() => onLayoutChange?.("bottom")}
+                title="Switch to bottom dock layout"
+              >
+                <PanelBottom className="w-3 h-3" />
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Chat history */}
+        {(showHistory || isRail) && (
+          <div className={cn(
+            "overflow-y-auto p-3 space-y-3",
+            isRail
+              ? "flex-1 min-h-0"
+              : "max-h-[280px] border-b border-purple-500/10",
+          )}>
+            {messages.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center gap-2 py-8 px-4">
+                <Wand2 className="w-5 h-5 text-purple-400" />
+                <p className="text-[11px] font-bold text-muted-foreground max-w-xs leading-relaxed">
+                  Ask AI to rewrite, expand, or translate any part of your canvas.
+                  Select text first to scope it, or leave blank for the whole doc.
+                </p>
+                <p className="text-[10px] text-muted-foreground/70">
+                  Try <code className="px-1 py-0.5 bg-muted rounded font-mono">/expand</code>{" "}
+                  or <code className="px-1 py-0.5 bg-muted rounded font-mono">/continue</code>
+                </p>
+              </div>
+            ) : (
+              messages.map(m => (
+                <ChatBubble
+                  key={m.id}
+                  message={m}
+                  onApply={() => handleApply(m.id)}
+                  onInsert={() => handleInsert(m.id)}
+                  onCopy={() => handleCopy(m.text)}
+                  onRetry={() => handleRetry(m.id)}
+                  onStop={handleStop}
+                  onReSelect={() =>
+                    m.appliedRange && editorRef.current?.highlightRange(m.appliedRange)
+                  }
+                  isStreaming={streamingId === m.id}
+                />
+              ))
+            )}
             <div ref={chatEndRef} />
           </div>
         )}
 
-        {/* Composer. */}
-        <div className="p-2 relative">
+        {/* Composer */}
+        <div className="p-2 relative shrink-0">
           {showSlashMenu && filteredCommands.length > 0 && (
             <div className="absolute bottom-full left-2 right-2 mb-1.5 z-20 bg-popover border rounded-lg shadow-lg max-h-72 overflow-y-auto">
               <div className="px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground border-b bg-muted/30">
@@ -502,8 +664,38 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
             </div>
           )}
 
+          {/* Selection-reference pill — ChatGPT-style quote card above input. */}
+          {targetInfo.hasSel && (
+            <div className="mb-1.5 rounded-lg border-l-4 border-purple-500 bg-purple-500/10 dark:bg-purple-500/15 pl-2.5 pr-1.5 py-1.5 flex items-start gap-2 text-[11px]">
+              <Quote className="w-3 h-3 text-purple-600 dark:text-purple-300 shrink-0 mt-0.5" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-purple-700 dark:text-purple-300">
+                    Referencing selection
+                  </span>
+                  <span className="text-[9px] text-muted-foreground">
+                    · {targetInfo.selText.length.toLocaleString()} chars
+                  </span>
+                </div>
+                <p className="italic leading-snug text-foreground/75 line-clamp-2 break-words">
+                  “{targetInfo.selPreview}”
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5 shrink-0 text-muted-foreground hover:text-foreground"
+                onClick={handleClearSelection}
+                title="Clear selection (rewrite whole document)"
+              >
+                <X className="w-3 h-3" />
+              </Button>
+            </div>
+          )}
+
           <div className="flex items-end gap-2 bg-white dark:bg-[#19171d] border rounded-lg px-2.5 py-1.5 focus-within:border-purple-500/50 focus-within:ring-2 focus-within:ring-purple-500/15 transition-shadow">
-            <Sparkles className="w-4 h-4 text-purple-500 shrink-0 mt-1" />
+            {/* Icon aligns to first text line, NOT the growing-textarea bottom. */}
+            <Sparkles className="w-4 h-4 text-purple-500 shrink-0 self-start mt-[7px]" />
             <textarea
               ref={inputRef}
               value={input}
@@ -522,7 +714,7 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
               disabled={!!streamingId}
             />
             <div className="flex items-center gap-1 shrink-0">
-              {messages.length > 0 && (
+              {!isRail && messages.length > 0 && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -535,7 +727,18 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
                     : <ChevronUp className="w-3.5 h-3.5" />}
                 </Button>
               )}
-              {messages.length > 0 && !streamingId && (
+              {!isRail && onLayoutChange && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground"
+                  onClick={() => onLayoutChange("rail")}
+                  title="Open as side rail (full-height)"
+                >
+                  <PanelRight className="w-3.5 h-3.5" />
+                </Button>
+              )}
+              {!isRail && messages.length > 0 && !streamingId && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -570,9 +773,9 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
             </div>
           </div>
 
-          {/* Target chip + keyboard hint row. */}
+          {/* Target chip + keyboard hint row */}
           <div className="flex items-center justify-between mt-1 px-1 text-[10px] text-muted-foreground">
-            <TargetChip editorRef={editorRef} />
+            <TargetChip targetInfo={targetInfo} />
             <div className="hidden sm:flex items-center gap-2">
               <span>
                 <kbd className="px-1 py-0.5 bg-muted rounded text-[9px] font-mono">⌘K</kbd> focus
@@ -600,19 +803,22 @@ interface ChatBubbleProps {
   onCopy: () => void
   onRetry: () => void
   onStop: () => void
+  onReSelect: () => void
   isStreaming: boolean
 }
 
-function ChatBubble({ message, onApply, onInsert, onCopy, onRetry, onStop, isStreaming }: ChatBubbleProps) {
+function ChatBubble({
+  message, onApply, onInsert, onCopy, onRetry, onStop, onReSelect, isStreaming,
+}: ChatBubbleProps) {
   if (message.role === "user") {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[75%] bg-purple-600 text-white rounded-lg rounded-tr-sm px-3 py-2 text-xs leading-relaxed shadow-sm">
+        <div className="max-w-[85%] bg-purple-600 text-white rounded-lg rounded-tr-sm px-3 py-2 text-xs leading-relaxed shadow-sm">
           <p className="whitespace-pre-wrap break-words">{message.text}</p>
           {message.targetPreview && (
-            <div className="mt-1.5 pt-1.5 border-t border-white/20 text-[10px] opacity-80 italic line-clamp-2">
+            <div className="mt-1.5 pt-1.5 border-t border-white/20 text-[10px] opacity-80 italic line-clamp-2 break-words">
               → {message.targetRange === "selection" ? "Selection" : "Whole document"}
-              {message.targetPreview && `: "${message.targetPreview}"`}
+              : &ldquo;{message.targetPreview}&rdquo;
             </div>
           )}
         </div>
@@ -623,7 +829,7 @@ function ChatBubble({ message, onApply, onInsert, onCopy, onRetry, onStop, isStr
   // Assistant
   return (
     <div className="flex justify-start">
-      <div className="max-w-[88%] w-full">
+      <div className="max-w-[90%] w-full">
         <div className="flex items-center gap-1.5 mb-1">
           <Wand2 className="w-3 h-3 text-purple-500" />
           <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
@@ -642,6 +848,18 @@ function ChatBubble({ message, onApply, onInsert, onCopy, onRetry, onStop, isStr
             </span>
           )}
         </div>
+
+        {/* Reasoning / Thinking section. Auto-expanded while streaming so the
+            user can follow along, collapsed by default after the final answer
+            lands (click to toggle). */}
+        {message.reasoning && (
+          <ReasoningBlock
+            reasoning={message.reasoning}
+            isStreaming={isStreaming}
+          />
+        )}
+
+        {/* Final answer bubble */}
         <div className={cn(
           "rounded-lg rounded-tl-sm border px-3 py-2 text-xs leading-relaxed bg-white dark:bg-[#19171d] shadow-sm",
           message.applied && "border-emerald-500/30 bg-emerald-50/40 dark:bg-emerald-900/10",
@@ -650,13 +868,17 @@ function ChatBubble({ message, onApply, onInsert, onCopy, onRetry, onStop, isStr
         )}>
           {message.text ? (
             <p className="whitespace-pre-wrap break-words">{message.text}</p>
+          ) : message.reasoning ? (
+            <p className="italic text-muted-foreground">Composing the answer…</p>
           ) : (
             <p className="italic text-muted-foreground">Thinking…</p>
           )}
         </div>
+
+        {/* Actions */}
         {!isStreaming && message.text && !message.errored && (
           <div className="flex items-center flex-wrap gap-1 mt-1.5">
-            {!message.applied && (
+            {!message.applied ? (
               <>
                 <Button
                   size="sm"
@@ -677,6 +899,16 @@ function ChatBubble({ message, onApply, onInsert, onCopy, onRetry, onStop, isStr
                   Insert at cursor
                 </Button>
               </>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-6 text-[10px] font-bold uppercase tracking-widest gap-1 border-purple-500/40 text-purple-700 dark:text-purple-300 hover:bg-purple-500/10"
+                onClick={onReSelect}
+                title="Re-highlight the range in the editor where this was applied"
+              >
+                Show in canvas
+              </Button>
             )}
             <Button
               size="sm"
@@ -729,44 +961,92 @@ function ChatBubble({ message, onApply, onInsert, onCopy, onRetry, onStop, isStr
   )
 }
 
-// ── Target chip ──────────────────────────────────────────────────────────────
+// ── Reasoning / Thinking block ───────────────────────────────────────────────
 //
-// Live indicator of what "Send" will rewrite — selection or whole doc. Polls
-// the editor handle cheaply (TipTap doesn't expose a selection-change event
-// to arbitrary siblings without extra plumbing, and a 400ms tick is fine for
-// a static indicator).
+// Collapsible panel that shows the model's chain-of-thought tokens captured
+// from `event: reasoning`. Auto-expands while the assistant is still
+// streaming so users can follow along, then collapses to just the header
+// once the final answer lands.
 
-function TargetChip({ editorRef }: { editorRef: React.RefObject<CanvasEditorHandle | null> }) {
-  const [info, setInfo] = useState<{ hasSel: boolean; len: number }>({ hasSel: false, len: 0 })
+function ReasoningBlock({ reasoning, isStreaming }: { reasoning: string; isStreaming: boolean }) {
+  const [open, setOpen] = useState(isStreaming)
+  const scrollerRef = useRef<HTMLDivElement>(null)
 
+  // When streaming completes, default to collapsed (but respect a user's
+  // explicit toggle made during streaming).
+  const prevStreaming = useRef(isStreaming)
   useEffect(() => {
-    const poll = () => {
-      const h = editorRef.current
-      if (!h) return
-      const hasSel = h.hasSelection()
-      const text = hasSel ? h.getSelectionText() : h.getDocText()
-      setInfo(prev => {
-        if (prev.hasSel === hasSel && prev.len === text.length) return prev
-        return { hasSel, len: text.length }
-      })
+    if (prevStreaming.current && !isStreaming) {
+      setOpen(false)
     }
-    poll()
-    const interval = setInterval(poll, 400)
-    return () => clearInterval(interval)
-  }, [editorRef])
+    prevStreaming.current = isStreaming
+  }, [isStreaming])
 
+  // Auto-stick-to-bottom while streaming so users see newest tokens.
+  useEffect(() => {
+    if (!open) return
+    const el = scrollerRef.current
+    if (!el) return
+    el.scrollTop = el.scrollHeight
+  }, [reasoning, open])
+
+  const wordCount = reasoning.trim().split(/\s+/).filter(Boolean).length
+
+  return (
+    <div className="mb-1.5 rounded-lg border border-amber-400/30 bg-amber-50/40 dark:bg-amber-950/10">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300 hover:bg-amber-500/5 rounded-lg"
+      >
+        <Brain className="w-3 h-3" />
+        <span>Thinking</span>
+        <span className="text-[9px] font-bold text-amber-600/70 dark:text-amber-300/70">
+          · {wordCount.toLocaleString()} words
+        </span>
+        {isStreaming && (
+          <Loader2 className="w-2.5 h-2.5 animate-spin text-amber-500" />
+        )}
+        <span className="ml-auto">
+          {open
+            ? <ChevronUp className="w-3 h-3" />
+            : <ChevronDown className="w-3 h-3" />}
+        </span>
+      </button>
+      {open && (
+        <div
+          ref={scrollerRef}
+          className="max-h-48 overflow-y-auto px-3 pb-2 pt-0.5 text-[11px] text-amber-900/80 dark:text-amber-100/70 whitespace-pre-wrap leading-relaxed font-mono"
+        >
+          {reasoning.trim() || (
+            <span className="italic text-muted-foreground">Reasoning tokens…</span>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Target chip ──────────────────────────────────────────────────────────────
+
+function TargetChip({
+  targetInfo,
+}: {
+  targetInfo: { hasSel: boolean; selText: string; docLen: number }
+}) {
+  const len = targetInfo.hasSel ? targetInfo.selText.length : targetInfo.docLen
   return (
     <span className="flex items-center gap-1.5">
       <span className={cn(
         "inline-block w-1.5 h-1.5 rounded-full",
-        info.hasSel ? "bg-purple-500" : "bg-blue-400",
+        targetInfo.hasSel ? "bg-purple-500" : "bg-blue-400",
       )} />
       <span>
         Applies to{" "}
         <strong className="text-foreground/70">
-          {info.hasSel
-            ? `selection (${info.len.toLocaleString()} chars)`
-            : `whole document (${info.len.toLocaleString()} chars)`}
+          {targetInfo.hasSel
+            ? `selection (${len.toLocaleString()} chars)`
+            : `whole document (${len.toLocaleString()} chars)`}
         </strong>
       </span>
     </span>
