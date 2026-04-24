@@ -13,7 +13,7 @@
 
 import { useRouter } from "next/navigation"
 import {
-  ListTodo, Terminal, Zap, ArrowRight, AlertCircle, Clock, CheckCircle2, XCircle,
+  ListTodo, Terminal, Zap, AlertCircle, Clock, CheckCircle2, XCircle,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatDistanceToNow } from "date-fns"

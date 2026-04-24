@@ -85,8 +85,7 @@ export function CanvasTipTapEditor({
     if (content !== current) {
       editor.commands.setContent(content || "")
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [content])
+  }, [content, editor])
 
   if (!editor) {
     return (
