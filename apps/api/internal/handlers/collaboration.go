@@ -3528,3 +3528,17 @@ func countUnreadMentions(userID string) int {
 	}
 	return unread
 }
+
+func GetUnreadCounts(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"counts": gin.H{
+			"unread_mention_count": countUnreadMentions(currentUser.ID),
+		},
+	})
+}

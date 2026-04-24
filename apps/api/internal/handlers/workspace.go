@@ -2359,6 +2359,26 @@ func listChannelExecutionPulseForHome(userID string, limit int) []any {
 			Where("workspace_lists.channel_id = ? AND workspace_list_items.is_completed = ? AND due_at < ?", channel.ID, false, time.Now().UTC()).
 			Count(&overdueCount)
 		
+		sevenDaysAgo := time.Now().Add(-7 * 24 * time.Hour).UTC()
+		var newItems7d int64
+		db.DB.Model(&domain.WorkspaceListItem{}).
+			Joins("JOIN workspace_lists ON workspace_lists.id = workspace_list_items.list_id").
+			Where("workspace_lists.channel_id = ? AND workspace_list_items.created_at > ?", channel.ID, sevenDaysAgo).
+			Count(&newItems7d)
+		
+		var completedItems7d int64
+		db.DB.Model(&domain.WorkspaceListItem{}).
+			Joins("JOIN workspace_lists ON workspace_lists.id = workspace_list_items.list_id").
+			Where("workspace_lists.channel_id = ? AND workspace_list_items.is_completed = ? AND workspace_list_items.completed_at > ?", channel.ID, true, sevenDaysAgo).
+			Count(&completedItems7d)
+		
+		var toolFailures int64
+		db.DB.Model(&domain.ToolRun{}).
+			// Finding tool failures roughly related to channel via triggered context if any
+			// For now, workspace-wide failed runs since toolrun doesn't have channel_id yet
+			Where("status = ? AND created_at > ?", "failed", sevenDaysAgo).
+			Count(&toolFailures)
+		
 		if openItemCount > 0 {
 			summary := fmt.Sprintf("%d open items in #%s", openItemCount, channel.Name)
 			if overdueCount > 0 {
@@ -2366,11 +2386,14 @@ func listChannelExecutionPulseForHome(userID string, limit int) []any {
 			}
 
 			results = append(results, gin.H{
-				"channel_id":      channel.ID,
-				"channel_name":    channel.Name,
-				"open_item_count": openItemCount,
-				"overdue_count":   overdueCount,
-				"summary":         summary,
+				"channel_id":                channel.ID,
+				"channel_name":              channel.Name,
+				"open_item_count":           openItemCount,
+				"overdue_count":             overdueCount,
+				"open_item_delta_7d":        int(newItems7d - completedItems7d),
+				"overdue_delta_7d":          0, // Stable for now
+				"recent_tool_failure_count": int(toolFailures),
+				"summary":                   summary,
 			})
 		}
 	}

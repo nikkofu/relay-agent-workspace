@@ -277,8 +277,9 @@ func CreateWorkspaceListItem(c *gin.Context) {
 		return
 	}
 
-	broadcastStructuredRealtime("list.item.updated", list.ID, gin.H{"list_id": list.ID, "item": hydrateWorkspaceListItem(item)})
-	c.JSON(http.StatusCreated, gin.H{"item": hydrateWorkspaceListItem(item)})
+	response := hydrateWorkspaceListItem(item)
+	broadcastStructuredRealtime("list.item.created", list.ID, gin.H{"list_id": list.ID, "item": response})
+	c.JSON(http.StatusCreated, gin.H{"item": response})
 }
 
 func UpdateWorkspaceListItem(c *gin.Context) {
@@ -327,8 +328,9 @@ func UpdateWorkspaceListItem(c *gin.Context) {
 		return
 	}
 
-	broadcastStructuredRealtime("list.item.updated", item.ListID, gin.H{"list_id": item.ListID, "item": hydrateWorkspaceListItem(item)})
-	c.JSON(http.StatusOK, gin.H{"item": hydrateWorkspaceListItem(item)})
+	response := hydrateWorkspaceListItem(item)
+	broadcastStructuredRealtime("list.item.updated", item.ListID, gin.H{"list_id": item.ListID, "item": response})
+	c.JSON(http.StatusOK, gin.H{"item": response})
 }
 
 func DeleteWorkspaceListItem(c *gin.Context) {
@@ -343,7 +345,7 @@ func DeleteWorkspaceListItem(c *gin.Context) {
 		return
 	}
 
-	broadcastStructuredRealtime("list.item.deleted", item.ListID, gin.H{"list_id": item.ListID, "item_id": item.ID})
+	broadcastStructuredRealtime("list.item.deleted", item.ListID, gin.H{"list_id": item.ListID, "item_id": item.ID, "item": hydrateWorkspaceListItem(item)})
 	c.JSON(http.StatusOK, gin.H{"deleted": true, "item_id": item.ID, "list_id": item.ListID})
 }
 
@@ -451,6 +453,8 @@ func ExecuteTool(c *gin.Context) {
 		return
 	}
 
+	broadcastStructuredRealtime("tool.run.started", run.ID, gin.H{"run": hydrateToolRun(run, false)})
+
 	// Handle writeback
 	if input.WritebackTarget != "" {
 		if input.WritebackTarget == "message" {
@@ -499,7 +503,7 @@ func ExecuteTool(c *gin.Context) {
 	}
 
 	response := hydrateToolRun(run, true)
-	broadcastStructuredRealtime("tool.run.updated", run.ID, gin.H{"run": response})
+	broadcastStructuredRealtime("tool.run.completed", run.ID, gin.H{"run": response})
 	c.JSON(http.StatusCreated, gin.H{"run": response})
 }
 

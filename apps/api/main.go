@@ -75,6 +75,7 @@ func main() {
 	{
 		v1.GET("/home", handlers.GetHome)
 		v1.GET("/me", handlers.GetMe)
+		v1.GET("/me/unread-counts", handlers.GetUnreadCounts)
 		v1.GET("/me/settings", handlers.GetMeSettings)
 		v1.PATCH("/me/settings", handlers.PatchMeSettings)
 		v1.GET("/users", handlers.GetUsers)

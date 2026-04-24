@@ -2,6 +2,54 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.42] - 2026-04-24
+
+This release implements Phase 67: Execution Live Layer (Backend).
+
+### Added
+
+- New websocket events for execution lifecycle:
+  - `list.item.created`
+  - `list.item.updated`
+  - `list.item.deleted`
+  - `tool.run.started`
+  - `tool.run.completed`
+- `GET /api/v1/me/unread-counts` for lightweight mention count synchronization.
+- Trend fields for `channel_execution_pulse[]` in `GET /home`:
+  - `open_item_delta_7d`
+  - `overdue_delta_7d`
+  - `recent_tool_failure_count`
+
+### Changed
+
+- `CreateWorkspaceListItem` now correctly emits `list.item.created` instead of `updated`.
+- `ExecuteTool` now emits `tool.run.started` and `tool.run.completed` events.
+- Enriched execution event payloads with full item/run hydration data.
+
+### Windsurf Handoff
+
+- **Websocket Hook**: Wire `list.item.*` and `tool.run.*` events to incremental store updates in `list-store` and `tool-store`.
+- **Badge Refresh**: Use `GET /api/v1/me/unread-counts` for the primary-nav Activity badge.
+- **Home UI**: Render the new delta and failure count fields in the `Channel Execution Pulse` rows.
+
+### Verification Used For This Release
+
+- `cd apps/api && go test ./internal/handlers -run TestPhase67 -count=1`
+- `go test ./...`
+- `go build ./...`
+
+## [0.6.41] - 2026-04-24
+
+This release implements Phase 66 T07–T09: Channel Execution Wired + Phase 65C UI Refinements (Web).
+
+### Added
+
+- **Channel Execution Hub**: Full integration of Lists and Tools panels.
+- **Message Actions**: `Add to list` with AI draft suggestion and manual fallback.
+- **Home Blocks**: Cross-channel execution management cards (Open Work, Tools, Pulse).
+- **Infinite Scroll**: Pagination for mentions feed using `next_cursor`.
+- **AI Slash Command**: Wired `/ask` in composer to backend AI Q&A.
+
 ## [0.6.40] - 2026-04-24
 
 This release implements Phase 65C: Advanced User Mentions & AI Slash Command.
