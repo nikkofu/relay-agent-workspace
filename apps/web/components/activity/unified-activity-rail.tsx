@@ -355,6 +355,14 @@ export function UnifiedActivityRail({
               <ChevronDown className="w-3 h-3" /> Show {unifiedFeedItems.length - 30} more
             </button>
           )}
+          {/* Phase 65C: cursor-based infinite scroll using next_cursor (contract v0.6.40) */}
+          {showMore && hasMoreUnifiedFeed && (
+            <button type="button"
+              onClick={() => fetchUnifiedFeed({ workspaceId: wsId, eventType: 'mention', limit: 40, cursor: unifiedFeedCursor ?? undefined })}
+              className="w-full py-2 text-[10px] text-muted-foreground hover:text-foreground flex items-center justify-center gap-1 hover:bg-muted/20 transition-colors">
+              <ChevronDown className="w-3 h-3" /> Load more mentions
+            </button>
+          )}
         </>
       )
     }

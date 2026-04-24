@@ -16,6 +16,7 @@ import { Pin, FileCode, FileText, MoreVertical, Copy } from "lucide-react"
 import { FileAttachmentCard } from "./file-attachment-card"
 import { EntityMentionChip } from "./entity-mention-chip"
 import { UserMentionChips } from "./user-mention-chips"
+import { AddToListDialog } from "./add-to-list-dialog"
 import { KnowledgeDigestCard } from "./knowledge-digest-card"
 import { Button } from "@/components/ui/button"
 import {
@@ -39,6 +40,9 @@ export function MessageItem({ message, sender, isCompact, showActions = true }: 
   const { addReaction, deleteMessage, pinMessage, saveForLater, markAsUnread } = useMessageStore()
   const { duplicateArtifact } = useArtifactStore()
   const [mounted, setMounted] = useState(false)
+  // Phase 66 T08: Add-to-list dialog state (channel messages only)
+  const [showAddToList, setShowAddToList] = useState(false)
+  const canAddToList = Boolean(message.channelId && !message.dmId)
 
   useEffect(() => {
     setMounted(true)
@@ -233,8 +237,18 @@ export function MessageItem({ message, sender, isCompact, showActions = true }: 
               toast.success("Link copied to clipboard")
             }}
             onForward={() => toast.info("Forwarding coming soon")}
+            onAddToList={canAddToList ? () => setShowAddToList(true) : undefined}
           />
         </div>
+      )}
+
+      {/* Phase 66 T08: Add-to-List dialog */}
+      {canAddToList && (
+        <AddToListDialog
+          open={showAddToList}
+          onOpenChange={setShowAddToList}
+          message={message}
+        />
       )}
     </div>
   )

@@ -25,6 +25,39 @@ export interface WorkspaceListItem {
   position: number
   createdAt: string
   updatedAt: string
+  // Phase 66 T02+T07 source-message link (flat shape per frozen contract)
+  sourceMessageId?: string
+  sourceChannelId?: string
+  sourceSnippet?: string
+  // Phase 66 T03 assignee + due (flat)
+  assignedTo?: string
+  dueAt?: string
+}
+
+// Phase 66 T08: AI list-item draft suggestion (matches /api/v1/ai/lists/draft)
+export interface ListItemDraftSuggestion {
+  title: string
+  assignee_user_id?: string
+  due_at?: string | null
+  rationale?: string
+  source_message_id?: string
+  source_channel_id?: string
+  source_snippet?: string
+}
+
+export interface ListItemDraftResult {
+  ok: boolean
+  fallback?: string
+  suggestion: ListItemDraftSuggestion
+}
+
+export interface AddItemWithSourceInput {
+  content: string
+  assignedTo?: string
+  dueAt?: string | null
+  sourceMessageId?: string
+  sourceChannelId?: string
+  sourceSnippet?: string
 }
 
 interface ListState {
@@ -34,11 +67,13 @@ interface ListState {
   
   fetchLists: (channelId: string) => Promise<void>
   fetchListDetail: (id: string) => Promise<void>
-  createList: (data: { title: string, channelId: string, userId: string }) => Promise<void>
+  createList: (data: { title: string, channelId: string, userId: string }) => Promise<WorkspaceList | null>
   updateList: (id: string, updates: Partial<WorkspaceList>) => Promise<void>
   deleteList: (id: string) => Promise<void>
   
   addItem: (listId: string, content: string) => Promise<void>
+  addItemWithSource: (listId: string, input: AddItemWithSourceInput) => Promise<WorkspaceListItem | null>
+  aiDraftListItem: (input: { messageId: string, listId: string, channelId?: string, context?: string }) => Promise<ListItemDraftResult | null>
   toggleItem: (listId: string, itemId: string, isCompleted: boolean) => Promise<void>
   deleteItem: (listId: string, itemId: string) => Promise<void>
 }
@@ -61,7 +96,13 @@ const mapItem = (i: any): WorkspaceListItem => ({
   userId: i.user_id,
   isCompleted: i.is_completed,
   createdAt: i.created_at,
-  updatedAt: i.updated_at
+  updatedAt: i.updated_at,
+  // Phase 66 T07: flat source-message fields
+  sourceMessageId: i.source_message_id || undefined,
+  sourceChannelId: i.source_channel_id || undefined,
+  sourceSnippet: i.source_snippet || undefined,
+  assignedTo: i.assigned_to || undefined,
+  dueAt: i.due_at || undefined,
 })
 
 export const useListStore = create<ListState>((set, get) => ({
@@ -103,11 +144,15 @@ export const useListStore = create<ListState>((set, get) => ({
         })
       })
       if (!response.ok) throw new Error("Create failed")
+      const payload = await response.json().catch(() => ({}))
+      const created = payload?.list ? mapList(payload.list) : null
       await get().fetchLists(data.channelId)
       toast.success("List created")
+      return created
     } catch (error) {
       console.error("Failed to create list:", error)
       toast.error("Failed to create list")
+      return null
     }
   },
 
@@ -157,6 +202,64 @@ export const useListStore = create<ListState>((set, get) => ({
       await get().fetchListDetail(listId)
     } catch (error) {
       console.error("Failed to add list item:", error)
+    }
+  },
+
+  // Phase 66 T08: create a list item that carries source-message metadata so
+  // the persisted row points back at the originating message. Per frozen
+  // Codex contract (Q1), fields are flat on the request body.
+  addItemWithSource: async (listId, input) => {
+    try {
+      const body: Record<string, any> = { content: input.content }
+      if (input.assignedTo) body.assigned_to = input.assignedTo
+      if (input.dueAt) body.due_at = input.dueAt
+      if (input.sourceMessageId) body.source_message_id = input.sourceMessageId
+      if (input.sourceChannelId) body.source_channel_id = input.sourceChannelId
+      if (input.sourceSnippet) body.source_snippet = input.sourceSnippet
+
+      const response = await fetch(`${API_BASE_URL}/lists/${listId}/items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      if (!response.ok) throw new Error("Add item failed")
+      const data = await response.json().catch(() => ({}))
+      const created = data?.item ? mapItem(data.item) : null
+      await get().fetchListDetail(listId)
+      toast.success(input.sourceMessageId ? "Added to list from message" : "Item added")
+      return created
+    } catch (error) {
+      console.error("Failed to add list item with source:", error)
+      toast.error("Failed to add to list")
+      return null
+    }
+  },
+
+  // Phase 66 T08: call AI draft endpoint. Per frozen Codex contract (Q2) the
+  // backend may return { ok: false, fallback: "manual_entry", suggestion: {...} }
+  // even on soft-failure — the suggestion is still usable as form defaults.
+  aiDraftListItem: async ({ messageId, listId, channelId, context }) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/ai/lists/draft`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message_id: messageId,
+          list_id: listId,
+          channel_id: channelId,
+          context,
+        }),
+      })
+      if (!response.ok) throw new Error("AI draft failed")
+      const data = await response.json()
+      return {
+        ok: Boolean(data?.ok),
+        fallback: data?.fallback,
+        suggestion: data?.suggestion || { title: "" },
+      }
+    } catch (error) {
+      console.error("Failed to draft list item:", error)
+      return null
     }
   },
 

@@ -1,20 +1,24 @@
 "use client"
 
-// ── Phase 66 T02: Channel Execution Hub — Tools Panel Shell ──────────────────
+// ── Phase 66 T07: Channel Execution Hub — Tools Panel (wired) ────────────────
 //
-// Reads only existing tool-store ToolRun fields. Writeback-target semantics
-// (writeback_target=message|list_item) are Gemini T04 backend work — NOT
-// consumed here yet. This panel will be extended in T07 once the backend
-// contract is frozen.
+// T02 shell is now wired to Gemini's v0.6.39 backend contract (frozen Q3):
+//   - writeback_target + writeback persisted on each ToolRun → rendered as a
+//     sky/violet badge (sky for "message", violet for "list_item") next to the
+//     status pill. Runs without a writeback target render unchanged.
+//   - "Run Tool" CTA now enabled via <RunToolDialog> which supports both
+//     writeback targets per-contract.
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   Loader2, Terminal, CheckCircle2, XCircle, Clock, RefreshCw, Play,
+  MessageSquare, ListTodo,
 } from "lucide-react"
 import { useToolStore } from "@/stores/tool-store"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { formatDistanceToNow } from "date-fns"
+import { RunToolDialog } from "./run-tool-dialog"
 
 interface ChannelToolsPanelProps {
   channelId: string
@@ -30,6 +34,7 @@ const STATUS_CONFIG = {
 export function ChannelToolsPanel({ channelId }: ChannelToolsPanelProps) {
   const { toolRuns, isLoading, fetchToolRuns } = useToolStore()
   const didFetch = useRef<string>("")
+  const [showRunDialog, setShowRunDialog] = useState(false)
 
   useEffect(() => {
     if (didFetch.current !== channelId) {
@@ -56,28 +61,27 @@ export function ChannelToolsPanel({ channelId }: ChannelToolsPanelProps) {
 
   if (channelRuns.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 px-4 text-center gap-2">
-        <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center">
-          <Terminal className="w-6 h-6 text-amber-600" />
+      <>
+        <div className="flex flex-col items-center justify-center py-12 px-4 text-center gap-2">
+          <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center">
+            <Terminal className="w-6 h-6 text-amber-600" />
+          </div>
+          <p className="text-sm font-semibold text-foreground">No tool runs in this channel</p>
+          <p className="text-[11px] text-muted-foreground max-w-[220px] leading-snug">
+            Run a tool to push structured output back into this channel as a message or list item.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2 gap-1.5 text-xs font-bold h-7"
+            onClick={() => setShowRunDialog(true)}
+          >
+            <Play className="w-3 h-3" />
+            Run Tool
+          </Button>
         </div>
-        <p className="text-sm font-semibold text-foreground">No tool runs in this channel</p>
-        <p className="text-[11px] text-muted-foreground max-w-[220px] leading-snug">
-          Run a tool to push structured output back into this channel as a message or list item.
-        </p>
-        <Button
-          variant="outline"
-          size="sm"
-          className="mt-2 gap-1.5 text-xs font-bold h-7"
-          disabled
-          title="Available after Phase 66 T07"
-        >
-          <Play className="w-3 h-3" />
-          Run Tool
-        </Button>
-        <span className="text-[9px] text-muted-foreground/60 uppercase tracking-widest mt-1">
-          Run available after backend writeback contract lands
-        </span>
-      </div>
+        <RunToolDialog open={showRunDialog} onOpenChange={setShowRunDialog} channelId={channelId} />
+      </>
     )
   }
 
@@ -88,15 +92,26 @@ export function ChannelToolsPanel({ channelId }: ChannelToolsPanelProps) {
         <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
           {channelRuns.length} Recent {channelRuns.length === 1 ? "Run" : "Runs"}
         </span>
-        <button
-          type="button"
-          onClick={handleRefresh}
-          className="p-1 rounded hover:bg-muted/60 transition-colors"
-          title="Refresh"
-        >
-          <RefreshCw className={cn("w-3 h-3 text-muted-foreground", isLoading && "animate-spin")} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setShowRunDialog(true)}
+            className="p-1 rounded hover:bg-amber-500/15 text-amber-600 transition-colors"
+            title="Run Tool"
+          >
+            <Play className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={handleRefresh}
+            className="p-1 rounded hover:bg-muted/60 transition-colors"
+            title="Refresh"
+          >
+            <RefreshCw className={cn("w-3 h-3 text-muted-foreground", isLoading && "animate-spin")} />
+          </button>
+        </div>
       </div>
+      <RunToolDialog open={showRunDialog} onOpenChange={setShowRunDialog} channelId={channelId} />
 
       {/* Run rows */}
       <div className="flex-1 overflow-y-auto">
@@ -137,7 +152,7 @@ export function ChannelToolsPanel({ channelId }: ChannelToolsPanelProps) {
                       {cfg.label}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
                     {startedAgo && (
                       <span className="text-[9px] text-muted-foreground/60 uppercase tracking-widest">
                         {startedAgo}
@@ -150,6 +165,19 @@ export function ChannelToolsPanel({ channelId }: ChannelToolsPanelProps) {
                           {durationSec}s
                         </span>
                       </>
+                    )}
+                    {/* Phase 66 T07: writeback-target badge */}
+                    {run.writebackTarget === "message" && (
+                      <span className="inline-flex items-center gap-0.5 text-[9px] font-black uppercase tracking-widest px-1 py-0.5 rounded bg-sky-500/10 text-sky-700 dark:text-sky-300">
+                        <MessageSquare className="w-2 h-2" />
+                        → message
+                      </span>
+                    )}
+                    {run.writebackTarget === "list_item" && (
+                      <span className="inline-flex items-center gap-0.5 text-[9px] font-black uppercase tracking-widest px-1 py-0.5 rounded bg-violet-500/10 text-violet-700 dark:text-violet-300">
+                        <ListTodo className="w-2 h-2" />
+                        → list item
+                      </span>
                     )}
                   </div>
                   {run.status === "failed" && run.logs && run.logs.length > 0 && (

@@ -11,6 +11,7 @@ import { useUserStore } from "@/stores/user-store"
 import { useDMStore } from "@/stores/dm-store"
 import { useChannelStore } from "@/stores/channel-store"
 import { useKnowledgeStore } from "@/stores/knowledge-store"
+import { useActivityStore } from "@/stores/activity-store"
 import { usePathname, useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
 import { useState, useEffect } from "react"
@@ -35,6 +36,10 @@ export function PrimaryNav() {
   const { conversations } = useDMStore()
   const { setCurrentChannel } = useChannelStore()
   const { knowledgeInboxUnreadCount, fetchKnowledgeInbox } = useKnowledgeStore()
+  // Phase 65C: prefer durable backend counter; fall back to local Mentions tab count
+  const homeData = useWorkspaceStore(s => s.homeData)
+  const fetchHome = useWorkspaceStore(s => s.fetchHome)
+  const mentionsCount = useActivityStore(s => s.mentionItems.length)
   const { theme, setTheme } = useTheme()
   const router = useRouter()
   const pathname = usePathname()
@@ -43,7 +48,9 @@ export function PrimaryNav() {
   useEffect(() => {
     setMounted(true)
     fetchKnowledgeInbox('all', 50).catch(() => { /* silent */ })
-  }, [fetchKnowledgeInbox])
+    // Phase 65C: hydrate unread mention counter from /home on workspace load
+    if (!homeData) fetchHome().catch(() => { /* silent */ })
+  }, [fetchKnowledgeInbox, fetchHome, homeData])
 
   const handleNavItemClick = (item: typeof NAV_ITEMS[0]) => {
     if (item.label === "Home") {
@@ -83,6 +90,15 @@ export function PrimaryNav() {
           }
           if (item.label === "Knowledge") {
             unreadCount = knowledgeInboxUnreadCount
+          }
+          // Phase 65C: Activity icon reflects unread user mentions (durable)
+          if (item.label === "Activity") {
+            unreadCount = (
+              homeData?.activity_summary?.unread_mention_count
+              ?? homeData?.unread_mention_count
+              ?? mentionsCount
+              ?? 0
+            )
           }
 
           return (

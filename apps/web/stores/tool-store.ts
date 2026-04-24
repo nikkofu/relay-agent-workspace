@@ -2,6 +2,20 @@ import { create } from "zustand"
 import { API_BASE_URL } from "@/lib/constants"
 import { toast } from "sonner"
 
+// Phase 66 T07 — frozen Codex contract (Q3):
+//   writeback_target = "message" | "list_item"
+//   writeback payload is per-target ("message" → { channel_id, thread_id? }, "list_item" → { list_id })
+export type WritebackTarget = "message" | "list_item"
+
+export interface WritebackMessageInput {
+  channel_id: string
+  thread_id?: string
+}
+
+export interface WritebackListItemInput {
+  list_id: string
+}
+
 export interface ToolRun {
   id: string
   toolId: string
@@ -16,6 +30,9 @@ export interface ToolRun {
   startedAt: string
   finishedAt?: string
   durationMs?: number
+  // Phase 66 T07: writeback-target telemetry persisted on each run
+  writebackTarget?: WritebackTarget
+  writeback?: Record<string, any>
 }
 
 interface ToolState {
@@ -25,7 +42,12 @@ interface ToolState {
   
   fetchToolRuns: (channelId?: string) => Promise<void>
   fetchRunDetail: (id: string) => Promise<void>
-  executeTool: (toolId: string, input: any, channelId?: string) => Promise<void>
+  executeTool: (
+    toolId: string,
+    input: any,
+    channelId?: string,
+    writeback?: { target: WritebackTarget, payload: WritebackMessageInput | WritebackListItemInput }
+  ) => Promise<ToolRun | null>
 }
 
 const mapToolRun = (r: any): ToolRun => ({
@@ -37,7 +59,10 @@ const mapToolRun = (r: any): ToolRun => ({
   finishedAt: r.finished_at,
   durationMs: r.duration_ms,
   userId: r.user_id,
-  channelId: r.channel_id
+  channelId: r.channel_id,
+  // Phase 66 T07: hydrate writeback telemetry
+  writebackTarget: r.writeback_target || undefined,
+  writeback: r.writeback || undefined,
 })
 
 export const useToolStore = create<ToolState>((set) => ({
@@ -68,22 +93,34 @@ export const useToolStore = create<ToolState>((set) => ({
     }
   },
 
-  executeTool: async (toolId, input, channelId) => {
+  executeTool: async (toolId, input, channelId, writeback) => {
     try {
+      const body: Record<string, any> = { input, channel_id: channelId }
+      if (writeback) {
+        body.writeback_target = writeback.target
+        body.writeback = writeback.payload
+      }
       const response = await fetch(`${API_BASE_URL}/tools/${toolId}/execute`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input, channel_id: channelId })
+        body: JSON.stringify(body)
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.message || "Execution failed")
-      
+
       const newRun = mapToolRun(data.run)
       set((state) => ({ toolRuns: [newRun, ...state.toolRuns] }))
-      toast.success(`${newRun.toolName} execution started`)
+      const wbLabel = writeback?.target === "message"
+        ? " → message"
+        : writeback?.target === "list_item"
+          ? " → list item"
+          : ""
+      toast.success(`${newRun.toolName} execution started${wbLabel}`)
+      return newRun
     } catch (error) {
       console.error("Failed to execute tool:", error)
       toast.error("Tool execution failed")
+      return null
     }
   }
 }))

@@ -33,6 +33,8 @@ import { useFileStore } from "@/stores/file-store"
 import { useKnowledgeStore } from "@/stores/knowledge-store"
 import { useWorkspaceStore } from "@/stores/workspace-store"
 import { useChannelStore } from "@/stores/channel-store"
+import { useUserStore } from "@/stores/user-store"
+import { API_BASE_URL } from "@/lib/constants"
 import { CheckCircle2 } from "lucide-react"
 import type { EntitySuggestResult, EntityTextMatch, ComposeSuggestion, ComposeIntent, ComposeScope, ComposeProposedSlot } from "@/types"
 
@@ -95,6 +97,7 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
   } = useKnowledgeStore()
   const { currentWorkspace } = useWorkspaceStore()
   const { currentChannel } = useChannelStore()
+  const { currentUser } = useUserStore()
 
   // Phase 63B: AI Compose suggestion state
   const [showComposeSuggestions, setShowComposeSuggestions] = useState(false)
@@ -330,6 +333,34 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
         if (scope) deleteDraft(scope)
         setShowSlashCommands(false)
         return
+      }
+
+      // Phase 65C: /ask slash command (channel-native AI Q&A).
+      // Matches contract POST /api/v1/channels/:id/messages/ask with body
+      // `{ content, user_id }`. Backend creates an AI reply and broadcasts
+      // message.created, so we only need to clear the composer here.
+      if (textContent.startsWith("/ask ") && scope?.startsWith("channel:")) {
+        const channelId = scope.slice("channel:".length)
+        const userId = currentUser?.id
+        if (channelId) {
+          isSendingRef.current = true
+          if (scope) deleteDraft(scope)
+          editor.commands.clearContent()
+          isSendingRef.current = false
+          setShowSlashCommands(false)
+          fetch(`${API_BASE_URL}/channels/${channelId}/messages/ask`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content: textContent, user_id: userId }),
+          })
+            .then(res => { if (!res.ok) throw new Error(`ask failed (${res.status})`) })
+            .catch(err => {
+              console.error("/ask failed:", err)
+              toast.error("AI ask failed")
+            })
+          toast.success("Asking AI…")
+          return
+        }
       }
 
       isSendingRef.current = true

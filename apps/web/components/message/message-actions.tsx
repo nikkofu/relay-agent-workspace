@@ -1,6 +1,6 @@
 "use client"
 
-import { Smile, MessageSquare, Share2, Bookmark, MoreHorizontal } from "lucide-react"
+import { Smile, MessageSquare, Share2, Bookmark, MoreHorizontal, ListTodo } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
@@ -20,6 +20,8 @@ interface MessageActionsProps {
   onMarkUnread?: () => void
   onPin?: () => void
   onDelete?: () => void
+  // Phase 66 T08
+  onAddToList?: () => void
 }
 
 export function MessageActions({ 
@@ -30,7 +32,8 @@ export function MessageActions({
   onCopyLink, 
   onMarkUnread, 
   onPin, 
-  onDelete 
+  onDelete,
+  onAddToList,
 }: MessageActionsProps) {
   return (
     <div className="flex items-center bg-white dark:bg-[#1a1d21] border rounded-lg shadow-sm p-0.5">
@@ -80,6 +83,12 @@ export function MessageActions({
           <DropdownMenuItem onClick={onCopyLink}>Copy link to message</DropdownMenuItem>
           <DropdownMenuItem onClick={onMarkUnread}>Mark as unread</DropdownMenuItem>
           <DropdownMenuSeparator />
+          {onAddToList && (
+            <DropdownMenuItem onClick={onAddToList}>
+              <ListTodo className="h-3.5 w-3.5 mr-2 text-violet-600" />
+              Add to list
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onClick={onPin}>Pin to channel</DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem className="text-destructive focus:bg-destructive/10 focus:text-destructive" onClick={onDelete}>Delete message</DropdownMenuItem>

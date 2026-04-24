@@ -28,6 +28,7 @@ import { CreateChannelDialog } from "@/components/channel/create-channel-dialog"
 import { InviteMemberDialog } from "@/components/workspace/invite-member-dialog"
 import { SetStatusDialog } from "@/components/workspace/set-status-dialog"
 import { TrendingEntitiesCard } from "@/components/knowledge/trending-entities-card"
+import { HomeExecutionBlocks } from "@/components/layout/home-execution-blocks"
 
 function stripHtml(html: string): string {
   if (!html) return ""
@@ -121,7 +122,13 @@ export function HomeDashboard() {
                   </div>
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Unread Mentions</p>
-                    <p className="text-2xl font-black">{homeData?.stats?.pending_actions || 0}</p>
+                    {/* Phase 65C: prefer activity_summary.unread_mention_count (durable inbox) over legacy pending_actions */}
+                    <p className="text-2xl font-black">{
+                      homeData?.activity_summary?.unread_mention_count
+                        ?? homeData?.unread_mention_count
+                        ?? homeData?.stats?.pending_actions
+                        ?? 0
+                    }</p>
                   </div>
                 </CardContent>
               </Card>
@@ -232,6 +239,9 @@ export function HomeDashboard() {
                     <TrendingEntitiesCard workspaceId={currentWorkspace.id} limit={5} />
                   </div>
                 )}
+
+                {/* Phase 66 T09: Channel Execution blocks */}
+                <HomeExecutionBlocks homeData={homeData} />
 
                 {/* Recent Knowledge Digests */}
                 {(homeData?.recent_knowledge_digests?.length || 0) > 0 && (
