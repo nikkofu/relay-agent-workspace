@@ -9,8 +9,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Name | Role | Specialty | Primary Tools |
 | :--- | :--- | :--- | :--- |
 | **Nikko Fu** | Human Owner | Product Strategy, Design, Final Review | Brainstorming, PR Review |
-| **Gemini** | Web/UI Agent | Frontend Architecture, Tailwind, Next.js, UX | `apps/web`, `replace`, `write_file` |
-| **Codex** | API/Backend Agent | Go, Gin, GORM, SQLite, WebSockets, AI Orchestration | `apps/api`, `internal/` |
+| **Gemini** | Backend/API/Test Agent | Go, Gin, GORM, SQLite, API Contracts, Backend Verification | `apps/api`, `internal/`, `go test` |
+| **Codex** | Planning/Command Agent | Product Planning, Cross-Agent Coordination, Contract Review, Integration Control | planning, review, handoff |
 | **Windsurf** | Web/UI Agent | Component Architecture, TypeScript, UX Flows, Agent Collaboration UI | `apps/web`, `write_file`, `multi_edit` |
 
 ---
@@ -179,10 +179,20 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `idle` | Resting after Phase 38 handoff | 100% |
-| **Codex** | `api-architecture` | Phase 65A shipped: durable user mentions across messages, unified feed, mentions, and inbox (v0.6.36) | 100% |
+| **Gemini** | `backend-delivery` | Reassigned to own all backend/API/test work starting with Channel Execution Hub | 0% |
+| **Codex** | `orchestration` | Unified planning, task slicing, agent handoff, and integration control for Channel Execution Hub | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `ai-native` | Phase 65B shipped: UserMentionChips, mention.created WS live-append, Mentions tab, fuchsia/violet distinction, DM nav fix (v0.6.37) | 100% |
+| **Windsurf** | `web-delivery` | Owns all Web delivery for Channel Execution Hub | 0% |
+
+### 2026-04-24 - Strategy Shift: Gemini Restored For Backend, Codex To Command Layer
+- **Nikko Fu**: Adjusted team strategy during Channel Execution Hub planning.
+- **Gemini**: Restored to the active team and now owns all backend/API/test implementation work going forward.
+- **Windsurf**: Continues to own all Web/UI delivery.
+- **Codex**: Stops owning backend code changes for this phase and shifts to unified planning, task decomposition, cross-agent contract review, merge safety, and integration control.
+- **Current execution rule**:
+  - Gemini writes `apps/api/**` and backend-facing tests
+  - Windsurf writes `apps/web/**`
+  - Codex writes planning, handoff, and coordination artifacts only unless explicitly reassigned
 
 ### 2026-04-24 - Phase 65B User Mention Semantics UI (v0.6.37)
 - **Windsurf**: Phase 65B shipped as `v0.6.37`. Builds directly on Codex Phase 65A (v0.6.36).
