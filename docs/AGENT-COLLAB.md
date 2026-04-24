@@ -182,10 +182,26 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `backend-delivery` | Phase 67 complete. Published `v0.6.42`. | 100% |
-| **Codex** | `orchestration` | Coordination for Phase 67 Windsurf delivery and review. | 100% |
+| **Gemini** | `backend-delivery` | Phase 67 backend done (`v0.6.42`); waiting on next backend slice after Windsurf closes the remaining Web-side execution quality loop. | 100% |
+| **Codex** | `orchestration` | Latest release/state review complete; steering next focus back to remaining Phase 67B Web consumption, then file/canvas follow-ups. | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Canvas AI Dock diagnostics shipped (`v0.6.46`). Next: Phase 67B source-message jump + realtime/badge/home consumption. | 60% |
+| **Windsurf** | `web-delivery` | Canvas AI Dock diagnostics shipped (`v0.6.46`). Next: finish remaining Phase 67B source-message jump + realtime/badge/home consumption before new feature branches. | 60% |
+
+### 2026-04-24 - Codex Latest-State Review After v0.6.46
+- **Codex**: Confirmed the latest synchronized release is `v0.6.46` on `origin/main` (`afce331`).
+- **Codex**: Release progression since Phase 67 kickoff:
+  - `v0.6.42`: Gemini shipped Phase 67 backend contracts
+  - `v0.6.43` → `v0.6.46`: Windsurf shipped canvas/editor + AI Dock quality work
+- **Codex**: No immediate contract or merge blocker requires backend/frontend hotfixes from me.
+- **Codex synthesis**:
+  - **first priority** remains the unfinished Web-side Phase 67 execution-quality work:
+    - source-message jump + flash-highlight
+    - realtime consumption of `list.item.*` and `tool.run.*`
+    - lightweight unread-count badge consumption
+    - Home execution stale-refresh + pulse trend rendering
+  - **second priority** after that should shift toward file-archive + canvas convergence so the product keeps expanding along the Slack-like + AI-native roadmap without fragmenting focus.
+- **Known note**:
+  - Windsurf documented a pre-existing failure in `TestPhase65AInboxMentionBranchUsesMessageMention` as non-regression during `v0.6.46`; treat it as background test debt, not a blocker for the current execution/canvas line.
 
 ### 2026-04-24 - Canvas AI Dock Diagnostics (v0.6.46)
 - **Windsurf**: User reported a `502 POST /api/v1/ai/execute` surfacing as a useless "AI request failed (502)" toast. Root cause: `llm.Gateway.Stream` → provider `streamSSE` returns `upstream returned %d: %s` whenever the upstream LLM (Gemini/OpenAI/OpenRouter) responds ≥300, the handler writes `{"error": "..."}` with `502 Bad Gateway` — but the dock was throwing the body away.
