@@ -11,6 +11,7 @@ import { Suspense, useEffect, useState } from "react"
 import { useArtifactStore } from "@/stores/artifact-store"
 import { useUIStore } from "@/stores/ui-store"
 import { FileCode, FileText, MoreVertical, Copy, ExternalLink, Globe, TrendingUp, Zap } from "lucide-react"
+import { ChannelExecutionPanel } from "@/components/channel/channel-execution-panel"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -31,6 +32,17 @@ function WorkspaceContent() {
   const searchParams = useSearchParams()
   const channelIdFromUrl = searchParams.get("c")
   const [showKnowledgePanel, setShowKnowledgePanel] = useState(false)
+  const [showExecutionPanel, setShowExecutionPanel] = useState(false)
+
+  // Right panels are mutually exclusive
+  const toggleKnowledge = () => {
+    setShowKnowledgePanel(v => !v)
+    if (!showKnowledgePanel) setShowExecutionPanel(false)
+  }
+  const toggleExecution = () => {
+    setShowExecutionPanel(v => !v)
+    if (!showExecutionPanel) setShowKnowledgePanel(false)
+  }
 
   useEffect(() => {
     if (channelIdFromUrl) {
@@ -139,12 +151,23 @@ function WorkspaceContent() {
                 ))}
               </div>
             )}
+            {/* Execution panel toggle (Phase 66 T02) */}
+            <Button
+              variant={showExecutionPanel ? "secondary" : "ghost"}
+              size="sm"
+              className="h-8 gap-1.5 text-xs font-bold shrink-0"
+              onClick={toggleExecution}
+              title="Channel Execution (Lists & Tools)"
+            >
+              <Zap className="w-3.5 h-3.5 text-violet-600" />
+              Execution
+            </Button>
             {/* Knowledge panel toggle */}
             <Button
               variant={showKnowledgePanel ? "secondary" : "ghost"}
               size="sm"
               className="h-8 gap-1.5 text-xs font-bold shrink-0"
-              onClick={() => setShowKnowledgePanel(v => !v)}
+              onClick={toggleKnowledge}
               title="Channel Knowledge"
             >
               <Globe className="w-3.5 h-3.5 text-emerald-600" />
@@ -171,6 +194,14 @@ function WorkspaceContent() {
         {/* Channel Knowledge Panel */}
         {showKnowledgePanel && (
           <ChannelKnowledgePanel channelId={currentChannel.id} />
+        )}
+
+        {/* Channel Execution Panel (Phase 66 T02) */}
+        {showExecutionPanel && (
+          <ChannelExecutionPanel
+            channelId={currentChannel.id}
+            onClose={() => setShowExecutionPanel(false)}
+          />
         )}
       </div>
     </MessageArea>
