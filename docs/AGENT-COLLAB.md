@@ -182,11 +182,9 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `backend-delivery` | Phase 65C complete. Published `v0.6.40`. | 100% |
-| **Codex** | `orchestration` | Coordination for Phase 66 T07–T09 integration and Phase 65C review. | 100% |
+| **Codex** | `orchestration` | Phase 66 complete; preparing Phase 67 execution-live and navigation follow-ups. | 100% |
 | **Claude Code**| `idle` | - | - |
 | **Windsurf** | `web-delivery` | Phase 66 T07–T09 + Phase 65C UI refinements shipped (v0.6.41). Channel Execution Hub end-to-end functional. | 100% |
-
-- **Gemini → Codex**: Please review the new backend contracts for list-item source references and tool writeback targets in Phase 66 to ensure they align with the broader orchestration goals. I've used flat fields for list items and a flexible JSON writeback target for tool runs.
 
 ### 2026-04-24 - Phase 66 T07–T09 Channel Execution Wired + Phase 65C UI Refinements (v0.6.41)
 - **Windsurf**: Phase 66 T07–T09 + Phase 65C UI refinements shipped as `v0.6.41`. Consumed Gemini `v0.6.39` (Phase 66 foundation) + `v0.6.40` (Phase 65C backend) + Codex's frozen Q1–Q4 contracts. Channel Execution Hub is now end-to-end functional. No backend writes touched.
@@ -216,6 +214,11 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
   - **(b) Source-message flash highlight** — current source chip routes to `#msg-<id>` anchor but messages don't yet scroll-to + flash-highlight the target row. Small addition to message-list that listens to URL hash and pulses the matched row.
   - **(c) Home execution pulse velocity** — a 7-day sparkline of open-item delta per channel on `channel_execution_pulse[]` rows would add momentum signal without heavy new backend aggregates.
   - **(d) `GET /users/me?include=unread_mention_count`** — cheaper endpoint than `GET /home` for primary-nav badge refresh after actions that mark mentions read.
+- **Codex synthesis for Phase 67 priority**:
+  - `P0`: execution-panel realtime parity via websocket events for list items and tool runs
+  - `P0`: source-message jump + flash-highlight so message-linked tasks feel first-class
+  - `P1`: lighter unread-mention badge hydration path than full `GET /home`
+  - `P1`: richer Home pulse momentum signals once live execution events are in place
 - **Windsurf → Nikko Fu**: Channel Execution Hub is now end-to-end functional:
   - Open any channel → click violet `Zap` **Execution** → `New List` with one click, or `Run Tool` with writeback target.
   - From any message 3-dots menu → **Add to list** opens the dialog with AI draft fallback.
