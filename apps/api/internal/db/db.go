@@ -55,6 +55,7 @@ func InitDB() error {
 		&domain.Draft{},
 		&domain.UnreadMarker{},
 		&domain.NotificationRead{},
+		&domain.NotificationItem{},
 		&domain.NotificationPreference{},
 		&domain.NotificationMuteRule{},
 		&domain.AIFeedback{},

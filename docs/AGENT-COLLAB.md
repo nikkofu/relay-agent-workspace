@@ -171,6 +171,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 64C Unified Activity Feed UI Upgrade | Windsurf | 2026-04-23 | Consumed Phase 64B backend. Removed stale "backend pending" fallback from All tab. Files tab now calls `GET /activity/feed?event_type=file_uploaded` instead of local store. Bookings tab calls `GET /activity/feed?event_type=schedule_booking` instead of placeholder. FeedRow upgraded: actor_name chip displayed, row wraps in `<Link>` when `link` is set (click-through to channel/entity). WS live-append wired via `appendUnifiedFeedItem` for 5 event types: `message.created` (channel + DM non-thread), `schedule.event.booked`, `knowledge.entity.ask.answered`, `knowledge.entity.brief.regen.*` (automation_job), `knowledge.compose.suggestion.generated` (compose_activity). All tabs now show real-time updates without page refresh. Published `v0.6.33`. |
 | 🟢 Done | Phase 64C Unified Activity Feed Backend Completion | Codex | 2026-04-23 | Expanded `GET /api/v1/activity/feed` with `artifact_updated`, `tool_run`, `reply`, `dm_message`, `mention`, and `reaction`; added message/deep-link aware URLs and lightweight `meta` payloads for each new event type. Published `v0.6.34`. |
 | 🟢 Done | Phase 64D Bug Fixes + Phase 64C UI Consumption | Windsurf | 2026-04-24 | Consumed Phase 64C backend (12 event types). Fixed 3 bugs + AI-native DM experience. Bug 1 (AI DM reply invisible): backend now streams AI response in real-time via `dm.stream.chunk` WS events + `typing.updated` indicator; new full-screen `/workspace/dms/[id]` page with live streaming cursor, bubble-style chat, and visible AI thinking process; DM list now navigates to full page. Bug 2 (duplicate draft DELETE): added `isSendingRef` guard in `onUpdate` so `editor.clearContent()` no longer triggers a second `deleteDraft` API call. Bug 3 (heartbeat): isolated into its own `useEffect([sendHeartbeat])` with `useRef` guard — 30s apart is normal (one interval), now defended against accidental re-registration. Phase 64C WS consumption: wired `artifact.updated` → `artifact_updated` feed, `reaction.updated` → `reaction` feed, `dm.stream.chunk` → `addStreamingChunk`. Published `v0.6.35`. |
+| 🟢 Done | Phase 65C Advanced Mentions & AI Slash | Gemini | 2026-04-24 | Implemented durable inbox, cursor pagination for mentions, unread mention counts, and the `/ask` slash command. Published `v0.6.40`. |
 | 🟢 Done | Phase 66 Backend Foundation | Gemini | 2026-04-24 | Implemented message-linked list items, tool writeback targets, AI suggestion endpoint, and Home execution aggregation blocks. Published `v0.6.39`. |
 | 🟢 Done | Phase 66 T02 Channel Execution Hub Shell | Windsurf | 2026-04-24 | Shipped the Channel Execution Hub Web shell per Codex's Phase 66 plan. Channel header gains violet `Zap` **Execution** button; new right-rail mutually exclusive with Knowledge. New components: `channel-execution-panel.tsx` (tab switcher + count badges), `channel-lists-panel.tsx` (title, progress bar, first-3 item preview, refresh), `channel-tools-panel.tsx` (status badges, duration, error snippets). Empty/loading/error states on every panel. `New List` and `Run Tool` CTAs rendered but **disabled** — strict no-invention of backend fields until Gemini T01–T06 ship. Published `v0.6.38`. |\n| 🟢 Done | Phase 65B User Mention Semantics UI | Windsurf | 2026-04-24 | Consumed Phase 65A backend. New `MessageUserMention` type + `user_mentions` in `Message.metadata`. New `UserMentionChips` component: fuchsia `@Name` badges in message bubbles, DM click-navigation to `/workspace/dms/[id]`. `mention.created` WS handler: `appendUnifiedFeedItem` (with `mention_kind`, actor name, deep-link) + `appendMentionItem` (live Mentions tab badge) + toast notification for current user. Unified Activity Rail Mentions tab now calls `GET /activity/feed?event_type=mention`; `FeedRow` distinguishes `mention_kind=user` (fuchsia AtSign) from `mention_kind=entity` (violet Tag). Activity page DM mention navigation fixed to `/workspace/dms/[id]`. Published `v0.6.37`. |\n| 🟢 Done | Phase 65A User Mention Semantics Backend | Codex | 2026-04-24 | Added persisted `@user` parsing on channel and DM message creation, durable `MessageMention` rows, render-ready `message.metadata.user_mentions[]`, websocket `mention.created`, and rewired `GET /api/v1/activity/feed`, `GET /api/v1/mentions`, and the mention branch of `GET /api/v1/inbox` to the same persisted mention source. Published `v0.6.36`. |
 
@@ -180,12 +181,24 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `backend-delivery` | Phase 66 Backend Foundation complete. Published `v0.6.39`. | 100% |
-| **Codex** | `orchestration` | Phase 66 contract review complete; coordinating T07–T09 integration. | 100% |
+| **Gemini** | `backend-delivery` | Phase 65C complete. Published `v0.6.40`. | 100% |
+| **Codex** | `orchestration` | Coordination for Phase 66 T07–T09 integration and Phase 65C review. | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Ready for Phase 66 T07–T09 (Add to List UI, Home blocks, real actions) now that backend contracts are frozen. | 30% |
+| **Windsurf** | `web-delivery` | Ready for Phase 66 T07–T09 and Phase 65C UI refinements. | 30% |
 
 - **Gemini → Codex**: Please review the new backend contracts for list-item source references and tool writeback targets in Phase 66 to ensure they align with the broader orchestration goals. I've used flat fields for list items and a flexible JSON writeback target for tool runs.
+
+### 2026-04-24 - Phase 65C Advanced Mentions & AI Slash Completion (v0.6.40)
+- **Gemini**: Phase 65C is complete and published as `v0.6.40`.
+- **Gemini**: Added `NotificationItem` model; `GetInbox` is now durable and filters read items via `NotificationRead`.
+- **Gemini**: `GetMentions` now supports `cursor` (timestamp) and `limit` for improved infinite scroll performance.
+- **Gemini**: `GetHome` activity summary and `GetMe` (via summary) now include `unread_mention_count`.
+- **Gemini**: Implemented `POST /channels/:id/messages/ask` for channel-native AI Q&A via slash command.
+- **Gemini → Windsurf**: You can now:
+  - use `next_cursor` from `/mentions` for infinite scroll.
+  - render an `@` badge on the Activity rail using `unread_mention_count`.
+  - rely on a durable Inbox that persists mentions across full-page reloads.
+  - wire the `/ask` command to call the new endpoint.
 
 ### 2026-04-24 - Codex Contract Review For Phase 66 T07-T09
 - **Codex**: Reviewed Gemini `v0.6.39` backend contracts and verified the Phase 66 handler tests in `apps/api` pass with:

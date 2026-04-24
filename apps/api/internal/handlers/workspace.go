@@ -44,12 +44,13 @@ type userProfileSummary struct {
 }
 
 type homeActivitySummary struct {
-	UnreadCount   int `json:"unread_count"`
-	DraftCount    int `json:"draft_count"`
-	DMCount       int `json:"dm_count"`
-	StarredCount  int `json:"starred_count"`
-	GroupCount    int `json:"group_count"`
-	WorkflowCount int `json:"workflow_count"`
+	UnreadCount        int `json:"unread_count"`
+	UnreadMentionCount int `json:"unread_mention_count"`
+	DraftCount         int `json:"draft_count"`
+	DMCount            int `json:"dm_count"`
+	StarredCount       int `json:"starred_count"`
+	GroupCount         int `json:"group_count"`
+	WorkflowCount      int `json:"workflow_count"`
 }
 
 type homeStatsResponse struct {
@@ -447,12 +448,13 @@ func GetHome(c *gin.Context) {
 	db.DB.Model(&domain.UserGroupMember{}).Where("user_id = ?", currentUser.ID).Count(&groupCount)
 
 	activity := homeActivitySummary{
-		UnreadCount:   sumUnreadChannels(),
-		DraftCount:    len(drafts),
-		DMCount:       len(recentDMs),
-		StarredCount:  len(starredChannels),
-		GroupCount:    int(groupCount),
-		WorkflowCount: len(workflows),
+		UnreadCount:        sumUnreadChannels(),
+		UnreadMentionCount: countUnreadMentions(currentUser.ID),
+		DraftCount:         len(drafts),
+		DMCount:            len(recentDMs),
+		StarredCount:       len(starredChannels),
+		GroupCount:         int(groupCount),
+		WorkflowCount:      len(workflows),
 	}
 	stats := homeStatsResponse{
 		PendingActions: activity.UnreadCount,

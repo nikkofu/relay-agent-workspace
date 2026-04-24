@@ -540,6 +540,29 @@ func persistMessageMentions(messageID, workspaceID, channelID, dmID, mentionedBy
 		mention.Name = loadUserNameByID(mention.UserID)
 		persisted = append(persisted, mention)
 
+		// Create durable notification item
+		actorName := loadUserNameByID(mentionedByUserID)
+		summary := actorName + " mentioned you"
+		if channelID != "" {
+			var ch domain.Channel
+			if err := db.DB.First(&ch, "id = ?", channelID).Error; err == nil {
+				summary = actorName + " mentioned you in #" + ch.Name
+			}
+		}
+		notify := domain.NotificationItem{
+			ID:         ids.NewPrefixedUUID("notify"),
+			UserID:     mention.UserID,
+			Type:       "mention",
+			ActorID:    mentionedByUserID,
+			ChannelID:  channelID,
+			DMID:       dmID,
+			MessageID:  messageID,
+			Summary:    summary,
+			OccurredAt: now,
+			CreatedAt:  now,
+		}
+		db.DB.Create(&notify)
+
 		if err := broadcastMentionCreatedEvent(workspaceID, channelID, messageID, gin.H{
 			"message_id":           messageID,
 			"mentioned_user_id":    mention.UserID,
@@ -1071,7 +1094,10 @@ func GetMe(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"user": enrichUser(user)})
+	c.JSON(http.StatusOK, gin.H{
+		"user":          enrichUser(user),
+		"mention_count": countUnreadMentions(user.ID),
+	})
 }
 
 func GetMeSettings(c *gin.Context) {
@@ -2005,7 +2031,57 @@ func GetInbox(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"items": buildActivityFeed(currentUser)})
+	var items []domain.NotificationItem
+	if err := db.DB.Where("user_id = ?", currentUser.ID).Order("occurred_at desc").Find(&items).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load inbox"})
+		return
+	}
+
+	// Filter out items already read
+	var readItems []domain.NotificationRead
+	db.DB.Where("user_id = ?", currentUser.ID).Find(&readItems)
+	readMap := make(map[string]bool)
+	for _, r := range readItems {
+		readMap[r.ItemID] = true
+	}
+
+	filtered := make([]activityItem, 0)
+	for _, item := range items {
+		if readMap[item.ID] {
+			continue
+		}
+
+		// Convert NotificationItem to activityItem for backward compatibility
+		var actor domain.User
+		db.DB.First(&actor, "id = ?", item.ActorID)
+
+		act := activityItem{
+			ID:         item.ID,
+			Type:       item.Type,
+			Summary:    item.Summary,
+			OccurredAt: item.OccurredAt,
+			User:       enrichUser(actor),
+		}
+
+		if item.ChannelID != "" {
+			var channel domain.Channel
+			if err := db.DB.First(&channel, "id = ?", item.ChannelID).Error; err == nil {
+				act.Channel = channel
+				act.Target = "#" + channel.Name
+			}
+		}
+
+		if item.MessageID != "" {
+			var message domain.Message
+			if err := db.DB.First(&message, "id = ?", item.MessageID).Error; err == nil {
+				act.Message = message
+			}
+		}
+
+		filtered = append(filtered, act)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"items": filtered})
 }
 
 func GetMentions(c *gin.Context) {
@@ -2015,14 +2091,80 @@ func GetMentions(c *gin.Context) {
 		return
 	}
 
-	items := make([]activityItem, 0)
-	for _, item := range buildActivityFeed(currentUser) {
-		if item.Type == "mention" {
-			items = append(items, item)
+	limitStr := c.DefaultQuery("limit", "20")
+	limit, _ := strconv.Atoi(limitStr)
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+
+	cursor := c.Query("cursor")
+
+	query := db.DB.Where("mentioned_user_id = ? AND mentioned_by_user_id <> ? AND mention_kind = ?", currentUser.ID, currentUser.ID, "user").Order("created_at desc").Limit(limit + 1)
+	if cursor != "" {
+		if t, err := time.Parse(time.RFC3339Nano, cursor); err == nil {
+			query = query.Where("created_at < ?", t)
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{"items": items})
+	var mentionRows []domain.MessageMention
+	if err := query.Find(&mentionRows).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load mentions"})
+		return
+	}
+
+	items := make([]activityItem, 0)
+	for i, mention := range mentionRows {
+		if i >= limit {
+			break
+		}
+
+		var actor domain.User
+		if err := db.DB.First(&actor, "id = ?", mention.MentionedByUserID).Error; err != nil {
+			continue
+		}
+
+		item := activityItem{
+			ID:         "activity-mention-" + mention.ID,
+			Type:       "mention",
+			User:       enrichUser(actor),
+			Message:    nil,
+			Target:     "DM",
+			Summary:    actor.Name + " mentioned you",
+			OccurredAt: mention.CreatedAt,
+		}
+
+		if mention.ChannelID != "" {
+			var message domain.Message
+			if err := db.DB.First(&message, "id = ?", mention.MessageID).Error; err == nil {
+				item.Message = message
+			}
+			var channel domain.Channel
+			if err := db.DB.First(&channel, "id = ?", mention.ChannelID).Error; err == nil {
+				item.Channel = channel
+				item.Target = "#" + channel.Name
+				item.Summary = actor.Name + " mentioned you in #" + channel.Name
+			}
+		} else if mention.DMID != "" {
+			var dmMessage domain.DMMessage
+			if err := db.DB.First(&dmMessage, "id = ?", mention.MessageID).Error; err == nil {
+				item.Message = dmMessage
+			}
+			item.Target = "Direct messages"
+			item.Summary = actor.Name + " mentioned you in a DM"
+		}
+
+		items = append(items, item)
+	}
+
+	nextCursor := ""
+	if len(mentionRows) > limit {
+		nextCursor = mentionRows[limit-1].CreatedAt.Format(time.RFC3339Nano)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"items":       items,
+		"next_cursor": nextCursor,
+	})
 }
 
 func MarkNotificationsRead(c *gin.Context) {
@@ -3366,4 +3508,23 @@ func MarkMessageUnread(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message_id": messageID, "unread": true})
+}
+
+func countUnreadMentions(userID string) int {
+	var total int64
+	// Count mentions for user
+	db.DB.Model(&domain.MessageMention{}).Where("mentioned_user_id = ? AND mentioned_by_user_id <> ? AND mention_kind = ?", userID, userID, "user").Count(&total)
+
+	// Count how many are read
+	var readCount int64
+	db.DB.Table("notification_reads").
+		Joins("JOIN message_mentions ON message_mentions.id = SUBSTR(notification_reads.item_id, 18)").
+		Where("notification_reads.user_id = ? AND notification_reads.item_id LIKE ?", userID, "activity-mention-%").
+		Count(&readCount)
+	
+	unread := int(total - readCount)
+	if unread < 0 {
+		return 0
+	}
+	return unread
 }

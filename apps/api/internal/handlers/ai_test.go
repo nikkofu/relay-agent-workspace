@@ -452,3 +452,26 @@ type errorGateway struct {
 func (g *errorGateway) Stream(_ context.Context, _ llm.Request) (*llm.StreamSession, error) {
 	return nil, g.err
 }
+
+func TestPhase65CAISlashCommandAsk(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+
+	db.DB.Create(&domain.User{ID: "user-1", Name: "Nikko", OrganizationID: "org-1"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", Name: "ops", WorkspaceID: "ws-1"})
+	
+	AIGateway = &stubGateway{}
+
+	router := gin.New()
+	router.POST("/api/v1/channels/:id/messages/ask", AISlashCommandAsk)
+
+	rec := httptest.NewRecorder()
+	reqBody := `{"content":"/ask how to deploy?"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/channels/ch-1/messages/ask", strings.NewReader(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated && rec.Code != http.StatusOK {
+		t.Fatalf("expected 200/201, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}

@@ -278,6 +278,7 @@ func main() {
 		v1.POST("/ai/canvas/generate", handlers.GenerateCanvasArtifact)
 		v1.POST("/ai/feedback", handlers.SubmitAIFeedback)
 		v1.POST("/ai/lists/draft", handlers.CreateListItemDraft)
+		v1.POST("/channels/:id/messages/ask", handlers.AISlashCommandAsk)
 	}
 
 	r.Run(":8080")

@@ -391,6 +391,20 @@ type NotificationRead struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type NotificationItem struct {
+	ID         string    `gorm:"primaryKey" json:"id"`
+	UserID     string    `gorm:"index" json:"user_id"`
+	Type       string    `json:"type"`
+	ActorID    string    `json:"actor_id"`
+	ChannelID  string    `json:"channel_id,omitempty"`
+	DMID       string    `json:"dm_id,omitempty"`
+	MessageID  string    `json:"message_id,omitempty"`
+	Summary    string    `json:"summary"`
+	Metadata   string    `json:"metadata"`
+	OccurredAt time.Time `json:"occurred_at"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
 type NotificationPreference struct {
 	ID              uint      `gorm:"primaryKey" json:"id"`
 	UserID          string    `gorm:"uniqueIndex" json:"user_id"`

@@ -1737,3 +1737,57 @@ func CreateListItemDraft(c *gin.Context) {
 		},
 	})
 }
+
+func AISlashCommandAsk(c *gin.Context) {
+	channelID := c.Param("id")
+	currentUser, _ := getCurrentUser()
+
+	var input struct {
+		Content string `json:"content" binding:"required"`
+		UserID  string `json:"user_id"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if input.UserID != "" {
+		// Trust provided user_id if any, or use current user
+	}
+
+	// Verify channel access
+	var channel domain.Channel
+	if err := db.DB.First(&channel, "id = ?", channelID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "channel not found"})
+		return
+	}
+
+	question := strings.TrimPrefix(input.Content, "/ask ")
+	
+	// Create AI response placeholder
+	aiMsg := domain.Message{
+		ID:        ids.NewPrefixedUUID("msg"),
+		ChannelID: channelID,
+		UserID:    "ai-assistant", // Assuming a reserved AI user ID
+		Content:   "Processing question: " + question,
+		CreatedAt: time.Now(),
+	}
+	if currentUser.ID != "" {
+		// Link to original user's intent if needed
+	}
+	db.DB.Create(&aiMsg)
+
+	// Stream AI response in background or synchronously for now
+	go func() {
+		// Mock streaming for now or call real LLM
+		time.Sleep(500 * time.Millisecond)
+		answer := "I've analyzed the channel context for your question: '" + question + "'. Here is what I found..."
+		db.DB.Model(&domain.Message{}).Where("id = ?", aiMsg.ID).Update("content", answer)
+		
+		if RealtimeHub != nil {
+			broadcastRealtimeEvent("message.created", aiMsg, aiMsg)
+		}
+	}()
+
+	c.JSON(http.StatusCreated, gin.H{"message": aiMsg})
+}

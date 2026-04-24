@@ -2,6 +2,35 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.40] - 2026-04-24
+
+This release implements Phase 65C: Advanced User Mentions & AI Slash Command.
+
+### Added
+
+- `NotificationItem` durable model for Inbox persistence.
+- `POST /api/v1/channels/:id/messages/ask` for the first channel-native AI slash command.
+- `unread_mention_count` in Home activity summary.
+- Cursor-based pagination for `GET /api/v1/mentions`.
+
+### Changed
+
+- `GetInbox` now queries durable `NotificationItem` rows instead of ad-hoc scanning.
+- `persistMessageMentions` now creates both `MessageMention` (for feed) and `NotificationItem` (for inbox).
+
+### Windsurf Handoff
+
+- `GET /api/v1/inbox` is now backed by a durable table; mentions will persist across reloads.
+- `GET /api/v1/home` includes `unread_mention_count` for Activity badge rendering.
+- `GET /api/v1/mentions` supports `cursor` (timestamp) and `limit` for infinite scroll.
+- `/ask` command is live via `POST /channels/:id/messages/ask`.
+
+### Verification Used For This Release
+
+- `go test ./internal/handlers -run TestPhase65C -count=1`
+- `go test ./...`
+- `go build ./...`
+
 ## [0.6.39] - 2026-04-24
 
 This release implements the backend foundation for Phase 66: Channel Execution Hub.

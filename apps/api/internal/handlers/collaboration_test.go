@@ -7335,7 +7335,7 @@ func setupTestDB(t *testing.T) {
 		t.Fatalf("failed to open sqlite test db: %v", err)
 	}
 	db.DB = testDB
-	if err := db.DB.AutoMigrate(&domain.Organization{}, &domain.Team{}, &domain.User{}, &domain.Agent{}, &domain.Workspace{}, &domain.WorkspaceInvite{}, &domain.UserGroup{}, &domain.UserGroupMember{}, &domain.WorkflowDefinition{}, &domain.WorkflowRunStep{}, &domain.WorkflowRunLog{}, &domain.ToolDefinition{}, &domain.ToolRun{}, &domain.ToolRunLog{}, &domain.Channel{}, &domain.ChannelMember{}, &domain.ChannelPreference{}, &domain.WorkspaceList{}, &domain.WorkspaceListItem{}, &domain.Message{}, &domain.MessageMention{}); err != nil {
+	if err := db.DB.AutoMigrate(&domain.Organization{}, &domain.Team{}, &domain.User{}, &domain.Agent{}, &domain.Workspace{}, &domain.WorkspaceInvite{}, &domain.UserGroup{}, &domain.UserGroupMember{}, &domain.WorkflowDefinition{}, &domain.WorkflowRunStep{}, &domain.WorkflowRunLog{}, &domain.ToolDefinition{}, &domain.ToolRun{}, &domain.ToolRunLog{}, &domain.Channel{}, &domain.ChannelMember{}, &domain.ChannelPreference{}, &domain.WorkspaceList{}, &domain.WorkspaceListItem{}, &domain.Message{}, &domain.MessageMention{}, &domain.NotificationItem{}, &domain.NotificationRead{}); err != nil {
 		t.Fatalf("failed to migrate test db: %v", err)
 	}
 	if err := db.DB.AutoMigrate(&domain.MessageReaction{}, &domain.SavedMessage{}, &domain.Draft{}, &domain.UnreadMarker{}, &domain.NotificationRead{}, &domain.NotificationPreference{}, &domain.NotificationMuteRule{}, &domain.AIFeedback{}, &domain.AIComposeFeedback{}, &domain.AIComposeActivity{}, &domain.AIAutomationJob{}, &domain.AIScheduleBooking{}, &domain.AIConversation{}, &domain.AIConversationMessage{}, &domain.AISummary{}, &domain.ChannelAutoSummarySetting{}, &domain.KnowledgeEntityAskAnswer{}, &domain.Artifact{}, &domain.ArtifactVersion{}, &domain.FileAsset{}, &domain.FileAssetEvent{}, &domain.FileExtraction{}, &domain.FileExtractionChunk{}, &domain.FileComment{}, &domain.FileShare{}, &domain.StarredFile{}, &domain.MessageArtifactReference{}, &domain.MessageFileAttachment{}, &domain.KnowledgeEvidenceLink{}, &domain.KnowledgeEvidenceEntityRef{}, &domain.KnowledgeEntity{}, &domain.KnowledgeEntityRef{}, &domain.KnowledgeEntityLink{}, &domain.KnowledgeEvent{}, &domain.KnowledgeEntityFollow{}, &domain.KnowledgeDigestSchedule{}, &domain.DMConversation{}, &domain.DMMember{}, &domain.DMMessage{}, &domain.WorkflowRun{}); err != nil {
@@ -7426,5 +7426,140 @@ func TestChannelExecutionHomeSummaryIncludesOverdue(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("expected summary to contain 'overdue'")
+	}
+}
+
+func TestPhase65CMentionPagination(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+
+	user := domain.User{ID: "user-1", Name: "Nikko", OrganizationID: "org-1", Email: "nikko@example.com"}
+	db.DB.Create(&user)
+	db.DB.Create(&domain.User{ID: "user-2", Name: "Actor", OrganizationID: "org-1", Email: "actor@example.com"})
+	
+	// Create 5 mentions
+	for i := 1; i <= 5; i++ {
+		db.DB.Create(&domain.MessageMention{
+			ID:                 fmt.Sprintf("mention-%d", i),
+			MessageID:          fmt.Sprintf("msg-%d", i),
+			MentionedUserID:    "user-1",
+			MentionedByUserID:  "user-2",
+			MentionKind:        "user",
+			CreatedAt:          time.Now().Add(time.Duration(i) * time.Minute),
+		})
+	}
+
+	router := gin.New()
+	router.GET("/api/v1/mentions", GetMentions)
+
+	// Fetch with limit 2
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/mentions?limit=2", nil)
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	var payload struct {
+		Items []any  `json:"items"`
+		Next  string `json:"next_cursor"`
+	}
+	json.Unmarshal(rec.Body.Bytes(), &payload)
+
+	if len(payload.Items) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(payload.Items))
+	}
+	if payload.Next == "" {
+		t.Fatal("expected next_cursor")
+	}
+}
+
+func TestPhase65CInboxUsesNotificationItem(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+
+	user := domain.User{ID: "user-1", Name: "Nikko", OrganizationID: "org-1", Email: "nikko@example.com"}
+	db.DB.Create(&user)
+	db.DB.Create(&domain.User{ID: "user-2", Name: "Actor", OrganizationID: "org-1", Email: "actor@example.com"})
+	
+	// Pre-populate a NotificationItem
+	db.DB.Create(&domain.NotificationItem{
+		ID:         "notify-1",
+		UserID:     "user-1",
+		Type:       "mention",
+		ActorID:    "user-2",
+		Summary:    "Someone mentioned you",
+		OccurredAt: time.Now(),
+	})
+
+	router := gin.New()
+	router.GET("/api/v1/inbox", GetInbox)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/inbox", nil)
+	router.ServeHTTP(rec, req)
+
+	var payload struct {
+		Items []struct {
+			ID string `json:"id"`
+		} `json:"items"`
+	}
+	json.Unmarshal(rec.Body.Bytes(), &payload)
+
+	found := false
+	for _, item := range payload.Items {
+		if item.ID == "notify-1" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("expected notify-1 in inbox")
+	}
+}
+
+func TestPhase65CHomeIncludesUnreadMentionCount(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+
+	user := domain.User{ID: "user-1", Name: "Nikko", OrganizationID: "org-1", Email: "nikko@example.com"}
+	db.DB.Create(&user)
+	db.DB.Create(&domain.User{ID: "user-2", Name: "Actor", OrganizationID: "org-1", Email: "actor@example.com"})
+	
+	// Create 3 unread mentions
+	for i := 1; i <= 3; i++ {
+		db.DB.Create(&domain.MessageMention{
+			ID:                 fmt.Sprintf("mention-%d", i),
+			MessageID:          fmt.Sprintf("msg-%d", i),
+			MentionedUserID:    "user-1",
+			MentionedByUserID:  "user-2",
+			MentionKind:        "user",
+			CreatedAt:          time.Now(),
+		})
+	}
+
+	router := gin.New()
+	router.GET("/api/v1/home", GetHome)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/home", nil)
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	var payload struct {
+		Home struct {
+			Activity struct {
+				UnreadMentionCount int `json:"unread_mention_count"`
+			} `json:"activity"`
+		} `json:"home"`
+	}
+	json.Unmarshal(rec.Body.Bytes(), &payload)
+
+	if payload.Home.Activity.UnreadMentionCount != 3 {
+		t.Fatalf("expected 3 unread mentions, got %d", payload.Home.Activity.UnreadMentionCount)
 	}
 }
