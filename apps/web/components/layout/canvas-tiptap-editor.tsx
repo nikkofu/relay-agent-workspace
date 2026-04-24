@@ -51,6 +51,8 @@ export function CanvasTipTapEditor({
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
+        // Disable the built-in Link mark — we add the extension below.
+        link: false,
       }),
       Placeholder.configure({ placeholder }),
       TiptapLink.configure({

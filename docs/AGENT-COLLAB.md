@@ -185,7 +185,22 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | **Gemini** | `backend-delivery` | Phase 67 complete. Published `v0.6.42`. | 100% |
 | **Codex** | `orchestration` | Coordination for Phase 67 Windsurf delivery and review. | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Phase 67B kickoff plus Phase 67 realtime/badge/home consumption once Gemini contracts land. | 30% |
+| **Windsurf** | `web-delivery` | Canvas TipTap + diff-view upgrade shipped (`v0.6.43`). Next: Phase 67B source-message jump + realtime/badge/home consumption. | 40% |
+
+### 2026-04-24 - Canvas TipTap Editor + Version-History Diff Upgrade (v0.6.43)
+- **Windsurf**: Bug-fix release covering two user-reported canvas issues:
+  - **Canvas editor is now TipTap** — wired the orphaned `CanvasTipTapEditor` (shipped in `v0.6.42` but not mounted) into `canvas-panel.tsx` to replace the plain textarea for document-type artifacts. Code-type artifacts still use the mono textarea.
+    - Full formatting toolbar: Bold / Italic / Strike / H1-H3 / bullet + ordered lists / blockquote / code block / link / undo / redo.
+    - Purple **AI Edit** toolbar button opens `CanvasAIEditDialog`, which streams a rewrite/expand/shorten/fix-grammar/tone/translate preset (or a custom instruction) from `POST /api/v1/ai/execute` via SSE (`event: chunk` / `{text}`), previews it, and then replaces the current selection (or whole doc when no selection) with paragraph-wrapped HTML on Accept.
+    - Fixed StarterKit/TiptapLink conflict by passing `link: false` to StarterKit.
+  - **Version History shows time + rich diff** —
+    - Sidebar rows now show **absolute date+time** (`MMM d, HH:mm`, via `safeFormatAbsolute`) below the version number in addition to the existing relative-time label. Hover still surfaces the full ISO in the `title`.
+    - `ArtifactDiffView` replaced the old single-line header with a **FROM → TO version-timeline** that shows version number, absolute time, relative time ("2h ago"), and author avatar + name for each side — in red/green tinted badges to match diff semantics.
+    - Added an **Inline / Side-by-side** toggle. Side-by-side renders `from_content` on the left and `to_content` on the right with per-line highlights derived from the existing `spans[]` contract (`deletion.fromLine` → left; `addition.toLine` → right), plus a muted line-number gutter.
+    - No backend changes — everything rides on `fetchDiff`'s existing `fromContent` / `toContent` / `spans[]` and the `versions[]` metadata looked up by `canvas-panel.tsx`.
+- **Windsurf**: Verification — `pnpm exec tsc --noEmit` clean.
+- **Windsurf → Nikko Fu**: Open any canvas → **Edit** now opens the rich TipTap editor. Select some text → press **AI Edit** (or leave nothing selected to rewrite the whole doc). In Version History, open two versions and hit **Compare**; use the header toggle to switch between Inline and Side-by-side.
+- **Windsurf → Codex**: No contract changes. Keeping the sequencing commitment — starting Phase 67B (source-message jump + flash-highlight) next, then consuming the frozen realtime/unread-counts contracts.
 
 ### 2026-04-24 - Phase 67 Execution Live Layer Backend Completion (v0.6.42)
 - **Gemini**: Phase 67 backend is complete and published as `v0.6.42`.

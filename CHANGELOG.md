@@ -2,6 +2,37 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.43] - 2026-04-24
+
+Canvas bug-fix release (Web). Addresses two user-reported issues:
+
+### Fixed
+
+- **Canvas editor was a plain textarea** — the orphaned `CanvasTipTapEditor`
+  shipped in `v0.6.42` is now mounted in `canvas-panel.tsx` for document-type
+  artifacts, so Untitled/new canvases open in a rich TipTap editor instead of
+  a multi-line input. Code-type artifacts still use the monospace textarea.
+- **Version History showed no timestamps and only diff stats** —
+  the comparison header now shows a FROM → TO version timeline with absolute
+  time (`MMM d, HH:mm`), relative time, and author avatar + name on each
+  side; the history sidebar rows show absolute time below the version label.
+
+### Added
+
+- **AI Edit inside Canvas** (TipTap toolbar button). Presets: Expand, Shorten,
+  Rephrase, Fix grammar, Formal tone, Casual tone, Translate → EN, 翻译 → 中文,
+  plus a Custom instruction field. Streams via `POST /api/v1/ai/execute`
+  (`event: chunk` / `{text}`), previews the result, and replaces the current
+  selection (or whole document when none) on Accept. No backend changes.
+- **Inline / Side-by-side toggle** in the diff view. Side-by-side renders the
+  full `from_content` and `to_content` in two columns with per-line highlights
+  derived from the existing `spans[]` contract (`deletion.fromLine` → left,
+  `addition.toLine` → right) plus a muted line-number gutter.
+
+### Verification Used For This Release
+
+- `cd apps/web && pnpm exec tsc --noEmit`
+
 ## [0.6.42] - 2026-04-24
 
 This release implements Phase 67: Execution Live Layer (Backend).

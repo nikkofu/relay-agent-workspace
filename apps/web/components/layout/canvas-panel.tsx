@@ -10,8 +10,9 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 import { UserAvatar } from "@/components/common/user-avatar"
-import { formatDistanceToNow } from "date-fns"
+import { formatDistanceToNow, format } from "date-fns"
 import { ArtifactDiffView } from "./artifact-diff-view"
+import { CanvasTipTapEditor } from "./canvas-tiptap-editor"
 
 export function CanvasPanel() {
   const { isCanvasOpen, closeCanvas, activeCanvasId } = useUIStore()
@@ -426,10 +427,19 @@ export function CanvasPanel() {
                         )}
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-bold">Version {v.version}</span>
-                          <span className="text-[9px] text-muted-foreground">
+                          <span
+                            className="text-[9px] text-muted-foreground"
+                            title={v.updatedAt ? safeFormatAbsolute(v.updatedAt) : undefined}
+                          >
                             {v.updatedAt ? formatDistanceToNow(new Date(v.updatedAt), { addSuffix: true }) : '—'}
                           </span>
                         </div>
+                        {/* Absolute date+time under the version label — always visible for clarity */}
+                        {v.updatedAt && (
+                          <span className="text-[9px] text-muted-foreground/70 tabular-nums">
+                            {safeFormatAbsolute(v.updatedAt)}
+                          </span>
+                        )}
                         {v.updatedByUser && (
                           <div className="flex items-center gap-1.5 mt-0.5">
                             <UserAvatar src={v.updatedByUser.avatar} name={v.updatedByUser.name} className="h-3 w-3" />
@@ -489,17 +499,30 @@ export function CanvasPanel() {
           ) : null}
 
           {isComparing ? (
-            <ArtifactDiffView diff={currentDiff} />
+            <ArtifactDiffView
+              diff={currentDiff}
+              fromVersionMeta={versions.find(v => v.version === currentDiff.fromVersion)}
+              toVersionMeta={versions.find(v => v.version === currentDiff.toVersion)}
+            />
           ) : (
             <ScrollArea className="flex-1">
               <div className="p-8 max-w-3xl mx-auto">
                 {isEditing && !selectedVersion ? (
-                  <textarea
-                    className="w-full min-h-[500px] bg-transparent border-none outline-none resize-none font-mono text-sm leading-relaxed"
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    spellCheck={false}
-                  />
+                  activeArtifact.type === "code" ? (
+                    <textarea
+                      className="w-full min-h-[500px] bg-transparent border-none outline-none resize-none font-mono text-sm leading-relaxed"
+                      value={content}
+                      onChange={(e) => setContent(e.target.value)}
+                      spellCheck={false}
+                    />
+                  ) : (
+                    <CanvasTipTapEditor
+                      content={content}
+                      onChange={setContent}
+                      channelId={activeArtifact.channelId || currentChannel?.id || ""}
+                      autoFocus
+                    />
+                  )
                 ) : (
                   <div 
                     className={cn(
@@ -538,4 +561,16 @@ function PlusBadge({ className }: { className?: string }) {
       +
     </div>
   )
+}
+
+// Formats an ISO timestamp as "MMM d, HH:mm" safely. Empty string on bad input
+// so the version-history row never renders "Invalid Date".
+function safeFormatAbsolute(ts: string): string {
+  try {
+    const d = new Date(ts)
+    if (isNaN(d.getTime())) return ""
+    return format(d, "MMM d, HH:mm")
+  } catch {
+    return ""
+  }
 }
