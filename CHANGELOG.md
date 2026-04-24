@@ -2,6 +2,22 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.47] - 2026-04-24
+
+Backend Stability & Inbox Parity. Fixes test debt and completes the durable inbox story.
+
+### Fixed
+
+- **Inbox Parity** — Updated `GetInbox` to return all items (including read ones with `IsRead: true`) to match legacy behavior and support frontend history browsing.
+- **Durable Signals** — Updated `ToggleReaction` and `CreateMessage` (for thread replies) to create `NotificationItem` rows. All core interaction signals (mentions, reactions, replies) are now durable and survive page reloads.
+- **Test Debt** — Fixed three pre-existing failing tests in `collaboration_test.go` (`TestPhase65AInboxMentionBranchUsesMessageMention`, `TestGetInboxReturnsAggregatedSignals`, `TestInboxIncludesReadState...`) by aligning them with the Phase 65C durable notification model.
+
+### Added
+
+- `NotificationItem` support for `reaction` and `thread_reply` types.
+- Automatic inbox notification when a thread owner receives a reply from another user.
+- Automatic inbox notification when a message owner receives a reaction from another user.
+
 ## [0.6.46] - 2026-04-24
 
 Canvas AI Dock diagnostics (Web + API). Makes `POST /api/v1/ai/execute`

@@ -1898,6 +1898,7 @@ func TestGetActivityReturnsRecentWorkspaceSignals(t *testing.T) {
 	mention := domain.Message{ID: "msg-mention", ChannelID: "ch-1", UserID: "user-2", Content: "@Nikko Fu for review", CreatedAt: now.Add(-30 * time.Minute), Metadata: `{"user_mentions":[{"user_id":"user-1","name":"Nikko Fu","mention_text":"@Nikko Fu"}]}`}
 	db.DB.Create(&parent)
 	db.DB.Create(&reply)
+	db.DB.Create(&domain.NotificationItem{ID: "notify-thread", UserID: "user-1", Type: "thread_reply", ActorID: "user-3", ChannelID: "ch-1", MessageID: "msg-reply", Summary: "Jane Smith replied to your thread in #general", OccurredAt: now.Add(-time.Hour)})
 	db.DB.Create(&mention)
 	db.DB.Create(&domain.MessageMention{ID: "mm-activity-1", MessageID: "msg-mention", WorkspaceID: "ws-1", ChannelID: "ch-1", MentionedUserID: "user-1", MentionedByUserID: "user-2", MentionText: "@Nikko Fu", MentionKind: "user", CreatedAt: now.Add(-30 * time.Minute)})
 	db.DB.Create(&domain.MessageReaction{MessageID: "msg-parent", UserID: "user-2", Emoji: "🔥", CreatedAt: now.Add(-20 * time.Minute)})
@@ -1967,14 +1968,24 @@ func TestGetInboxReturnsAggregatedSignals(t *testing.T) {
 	mention := domain.Message{ID: "msg-mention", ChannelID: "ch-1", UserID: "user-2", Content: "@Nikko Fu for review", CreatedAt: now.Add(-30 * time.Minute), Metadata: `{"user_mentions":[{"user_id":"user-1","name":"Nikko Fu","mention_text":"@Nikko Fu"}]}`}
 	db.DB.Create(&parent)
 	db.DB.Create(&reply)
+	db.DB.Create(&domain.NotificationItem{ID: "notify-thread", UserID: "user-1", Type: "thread_reply", ActorID: "user-3", ChannelID: "ch-1", MessageID: "msg-reply", Summary: "Jane Smith replied to your thread in #general", OccurredAt: now.Add(-time.Hour)})
 	db.DB.Create(&mention)
 	db.DB.Create(&domain.MessageMention{ID: "mm-inbox-1", MessageID: "msg-mention", WorkspaceID: "ws-1", ChannelID: "ch-1", MentionedUserID: "user-1", MentionedByUserID: "user-2", MentionText: "@Nikko Fu", MentionKind: "user", CreatedAt: now.Add(-30 * time.Minute)})
+	db.DB.Create(&domain.NotificationItem{ID: "notify-mention", UserID: "user-1", Type: "mention", ActorID: "user-2", ChannelID: "ch-1", MessageID: "msg-mention", Summary: "AI Assistant mentioned you in #general", OccurredAt: now.Add(-30 * time.Minute)})
+
 	db.DB.Create(&domain.MessageReaction{MessageID: "msg-parent", UserID: "user-2", Emoji: "🔥", CreatedAt: now.Add(-20 * time.Minute)})
+	db.DB.Create(&domain.NotificationItem{ID: "notify-reaction", UserID: "user-1", Type: "reaction", ActorID: "user-2", ChannelID: "ch-1", MessageID: "msg-parent", Summary: "AI Assistant reacted 🔥 to your message in #general", OccurredAt: now.Add(-20 * time.Minute)})
+
 	db.DB.Create(&domain.WorkspaceList{ID: "list-1", WorkspaceID: "ws-1", ChannelID: "ch-1", Title: "Launch Checklist", CreatedBy: "user-2", CreatedAt: now.Add(-18 * time.Minute), UpdatedAt: now.Add(-14 * time.Minute)})
 	db.DB.Create(&domain.WorkspaceListItem{ID: 1, ListID: "list-1", Content: "Review launch copy", Position: 1, IsCompleted: true, AssignedTo: "user-1", CompletedAt: ptrTime(now.Add(-14 * time.Minute)), CreatedBy: "user-2", CreatedAt: now.Add(-18 * time.Minute), UpdatedAt: now.Add(-14 * time.Minute)})
+	db.DB.Create(&domain.NotificationItem{ID: "notify-list", UserID: "user-1", Type: "list_item_completed", ActorID: "user-2", ChannelID: "ch-1", Summary: "AI Assistant completed Review launch copy in #general", OccurredAt: now.Add(-14 * time.Minute)})
+
 	db.DB.Create(&domain.ToolDefinition{ID: "tool-1", Name: "Web Search", Key: "web-search", Category: "research", Description: "Search current information", Icon: "search", IsEnabled: true, CreatedAt: now.Add(-time.Hour), UpdatedAt: now.Add(-time.Hour)})
 	db.DB.Create(&domain.ToolRun{ID: "toolrun-1", ToolID: "tool-1", TriggeredBy: "user-1", Status: "success", Input: `{"channel_id":"ch-1"}`, Summary: "Executed Web Search", StartedAt: now.Add(-12 * time.Minute), CompletedAt: ptrTime(now.Add(-11 * time.Minute)), CreatedAt: now.Add(-12 * time.Minute), UpdatedAt: now.Add(-11 * time.Minute)})
+	db.DB.Create(&domain.NotificationItem{ID: "notify-tool", UserID: "user-1", Type: "tool_run_completed", ActorID: "user-1", ChannelID: "ch-1", Summary: "Tool Web Search completed successfully in #general", OccurredAt: now.Add(-11 * time.Minute)})
+
 	db.DB.Create(&domain.FileAsset{ID: "file-1", ChannelID: "ch-1", UploaderID: "user-2", Name: "brief.md", StoragePath: "brief.md", ContentType: "text/markdown", SizeBytes: 256, CreatedAt: now.Add(-10 * time.Minute), UpdatedAt: now.Add(-10 * time.Minute)})
+	db.DB.Create(&domain.NotificationItem{ID: "notify-file", UserID: "user-1", Type: "file_uploaded", ActorID: "user-2", ChannelID: "ch-1", Summary: "AI Assistant uploaded brief.md in #general", OccurredAt: now.Add(-10 * time.Minute)})
 
 	router := gin.New()
 	router.GET("/api/v1/inbox", GetInbox)
@@ -2489,6 +2500,7 @@ func TestInboxIncludesReadStateAndNotificationsCanBeMarkedRead(t *testing.T) {
 		MentionKind:       "user",
 		CreatedAt:         now,
 	})
+	db.DB.Create(&domain.NotificationItem{ID: "mm-read-1", UserID: "user-1", Type: "mention", ActorID: "user-2", ChannelID: "ch-1", MessageID: "msg-mention", Summary: "AI Assistant mentioned you in #general", OccurredAt: now})
 
 	router := gin.New()
 	router.GET("/api/v1/inbox", GetInbox)
@@ -6782,6 +6794,7 @@ func TestPhase65AInboxMentionBranchUsesMessageMention(t *testing.T) {
 	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public"})
 	db.DB.Create(&domain.Message{ID: "msg-1", ChannelID: "ch-1", UserID: "user-2", Content: "@Nikko Fu please review", CreatedAt: now.Add(-10 * time.Minute), Metadata: `{"user_mentions":[{"user_id":"user-1","name":"Nikko Fu","mention_text":"@Nikko Fu"}]}`})
 	db.DB.Create(&domain.MessageMention{ID: "mm-1", MessageID: "msg-1", WorkspaceID: "ws-1", ChannelID: "ch-1", MentionedUserID: "user-1", MentionedByUserID: "user-2", MentionText: "@Nikko Fu", MentionKind: "user", CreatedAt: now.Add(-10 * time.Minute)})
+	db.DB.Create(&domain.NotificationItem{ID: "notify-1", UserID: "user-1", Type: "mention", ActorID: "user-2", ChannelID: "ch-1", MessageID: "msg-1", Summary: "Jane Smith mentioned you in #general", OccurredAt: now.Add(-10 * time.Minute)})
 
 	router := gin.New()
 	router.GET("/api/v1/inbox", GetInbox)

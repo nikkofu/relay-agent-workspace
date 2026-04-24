@@ -2047,10 +2047,6 @@ func GetInbox(c *gin.Context) {
 
 	filtered := make([]activityItem, 0)
 	for _, item := range items {
-		if readMap[item.ID] {
-			continue
-		}
-
 		// Convert NotificationItem to activityItem for backward compatibility
 		var actor domain.User
 		db.DB.First(&actor, "id = ?", item.ActorID)
@@ -2061,6 +2057,7 @@ func GetInbox(c *gin.Context) {
 			Summary:    item.Summary,
 			OccurredAt: item.OccurredAt,
 			User:       enrichUser(actor),
+			IsRead:     readMap[item.ID],
 		}
 
 		if item.ChannelID != "" {
@@ -3268,6 +3265,29 @@ func CreateMessage(c *gin.Context) {
 				"reply_count":   gorm.Expr("reply_count + ?", 1),
 				"last_reply_at": &lastReplyAt,
 			})
+
+		// Create notification for thread owner if it's not self-reply
+		var parent domain.Message
+		if err := db.DB.First(&parent, "id = ?", input.ThreadID).Error; err == nil && parent.UserID != input.UserID {
+			actorName := loadUserNameByID(input.UserID)
+			summary := actorName + " replied to your thread"
+			var ch domain.Channel
+			if err := db.DB.First(&ch, "id = ?", input.ChannelID).Error; err == nil {
+				summary += " in #" + ch.Name
+			}
+			notify := domain.NotificationItem{
+				ID:         ids.NewPrefixedUUID("notify"),
+				UserID:     parent.UserID,
+				Type:       "thread_reply",
+				ActorID:    input.UserID,
+				ChannelID:  input.ChannelID,
+				MessageID:  msg.ID,
+				Summary:    summary,
+				OccurredAt: msg.CreatedAt,
+				CreatedAt:  msg.CreatedAt,
+			}
+			db.DB.Create(&notify)
+		}
 	}
 
 	if RealtimeHub != nil {
@@ -3319,6 +3339,28 @@ func ToggleReaction(c *gin.Context) {
 			return
 		}
 		added = true
+
+		// Create notification for message owner if it's not self-reaction
+		if added && message.UserID != currentUser.ID {
+			actorName := loadUserNameByID(currentUser.ID)
+			summary := actorName + " reacted " + input.Emoji + " to your message"
+			var ch domain.Channel
+			if err := db.DB.First(&ch, "id = ?", message.ChannelID).Error; err == nil {
+				summary += " in #" + ch.Name
+			}
+			notify := domain.NotificationItem{
+				ID:         ids.NewPrefixedUUID("notify"),
+				UserID:     message.UserID,
+				Type:       "reaction",
+				ActorID:    currentUser.ID,
+				ChannelID:  message.ChannelID,
+				MessageID:  messageID,
+				Summary:    summary,
+				OccurredAt: time.Now().UTC(),
+				CreatedAt:  time.Now().UTC(),
+			}
+			db.DB.Create(&notify)
+		}
 	case result.Error != nil:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load reaction"})
 		return

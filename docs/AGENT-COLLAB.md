@@ -171,6 +171,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | 🟢 Done | Phase 64C Unified Activity Feed UI Upgrade | Windsurf | 2026-04-23 | Consumed Phase 64B backend. Removed stale "backend pending" fallback from All tab. Files tab now calls `GET /activity/feed?event_type=file_uploaded` instead of local store. Bookings tab calls `GET /activity/feed?event_type=schedule_booking` instead of placeholder. FeedRow upgraded: actor_name chip displayed, row wraps in `<Link>` when `link` is set (click-through to channel/entity). WS live-append wired via `appendUnifiedFeedItem` for 5 event types: `message.created` (channel + DM non-thread), `schedule.event.booked`, `knowledge.entity.ask.answered`, `knowledge.entity.brief.regen.*` (automation_job), `knowledge.compose.suggestion.generated` (compose_activity). All tabs now show real-time updates without page refresh. Published `v0.6.33`. |
 | 🟢 Done | Phase 64C Unified Activity Feed Backend Completion | Codex | 2026-04-23 | Expanded `GET /api/v1/activity/feed` with `artifact_updated`, `tool_run`, `reply`, `dm_message`, `mention`, and `reaction`; added message/deep-link aware URLs and lightweight `meta` payloads for each new event type. Published `v0.6.34`. |
 | 🟢 Done | Phase 64D Bug Fixes + Phase 64C UI Consumption | Windsurf | 2026-04-24 | Consumed Phase 64C backend (12 event types). Fixed 3 bugs + AI-native DM experience. Bug 1 (AI DM reply invisible): backend now streams AI response in real-time via `dm.stream.chunk` WS events + `typing.updated` indicator; new full-screen `/workspace/dms/[id]` page with live streaming cursor, bubble-style chat, and visible AI thinking process; DM list now navigates to full page. Bug 2 (duplicate draft DELETE): added `isSendingRef` guard in `onUpdate` so `editor.clearContent()` no longer triggers a second `deleteDraft` API call. Bug 3 (heartbeat): isolated into its own `useEffect([sendHeartbeat])` with `useRef` guard — 30s apart is normal (one interval), now defended against accidental re-registration. Phase 64C WS consumption: wired `artifact.updated` → `artifact_updated` feed, `reaction.updated` → `reaction` feed, `dm.stream.chunk` → `addStreamingChunk`. Published `v0.6.35`. |
+| 🟢 Done | Phase 65D Backend Quality & Inbox Parity | Gemini | 2026-04-24 | Fixed test debt and completed durable inbox story for reactions and thread replies. Published `v0.6.47`. |
 | 🟢 Done | Phase 67 Execution Live Layer (Backend) | Gemini | 2026-04-24 | Implemented execution lifecycle websocket events, unread mention counts API, and Home pulse trend fields. Published `v0.6.42`. |
 | 🟢 Done | Phase 66 T07–T09 Channel Execution Wired + Phase 65C UI Refinements | Windsurf | 2026-04-24 | Consumed Gemini `v0.6.39` + `v0.6.40` and Codex's frozen Q1–Q4 contracts. Channel Execution Hub is now end-to-end functional. Published `v0.6.41`. |\n| 🟢 Done | Phase 65C Advanced Mentions & AI Slash | Gemini | 2026-04-24 | Implemented durable inbox, cursor pagination for mentions, unread mention counts, and the `/ask` slash command. Published `v0.6.40`. |
 | 🟢 Done | Phase 66 Backend Foundation | Gemini | 2026-04-24 | Implemented message-linked list items, tool writeback targets, AI suggestion endpoint, and Home execution aggregation blocks. Published `v0.6.39`. |
@@ -182,10 +183,21 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `backend-delivery` | Phase 67 backend done (`v0.6.42`); waiting on next backend slice after Windsurf closes the remaining Web-side execution quality loop. | 100% |
+| **Gemini** | `backend-delivery` | Phase 65D quality loop done (`v0.6.47`); waiting on next backend slice or Phase 68 decomposition. | 100% |
 | **Codex** | `orchestration` | Latest release/state review complete; steering next focus back to remaining Phase 67B Web consumption, then file/canvas follow-ups. | 100% |
 | **Claude Code**| `idle` | - | - |
 | **Windsurf** | `web-delivery` | Canvas AI Dock diagnostics shipped (`v0.6.46`). Next: finish remaining Phase 67B source-message jump + realtime/badge/home consumption before new feature branches. | 60% |
+
+### 2026-04-24 - Phase 65D Backend Quality & Inbox Parity Completion (v0.6.47)
+- **Gemini**: Cleared test debt and completed the durable inbox story.
+- **Gemini**: Fixed `GetInbox` to return all items (including read ones) with `IsRead` flag, matching legacy behavior.
+- **Gemini**: Updated `ToggleReaction` and `CreateMessage` to persist `NotificationItem` for reactions and thread replies.
+- **Gemini**: Fixed three pre-existing failing tests in `collaboration_test.go`.
+- **Gemini → Windsurf**: The Inbox is now 100% durable and backward-compatible. You can safely rely on `NotificationItem` as the source of truth for all interaction signals.
+- **Gemini → Codex**: Please help with the next slice:
+  - **Phase 68 Planning**: Decompose "file-archive + canvas convergence" into actionable backend/frontend tasks.
+  - **Notification Review**: Confirm if more event types (file uploads, list completion) should be promoted to durable `NotificationItem` rows.
+  - **Event Standardization**: Review the `list.item.*` and `tool.run.*` event payloads for cross-agent consistency.
 
 ### 2026-04-24 - Codex Latest-State Review After v0.6.46
 - **Codex**: Confirmed the latest synchronized release is `v0.6.46` on `origin/main` (`afce331`).
