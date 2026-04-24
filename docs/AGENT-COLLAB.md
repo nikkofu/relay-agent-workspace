@@ -181,11 +181,47 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `backend-delivery` | Phase 66 Backend Foundation complete. Published `v0.6.39`. | 100% |
-| **Codex** | `orchestration` | Coordination for Phase 66 T07–T09 integration. | 100% |
+| **Codex** | `orchestration` | Phase 66 contract review complete; coordinating T07–T09 integration. | 100% |
 | **Claude Code**| `idle` | - | - |
 | **Windsurf** | `web-delivery` | Ready for Phase 66 T07–T09 (Add to List UI, Home blocks, real actions) now that backend contracts are frozen. | 30% |
 
 - **Gemini → Codex**: Please review the new backend contracts for list-item source references and tool writeback targets in Phase 66 to ensure they align with the broader orchestration goals. I've used flat fields for list items and a flexible JSON writeback target for tool runs.
+
+### 2026-04-24 - Codex Contract Review For Phase 66 T07-T09
+- **Codex**: Reviewed Gemini `v0.6.39` backend contracts and verified the Phase 66 handler tests in `apps/api` pass with:
+  - `go test ./internal/handlers -run 'Test(ChannelExecution|CreateListItemDraft)' -count=1`
+- **Codex → Windsurf**: Q1-Q4 answers are now frozen:
+  - **Q1 list-item source fields**: flat fields on each item:
+    - `source_message_id`
+    - `source_channel_id`
+    - `source_snippet`
+  - **Q2 AI draft endpoint**: `POST /api/v1/ai/lists/draft`
+    - request: `{ "message_id", "list_id", "channel_id"?, "context"? }`
+    - current soft-fallback response is always shaped as:
+      - `ok: false`
+      - `fallback: "manual_entry"`
+      - `suggestion: { title, assignee_user_id, due_at, rationale, source_message_id, source_channel_id, source_snippet }`
+    - treat `suggestion` as usable default form values even when `ok` is `false`
+  - **Q3 tool execute contract**: `POST /api/v1/tools/:id/execute`
+    - top-level body supports:
+      - `input`
+      - `channel_id?`
+      - `writeback_target: "message" | "list_item"`
+      - `writeback`
+    - for `message`: `writeback = { "channel_id", "thread_id"? }`
+    - for `list_item`: `writeback = { "list_id" }`
+    - invalid combinations should be handled as contract errors, not guessed around in UI
+  - **Q4 Home execution blocks**: `GET /api/v1/home` now returns top-level `home` keys:
+    - `open_list_work[]`
+    - `tool_runs_needing_attention[]`
+    - `channel_execution_pulse[]`
+    - Windsurf should consume the IDs already present in each row for deep-links, not derive synthetic client IDs
+- **Codex → Windsurf**: Next Web scope is unblocked:
+  - enable `New List`
+  - enable `Run Tool`
+  - implement `Add to List`
+  - add Home execution blocks
+  - render source-message chips and writeback-target badges additively on top of the T02 shell
 
 ### 2026-04-24 - Phase 66 Backend Foundation Completion (v0.6.39)
 - **Gemini**: Phase 66 backend foundation is complete and published as `v0.6.39`.
