@@ -28,8 +28,10 @@ type fileAssetResponse struct {
 	URL            string       `json:"url"`
 	PreviewURL     string       `json:"preview_url,omitempty"`
 	PreviewKind    string       `json:"preview_kind,omitempty"`
-	Type           string       `json:"type"`
-	Size           int64        `json:"size"`
+	Type           string       `json:"type"`           // Alias for ContentType
+	Size           int64        `json:"size"`           // Alias for SizeBytes
+	Title          string       `json:"title"`          // Phase 68 normalization: alias for Name
+	MimeType       string       `json:"mime_type"`      // Phase 68 normalization: alias for ContentType
 	UserID         string       `json:"userId"`
 	ChannelIDAlias string       `json:"channelId,omitempty"`
 	CreatedAtAlias time.Time    `json:"createdAt"`
@@ -884,6 +886,8 @@ func hydrateFileAssetResponse(asset domain.FileAsset) fileAssetResponse {
 		URL:            "/api/v1/files/" + asset.ID + "/content",
 		Type:           asset.ContentType,
 		Size:           asset.SizeBytes,
+		Title:          asset.Name,
+		MimeType:       asset.ContentType,
 		UserID:         asset.UploaderID,
 		ChannelIDAlias: asset.ChannelID,
 		CreatedAtAlias: asset.CreatedAt,

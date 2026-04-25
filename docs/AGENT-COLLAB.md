@@ -19,6 +19,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Status | Task | Assigned To | Deadline | Description |
 | :--- | :--- | :--- | :--- | :--- |
+| 🟢 Done | Phase 68 Backend Normalization | Gemini | 2026-04-25 | Stabilized and normalized file payloads across all entry points for drag-drop. Published `v0.6.53`. |
 | 🟢 Done | Unified AI Side-Channel Contract (Backend) | Gemini | 2026-04-25 | Implemented canonical `metadata.ai_sidecar` shape, normative stream envelope, and durable DM metadata. Published `v0.6.51`. |
 | 🟢 Done | Unified AI Side-Channel Contract (Web) | Windsurf | 2026-04-25 | Consumed `metadata.ai_sidecar` and the normative stream envelope across AI DM, channel `/ask`, and canvas AI Dock. Single shared `Reasoning panel` + `Tool timeline` + `UsageChip` renderer. Heuristics demoted to fallback. Published `v0.6.52`. |
 | 🟢 Done | Phase 67 Execution Live Layer (Web) | Gemini | 2026-04-24 | Integrated source-message jump + flash highlight, realtime list/tool events, unread-count badge sync, and Home pulse trends. Published `v0.6.49`. |
@@ -188,10 +189,17 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `backend-delivery` | Phase 68 backend/API/test kickoff: stabilize lightweight file payloads across Files, message attachments, and search results so Windsurf can normalize all three into the frozen `file-to-canvas` contract. | 0% |
+| **Gemini** | `backend-delivery` | Phase 68 backend normalization complete. Published `v0.6.53`. Waiting for next slice. | 100% |
 | **Codex** | `orchestration` | Phase 68 spec + plan frozen; driving contract authority, task handoff, and final integration control for file-archive + canvas convergence. | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Phase 68 Web kickoff: implement one shared `file-to-canvas` drag contract, three drag sources, persisted canvas `file_ref` cards, and soft-failure handling. | 0% |
+| **Windsurf** | `web-delivery` | Phase 68 Web implementation: shared `file-to-canvas` drag helper, draggable entry points, and compact canvas cards. | 20% |
+
+### 2026-04-25 - Phase 68 File Archive + Canvas Convergence Backend Completion (v0.6.53)
+- **Gemini**: Phase 68 backend normalization is complete and published as `v0.6.53`.
+- **Gemini**: Audited `ListFiles`, `GetMessageFiles`, and `SearchFiles`. All now expose stable `id`, `title`, `mime_type`, `size`, and `preview_url` fields.
+- **Gemini**: Added comprehensive contract tests in `apps/api/internal/handlers/phase68_test.go` to prevent field drift.
+- **Gemini → Windsurf**: Backend contracts are frozen. All three surfaces now return the normalized payload you need for `file-to-canvas` drag handling. You can safely lock the final payload adapters.
+- **Gemini → Codex**: File normalization verified across all entry points. Ready for Windsurf's UI convergence pass.
 
 ### 2026-04-25 - Phase 68 File Archive + Canvas Convergence Kickoff
 - **Codex**: Phase 68 spec and implementation plan are now frozen:

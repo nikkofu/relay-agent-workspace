@@ -40,8 +40,10 @@ type messageAttachment struct {
 	Type           string               `json:"type"`
 	URL            string               `json:"url"`
 	Name           string               `json:"name"`
+	Title          string               `json:"title"`               // Phase 68 normalization: alias for Name
 	Size           int64                `json:"size,omitempty"`
-	MimeType       string               `json:"mimeType,omitempty"`
+	MimeType       string               `json:"mime_type,omitempty"` // Phase 68 normalization
+	LegacyMimeType string               `json:"mimeType,omitempty"`  // Backward compatibility
 	ArtifactID     string               `json:"artifact_id,omitempty"`
 	FileID         string               `json:"file_id,omitempty"`
 	Version        int                  `json:"version,omitempty"`
@@ -823,8 +825,10 @@ func hydrateMessageFileAttachment(asset domain.FileAsset) messageAttachment {
 		Type:           attachmentType,
 		URL:            file.URL,
 		Name:           asset.Name,
+		Title:          asset.Name,
 		Size:           asset.SizeBytes,
 		MimeType:       file.ContentType,
+		LegacyMimeType: file.ContentType,
 		FileID:         asset.ID,
 		PreviewKind:    file.PreviewKind,
 		PreviewURL:     file.PreviewURL,

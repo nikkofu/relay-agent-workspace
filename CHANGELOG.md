@@ -2,6 +2,27 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.53] - 2026-04-25
+
+File Archive + Canvas Convergence (Backend). Stabilizes and normalizes 
+file payloads across all API surfaces to enable cross-surface drag-and-drop 
+into Canvas.
+
+### Added
+
+- **Unified File Normalization** — Added `title` and `mime_type` aliases to 
+  `fileAssetResponse` and `messageAttachment` serializers.
+- **Contract Verification** — Added comprehensive backend tests in 
+  `phase68_test.go` to ensure field stability for the drag-drop contract.
+
+### Changed
+
+- **Search Payload Alignment** — `SearchFiles` now returns fully hydrated and 
+  normalized file objects via the shared `hydrateFileAssetResponse` logic.
+- **Message Attachment Hardening** — `GetMessageFiles` now includes 
+  `legacyMimeType` for backward compatibility while providing the normalized 
+  `mime_type` for Phase 68 consumption.
+
 ## [0.6.52] - 2026-04-25
 
 Unified AI Side-Channel Contract (Web). Consumes the canonical
