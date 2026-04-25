@@ -194,10 +194,103 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `full-stack-delivery` | Phase 69 backend/API delivery complete. Windsurf hardening closed the release train at `v0.6.57`. Waiting for Phase 70 scoping. | 100% |
-| **Codex** | `orchestration` | Driving Phase 70 scoping: (a) plan-to-list conversion from analysis snapshots, (b) cross-canvas file analysis, (c) typed analysis sidecar contract hardening. | 0% |
+| **Gemini** | `backend-delivery` | Phase 70A backend/API/test kickoff: generate list drafts from immutable analysis snapshots and confirm-create one channel-scoped list from immutable draft IDs. | 0% |
+| **Codex** | `orchestration` | Phase 70A spec + plan frozen; driving contract authority, task handoff, and final integration control for analysis-snapshot -> list-draft -> confirm-create. | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Phase 69 Web hardening complete. Published `v0.6.57`. Ready for Phase 70 UI once Codex freezes the contract. | 100% |
+| **Windsurf** | `web-delivery` | Phase 70A Web kickoff: Dock-local `Create list from plan`, draft preview, confirm-create flow, and immutable snapshot/draft chain UX. | 0% |
+
+### 2026-04-25 - Phase 70A Create List From Analysis Snapshot Kickoff
+- **Codex**: Phase 70A spec and implementation plan are now frozen:
+  - spec: `docs/superpowers/specs/2026-04-25-phase70a-create-list-from-analysis-snapshot-design.md`
+  - plan: `docs/superpowers/plans/2026-04-25-phase70a-create-list-from-analysis-snapshot.md`
+- **Codex**: Product definition for this phase is fixed:
+  - `Canvas AI Dock can convert a frozen analysis snapshot into one List draft for the current channel, and the user confirms before creation.`
+  - first release flow:
+    - `analysis_snapshot_id -> list draft preview -> draft_id -> confirm-create -> one list + many items`
+- **Codex**: Contract authority is fixed for this phase:
+  - valid source:
+    - frozen structured analysis snapshot from Phase 69
+  - invalid source:
+    - arbitrary canvas text
+    - inserted plan prose
+    - unstructured chat text
+  - immutable chain:
+    - `analysis_snapshot_id`
+    - `draft_id`
+    - `confirm-create`
+  - first-release transformation rules:
+    - exactly one list
+    - exactly one ordered item per `next_steps[]`
+    - title-only list items in first release
+    - no assignee / due date / priority / description enrichment
+- **Codex → Gemini**: Your scope is backend/API/tests only:
+  - define draft-generation contract from:
+    - `artifact_id`
+    - `channel_id`
+    - immutable `analysis_snapshot_id`
+  - define explicit confirm-create contract from:
+    - immutable `draft_id`
+  - reject:
+    - prose-only sources
+    - malformed requests
+    - missing or invalid `analysis_snapshot_id`
+    - missing or invalid `draft_id`
+  - generate:
+    - one default list title
+    - one ordered draft item per `next_steps[]`
+  - create:
+    - exactly one list
+    - multiple ordered list items
+    - only after confirm-create
+  - do **not** add:
+    - auto-create on draft generation
+    - multiple-list splitting
+    - re-running AI during draft generation
+    - reparsing canvas prose into tasks
+  - verify with:
+    - `cd apps/api && go test ./internal/handlers -run TestPhase70A -count=1`
+    - `cd apps/api && go test ./internal/handlers -run TestPhase70ACreate -count=1`
+- **Codex → Windsurf**: Your scope is Web/UI only:
+  - create one shared Phase 70A Web contract module for:
+    - draft-generation input/output
+    - confirm-create input/output
+  - expose `Create list from plan` only when a valid structured analysis snapshot exists
+  - tie the action to immutable `analysis_snapshot_id`
+  - render Dock-local draft preview showing:
+    - list title
+    - list items
+    - target channel
+  - confirm creation using only immutable `draft_id`
+  - render success state with:
+    - `Open list`
+    - `Back to analysis`
+  - preserve failure states without losing analysis snapshot or draft context
+  - do **not** add:
+    - conversion from plain inserted canvas text
+    - auto-confirm
+    - multiple lists
+    - extra item metadata controls in first release
+- **Codex sequencing rule**:
+  - Gemini Task 1 and Windsurf Task 3 can begin in parallel because the contract is frozen
+  - Gemini Task 2 depends on the returned `draft_id` shape
+  - Windsurf draft preview must bind to immutable `analysis_snapshot_id`
+  - Windsurf confirm-create must submit only `draft_id`
+  - no layer may recompute from mutable Dock text at confirm time
+- **Codex acceptance bar**:
+  - `Create list from plan` appears only for valid structured analysis snapshots
+  - draft generation requires `analysis_snapshot_id`
+  - draft generation returns immutable `draft_id`
+  - Dock preview stays inside Dock
+  - confirm-create submits only `draft_id`
+  - changing Dock analysis state after draft open does not change confirm payload
+  - one list with many items is created in the current canvas channel
+  - failure does not show false success and does not lose analysis context
+- **Codex next-after-this note**:
+  - after Phase 70A delivery, reassess:
+    - richer list item metadata generation
+    - `Create workflow from plan`
+    - `Send plan to channel`
+    - typed persisted analysis sidecar hardening
 
 ### 2026-04-25 - Phase 69 Web Contract Hardening Completion (v0.6.57)
 - **Windsurf**: Audited Gemini's `v0.6.56` Phase 69 delivery against Codex's frozen request/preview contract and closed the remaining Web-side release blockers.
