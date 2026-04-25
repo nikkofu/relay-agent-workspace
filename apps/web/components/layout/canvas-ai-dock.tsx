@@ -45,6 +45,9 @@ import { toast } from "sonner"
 import type { CanvasEditorHandle, EditorRange } from "./canvas-tiptap-editor"
 import { normalizeAISidecar, parseAIStreamEvent } from "@/lib/ai-sidecar"
 import { ToolTimeline, UsageChip } from "@/components/ai/ai-sidecar-blocks"
+import { extractFileRefsFromHtml, getUniqueFileRefs } from "@/lib/canvas-file-group"
+import { MultiFileAnalysisResponse, isMultiFileAnalysisResponse } from "@/lib/multi-file-analysis"
+import { FileGroupAnalysisResult } from "@/components/canvas/file-group-analysis-result"
 
 // ── Public handle ────────────────────────────────────────────────────────────
 
@@ -119,6 +122,8 @@ interface DockMessage {
   isStreaming?: boolean
   applied?: boolean
   errored?: boolean
+  /** Phase 69: Structured multi-file analysis result. */
+  analysisResult?: MultiFileAnalysisResponse["analysis"]
 }
 
 // ── Props ────────────────────────────────────────────────────────────────────
@@ -186,6 +191,7 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
                 ? m.reasoning
                 : sidecar?.reasoning?.summary,
               sidecar: sidecar ?? undefined,
+              analysisResult: sidecar?.analysis,
               isStreaming: false,
             }
           })
@@ -215,7 +221,8 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
       selText: string
       selPreview: string
       docLen: number
-    }>({ hasSel: false, selText: "", selPreview: "", docLen: 0 })
+      fileGroupCount: number
+    }>({ hasSel: false, selText: "", selPreview: "", docLen: 0, fileGroupCount: 0 })
 
     useEffect(() => {
       const poll = () => {
@@ -223,16 +230,22 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
         if (!h) return
         const hasSel = h.hasSelection()
         const selText = hasSel ? h.getSelectionText() : ""
+        const html = h.getHTML()
         const docText = h.getDocText()
         const selPreview = selText.length > 180 ? selText.slice(0, 180) + "…" : selText
+        
+        const fileRefs = extractFileRefsFromHtml(html)
+        const uniqueFileRefs = getUniqueFileRefs(fileRefs)
+        
         setTargetInfo(prev => {
           if (
             prev.hasSel === hasSel &&
             prev.selText.length === selText.length &&
             prev.docLen === docText.length &&
-            prev.selPreview === selPreview
+            prev.selPreview === selPreview &&
+            prev.fileGroupCount === uniqueFileRefs.length
           ) return prev
-          return { hasSel, selText, selPreview, docLen: docText.length }
+          return { hasSel, selText, selPreview, docLen: docText.length, fileGroupCount: uniqueFileRefs.length }
         })
       }
       poll()
@@ -526,6 +539,72 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
       }
     }, [channelId, artifactId])
 
+    const handleAnalyzeFileGroup = async () => {
+      const h = editorRef.current
+      if (!h) return
+      
+      const html = h.getHTML()
+      const fileRefs = getUniqueFileRefs(extractFileRefsFromHtml(html))
+      if (fileRefs.length < 2) {
+        toast.error("At least two files are required for group analysis")
+        return
+      }
+
+      const aiMsgId = `a-ana-${Date.now()}`
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `u-ana-${Date.now()}`,
+          role: "user",
+          text: `Analyze file group (${fileRefs.length} files)`,
+        },
+        {
+          id: aiMsgId,
+          role: "assistant",
+          text: "",
+          isStreaming: true,
+        }
+      ])
+      setExpanded(true)
+      setStreamingId(aiMsgId)
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/ai/canvas/analyze`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            artifact_id: artifactId,
+            file_refs: fileRefs,
+          }),
+        })
+
+        if (!res.ok) {
+          const detail = await readErrorBody(res)
+          throw new Error(formatBackendError(res.status, detail))
+        }
+
+        const result = await res.json()
+        if (!isMultiFileAnalysisResponse(result)) {
+          throw new Error("Invalid analysis response format")
+        }
+
+        setMessages(prev => prev.map(m => 
+          m.id === aiMsgId 
+            ? { ...m, analysisResult: result.analysis, text: "Analysis complete.", isStreaming: false } 
+            : m
+        ))
+      } catch (err: any) {
+        console.error("File group analysis failed:", err)
+        setMessages(prev => prev.map(m => 
+          m.id === aiMsgId 
+            ? { ...m, text: `⚠︎ Analysis failed: ${err.message}`, isStreaming: false, errored: true } 
+            : m
+        ))
+      } finally {
+        setStreamingId(null)
+      }
+    }
+
     // ── Send ─────────────────────────────────────────────────────────────────
     const handleSend = useCallback(() => {
       const trimmed = input.trim()
@@ -689,6 +768,33 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
 
     const handleStop = () => abortCtrlRef.current?.abort()
 
+    const handleInsertSummary = (text: string) => {
+      const h = editorRef.current
+      if (!h) return
+      const range = h.insertHtmlAtCursor(`<h2>Summary</h2><p>${text}</p>`)
+      if (range) h.highlightRange(range)
+      showAppliedToast("Analysis summary")
+    }
+
+    const handleInsertObservations = (text: string) => {
+      const h = editorRef.current
+      if (!h) return
+      // observations are markdown-formatted in the helper
+      const html = plainTextToHtml(text)
+      const range = h.insertHtmlAtCursor(html)
+      if (range) h.highlightRange(range)
+      showAppliedToast("Key observations")
+    }
+
+    const handleInsertPlan = (text: string) => {
+      const h = editorRef.current
+      if (!h) return
+      const html = plainTextToHtml(text)
+      const range = h.insertHtmlAtCursor(html)
+      if (range) h.highlightRange(range)
+      showAppliedToast("Next steps plan")
+    }
+
     const handleClear = () => {
       setMessages([])
       if (layout === "bottom") setExpanded(false)
@@ -785,6 +891,9 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
                   onReSelect={() =>
                     m.appliedRange && editorRef.current?.highlightRange(m.appliedRange)
                   }
+                  onInsertSummary={handleInsertSummary}
+                  onInsertObservations={handleInsertObservations}
+                  onInsertPlan={handleInsertPlan}
                   isStreaming={streamingId === m.id}
                 />
               ))
@@ -849,6 +958,25 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
                 title="Clear selection (rewrite whole document)"
               >
                 <X className="w-3 h-3" />
+              </Button>
+            </div>
+          )}
+
+          {/* Phase 69: File Group Analysis Action */}
+          {!targetInfo.hasSel && targetInfo.fileGroupCount >= 2 && !streamingId && (
+            <div className="mb-1.5 flex items-center justify-between bg-sky-500/10 dark:bg-sky-500/5 border border-sky-500/20 rounded-lg px-2.5 py-1.5 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex items-center gap-2 text-[10px] font-bold text-sky-700 dark:text-sky-300">
+                <Brain className="w-3 h-3" />
+                <span>{targetInfo.fileGroupCount} files found in canvas</span>
+              </div>
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                className="h-6 text-[10px] font-black uppercase tracking-widest text-sky-700 dark:text-sky-300 hover:bg-sky-500/20 gap-1.5"
+                onClick={handleAnalyzeFileGroup}
+              >
+                <Sparkles className="w-3 h-3" />
+                Analyze file group
               </Button>
             </div>
           )}
@@ -964,11 +1092,16 @@ interface ChatBubbleProps {
   onRetry: () => void
   onStop: () => void
   onReSelect: () => void
+  onInsertSummary: (text: string) => void
+  onInsertObservations: (text: string) => void
+  onInsertPlan: (text: string) => void
   isStreaming: boolean
 }
 
 function ChatBubble({
-  message, onApply, onInsert, onCopy, onRetry, onStop, onReSelect, isStreaming,
+  message, onApply, onInsert, onCopy, onRetry, onStop, onReSelect,
+  onInsertSummary, onInsertObservations, onInsertPlan,
+  isStreaming,
 }: ChatBubbleProps) {
   if (message.role === "user") {
     return (
@@ -1036,7 +1169,14 @@ function ChatBubble({
           message.errored && "border-red-500/30 bg-red-50/40 dark:bg-red-900/10",
           !message.applied && !message.errored && "border-purple-500/20",
         )}>
-          {message.text ? (
+          {message.analysisResult ? (
+            <FileGroupAnalysisResult 
+              result={message.analysisResult}
+              onInsertSummary={onInsertSummary}
+              onInsertObservations={onInsertObservations}
+              onInsertPlan={onInsertPlan}
+            />
+          ) : message.text ? (
             <p className="whitespace-pre-wrap break-words">{message.text}</p>
           ) : message.reasoning ? (
             <p className="italic text-muted-foreground">Composing the answer…</p>

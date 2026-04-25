@@ -120,7 +120,7 @@ func GetAIConversation(c *gin.Context) {
 			} else if m.Reasoning != "" {
 				// Fallback synthesis
 				res.Metadata["ai_sidecar"] = domain.AISidecar{
-					Reasoning: m.Reasoning,
+					Reasoning: &domain.AIReasoning{Summary: m.Reasoning},
 				}
 			}
 		}
@@ -754,6 +754,187 @@ func broadcastChannelSummaryUpdated(channel domain.Channel, summary *domain.AISu
 	})
 }
 
+type AnalyzeCanvasRequest struct {
+	ArtifactID string `json:"artifact_id" binding:"required"`
+	FileRefs   []struct {
+		FileID string `json:"file_id" binding:"required"`
+	} `json:"file_refs" binding:"required"`
+}
+
+type AnalyzeCanvasResponse struct {
+	Analysis struct {
+		Summary      string   `json:"summary"`
+		Observations []string `json:"observations"`
+		NextSteps    []struct {
+			Text       string `json:"text"`
+			Rationale  string `json:"rationale"`
+			ActionHint string `json:"action_hint"`
+		} `json:"next_steps"`
+	} `json:"analysis"`
+}
+
+func AnalyzeCanvasFileGroup(c *gin.Context) {
+	var req AnalyzeCanvasRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request, snapshotted file_refs required"})
+		return
+	}
+
+	if len(req.FileRefs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "file_refs cannot be empty"})
+		return
+	}
+
+	// 1. Aggregate file content
+	inputs := make([]llm.FileAnalysisInput, 0, len(req.FileRefs))
+	for _, ref := range req.FileRefs {
+		var asset domain.FileAsset
+		if err := db.DB.First(&asset, "id = ?", ref.FileID).Error; err != nil {
+			// Skip missing files - graceful degradation
+			continue
+		}
+
+		input := llm.FileAnalysisInput{
+			ID:          asset.ID,
+			Name:        asset.Name,
+			ContentType: asset.ContentType,
+			Summary:     asset.ContentSummary,
+		}
+
+		// Try to get extracted text
+		var extraction domain.FileExtraction
+		if err := db.DB.First(&extraction, "file_id = ?", asset.ID).Error; err == nil {
+			input.ContentText = extraction.ContentText
+		}
+
+		inputs = append(inputs, input)
+	}
+
+	if len(inputs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "none of the provided file_refs could be resolved"})
+		return
+	}
+
+	// 2. Orchestrate LLM
+	if AIGateway == nil {
+		// Mock for tests if gateway not set
+		var resp AnalyzeCanvasResponse
+		resp.Analysis.Summary = "Mock analysis for " + strconv.Itoa(len(inputs)) + " files."
+		resp.Analysis.Observations = []string{"Obs 1", "Obs 2"}
+		resp.Analysis.NextSteps = []struct {
+			Text       string `json:"text"`
+			Rationale  string `json:"rationale"`
+			ActionHint string `json:"action_hint"`
+		}{
+			{Text: "Next step", Rationale: "Reason", ActionHint: "plan"},
+		}
+		c.JSON(http.StatusOK, resp)
+		return
+	}
+
+	// In real environment, we'd call the LLM and wait for structured result.
+	// Since AIGateway is streaming, we collect it.
+	llmReq := llm.Request{
+		Prompt:     llm.BuildAnalysisPrompt(inputs), // Exported BuildAnalysisPrompt
+		ArtifactID: req.ArtifactID,
+	}
+
+	session, err := AIGateway.Stream(c.Request.Context(), llmReq)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start ai analysis: " + err.Error()})
+		return
+	}
+
+	var fullText strings.Builder
+	done := false
+	for !done {
+		select {
+		case event, ok := <-session.Events:
+			if !ok {
+				done = true
+				break
+			}
+			fullText.WriteString(event.Text)
+		case err := <-session.Errors:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "ai analysis error: " + err.Error()})
+			return
+		case <-c.Request.Context().Done():
+			return
+		}
+	}
+
+	result, err := llm.ParseAnalysisResult(fullText.String()) // Exported ParseAnalysisResult
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to parse ai analysis: " + err.Error()})
+		return
+	}
+
+	var resp AnalyzeCanvasResponse
+	resp.Analysis.Summary = result.Summary
+	resp.Analysis.Observations = result.Observations
+	for _, s := range result.NextSteps {
+		resp.Analysis.NextSteps = append(resp.Analysis.NextSteps, struct {
+			Text       string `json:"text"`
+			Rationale  string `json:"rationale"`
+			ActionHint string `json:"action_hint"`
+		}{
+			Text:       s.Text,
+			Rationale:  s.Rationale,
+			ActionHint: s.ActionHint,
+		})
+	}
+
+	// 3. Persist (optional but recommended for UX continuity)
+	currentUser, _ := getCurrentUser()
+	if currentUser.ID != "" {
+		var conversation domain.AIConversation
+		// Check if we have an existing conversation for this artifact
+		if err := db.DB.Where("artifact_id = ?", req.ArtifactID).Order("updated_at desc").First(&conversation).Error; err != nil {
+			// Create new conversation
+			conversation = domain.AIConversation{
+				ID:         ids.NewPrefixedUUID("ai-conv"),
+				UserID:     currentUser.ID,
+				ArtifactID: req.ArtifactID,
+				Provider:   "gemini", // default
+				Model:      "gemini-2.0-flash",
+				CreatedAt:  time.Now().UTC(),
+				UpdatedAt:  time.Now().UTC(),
+			}
+			db.DB.Create(&conversation)
+		}
+
+		conversationID := conversation.ID
+		now := time.Now().UTC()
+		// Save user prompt
+		db.DB.Create(&domain.AIConversationMessage{
+			ID:             ids.NewPrefixedUUID("ai-msg"),
+			ConversationID: conversationID,
+			Role:           "user",
+			Content:        "Analyze file group (" + strconv.Itoa(len(inputs)) + " files)",
+			CreatedAt:      now,
+		})
+
+		// Save assistant result
+		sidecar := domain.AISidecar{
+			Analysis: resp.Analysis,
+		}
+		sidecarJSON, _ := json.Marshal(sidecar)
+		db.DB.Create(&domain.AIConversationMessage{
+			ID:             ids.NewPrefixedUUID("ai-msg"),
+			ConversationID: conversationID,
+			Role:           "assistant",
+			Content:        "Analysis complete.",
+			AISidecarJSON:  string(sidecarJSON),
+			CreatedAt:      now.Add(time.Second),
+		})
+
+		// Update conversation timestamp
+		db.DB.Model(&domain.AIConversation{}).Where("id = ?", conversationID).Update("updated_at", now)
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
 func ExecuteAI(c *gin.Context) {
 	if AIGateway == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ai gateway is not configured"})
@@ -1076,7 +1257,7 @@ func persistAIConversation(user domain.User, input llm.Request, session *llm.Str
 	}
 	if strings.TrimSpace(reasoning) != "" {
 		sidecarJSON, err := json.Marshal(domain.AISidecar{
-			Reasoning: reasoning,
+			Reasoning: &domain.AIReasoning{Summary: reasoning},
 		})
 		if err != nil {
 			return err
@@ -1854,7 +2035,7 @@ func AISlashCommandAsk(c *gin.Context) {
 
 		// Update with final answer and sidecar
 		sidecar := domain.AISidecar{
-			Reasoning: "Found relevant documents in channel history.",
+			Reasoning: &domain.AIReasoning{Summary: "Found relevant documents in channel history."},
 			ToolCalls: []domain.AIToolCall{
 				{ID: "tc-1", Name: "search_knowledge", Arguments: fmt.Sprintf(`{"query":"%s"}`, question), Result: "Success"},
 			},

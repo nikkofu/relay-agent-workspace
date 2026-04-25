@@ -2,6 +2,33 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.56] - 2026-04-25
+
+Multi-File Canvas AI Analysis. Adds the ability for AI to analyze a group of 
+files already assembled in a canvas, providing a structured preview with 
+summary, observations, and next-step plan that users can selectively insert 
+into their document.
+
+### Added
+
+- **Multi-File Analysis API** — `POST /api/v1/ai/canvas/analyze` aggregates 
+  referenced files, gathers extracted text, and returns a structured analysis.
+- **Canvas File Group Snapshot** — Captures the exact set of `file_ref` blocks 
+  present in the editor at the time of analysis trigger.
+- **Structured Analysis Preview** — Rich UI in the AI Dock for reviewing 
+  summaries, observations, and plans before they become formal content.
+- **Section-Level Insertion** — Action buttons to insert specific parts of 
+  the AI analysis into the canvas at the current cursor position.
+- **Durable Analysis History** — Analysis runs are now persisted in the 
+  artifact's conversation history using the enhanced `AISidecar` schema.
+
+### Changed
+
+- **Unified AI Side-Channel Enhancement** — Added `Analysis` and structured 
+  `Reasoning` types to the backend `AISidecar` model and frontend normalizer.
+- **TipTap Handle Extension** — Exposed `getHTML` to the imperative handle 
+  to allow the AI Dock to read full document context for file-group detection.
+
 ## [0.6.55] - 2026-04-25
 
 Phase 68 Contract Audit & Persistence Hardening. Windsurf audited Gemini's

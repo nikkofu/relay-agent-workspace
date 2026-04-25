@@ -740,10 +740,22 @@ type StarredFile struct {
 }
 
 type AISidecar struct {
-	Reasoning string         `json:"reasoning,omitempty"`
-	ToolCalls []AIToolCall   `json:"tool_calls,omitempty"`
-	Usage     *AIUsage       `json:"usage,omitempty"`
+	Reasoning *AIReasoning `json:"reasoning,omitempty"`
+	ToolCalls []AIToolCall `json:"tool_calls,omitempty"`
+	Usage     *AIUsage     `json:"usage,omitempty"`
+	Analysis  any          `json:"analysis,omitempty"` // Phase 69 structured result
 }
+
+type AIReasoning struct {
+	Summary  string             `json:"summary,omitempty"`
+	Segments []ReasoningSegment `json:"segments,omitempty"`
+}
+
+type ReasoningSegment struct {
+	Text string `json:"text"`
+	Kind string `json:"kind"` // thought, step, note
+}
+
 
 type AIToolCall struct {
 	ID         string `json:"id"`

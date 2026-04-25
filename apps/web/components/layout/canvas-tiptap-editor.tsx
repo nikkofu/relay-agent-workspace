@@ -37,6 +37,8 @@ export interface EditorRange { from: number; to: number }
 // a ref. Keeps the AI composer out of the editor's internal state while
 // still letting it read selections and apply AI output deterministically.
 export interface CanvasEditorHandle {
+  /** Current document HTML. */
+  getHTML: () => string
   /** Plain text of the current selection, or "" when nothing is selected. */
   getSelectionText: () => string
   /** Plain text of the entire document. */
@@ -139,6 +141,7 @@ export const CanvasTipTapEditor = forwardRef<CanvasEditorHandle, CanvasTipTapEdi
   // the editor without us lifting editor state. All methods no-op safely
   // while the editor is still initializing.
   useImperativeHandle(ref, () => ({
+    getHTML: () => editor?.getHTML() ?? "",
     getSelectionText: () => {
       if (!editor) return ""
       const { from, to } = editor.state.selection

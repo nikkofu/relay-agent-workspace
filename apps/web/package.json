@@ -1,6 +1,7 @@
 {
   "name": "relay-agent-workspace",
-  "version": "0.6.55",
+  "version": "0.6.56",
+
   "private": true,
   "description": "AI-native collaboration workspace for humans and agents, combining messaging, artifacts, and orchestration.",
   "homepage": "https://github.com/nikkofu/relay-agent-workspace",

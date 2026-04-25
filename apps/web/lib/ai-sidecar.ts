@@ -64,6 +64,7 @@ export interface AISidecar {
   reasoning?: AIReasoning
   tool_calls?: AIToolCall[]
   usage?: AIUsage
+  analysis?: any
 }
 
 // ─── Normalizer ──────────────────────────────────────────────────────────────
@@ -165,9 +166,10 @@ export function normalizeAISidecar(metadata: unknown): AISidecar | null {
   const reasoning = normalizeReasoning(canonical?.reasoning ?? metadata.reasoning ?? metadata.thinking)
   const tool_calls = normalizeToolCalls(canonical?.tool_calls ?? metadata.tool_calls ?? metadata.tools)
   const usage = normalizeUsage(canonical?.usage ?? metadata.usage)
+  const analysis = canonical?.analysis ?? metadata.analysis
 
-  if (!reasoning && !tool_calls && !usage) return null
-  return { reasoning, tool_calls, usage }
+  if (!reasoning && !tool_calls && !usage && !analysis) return null
+  return { reasoning, tool_calls, usage, analysis }
 }
 
 // ─── Streaming envelope parser ───────────────────────────────────────────────

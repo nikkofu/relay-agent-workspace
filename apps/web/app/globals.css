@@ -183,7 +183,7 @@
 
 @keyframes flash-highlight {
   0% { background-color: transparent; }
-  20% { @apply bg-violet-500/30; }
+  20% { background-color: rgba(139, 92, 246, 0.3); }
   100% { background-color: transparent; }
 }
 

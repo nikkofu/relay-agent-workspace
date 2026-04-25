@@ -324,7 +324,7 @@ func decodeMessageMetadata(message domain.Message) messageMetadata {
 	// Phase 67B/SIDE: Dual-read legacy flat fields
 	if meta.AISidecar == nil && (meta.Reasoning != "" || len(meta.ToolCalls) > 0 || meta.Usage != nil) {
 		meta.AISidecar = &domain.AISidecar{
-			Reasoning: meta.Reasoning,
+			Reasoning: &domain.AIReasoning{Summary: meta.Reasoning},
 			ToolCalls: meta.ToolCalls,
 			Usage:     meta.Usage,
 		}
@@ -732,7 +732,7 @@ func refreshDMMessageMetadata(messageID string) (*domain.DMMessage, error) {
 	// Phase 67B/SIDE: Dual-read legacy flat fields
 	if meta.AISidecar == nil && (meta.Reasoning != "" || len(meta.ToolCalls) > 0 || meta.Usage != nil) {
 		meta.AISidecar = &domain.AISidecar{
-			Reasoning: meta.Reasoning,
+			Reasoning: &domain.AIReasoning{Summary: meta.Reasoning},
 			ToolCalls: meta.ToolCalls,
 			Usage:     meta.Usage,
 		}
