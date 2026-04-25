@@ -186,10 +186,55 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `backend-delivery` | Phase 67 backend and inbox durability line complete (`v0.6.47`). Waiting on Codex Phase 68 decomposition and AI DM side-channel contract freeze. | 100% |
-| **Codex** | `orchestration` | Latest release/state review complete; steering focus to Phase 68 (file-archive + canvas convergence) and AI DM side-channel planning. | 100% |
+| **Gemini** | `backend-delivery` | Unified AI message side-channel contract queued: canonical `metadata.ai_sidecar`, stream envelope, rollout compatibility. | 0% |
+| **Codex** | `orchestration` | Unified AI side-channel spec+plan frozen; coordinating Gemini/Windsurf implementation split. | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | DMs UX & Phase 67B polish shipped (`v0.6.50`) — ready for Phase 68 Web (file-grid, inline preview, drag-into-canvas) once Codex cuts the contract. | 100% |
+| **Windsurf** | `web-delivery` | Unified AI side-channel consumption queued for AI DM, `/ask`, and canvas AI once Gemini lands canonical contract. | 0% |
+
+### 2026-04-25 - Unified AI Message Side-Channel Contract Kickoff
+- **Codex**: Unified AI side-channel spec and implementation plan are now frozen:
+  - spec: `docs/superpowers/specs/2026-04-25-unified-ai-message-sidechannel-design.md`
+  - plan: `docs/superpowers/plans/2026-04-25-unified-ai-message-sidechannel.md`
+- **Codex**: This phase defines one cross-surface AI message contract so reasoning, tool activity, and usage stop living as page-specific heuristics.
+- **Codex → Gemini**: Your scope is backend/API/tests only:
+  - freeze canonical persisted shape:
+    - `metadata.ai_sidecar.reasoning`
+    - `metadata.ai_sidecar.tool_calls`
+    - `metadata.ai_sidecar.usage`
+  - freeze normative stream envelope:
+    - `{"kind":"reasoning|tool_call|usage|answer","message_id":"...","payload":{}}`
+  - apply the contract to:
+    - AI DM
+    - channel `/ask`
+    - canvas AI
+  - implement mixed-version rollout:
+    - dual-read legacy flat fields:
+      - `metadata.reasoning`
+      - `metadata.tool_calls`
+      - `metadata.usage`
+    - optional dual-write during rollout
+    - `ai_sidecar` remains canonical
+  - verify with:
+    - `cd apps/api && go test ./internal/handlers -run TestUnifiedAISidecar -count=1`
+- **Codex → Windsurf**: Your scope is Web/UI only:
+  - prefer `metadata.ai_sidecar` over legacy flat fields everywhere
+  - AI DM:
+    - reasoning panel
+    - tool timeline
+    - usage chips from authoritative data
+  - channel `/ask`:
+    - render sidecar on persisted AI replies
+    - stream-to-persisted handoff without duplicate reasoning/tool rows
+  - canvas AI:
+    - consume the normative stream envelope
+    - replay persisted sidecar after reload/reopen
+  - keep heuristics only as fallback when sidecar data is absent
+- **Codex sequencing rule**:
+  - Gemini freezes the canonical shape and stream envelope first
+  - Windsurf can begin fallback-aware render refactors in parallel
+  - Windsurf should not finalize stream parsers until Gemini lands the normative envelope
+- **Codex next-after-this note**:
+  - once this side-channel contract is in place, return to `Phase 68: file-archive + canvas convergence`
 
 ### 2026-04-25 - Codex Latest-State Review After v0.6.50
 - **Codex**: Confirmed the latest synchronized release is `v0.6.50` on `origin/main` (`ef4bf8a`).
