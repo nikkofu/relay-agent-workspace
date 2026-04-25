@@ -2,6 +2,31 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.51] - 2026-04-25
+
+Unified AI Side-Channel Contract (Backend). Defines and implements one 
+authoritative contract for AI reasoning, tool calls, and usage telemetry 
+across all surfaces (AI DM, channel `/ask`, and canvas AI).
+
+### Added
+
+- **Canonical `metadata.ai_sidecar`** — Standardized side-channel persistence 
+  for reasoning text, tool activity, and token usage.
+- **Normative Streaming Envelope** — Standardized SSE data shape: 
+  `{"kind":"reasoning|tool_call|usage|answer","message_id":"...","payload":{}}`.
+- **Durable DM Metadata** — Added `metadata` persistence to `DMMessage` model, 
+  bringing private conversations to functional parity with channel messaging.
+
+### Changed
+
+- **Dual-Read Compatibility** — `GetMessages` and `GetDMMessages` now 
+  automatically synthesize `ai_sidecar` from legacy flat fields 
+  (`metadata.reasoning`, etc.) during the rollout transition.
+- **Unified AI Ask** — Updated `/ask` command to persist sidecar details, 
+  ensuring reasoning and tools remain visible after reload.
+- **AI Conversation History** — Updated `GetAIConversation` to return 
+  authoritative sidecar data for every assistant response.
+
 ## [0.6.50] - 2026-04-25
 
 DMs UX & Phase 67B Polish (Web). Refactors the Direct Messages surface

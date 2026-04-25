@@ -80,6 +80,12 @@ type messageMetadata struct {
 	UserMentions    []messageUserMention              `json:"user_mentions,omitempty"`
 	EntityMentions  []knowledge.MentionedEntity       `json:"entity_mentions,omitempty"`
 	KnowledgeDigest *knowledge.ChannelKnowledgeDigest `json:"knowledge_digest,omitempty"`
+	AISidecar       *domain.AISidecar                 `json:"ai_sidecar,omitempty"`
+
+	// Legacy fields for backward compatibility
+	Reasoning string            `json:"reasoning,omitempty"`
+	ToolCalls []domain.AIToolCall `json:"tool_calls,omitempty"`
+	Usage     *domain.AIUsage   `json:"usage,omitempty"`
 }
 
 func getCurrentUser() (domain.User, error) {
@@ -240,7 +246,7 @@ func broadcastDMTypingEvent(dmID, userID string, isTyping bool) {
 	})
 }
 
-func broadcastDMStreamChunk(dmID, tempID, chunk string, isFinal bool) {
+func broadcastDMStreamChunk(dmID, tempID, kind, content string, isFinal bool) {
 	if RealtimeHub == nil {
 		return
 	}
@@ -249,17 +255,34 @@ func broadcastDMStreamChunk(dmID, tempID, chunk string, isFinal bool) {
 	if err := db.DB.Order("id asc").First(&workspace).Error; err == nil {
 		workspaceID = workspace.ID
 	}
+
+	// Phase 67B: Normative stream envelope
+	// {"kind":"reasoning|tool_call|usage|answer","message_id":"...","payload":{}}
+	normativeKind := kind
+	if kind == "chunk" {
+		normativeKind = "answer"
+	}
+
+	payload := gin.H{
+		"dm_id":    dmID,
+		"temp_id":  tempID,
+		"chunk":    content, // Legacy field
+		"is_final": isFinal, // Legacy field
+		"kind":     normativeKind,
+		"payload": gin.H{
+			"text": content,
+		},
+	}
+	if isFinal {
+		payload["message_id"] = content // When final, content is the real message ID
+	}
+
 	_ = RealtimeHub.Broadcast(realtime.Event{
 		ID:          "evt_" + time.Now().Format("20060102150405.000000"),
 		Type:        "dm.stream.chunk",
 		WorkspaceID: workspaceID,
 		TS:          time.Now().UTC().Format(time.RFC3339Nano),
-		Payload: gin.H{
-			"dm_id":    dmID,
-			"temp_id":  tempID,
-			"chunk":    chunk,
-			"is_final": isFinal,
-		},
+		Payload:     payload,
 	})
 }
 
@@ -295,6 +318,16 @@ func decodeMessageMetadata(message domain.Message) messageMetadata {
 	if err := json.Unmarshal([]byte(message.Metadata), &meta); err != nil {
 		return messageMetadata{}
 	}
+
+	// Phase 67B/SIDE: Dual-read legacy flat fields
+	if meta.AISidecar == nil && (meta.Reasoning != "" || len(meta.ToolCalls) > 0 || meta.Usage != nil) {
+		meta.AISidecar = &domain.AISidecar{
+			Reasoning: meta.Reasoning,
+			ToolCalls: meta.ToolCalls,
+			Usage:     meta.Usage,
+		}
+	}
+
 	return meta
 }
 
@@ -663,6 +696,58 @@ func refreshMessageMetadata(messageID string) (*domain.Message, error) {
 				Name:        loadUserNameByID(mention.MentionedUserID),
 				MentionText: mention.MentionText,
 			})
+		}
+	}
+
+	metadataJSON, err := json.Marshal(meta)
+	if err != nil {
+		return nil, err
+	}
+
+	message.Metadata = string(metadataJSON)
+	if err := db.DB.Model(&message).Update("metadata", message.Metadata).Error; err != nil {
+		return nil, err
+	}
+
+	return &message, nil
+}
+
+func refreshDMMessageMetadata(messageID string) (*domain.DMMessage, error) {
+	var message domain.DMMessage
+	if err := db.DB.First(&message, "id = ?", messageID).Error; err != nil {
+		return nil, err
+	}
+
+	// For DMs, we reuse the same metadata decoding/synthesis logic
+	// but skip channel-specific enrichments like knowledge auto-linking for now
+	// if they haven't been implemented for DMs yet.
+	
+	var meta messageMetadata
+	if message.Metadata != "" {
+		_ = json.Unmarshal([]byte(message.Metadata), &meta)
+	}
+
+	// Phase 67B/SIDE: Dual-read legacy flat fields
+	if meta.AISidecar == nil && (meta.Reasoning != "" || len(meta.ToolCalls) > 0 || meta.Usage != nil) {
+		meta.AISidecar = &domain.AISidecar{
+			Reasoning: meta.Reasoning,
+			ToolCalls: meta.ToolCalls,
+			Usage:     meta.Usage,
+		}
+	}
+
+	// Refresh mentions for DMs
+	var mentions []domain.MessageMention
+	if err := db.DB.Where("message_id = ? AND mention_kind = ?", messageID, "user").Order("created_at asc, id asc").Find(&mentions).Error; err == nil {
+		if len(mentions) > 0 {
+			meta.UserMentions = make([]messageUserMention, 0, len(mentions))
+			for _, mention := range mentions {
+				meta.UserMentions = append(meta.UserMentions, messageUserMention{
+					UserID:      mention.MentionedUserID,
+					Name:        loadUserNameByID(mention.MentionedUserID),
+					MentionText: mention.MentionText,
+				})
+			}
 		}
 	}
 
@@ -1862,6 +1947,12 @@ func GetDMMessages(c *gin.Context) {
 
 	var messages []domain.DMMessage
 	db.DB.Where("dm_conversation_id = ?", dmID).Order("created_at asc").Find(&messages)
+	for idx := range messages {
+		refreshed, err := refreshDMMessageMetadata(messages[idx].ID)
+		if err == nil && refreshed != nil {
+			messages[idx] = *refreshed
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{"messages": messages})
 }
 
@@ -1983,7 +2074,9 @@ func triggerAIDMReply(dmID, userMessage, senderUserID string) {
 	for event := range session.Events {
 		if event.Type == "chunk" && event.Text != "" {
 			reply.WriteString(event.Text)
-			broadcastDMStreamChunk(dmID, tempID, event.Text, false)
+			broadcastDMStreamChunk(dmID, tempID, string(event.Type), event.Text, false)
+		} else if (event.Type == "reasoning" || event.Type == "tool_call" || event.Type == "usage") && event.Text != "" {
+			broadcastDMStreamChunk(dmID, tempID, string(event.Type), event.Text, false)
 		}
 	}
 
@@ -2004,7 +2097,7 @@ func triggerAIDMReply(dmID, userMessage, senderUserID string) {
 		return
 	}
 	// Signal streaming complete (frontend replaces the streaming message with the saved one)
-	broadcastDMStreamChunk(dmID, tempID, aiMessage.ID, true)
+	broadcastDMStreamChunk(dmID, tempID, "answer", aiMessage.ID, true)
 	_ = broadcastDMRealtimeEvent(dmID, aiMessage.ID, gin.H{
 		"id":         aiMessage.ID,
 		"dm_id":      aiMessage.DMConversationID,

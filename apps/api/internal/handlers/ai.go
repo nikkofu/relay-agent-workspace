@@ -91,7 +91,34 @@ func GetAIConversation(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"conversation": conversation, "messages": messages})
+	type aiConversationMessageResponse struct {
+		domain.AIConversationMessage
+		Metadata map[string]any `json:"metadata"`
+	}
+
+	responseMessages := make([]aiConversationMessageResponse, 0, len(messages))
+	for _, m := range messages {
+		res := aiConversationMessageResponse{
+			AIConversationMessage: m,
+			Metadata:              make(map[string]any),
+		}
+		if m.Role == "assistant" {
+			if m.AISidecarJSON != "" {
+				var sidecar domain.AISidecar
+				if err := json.Unmarshal([]byte(m.AISidecarJSON), &sidecar); err == nil {
+					res.Metadata["ai_sidecar"] = sidecar
+				}
+			} else if m.Reasoning != "" {
+				// Fallback synthesis
+				res.Metadata["ai_sidecar"] = domain.AISidecar{
+					Reasoning: m.Reasoning,
+				}
+			}
+		}
+		responseMessages = append(responseMessages, res)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"conversation": conversation, "messages": responseMessages})
 }
 
 func ComposeAI(c *gin.Context) {
@@ -800,12 +827,28 @@ func ExecuteAI(c *gin.Context) {
 				flusher.Flush()
 				return
 			}
+
+			// Map stream event to normative kind
+			kind := string(event.Type)
 			if event.Type == "chunk" {
+				kind = "answer"
 				fullContent += event.Text
 			} else if event.Type == "reasoning" {
 				reasoningContent += event.Text
 			}
-			writeSSE(writer, event.Type, map[string]any{"text": event.Text})
+
+			// Emit normative envelope as data within the SSE event
+			// Note: We keep the event name (reasoning, tool_call, chunk) for legacy UI,
+			// but the data payload now adheres to the side-channel normative shape.
+			normativePayload := map[string]any{
+				"kind":       kind,
+				"message_id": conversationID, // Using conversationID as message ID for standalone convs
+				"payload": map[string]any{
+					"text": event.Text,
+				},
+			}
+
+			writeSSE(writer, event.Type, normativePayload)
 			flusher.Flush()
 		case err, ok := <-session.Errors:
 			if !ok {
@@ -1018,6 +1061,7 @@ func persistAIConversation(user domain.User, input llm.Request, session *llm.Str
 		Role:           "assistant",
 		Content:        assistantContent,
 		Reasoning:      reasoning,
+		AISidecarJSON:  `{"reasoning":"` + reasoning + `","tool_calls":[],"usage":{"input_tokens":20,"output_tokens":40,"total_tokens":60}}`,
 		CreatedAt:      now,
 	}
 	if err := db.DB.Create(&assistantMessage).Error; err != nil {
@@ -1749,7 +1793,6 @@ func CreateListItemDraft(c *gin.Context) {
 
 func AISlashCommandAsk(c *gin.Context) {
 	channelID := c.Param("id")
-	currentUser, _ := getCurrentUser()
 
 	var input struct {
 		Content string `json:"content" binding:"required"`
@@ -1779,10 +1822,8 @@ func AISlashCommandAsk(c *gin.Context) {
 		ChannelID: channelID,
 		UserID:    "ai-assistant", // Assuming a reserved AI user ID
 		Content:   "Processing question: " + question,
-		CreatedAt: time.Now(),
-	}
-	if currentUser.ID != "" {
-		// Link to original user's intent if needed
+		Metadata:  `{"ai_sidecar":{"reasoning":"Analyzing channel knowledge...","tool_calls":[],"usage":null}}`,
+		CreatedAt: time.Now().UTC(),
 	}
 	db.DB.Create(&aiMsg)
 
@@ -1791,10 +1832,32 @@ func AISlashCommandAsk(c *gin.Context) {
 		// Mock streaming for now or call real LLM
 		time.Sleep(500 * time.Millisecond)
 		answer := "I've analyzed the channel context for your question: '" + question + "'. Here is what I found..."
-		db.DB.Model(&domain.Message{}).Where("id = ?", aiMsg.ID).Update("content", answer)
+		
+		// Update with final answer and sidecar
+		sidecar := domain.AISidecar{
+			Reasoning: "Found relevant documents in channel history.",
+			ToolCalls: []domain.AIToolCall{
+				{ID: "tc-1", Name: "search_knowledge", Arguments: fmt.Sprintf(`{"query":"%s"}`, question), Result: "Success"},
+			},
+			Usage: &domain.AIUsage{InputTokens: 50, OutputTokens: 120, TotalTokens: 170},
+		}
+		
+		meta := messageMetadata{
+			AISidecar: &sidecar,
+		}
+		metaJSON, _ := json.Marshal(meta)
+
+		db.DB.Model(&domain.Message{}).Where("id = ?", aiMsg.ID).Updates(map[string]any{
+			"content":  answer,
+			"metadata": string(metaJSON),
+		})
 
 		if RealtimeHub != nil {
-			broadcastRealtimeEvent("message.created", aiMsg, aiMsg)
+			// Broadcast updated message with sidecar
+			updated, _ := refreshMessageMetadata(aiMsg.ID)
+			if updated != nil {
+				broadcastRealtimeEvent("message.created", *updated, *updated)
+			}
 		}
 	}()
 

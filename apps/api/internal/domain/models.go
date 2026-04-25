@@ -380,6 +380,7 @@ type DMMessage struct {
 	DMConversationID string    `gorm:"index" json:"dm_id"`
 	UserID           string    `json:"user_id"`
 	Content          string    `json:"content"`
+	Metadata         string    `json:"metadata"`
 	CreatedAt        time.Time `json:"created_at"`
 }
 
@@ -442,6 +443,7 @@ type AIConversationMessage struct {
 	Role           string    `json:"role"`
 	Content        string    `json:"content"`
 	Reasoning      string    `json:"reasoning,omitempty"`
+	AISidecarJSON  string    `json:"ai_sidecar,omitempty"`
 	CreatedAt      time.Time `json:"created_at"`
 }
 
@@ -734,4 +736,25 @@ type StarredFile struct {
 	FileID    string    `gorm:"index;uniqueIndex:idx_starred_file" json:"file_id"`
 	UserID    string    `gorm:"index;uniqueIndex:idx_starred_file" json:"user_id"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type AISidecar struct {
+	Reasoning string         `json:"reasoning,omitempty"`
+	ToolCalls []AIToolCall   `json:"tool_calls,omitempty"`
+	Usage     *AIUsage       `json:"usage,omitempty"`
+}
+
+type AIToolCall struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Arguments  string `json:"arguments"`
+	Result     string `json:"result,omitempty"`
+	DurationMS int    `json:"duration_ms,omitempty"`
+}
+
+type AIUsage struct {
+	InputTokens  int     `json:"input_tokens"`
+	OutputTokens int     `json:"output_tokens"`
+	TotalTokens  int     `json:"total_tokens"`
+	CostUSD      float64 `json:"cost_usd,omitempty"`
 }

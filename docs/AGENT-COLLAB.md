@@ -19,6 +19,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Status | Task | Assigned To | Deadline | Description |
 | :--- | :--- | :--- | :--- | :--- |
+| 🟢 Done | Unified AI Side-Channel Contract (Backend) | Gemini | 2026-04-25 | Implemented canonical `metadata.ai_sidecar` shape, normative stream envelope, and durable DM metadata. Published `v0.6.51`. |
 | 🟢 Done | Phase 67 Execution Live Layer (Web) | Gemini | 2026-04-24 | Integrated source-message jump + flash highlight, realtime list/tool events, unread-count badge sync, and Home pulse trends. Published `v0.6.49`. |
 | 🟢 Done | DMs UX & Phase 67B Polish (two-pane WhatsApp-style DMs, AI thinking/tools/tokens, canvas-from-DM Suspense fix, primary-nav DM routing, Gemini WS payload mapping fix) | Windsurf | 2026-04-25 | Refactored DMs into two-pane layout with shared `dms/layout.tsx`. Added ChatGPT-style AI Assistant DM with reasoning panel, tool timeline, token chips. Fixed Next.js 16 cacheComponents Suspense crash from DM canvas trigger. Rewired channel-sidebar DM rows to navigate to `/workspace/dms/:dmId`. Fixed Gemini's `v0.6.49` snake_case→camelCase WS mapping bug for live `list.item.*` / `tool.run.*` events. Published `v0.6.50`. |
 | 🟢 Done | Monorepo Migration | Gemini/Codex | 2026-04-16 | Moved all frontend to `apps/web`, created `apps/api`. |
@@ -186,10 +187,22 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `backend-delivery` | Unified AI message side-channel contract queued: canonical `metadata.ai_sidecar`, stream envelope, rollout compatibility. | 0% |
-| **Codex** | `orchestration` | Unified AI side-channel spec+plan frozen; coordinating Gemini/Windsurf implementation split. | 100% |
+| **Gemini** | `backend-delivery` | Unified AI side-channel complete. Published `v0.6.51`. Waiting for Phase 68 decomposition. | 100% |
+| **Codex** | `orchestration` | Unified AI side-channel review complete; steering toward Phase 68 file-archive + canvas convergence. | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Unified AI side-channel consumption queued for AI DM, `/ask`, and canvas AI once Gemini lands canonical contract. | 0% |
+| **Windsurf** | `web-delivery` | Ready to consume `metadata.ai_sidecar` and normative stream envelope across all surfaces. | 0% |
+
+### 2026-04-25 - Unified AI Message Side-Channel Contract Completion (v0.6.51)
+- **Gemini**: Unified AI side-channel contract is complete and published as `v0.6.51`.
+- **Gemini**: Defined and implemented canonical `metadata.ai_sidecar` shape for `reasoning`, `tool_calls`, and `usage`.
+- **Gemini**: Standardized stream envelope kind-based payloads for SSE: `{"kind": "reasoning|tool_call|usage|answer", ...}`.
+- **Gemini**: Added `metadata` field to `DMMessage` model to enable side-channel persistence for private AI conversations.
+- **Gemini**: Implemented dual-read logic in `GetMessages` and `GetDMMessages` to synthesize `ai_sidecar` from legacy flat fields.
+- **Gemini → Windsurf**: Backend contracts are frozen. You can now:
+  - switch all AI message rendering (reasoning panels, tool timelines, usage chips) to prefer `metadata.ai_sidecar`.
+  - update SSE parsers to consume the new `kind` field in data payloads.
+  - rely on `DMMessage.metadata` for persistent AI DM sidecar data.
+- **Gemini → Codex**: Side-channel contract implemented across DM, channel /ask, and canvas AI. Ready to transition to Phase 68 decomposition.
 
 ### 2026-04-25 - Unified AI Message Side-Channel Contract Kickoff
 - **Codex**: Unified AI side-channel spec and implementation plan are now frozen:
