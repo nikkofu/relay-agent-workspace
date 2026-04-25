@@ -2,6 +2,109 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.52] - 2026-04-25
+
+Unified AI Side-Channel Contract (Web). Consumes the canonical
+`metadata.ai_sidecar` shape and the normative SSE envelope frozen by
+Codex and implemented backend-side by Gemini in `v0.6.51`. AI DM
+bubbles, channel `/ask` replies, and the canvas AI Dock now share one
+authoritative renderer for reasoning, tool activity, and usage telemetry
+— heuristics remain only as a documented fallback when the backend
+hasn't supplied real data.
+
+### Added
+
+- **`@/lib/ai-sidecar`** — Authoritative client-side type for
+  `AISidecar` (`reasoning`, `tool_calls`, `usage`) plus the two helpers
+  every AI surface in the app must funnel through:
+  - `normalizeAISidecar(metadata)` — accepts the canonical
+    `metadata.ai_sidecar` shape, Gemini's looser persisted shape
+    (`reasoning: string`, `tool_calls[].arguments/result`), the spec
+    shape (`reasoning: { summary, segments[] }`,
+    `tool_calls[].input_summary/output_summary/status`), AND the legacy
+    flat fields (`metadata.reasoning` / `tool_calls` / `usage`) so
+    mixed-version backends keep rendering correctly during rollout.
+    Returns `null` (not an empty object) when nothing AI-side-channel-
+    shaped is present so call sites can do a fast nullish check.
+  - `parseAIStreamEvent(eventName, dataJson)` — translates one SSE record
+    into a normalized `AIStreamEvent` (`kind: "reasoning" | "tool_call"
+    | "usage" | "answer" | "error"`). Prefers Codex's normative envelope
+    `{ kind, message_id, payload }`; transparently falls back to the
+    legacy `event: chunk|reasoning|error` + `{ text }` form so the dock
+    keeps working against any backend that hasn't switched yet.
+- **`@/components/ai/ai-sidecar-blocks`** — Single implementation of the
+  ChatGPT-style "Thinking" panel + Tool timeline + Usage chip, reused
+  by every AI surface. The panel auto-pulses while live, shows a word
+  count and duration when persisted, and renders structured reasoning
+  segments (`thought` / `step` / `note`) when the backend supplies them.
+  Tool rows show status pills (`pending` / `running` / `success` /
+  `failed`) with per-step duration and input/output summaries. The
+  `UsageChip` prefers `total_tokens` and falls back to `input + output`,
+  rendering cost in `$0.0123` form when supplied.
+
+### Changed
+
+- **AI DM (`/workspace/dms/[id]`)** — Now reads through
+  `normalizeAISidecar` for every assistant bubble. The session-level
+  token meter in the header **prefers real `usage.total_tokens` from
+  every bubble that has it** and only falls back to the 4 chars/token
+  heuristic for bubbles that don't (per Frontend Consumption Rule §2 of
+  the contract). Streaming bubbles still show the live "Thinking…"
+  reasoning pulse from the existing `dm.stream.chunk` text feed.
+- **Channel `/ask` reply (`MessageItem`)** — When a channel message
+  carries an AI sidecar (canonical or legacy), `MessageItem` now renders
+  the same Reasoning panel + Tool timeline + Usage chip used by the AI
+  DM. Non-AI messages produce a null sidecar and the blocks are simply
+  not rendered, so non-AI rows stay untouched.
+- **Canvas AI Dock (`CanvasAIDock`)** — SSE loop replaced with
+  `parseAIStreamEvent`. The dock now accumulates `tool_call` events
+  (merged by `id` so `running → success` lands on the same row) and a
+  `usage` payload, and renders the shared Tool timeline + Usage chip on
+  the assistant bubble. Heartbeats and unknown frames are still
+  preserved as best-effort answer text so a misconfigured backend
+  doesn't lose bytes. The legacy amber "Thinking" block stays as the
+  canvas-specific reasoning chrome.
+
+### Verification Used For This Release
+
+- `cd apps/web && pnpm exec tsc --noEmit` — clean.
+- `cd apps/web && pnpm exec eslint .` — clean.
+- Manual flow:
+  1. AI DM with `dm-1` → assistant bubble shows the shared Reasoning
+     panel + Tool timeline + authoritative Usage chip; session token
+     meter prefers backend totals.
+  2. `/ask` in a channel → `MessageItem` renders the same set of
+     side-channel blocks under the AI reply once it persists.
+  3. Open canvas → AI Dock streams `kind: reasoning` into the legacy
+     "Thinking" block, `kind: tool_call` into the new shared timeline,
+     and `kind: usage` into the new shared chip. Mid-flight a backend
+     still emitting `event: chunk` + `{text}` continues to render
+     normally (parser fallback verified).
+
+### Codex / Gemini Asks (logged in `docs/AGENT-COLLAB.md`)
+
+To finish the cross-surface story:
+
+1. **Persist canvas AI sidecars on reload.** The dock already captures
+   the `conversation_id` in the `start` / `conversation` SSE events, but
+   does not currently fetch `/api/v1/ai/conversations/:id` to replay the
+   persisted `metadata.ai_sidecar` after a reload. The contract
+   ("canvas AI: replay persisted sidecar after reload/reopen") needs the
+   dock to opt into per-canvas conversation persistence — this is a
+   separate UX call (which canvas / artifact owns which conversation?).
+   Punting until Codex scopes that.
+2. **Spec-shape segments** (`reasoning: { summary, segments[] }` with
+   `kind: "thought" | "step" | "note"`). The Web normalizer already
+   accepts both Gemini's flat-string shape and the spec's structured
+   form, but Gemini's current emission is the flat-string. When the
+   backend can produce structured `segments`, we'll automatically render
+   them with per-kind styling (steps marked with a violet ▸, notes in
+   italics).
+3. **Real `usage.cost_usd`** alongside the existing token counts. The
+   `UsageChip` already renders `· $0.0123` when present.
+4. **Phase 68 (file-archive + canvas convergence)** still owed; will
+   take the Web side once contract drops.
+
 ## [0.6.51] - 2026-04-25
 
 Unified AI Side-Channel Contract (Backend). Defines and implements one 

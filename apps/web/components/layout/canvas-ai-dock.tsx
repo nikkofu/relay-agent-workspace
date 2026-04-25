@@ -43,6 +43,8 @@ import { cn } from "@/lib/utils"
 import { API_BASE_URL } from "@/lib/constants"
 import { toast } from "sonner"
 import type { CanvasEditorHandle, EditorRange } from "./canvas-tiptap-editor"
+import { parseAIStreamEvent } from "@/lib/ai-sidecar"
+import { ToolTimeline, UsageChip } from "@/components/ai/ai-sidecar-blocks"
 
 // ── Public handle ────────────────────────────────────────────────────────────
 
@@ -99,8 +101,13 @@ interface DockMessage {
   text: string
   /** Only on assistant messages — the instruction sent to the LLM (Retry). */
   instruction?: string
-  /** Accumulated reasoning tokens from `event: reasoning`. Only assistant. */
+  /** Accumulated reasoning tokens, kept as a flat string for legacy renderers.
+   *  The canonical structured form is on `sidecar.reasoning`. */
   reasoning?: string
+  /** Unified AI Side-Channel Contract sidecar accumulated from the SSE
+   *  stream (`reasoning` / `tool_call` / `usage` kinds). Drives the shared
+   *  Reasoning panel + Tool timeline + Usage chip components. */
+  sidecar?: import("@/lib/ai-sidecar").AISidecar
   /** Target scope captured at send-time. */
   targetRange?: "selection" | "document"
   targetPreview?: string
@@ -310,6 +317,23 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
         let buffer = ""
         let accText = ""
         let accReasoning = ""
+        // Unified contract sidecar accumulator. We mutate this in-place as
+        // `reasoning` / `tool_call` / `usage` events arrive and re-render
+        // the assistant bubble with a fresh shallow copy each time so React
+        // sees the change.
+        const sidecar: import("@/lib/ai-sidecar").AISidecar = {}
+        const toolById = new Map<string, import("@/lib/ai-sidecar").AIToolCall>()
+
+        const pushSidecar = () => {
+          const snapshot: import("@/lib/ai-sidecar").AISidecar = {
+            reasoning: sidecar.reasoning,
+            tool_calls: toolById.size > 0 ? Array.from(toolById.values()) : sidecar.tool_calls,
+            usage: sidecar.usage,
+          }
+          setMessages(prev =>
+            prev.map(m => m.id === aiMsgId ? { ...m, sidecar: snapshot } : m),
+          )
+        }
 
         while (true) {
           const { value, done } = await reader.read()
@@ -326,36 +350,70 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
               else if (line.startsWith("data:")) data += line.slice(5).trim()
             }
             if (!data) continue
-            try {
-              const parsed = JSON.parse(data)
-              const chunk =
-                (typeof parsed.text === "string" && parsed.text) ||
-                (typeof parsed.content === "string" && parsed.content) ||
-                (typeof parsed.delta === "string" && parsed.delta) ||
-                ""
-              if (evt === "chunk" || evt === "message" || evt === "token") {
-                if (chunk) {
-                  accText += chunk
+            // Use the unified parser that understands BOTH the new normative
+            // `{ kind, message_id, payload }` envelope (Gemini v0.6.51+) and
+            // the legacy `event: chunk|reasoning|error` + `{ text }` form
+            // older backends still emit. Returns null for heartbeats.
+            const parsedEvt = parseAIStreamEvent(evt, data)
+            if (!parsedEvt) {
+              // Heartbeat / unknown frame — if it's plain text-only with no
+              // recognised wrapper, append to the answer so we don't drop
+              // bytes from a misconfigured backend.
+              if (evt === "chunk" || evt === "message") {
+                try {
+                  const j = JSON.parse(data)
+                  if (typeof j.text === "string" && j.text) {
+                    accText += j.text
+                    setMessages(prev =>
+                      prev.map(m => m.id === aiMsgId ? { ...m, text: accText } : m),
+                    )
+                  }
+                } catch {
+                  accText += data
                   setMessages(prev =>
                     prev.map(m => m.id === aiMsgId ? { ...m, text: accText } : m),
                   )
                 }
-              } else if (evt === "reasoning") {
-                if (chunk) {
-                  accReasoning += chunk
-                  setMessages(prev =>
-                    prev.map(m => m.id === aiMsgId ? { ...m, reasoning: accReasoning } : m),
-                  )
-                }
-              } else if (evt === "error") {
-                throw new Error(parsed.message || "AI streaming error")
               }
-              // "start", "done", "conversation" are ignored.
-            } catch {
-              accText += data
+              continue
+            }
+            if (parsedEvt.kind === "answer" && parsedEvt.text) {
+              accText += parsedEvt.text
               setMessages(prev =>
                 prev.map(m => m.id === aiMsgId ? { ...m, text: accText } : m),
               )
+            } else if (parsedEvt.kind === "reasoning" && parsedEvt.text) {
+              accReasoning += parsedEvt.text
+              // Maintain the legacy flat `reasoning` string alongside the
+              // canonical structured form so anything still consuming the
+              // pre-contract field keeps working.
+              sidecar.reasoning = { summary: accReasoning, segments: [] }
+              setMessages(prev =>
+                prev.map(m => m.id === aiMsgId
+                  ? { ...m, reasoning: accReasoning, sidecar: { ...sidecar, tool_calls: toolById.size ? Array.from(toolById.values()) : sidecar.tool_calls } }
+                  : m),
+              )
+            } else if (parsedEvt.kind === "tool_call" && parsedEvt.tool) {
+              // Merge by id so streaming `running → success` updates land
+              // on the same row instead of duplicating.
+              const tc = parsedEvt.tool
+              const id = tc.id || `tc-${toolById.size}`
+              const prev = toolById.get(id)
+              const merged = {
+                id,
+                name: tc.name ?? prev?.name ?? "tool",
+                status: tc.status ?? prev?.status ?? "running",
+                input_summary: tc.input_summary ?? prev?.input_summary,
+                output_summary: tc.output_summary ?? prev?.output_summary,
+                duration_ms: tc.duration_ms ?? prev?.duration_ms,
+              }
+              toolById.set(id, merged)
+              pushSidecar()
+            } else if (parsedEvt.kind === "usage" && parsedEvt.usage) {
+              sidecar.usage = parsedEvt.usage
+              pushSidecar()
+            } else if (parsedEvt.kind === "error") {
+              throw new Error(parsedEvt.error || "AI streaming error")
             }
           }
         }
@@ -872,12 +930,22 @@ function ChatBubble({
 
         {/* Reasoning / Thinking section. Auto-expanded while streaming so the
             user can follow along, collapsed by default after the final answer
-            lands (click to toggle). */}
+            lands (click to toggle). The custom amber-themed `ReasoningBlock`
+            below is the canvas-specific look-and-feel. The shared
+            `ToolTimeline` and `UsageChip` come straight from the unified
+            contract. */}
         {message.reasoning && (
           <ReasoningBlock
             reasoning={message.reasoning}
             isStreaming={isStreaming}
           />
+        )}
+
+        {/* Tool timeline — shown the moment the first `tool_call` event lands. */}
+        {message.sidecar?.tool_calls && message.sidecar.tool_calls.length > 0 && (
+          <div className="mb-1.5">
+            <ToolTimeline toolCalls={message.sidecar.tool_calls} />
+          </div>
         )}
 
         {/* Final answer bubble */}
@@ -975,6 +1043,15 @@ function ChatBubble({
               <X className="w-3 h-3" />
               Stop
             </Button>
+          </div>
+        )}
+        {/* Usage chip from the unified contract — only renders when the
+            backend supplies a real `usage` payload. The 4-char heuristic is
+            deliberately not used here because the canvas dock has no need
+            to display an estimated count when the model didn't cost anything. */}
+        {message.sidecar?.usage && !isStreaming && (
+          <div className="flex items-center gap-1 mt-1 px-1">
+            <UsageChip usage={message.sidecar.usage} />
           </div>
         )}
       </div>

@@ -20,7 +20,7 @@
 //   • A token-count footer (input / output / total) on every AI bubble,
 //     estimated client-side until the backend exposes real telemetry.
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useMessageStore } from "@/stores/message-store"
 import { useDMStore } from "@/stores/dm-store"
@@ -31,13 +31,14 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
-  ArrowLeft, Sparkles, Brain, ChevronDown, ChevronRight, Wrench, Hash,
-  Check, RotateCcw, Copy as CopyIcon,
+  ArrowLeft, Sparkles, Hash, RotateCcw, Copy as CopyIcon,
 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { cn } from "@/lib/utils"
 import { UserAvatar } from "@/components/common/user-avatar"
 import { toast } from "sonner"
+import { normalizeAISidecar, estimateTokens, plainTextOf } from "@/lib/ai-sidecar"
+import { ReasoningPanel, ToolTimeline, UsageChip } from "@/components/ai/ai-sidecar-blocks"
 
 function isAIUserCheck(user: { id: string; name: string; email?: string }) {
   const name = user.name.toLowerCase()
@@ -45,21 +46,10 @@ function isAIUserCheck(user: { id: string; name: string; email?: string }) {
   return name.includes("assistant") || name.includes("ai") || email.startsWith("ai@") || user.id === "user-2"
 }
 
-// Quick-and-dirty token estimate. The OpenAI rule of thumb is ~4 chars
-// per token for English; close enough for a footer chip until the
-// backend exposes real `usage.total_tokens` on DM messages.
-function estimateTokens(s: string): number {
-  if (!s) return 0
-  return Math.max(1, Math.round(s.length / 4))
-}
-
-// Extract any HTML markup so the token estimate doesn't include `<p>`/`<br>`.
-function stripHtml(html: string): string {
-  if (typeof document === "undefined") return html.replace(/<[^>]+>/g, "")
-  const tmp = document.createElement("div")
-  tmp.innerHTML = html
-  return tmp.textContent || ""
-}
+// Token-estimate + HTML-stripping helpers live in `@/lib/ai-sidecar` so the
+// fallback heuristic (~4 chars / token) and the HTML strip behave identically
+// on every AI surface. The contract (Frontend Consumption Rule §2) requires
+// the heuristic to be used ONLY when `metadata.ai_sidecar.usage` is absent.
 
 export default function DMConversationPage() {
   return <DMConversationContent />
@@ -75,11 +65,6 @@ function DMConversationContent() {
   const { users, currentUser } = useUserStore()
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  // Track which AI bubbles have their reasoning expanded. Defaults to the
-  // currently-streaming bubble being open so the user sees the live
-  // thinking unfold (matches ChatGPT's behaviour).
-  const [expandedReasoning, setExpandedReasoning] = useState<Record<string, boolean>>({})
-
   const conversation = conversations.find(c => c.id === dmId)
   const otherUserId = conversation?.userIds?.find((id: string) => id !== currentUser?.id)
   const otherUser = otherUserId ? users.find(u => u.id === otherUserId) : null
@@ -89,15 +74,29 @@ function DMConversationContent() {
   const streamEntries = Object.entries(streamingDMMessages).filter(([, v]) => v.dmId === dmId)
   const isStreaming = streamEntries.length > 0
 
-  // Total tokens consumed in this conversation — a rough running cost
-  // estimate so the user gets the same "300 tokens / $0.0006" footer feel
-  // as the ChatGPT web UI.
+  // Session-level token meter. The Unified AI Side-Channel Contract
+  // (Frontend Consumption Rule §2) requires us to PREFER
+  // `metadata.ai_sidecar.usage` over heuristics when the backend has
+  // supplied real usage telemetry. We sum the authoritative payload for
+  // every AI bubble that has one, and fall back to the ~4 chars/token
+  // estimate for bubbles that don't — plus stream chunks (always estimated
+  // because `usage` arrives only at completion).
   const sessionTokens = useMemo(() => {
     let input = 0, output = 0
     for (const m of dmMessages) {
-      const text = stripHtml(m.content || "")
-      if (m.senderId === currentUser?.id) input += estimateTokens(text)
-      else output += estimateTokens(text)
+      const text = plainTextOf(m.content || "")
+      const sidecar = normalizeAISidecar((m as any).metadata)
+      if (m.senderId === currentUser?.id) {
+        // User-authored — always an estimate (we don't track upstream
+        // request usage on user bubbles).
+        input += estimateTokens(text)
+      } else if (sidecar?.usage?.total_tokens || sidecar?.usage?.output_tokens) {
+        // Authoritative path: prefer real LLM telemetry.
+        output += sidecar.usage.output_tokens ?? sidecar.usage.total_tokens ?? 0
+        input += sidecar.usage.input_tokens ?? 0
+      } else {
+        output += estimateTokens(text)
+      }
     }
     for (const [, s] of streamEntries) output += estimateTokens(s.text)
     return { input, output, total: input + output }
@@ -117,13 +116,9 @@ function DMConversationContent() {
     }
   }, [dmMessages.length, streamEntries.length])
 
-  const toggleReasoning = (id: string) => {
-    setExpandedReasoning(prev => ({ ...prev, [id]: !prev[id] }))
-  }
-
   const copyMessage = async (id: string, html: string) => {
     try {
-      await navigator.clipboard.writeText(stripHtml(html))
+      await navigator.clipboard.writeText(plainTextOf(html))
       toast.success("Copied")
     } catch {
       toast.error("Copy failed")
@@ -196,18 +191,14 @@ function DMConversationContent() {
           const sender = users.find(u => u.id === msg.senderId)
           const senderIsAI = sender ? isAIUserCheck(sender) : false
           const isOwn = msg.senderId === currentUser?.id
-          const text = stripHtml(msg.content || "")
-          const tokens = estimateTokens(text)
+          const text = plainTextOf(msg.content || "")
 
-          // Pull AI side-channel data out of the message metadata when the
-          // backend provides it. Falls back to undefined on legacy rows so
-          // we just render the bubble like before.
-          const meta = (msg as any).metadata || {}
-          const reasoning: string | undefined = meta.reasoning || meta.thinking
-          const toolCalls: ToolCallStep[] | undefined = meta.tool_calls || meta.tools
-          const usage = meta.usage as { input_tokens?: number, output_tokens?: number, total_tokens?: number } | undefined
-
-          const reasoningOpen = expandedReasoning[msg.id] ?? false
+          // Unified AI Side-Channel Contract: every AI surface funnels its
+          // metadata through `normalizeAISidecar`, which accepts the
+          // canonical `metadata.ai_sidecar` shape AND the legacy flat
+          // fields (`metadata.reasoning`/`tool_calls`/`usage`) so mixed-
+          // version backends keep rendering correctly during rollout.
+          const sidecar = senderIsAI ? normalizeAISidecar((msg as any).metadata) : null
           const isLastAI = senderIsAI && idx === dmMessages.length - 1
 
           return (
@@ -230,18 +221,15 @@ function DMConversationContent() {
                   </span>
                 )}
 
-                {/* AI side-channel: reasoning + tool steps render ABOVE the answer
-                    bubble so the user sees the path the AI took. */}
-                {senderIsAI && reasoning && (
-                  <ReasoningBlock
-                    text={reasoning}
-                    expanded={reasoningOpen}
-                    onToggle={() => toggleReasoning(msg.id)}
-                    durationMs={meta.thinking_ms}
-                  />
+                {/* AI side-channel: reasoning + tool steps render ABOVE the
+                    answer bubble so the user sees the path the AI took.
+                    Both blocks read directly from `normalizeAISidecar`'s
+                    canonical output — no per-surface special cases. */}
+                {senderIsAI && sidecar?.reasoning && (
+                  <ReasoningPanel reasoning={sidecar.reasoning} />
                 )}
-                {senderIsAI && toolCalls && toolCalls.length > 0 && (
-                  <ToolTimeline calls={toolCalls} />
+                {senderIsAI && sidecar?.tool_calls && sidecar.tool_calls.length > 0 && (
+                  <ToolTimeline toolCalls={sidecar.tool_calls} />
                 )}
 
                 <div className={cn(
@@ -267,10 +255,20 @@ function DMConversationContent() {
                   {senderIsAI && (
                     <>
                       <span aria-hidden>·</span>
-                      <span className="inline-flex items-center gap-0.5" title={usage ? "Reported by backend" : "Client-side estimate"}>
-                        <Hash className="w-2.5 h-2.5" />
-                        {(usage?.total_tokens ?? usage?.output_tokens ?? tokens).toLocaleString()} tok
-                      </span>
+                      {/* Authoritative usage chip when the backend supplied
+                          `metadata.ai_sidecar.usage`; otherwise fall back to
+                          the 4-char heuristic per Frontend Consumption Rule §2. */}
+                      {sidecar?.usage
+                        ? <UsageChip usage={sidecar.usage} />
+                        : (
+                          <span
+                            className="inline-flex items-center gap-0.5"
+                            title="Client-side estimate (no usage payload yet)"
+                          >
+                            <Hash className="w-2.5 h-2.5" />
+                            {estimateTokens(text).toLocaleString()} tok
+                          </span>
+                        )}
                     </>
                   )}
                   <button
@@ -316,10 +314,8 @@ function DMConversationContent() {
               <span className="text-[10px] font-semibold text-muted-foreground px-1">
                 {otherUser?.name ?? "AI Assistant"}
               </span>
-              <ReasoningBlock
-                text={s.text || "Working through your request…"}
-                expanded
-                onToggle={() => { /* always-on while streaming */ }}
+              <ReasoningPanel
+                reasoning={{ summary: s.text || "Working through your request…", segments: [] }}
                 live
               />
               <div className="bg-muted dark:bg-muted/60 px-3.5 py-2 rounded-2xl rounded-bl-sm text-sm leading-relaxed text-foreground">
@@ -356,97 +352,11 @@ function DMConversationContent() {
   )
 }
 
-// ── AI side-channel building blocks ─────────────────────────────────────────
-
-interface ToolCallStep {
-  name?: string
-  label?: string
-  status?: "pending" | "running" | "success" | "failed"
-  detail?: string
-  duration_ms?: number
-}
-
-function ReasoningBlock({
-  text, expanded, onToggle, live, durationMs,
-}: {
-  text: string
-  expanded: boolean
-  onToggle: () => void
-  live?: boolean
-  durationMs?: number
-}) {
-  return (
-    <div className={cn(
-      "rounded-xl border text-[11px] leading-relaxed",
-      live
-        ? "border-violet-500/30 bg-violet-50/50 dark:bg-violet-950/20"
-        : "border-border bg-muted/40",
-    )}>
-      <button
-        type="button"
-        onClick={onToggle}
-        className="w-full flex items-center gap-1.5 px-3 py-1.5 hover:bg-muted/40 transition-colors rounded-t-xl"
-      >
-        {expanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-        <Brain className={cn(
-          "w-3 h-3",
-          live ? "text-violet-600 animate-pulse" : "text-muted-foreground",
-        )} />
-        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-          {live ? "Thinking…" : "Thoughts"}
-        </span>
-        {durationMs !== undefined && !live && (
-          <span className="text-[9px] text-muted-foreground/70 ml-auto">
-            {(durationMs / 1000).toFixed(1)}s
-          </span>
-        )}
-      </button>
-      {expanded && (
-        <div className="px-3 pb-2 pt-1 max-h-48 overflow-y-auto">
-          <p className="text-muted-foreground whitespace-pre-wrap">{text}</p>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function ToolTimeline({ calls }: { calls: ToolCallStep[] }) {
-  return (
-    <div className="rounded-xl border bg-muted/40 px-3 py-2 space-y-1">
-      <div className="flex items-center gap-1.5">
-        <Wrench className="w-3 h-3 text-muted-foreground" />
-        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-          Tools used · {calls.length}
-        </span>
-      </div>
-      <ol className="space-y-0.5">
-        {calls.map((c, i) => {
-          const status = c.status ?? "success"
-          return (
-            <li key={i} className="flex items-center gap-1.5 text-[11px]">
-              <span className={cn(
-                "inline-flex w-3.5 h-3.5 rounded-full items-center justify-center shrink-0",
-                status === "running" && "bg-blue-500/15 text-blue-600",
-                status === "success" && "bg-emerald-500/15 text-emerald-600",
-                status === "failed" && "bg-rose-500/15 text-rose-600",
-                status === "pending" && "bg-muted text-muted-foreground",
-              )}>
-                {status === "success" ? <Check className="w-2 h-2" /> : <span className="text-[9px] font-black">{i + 1}</span>}
-              </span>
-              <span className="font-semibold truncate">{c.label ?? c.name ?? "Tool"}</span>
-              {c.detail && <span className="text-muted-foreground truncate">— {c.detail}</span>}
-              {c.duration_ms !== undefined && (
-                <span className="text-muted-foreground/70 ml-auto text-[9px]">
-                  {c.duration_ms < 1000 ? `${c.duration_ms}ms` : `${(c.duration_ms / 1000).toFixed(1)}s`}
-                </span>
-              )}
-            </li>
-          )
-        })}
-      </ol>
-    </div>
-  )
-}
+// ── AI welcome state ────────────────────────────────────────────────────────
+//
+// Reasoning / tool / usage blocks now live in `@/components/ai/ai-sidecar-blocks`
+// and are produced by `normalizeAISidecar()` from `@/lib/ai-sidecar`. See the
+// Unified AI Side-Channel Contract spec for why this had to become cross-surface.
 
 function AIWelcome({ name }: { name: string }) {
   return (

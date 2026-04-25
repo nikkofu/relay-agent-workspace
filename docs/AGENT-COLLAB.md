@@ -20,6 +20,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Status | Task | Assigned To | Deadline | Description |
 | :--- | :--- | :--- | :--- | :--- |
 | 🟢 Done | Unified AI Side-Channel Contract (Backend) | Gemini | 2026-04-25 | Implemented canonical `metadata.ai_sidecar` shape, normative stream envelope, and durable DM metadata. Published `v0.6.51`. |
+| 🟢 Done | Unified AI Side-Channel Contract (Web) | Windsurf | 2026-04-25 | Consumed `metadata.ai_sidecar` and the normative stream envelope across AI DM, channel `/ask`, and canvas AI Dock. Single shared `Reasoning panel` + `Tool timeline` + `UsageChip` renderer. Heuristics demoted to fallback. Published `v0.6.52`. |
 | 🟢 Done | Phase 67 Execution Live Layer (Web) | Gemini | 2026-04-24 | Integrated source-message jump + flash highlight, realtime list/tool events, unread-count badge sync, and Home pulse trends. Published `v0.6.49`. |
 | 🟢 Done | DMs UX & Phase 67B Polish (two-pane WhatsApp-style DMs, AI thinking/tools/tokens, canvas-from-DM Suspense fix, primary-nav DM routing, Gemini WS payload mapping fix) | Windsurf | 2026-04-25 | Refactored DMs into two-pane layout with shared `dms/layout.tsx`. Added ChatGPT-style AI Assistant DM with reasoning panel, tool timeline, token chips. Fixed Next.js 16 cacheComponents Suspense crash from DM canvas trigger. Rewired channel-sidebar DM rows to navigate to `/workspace/dms/:dmId`. Fixed Gemini's `v0.6.49` snake_case→camelCase WS mapping bug for live `list.item.*` / `tool.run.*` events. Published `v0.6.50`. |
 | 🟢 Done | Monorepo Migration | Gemini/Codex | 2026-04-16 | Moved all frontend to `apps/web`, created `apps/api`. |
@@ -187,10 +188,27 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `backend-delivery` | Unified AI side-channel complete. Published `v0.6.51`. Waiting for Phase 68 decomposition. | 100% |
-| **Codex** | `orchestration` | Unified AI side-channel review complete; steering toward Phase 68 file-archive + canvas convergence. | 100% |
+| **Gemini** | `backend-delivery` | Unified AI side-channel backend complete (`v0.6.51`). Two follow-up asks from Windsurf logged below (structured reasoning segments, real `cost_usd`). | 100% |
+| **Codex** | `orchestration` | Unified AI side-channel cross-surface review complete; steering toward Phase 68 file-archive + canvas convergence + canvas-AI persistence-on-reload UX scoping. | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Ready to consume `metadata.ai_sidecar` and normative stream envelope across all surfaces. | 0% |
+| **Windsurf** | `web-delivery` | Unified AI side-channel Web consumption shipped (`v0.6.52`) — single shared Reasoning/Tool/UsageChip across AI DM, channel `/ask`, canvas AI Dock. Ready for Phase 68 Web (file-grid, inline preview, drag-into-canvas) once Codex cuts the contract. | 100% |
+
+### 2026-04-25 - Unified AI Side-Channel Contract Web Consumption (v0.6.52)
+- **Windsurf**: Web side of the Unified AI Side-Channel Contract is complete and published as `v0.6.52`. `tsc --noEmit` + `eslint .` clean.
+- **Windsurf** (Web): Built one shared client-side normalizer + render layer that every AI surface in the app now funnels through:
+  - **`@/lib/ai-sidecar`** — defines `AISidecar` / `AIReasoning` / `AIToolCall` / `AIUsage`, exports `normalizeAISidecar(metadata)` (accepts canonical `metadata.ai_sidecar`, Gemini's looser persisted shape, Codex's spec shape, AND legacy flat `metadata.reasoning` / `tool_calls` / `usage` so mixed-version backends keep rendering), and `parseAIStreamEvent(eventName, dataJson)` (prefers Codex's normative envelope `{ kind, message_id, payload }`, falls back to legacy `event:` + `{ text }`).
+  - **`@/components/ai/ai-sidecar-blocks`** — single implementation of the Reasoning panel, Tool timeline (with `pending` / `running` / `success` / `failed` status pills + per-step duration + input/output summaries), and UsageChip (prefers `total_tokens`, renders `· $0.0123` when `cost_usd` is supplied).
+- **Windsurf** (Web): Wired all three required surfaces to the shared layer:
+  - **AI DM** (`app/workspace/dms/[id]/page.tsx`) — every assistant bubble runs through `normalizeAISidecar`. The header session token meter prefers real `usage.total_tokens` per bubble and only falls back to the 4-char heuristic for bubbles missing usage (Frontend Consumption Rule §2). Streaming bubbles still pulse the live "Thinking…" reasoning panel.
+  - **Channel `/ask`** (`components/message/message-item.tsx`) — when a channel message carries an AI sidecar (canonical or legacy), `MessageItem` renders the same Reasoning panel + Tool timeline + Usage chip used by the AI DM. Non-AI messages produce a null sidecar so non-AI rows are completely untouched.
+  - **Canvas AI Dock** (`components/layout/canvas-ai-dock.tsx`) — SSE loop replaced with `parseAIStreamEvent`. Tool calls merged by `id` so `running → success` lands on the same row instead of duplicating. The dock now also captures `usage` events and renders `UsageChip` on the assistant bubble. Heartbeats and unknown frames fall through to best-effort answer text so a misconfigured backend doesn't lose bytes. The legacy amber "Thinking" block is kept as canvas-specific reasoning chrome.
+- **Windsurf → Codex** (handoff requests for next release):
+  - **Persist canvas AI sidecars on reload.** The dock already captures `conversation_id` from the SSE `start` / `conversation` events but doesn't currently fetch `/api/v1/ai/conversations/:id` to replay the persisted `metadata.ai_sidecar` after a reload. The contract requires "canvas AI: replay persisted sidecar after reload/reopen", so we need a UX scoping pass: which canvas / artifact owns which conversation? Should reopening a canvas auto-reload the prior dock conversation, or should the dock be conversation-per-session?
+  - **Phase 68 (file-archive + canvas convergence)** — Web side is ready to start (file-grid surface, inline preview, drag-into-canvas) once Codex cuts the contract.
+- **Windsurf → Gemini** (follow-up asks; non-blocking):
+  - **Structured reasoning `segments[]`** — the Web normalizer already accepts both Gemini's flat-string shape and the spec's structured form (`segments[].kind: "thought" | "step" | "note"`). When the backend can produce structured segments, the shared `ReasoningPanel` will automatically render them with per-kind styling (steps marked with a violet ▸, notes in italics) — no further Web work needed.
+  - **Real `usage.cost_usd`** alongside the existing token counts. The shared `UsageChip` already renders `· $0.0123` whenever the field is present.
+- **Windsurf → Nikko Fu**: Try (a) AI DM with `dm-1` → assistant bubble shows the shared Reasoning + Tool + UsageChip; the header session token meter prefers backend totals when available, (b) `/ask` in any channel → after the AI reply persists, the same set of side-channel blocks renders under it, (c) open canvas → AI Dock streams reasoning into the legacy "Thinking" block, tool calls into the new shared timeline, and usage into the new shared chip.
 
 ### 2026-04-25 - Unified AI Message Side-Channel Contract Completion (v0.6.51)
 - **Gemini**: Unified AI side-channel contract is complete and published as `v0.6.51`.

@@ -19,6 +19,8 @@ import { UserMentionChips } from "./user-mention-chips"
 import { AddToListDialog } from "./add-to-list-dialog"
 import { KnowledgeDigestCard } from "./knowledge-digest-card"
 import { Button } from "@/components/ui/button"
+import { normalizeAISidecar } from "@/lib/ai-sidecar"
+import { ReasoningPanel, ToolTimeline, UsageChip } from "@/components/ai/ai-sidecar-blocks"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -99,6 +101,33 @@ export function MessageItem({ message, sender, isCompact, showActions = true }: 
           )}
           dangerouslySetInnerHTML={{ __html: message.content }}
         />
+
+        {/* Unified AI side-channel — renders ONLY when the message carries
+            `metadata.ai_sidecar` (or the legacy flat fields `reasoning` /
+            `tool_calls` / `usage` during the rollout transition). Replies
+            from `/ask` and any other AI surface that ends up in a channel
+            now show the same Reasoning panel + Tool timeline + Usage chip
+            seen in the AI DM and canvas dock. Non-AI messages produce a
+            null sidecar and these blocks are simply not rendered. */}
+        {(() => {
+          const sidecar = normalizeAISidecar(message.metadata)
+          if (!sidecar) return null
+          return (
+            <div className="mt-1.5 space-y-1 max-w-[640px]">
+              {sidecar.reasoning && (
+                <ReasoningPanel reasoning={sidecar.reasoning} />
+              )}
+              {sidecar.tool_calls && sidecar.tool_calls.length > 0 && (
+                <ToolTimeline toolCalls={sidecar.tool_calls} />
+              )}
+              {sidecar.usage && (
+                <div className="px-1">
+                  <UsageChip usage={sidecar.usage} />
+                </div>
+              )}
+            </div>
+          )
+        })()}
 
         {/* Knowledge Digest Card (published digest message) */}
         {message.metadata?.knowledge_digest && (
