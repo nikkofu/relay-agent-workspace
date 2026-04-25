@@ -802,6 +802,7 @@ export function CanvasPanel() {
                       ref={dockRef}
                       editorRef={editorRef}
                       channelId={activeArtifact.channelId || currentChannel?.id || ""}
+                      artifactId={activeArtifact.id}
                       artifactTitle={activeArtifact.title}
                       layout={aiDockLayout}
                       onLayoutChange={handleLayoutChange}

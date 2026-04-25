@@ -38,6 +38,7 @@ import { cn } from "@/lib/utils"
 import { Label } from "@/components/ui/label"
 import type { FileComment, FileShare, FileChunk, FileSearchResult, CitationEvidence } from "@/types"
 import { CitationCard } from "@/components/citation/citation-card"
+import { normalizeFilesPageFile, encodeFileDragPayload } from "@/lib/file-to-canvas"
 
 export default function FilesPage() {
   const { 
@@ -314,6 +315,18 @@ export default function FilesPage() {
               {contentSearchResults.map(r => (
                 <div key={r.id} className="bg-white dark:bg-[#1a1d21] rounded-lg border p-3 space-y-1.5 cursor-pointer hover:bg-sky-500/5 transition-colors"
                   onClick={() => handleViewPreview(r)}
+                  draggable
+                  onDragStart={(e) => {
+                    const payload = {
+                      kind: "file-to-canvas" as const,
+                      file: normalizeFilesPageFile(r),
+                      source: "search" as const,
+                    };
+                    e.dataTransfer.setData("application/json", encodeFileDragPayload(payload));
+                    e.dataTransfer.effectAllowed = "copy";
+                    // Avoid text selection during drag
+                    e.stopPropagation();
+                  }}
                 >
                   <div className="flex items-center gap-2">
                     <FileIcon className="w-4 h-4 text-sky-600 shrink-0" />
@@ -392,6 +405,18 @@ export default function FilesPage() {
                 key={file.id}
                 className="group flex items-center justify-between p-4 hover:bg-muted/30 transition-colors cursor-pointer"
                 onClick={() => handleViewPreview(file)}
+                draggable
+                onDragStart={(e) => {
+                  const payload = {
+                    kind: "file-to-canvas" as const,
+                    file: normalizeFilesPageFile(file),
+                    source: "files" as const,
+                  };
+                  e.dataTransfer.setData("application/json", encodeFileDragPayload(payload));
+                  e.dataTransfer.effectAllowed = "copy";
+                  // Avoid text selection during drag
+                  e.stopPropagation();
+                }}
               >
                 <div className="flex items-center gap-4 min-w-0">
                   <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-600 shrink-0">

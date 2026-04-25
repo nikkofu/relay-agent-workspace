@@ -93,6 +93,17 @@ func lookupFileChunkCitations(database *gorm.DB, params LookupParams) ([]Citatio
 			Title:        chunk.Heading,
 			Score:        score,
 		}
+
+		var asset domain.FileAsset
+		if err := database.First(&asset, "id = ?", chunk.FileID).Error; err == nil {
+			citation.MimeType = asset.ContentType
+			citation.Size = asset.SizeBytes
+			citation.PreviewURL = "/api/v1/files/" + asset.ID + "/preview"
+			if citation.Title == "" {
+				citation.Title = asset.Name
+			}
+		}
+
 		if err := attachEntity(database, &citation, "file_chunk", strconv.FormatUint(uint64(chunk.ID), 10), "file", chunk.FileID); err != nil {
 			return nil, err
 		}

@@ -62,8 +62,17 @@ func GetAIConversations(c *gin.Context) {
 		return
 	}
 
+	channelID := c.Query("channel_id")
+	artifactID := c.Query("artifact_id")
 	var conversations []domain.AIConversation
-	if err := db.DB.Where("user_id = ?", currentUser.ID).Order("updated_at desc").Find(&conversations).Error; err != nil {
+	query := db.DB.Where("user_id = ?", currentUser.ID)
+	if channelID != "" {
+		query = query.Where("channel_id = ?", channelID)
+	}
+	if artifactID != "" {
+		query = query.Where("artifact_id = ?", artifactID)
+	}
+	if err := query.Order("updated_at desc").Find(&conversations).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load ai conversations"})
 		return
 	}
@@ -1025,20 +1034,22 @@ func handleSummaryGenerationError(c *gin.Context, err error) {
 func persistAIConversation(user domain.User, input llm.Request, session *llm.StreamSession, conversationID, assistantContent, reasoning string) error {
 	now := time.Now().UTC()
 	conversation := domain.AIConversation{
-		ID:        conversationID,
-		UserID:    user.ID,
-		ChannelID: input.ChannelID,
-		Provider:  session.Provider,
-		Model:     session.Model,
-		UpdatedAt: now,
+		ID:         conversationID,
+		UserID:     user.ID,
+		ChannelID:  input.ChannelID,
+		ArtifactID: input.ArtifactID,
+		Provider:   session.Provider,
+		Model:      session.Model,
+		UpdatedAt:  now,
 	}
 	if err := db.DB.Where("id = ?", conversationID).
 		Assign(domain.AIConversation{
-			UserID:    user.ID,
-			ChannelID: input.ChannelID,
-			Provider:  session.Provider,
-			Model:     session.Model,
-			UpdatedAt: now,
+			UserID:     user.ID,
+			ChannelID:  input.ChannelID,
+			ArtifactID: input.ArtifactID,
+			Provider:   session.Provider,
+			Model:      session.Model,
+			UpdatedAt:  now,
 		}).
 		FirstOrCreate(&conversation).Error; err != nil {
 		return err

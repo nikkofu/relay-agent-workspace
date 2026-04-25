@@ -18,6 +18,9 @@ type Citation struct {
 	Score        float64 `json:"score"`
 	EntityID     string  `json:"entity_id,omitempty"`
 	EntityTitle  string  `json:"entity_title,omitempty"`
+	MimeType     string  `json:"mime_type,omitempty"`
+	Size         int64   `json:"size,omitempty"`
+	PreviewURL   string  `json:"preview_url,omitempty"`
 }
 
 type ComposeSuggestion struct {

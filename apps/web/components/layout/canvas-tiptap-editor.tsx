@@ -20,6 +20,8 @@ import { useEditor, EditorContent, Editor } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Placeholder from "@tiptap/extension-placeholder"
 import TiptapLink from "@tiptap/extension-link"
+import { FileRef } from "@/lib/tiptap-file-ref"
+import { decodeFileDragPayload } from "@/lib/file-to-canvas"
 import {
   Bold, Italic, Strikethrough, Heading1, Heading2, Heading3,
   List, ListOrdered, Quote, Code, Link as LinkIcon, Undo, Redo,
@@ -90,19 +92,46 @@ export const CanvasTipTapEditor = forwardRef<CanvasEditorHandle, CanvasTipTapEdi
         openOnClick: false,
         HTMLAttributes: { class: "text-blue-600 underline cursor-pointer" },
       }),
+      FileRef,
     ],
     content: content || "",
     editable: !readOnly,
     autofocus: autoFocus ? "end" : false,
     immediatelyRender: false,
-    onUpdate: ({ editor }) => {
-      onChange(editor.getHTML())
-    },
     editorProps: {
       attributes: {
         class:
           "prose dark:prose-invert max-w-none focus:outline-none min-h-[500px] px-1",
       },
+      handleDrop: (view, event, _slice, moved) => {
+        if (!moved && event.dataTransfer) {
+          const json = event.dataTransfer.getData("application/json")
+          const payload = decodeFileDragPayload(json)
+          if (payload) {
+            const { file } = payload
+            const coordinates = view.posAtCoords({ left: event.clientX, top: event.clientY })
+            const pos = coordinates ? coordinates.pos : view.state.selection.head
+            
+            view.dispatch(
+              view.state.tr.insert(
+                pos,
+                view.state.schema.nodes.file_ref.create({
+                  file_id: file.id,
+                  title: file.title,
+                  mime_type: file.mime_type,
+                  size: file.size,
+                  preview_url: file.preview_url,
+                })
+              )
+            )
+            return true
+          }
+        }
+        return false
+      },
+    },
+    onUpdate: ({ editor }) => {
+      onChange(editor.getHTML())
     },
   })
 

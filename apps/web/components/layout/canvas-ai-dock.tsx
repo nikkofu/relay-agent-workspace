@@ -126,6 +126,7 @@ interface DockMessage {
 interface CanvasAIDockProps {
   editorRef: React.RefObject<CanvasEditorHandle | null>
   channelId: string
+  artifactId?: string
   artifactTitle?: string
   /** Current layout; defaults to "bottom". */
   layout?: CanvasAIDockLayout
@@ -136,10 +137,49 @@ interface CanvasAIDockProps {
 // ── Component ────────────────────────────────────────────────────────────────
 
 export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
-  function CanvasAIDock({ editorRef, channelId, artifactTitle, layout = "bottom", onLayoutChange }, ref) {
+  function CanvasAIDock({ editorRef, channelId, artifactId, artifactTitle, layout = "bottom", onLayoutChange }, ref) {
     const [input, setInput] = useState("")
     const [expanded, setExpanded] = useState(layout === "rail")
     const [messages, setMessages] = useState<DockMessage[]>([])
+    const [isLoadingHistory, setIsLoadingHistory] = useState(false)
+
+    // Load conversation history for this artifact on mount.
+    useEffect(() => {
+      if (!artifactId) return
+      
+      const loadHistory = async () => {
+        try {
+          setIsLoadingHistory(true)
+          // 1. Find the latest conversation for this artifact
+          const listRes = await fetch(`${API_BASE_URL}/ai/conversations?artifact_id=${artifactId}`)
+          if (!listRes.ok) return
+          const { conversations } = await listRes.json()
+          if (!conversations || conversations.length === 0) return
+
+          const latest = conversations[0]
+          // 2. Load the full conversation detail
+          const detailRes = await fetch(`${API_BASE_URL}/ai/conversations/${latest.id}`)
+          if (!detailRes.ok) return
+          const { messages: historyMessages } = await detailRes.json()
+
+          // 3. Map to DockMessage shape
+          const mapped: DockMessage[] = historyMessages.map((m: any) => ({
+            id: m.id,
+            role: m.role,
+            text: m.content,
+            reasoning: m.reasoning,
+            sidecar: m.metadata?.ai_sidecar,
+            isStreaming: false,
+          }))
+          setMessages(mapped)
+        } catch (err) {
+          console.error("Failed to load canvas AI history:", err)
+        } finally {
+          setIsLoadingHistory(false)
+        }
+      }
+      loadHistory()
+    }, [artifactId])
 
     const [showSlashMenu, setShowSlashMenu] = useState(false)
     const [slashFilter, setSlashFilter] = useState("")
@@ -299,7 +339,12 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
         const res = await fetch(`${API_BASE_URL}/ai/execute`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt, channel_id: channelId }),
+          body: JSON.stringify({ 
+            prompt, 
+            channel_id: channelId,
+            artifact_id: artifactId,
+            conversation_id: messages.length > 0 ? messages[0].id : undefined // Use existing conv if available
+          }),
           signal: ctrl.signal,
         })
         // On non-OK (502/503/etc) the server replies with a JSON body like

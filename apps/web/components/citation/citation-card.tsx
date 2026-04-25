@@ -5,6 +5,7 @@ import { FileText, MessageSquare, MessageCircle, Layout, Quote, MapPin, Tag, Use
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import type { CitationEvidence, EvidenceKind } from "@/types"
+import { encodeFileDragPayload } from "@/lib/file-to-canvas"
 
 type KindConfig = {
   label: string
@@ -54,6 +55,7 @@ interface CitationCardProps {
 export function CitationCard({ citation, compact = false, onClick }: CitationCardProps) {
   const config = KIND_CONFIG[citation.evidence_kind] ?? KIND_CONFIG.file_chunk
   const Icon = config.icon
+  const isFile = citation.evidence_kind === 'file_chunk'
 
   return (
     <div
@@ -61,10 +63,30 @@ export function CitationCard({ citation, compact = false, onClick }: CitationCar
         "rounded-xl border transition-colors",
         config.borderClass,
         config.bgClass,
-        onClick && "cursor-pointer hover:brightness-95",
+        (onClick || isFile) && "cursor-pointer",
+        isFile && "cursor-grab active:cursor-grabbing hover:border-sky-400 dark:hover:border-sky-600",
+        onClick && "hover:brightness-95",
         compact ? "p-2.5" : "p-4"
       )}
       onClick={onClick}
+      draggable={isFile}
+      onDragStart={(e) => {
+        if (!isFile) return;
+        const payload = {
+          kind: "file-to-canvas" as const,
+          file: {
+            id: citation.source_ref, // File ID
+            title: citation.title || "Untitled File",
+            mime_type: citation.mime_type || "application/octet-stream",
+            size: citation.size || 0,
+            preview_url: citation.preview_url,
+          },
+          source: "search" as const,
+        };
+        e.dataTransfer.setData("application/json", encodeFileDragPayload(payload));
+        e.dataTransfer.effectAllowed = "copy";
+        e.stopPropagation();
+      }}
     >
       {/* Header */}
       <div className="flex items-center gap-2 mb-2 flex-wrap">

@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils"
 import { MessageAttachment, FileAsset } from "@/types"
 import { API_BASE_URL } from "@/lib/constants"
 import Image from "next/image"
+import { normalizeMessageAttachment, encodeFileDragPayload } from "@/lib/file-to-canvas"
 
 interface FileAttachmentCardProps {
   attachment: MessageAttachment
@@ -90,10 +91,22 @@ export function FileAttachmentCard({ attachment, messageId }: FileAttachmentCard
 
   return (
     <div className={cn(
-      "rounded-xl border bg-card shadow-sm overflow-hidden max-w-[360px] transition-all",
+      "rounded-xl border bg-card shadow-sm overflow-hidden max-w-[360px] transition-all cursor-grab active:cursor-grabbing",
       isWiki && "border-violet-500/40 bg-violet-500/5 dark:bg-violet-950/20",
       isReady && !isWiki && "border-emerald-500/40 bg-emerald-500/5 dark:bg-emerald-950/20"
-    )}>
+    )}
+      draggable
+      onDragStart={(e) => {
+        const payload = {
+          kind: "file-to-canvas" as const,
+          file: normalizeMessageAttachment(attachment),
+          source: "message" as const,
+        };
+        e.dataTransfer.setData("application/json", encodeFileDragPayload(payload));
+        e.dataTransfer.effectAllowed = "copy";
+        e.stopPropagation();
+      }}
+    >
       {/* Thumbnail */}
       {hasThumbnail && (
         <div className="relative h-32 w-full bg-muted overflow-hidden border-b">

@@ -2,6 +2,38 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.54] - 2026-04-25
+
+File Archive + Canvas Convergence (Web) & AI Sidecar Persistence. Completes the 
+cross-surface drag-and-drop into Canvas story and makes the canvas AI Dock 
+conversation history persistent across page reloads.
+
+### Added
+
+- **`file_ref` Tiptap Node Extension** — New durable block type for Canvas that 
+  represents a workspace file reference. Persists `file_id`, `title`, 
+  `mime_type`, and `size` directly in the document HTML.
+- **`CanvasFileCard` Node View** — Compact, rich renderer for file blocks 
+  inside the editor with file-type icons, size formatting, and one-click 
+  download/preview actions.
+- **Canvas Drop Handler** — Wired TipTap `handleDrop` to accept normalized 
+  file payloads from any workspace surface and insert them at the drop 
+  coordinates.
+- **`ArtifactID` Persistence for AI Conversations** — Extended backend model 
+  and API to link AI conversations to specific artifacts, enabling 
+  per-canvas chat history.
+
+### Changed
+
+- **Cross-Surface Drag Sources** — Enabled `draggable` on Files page items, 
+  content search results, message attachment cards, and global search 
+  citations.
+- **Enhanced Citation Normalization** — Updated `LookupCitations` backend to 
+  include `mime_type`, `size`, and `preview_url` for file-backed evidence, 
+  ensuring stable cards even when dragged from search results.
+- **Persistent Canvas AI Dock** — Updated `CanvasAIDock` to automatically 
+  load the latest conversation history for the active artifact on mount.
+
 ## [0.6.53] - 2026-04-25
 
 File Archive + Canvas Convergence (Backend). Stabilizes and normalizes 

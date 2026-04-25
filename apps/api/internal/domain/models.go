@@ -428,13 +428,14 @@ type NotificationMuteRule struct {
 }
 
 type AIConversation struct {
-	ID        string    `gorm:"primaryKey" json:"id"`
-	UserID    string    `gorm:"index" json:"user_id"`
-	ChannelID string    `gorm:"index" json:"channel_id"`
-	Provider  string    `json:"provider"`
-	Model     string    `json:"model"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID         string    `gorm:"primaryKey" json:"id"`
+	UserID     string    `gorm:"index" json:"user_id"`
+	ChannelID  string    `gorm:"index" json:"channel_id"`
+	ArtifactID string    `gorm:"index" json:"artifact_id,omitempty"`
+	Provider   string    `json:"provider"`
+	Model      string    `json:"model"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 type AIConversationMessage struct {

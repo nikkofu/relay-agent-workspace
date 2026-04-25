@@ -19,6 +19,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Status | Task | Assigned To | Deadline | Description |
 | :--- | :--- | :--- | :--- | :--- |
+| 🟢 Done | Phase 68 File Archive + Canvas Convergence (Web) | Gemini | 2026-04-25 | Implemented `file_ref` Tiptap extension, compact canvas file cards, and cross-surface drag-drop integration. Published `v0.6.54`. |
+| 🟢 Done | Canvas AI Sidecar Persistence | Gemini | 2026-04-25 | Linked AI conversations to artifacts via `artifact_id`. Dock now reloads history on mount. Published `v0.6.54`. |
 | 🟢 Done | Phase 68 Backend Normalization | Gemini | 2026-04-25 | Stabilized and normalized file payloads across all entry points for drag-drop. Published `v0.6.53`. |
 | 🟢 Done | Unified AI Side-Channel Contract (Backend) | Gemini | 2026-04-25 | Implemented canonical `metadata.ai_sidecar` shape, normative stream envelope, and durable DM metadata. Published `v0.6.51`. |
 | 🟢 Done | Unified AI Side-Channel Contract (Web) | Windsurf | 2026-04-25 | Consumed `metadata.ai_sidecar` and the normative stream envelope across AI DM, channel `/ask`, and canvas AI Dock. Single shared `Reasoning panel` + `Tool timeline` + `UsageChip` renderer. Heuristics demoted to fallback. Published `v0.6.52`. |
@@ -189,10 +191,18 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `backend-delivery` | Phase 68 backend normalization complete. Published `v0.6.53`. Waiting for next slice. | 100% |
-| **Codex** | `orchestration` | Phase 68 spec + plan frozen; driving contract authority, task handoff, and final integration control for file-archive + canvas convergence. | 100% |
+| **Gemini** | `full-stack-delivery` | Phase 68 Web + Canvas AI Persistence complete. Published `v0.6.54`. Waiting for Phase 69 scoping. | 100% |
+| **Codex** | `orchestration` | Driving Phase 69 scoping: (a) AI-powered file summarization, (b) Batch extraction UI. | 0% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Phase 68 Web implementation: shared `file-to-canvas` drag helper, draggable entry points, and compact canvas cards. | 20% |
+| **Windsurf** | `web-delivery` | Phase 68 Web implementation complete (handoff to Gemini). | 100% |
+
+### 2026-04-25 - Phase 68 File Archive + Canvas Convergence Web Completion (v0.6.54)
+- **Gemini**: Phase 68 Web implementation is complete. Users can now drag files from Files page, content search results, message attachments, and global search citations into an open canvas.
+- **Gemini**: Implemented `file_ref` Tiptap node with `CanvasFileCard` renderer. Blocks are durable and survive reloads.
+- **Gemini**: Resolved Windsurf's handoff request: **Canvas AI Sidecar Persistence**. Added `artifact_id` to `AIConversation` and wired `CanvasAIDock` to load history on mount.
+- **Gemini**: Enhanced `LookupCitations` backend to ensure all file-backed citations carry `mime_type`, `size`, and `preview_url` for drag-drop payload stability.
+- **Gemini → Codex**: Phase 68 is fully landed (Backend + Web). Persistent canvas history is also live. For Phase 69, I recommend focusing on AI-powered file summarization on demand or a batch extraction UI for channel files.
+- **Gemini → Nikko Fu**: Try dragging any file into a canvas — it now leaves a clean, interactive card. Plus, your canvas AI chat history now sticks around when you switch documents or refresh the page.
 
 ### 2026-04-25 - Phase 68 File Archive + Canvas Convergence Backend Completion (v0.6.53)
 - **Gemini**: Phase 68 backend normalization is complete and published as `v0.6.53`.

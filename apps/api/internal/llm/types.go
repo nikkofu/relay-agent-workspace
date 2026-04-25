@@ -5,6 +5,7 @@ import "context"
 type Request struct {
 	Prompt         string           `json:"prompt"`
 	ChannelID      string           `json:"channel_id"`
+	ArtifactID     string           `json:"artifact_id,omitempty"`
 	ConversationID string           `json:"conversation_id,omitempty"`
 	Command        string           `json:"command,omitempty"`
 	Provider       string           `json:"provider,omitempty"`

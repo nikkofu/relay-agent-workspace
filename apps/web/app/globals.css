@@ -175,6 +175,10 @@
   .tiptap a {
     @apply text-blue-500 underline cursor-pointer;
   }
+
+  .tiptap div[data-type="file_ref"] {
+    @apply my-6;
+  }
 }
 
 @keyframes flash-highlight {

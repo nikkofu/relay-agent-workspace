@@ -69,6 +69,10 @@ export interface CitationEvidence {
   entity_id?: string
   entity_title?: string
   score?: number
+  // Phase 68 normalization
+  mime_type?: string
+  size?: number
+  preview_url?: string
 }
 
 export interface KnowledgeEntity {
@@ -361,6 +365,10 @@ export interface Citation {
   score: number
   entity_id?: string
   entity_title?: string
+  // Phase 68 normalization
+  mime_type?: string
+  size?: number
+  preview_url?: string
 }
 
 export interface EntityAnswer {
