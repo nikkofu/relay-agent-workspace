@@ -88,7 +88,9 @@ func InitDB() error {
 		&domain.MessageArtifactReference{},
 		&domain.MessageFileAttachment{},
 		&domain.DMMessage{},
-	); err != nil {
+		&domain.AnalysisListDraft{},
+		); err != nil {
+
 		return err
 	}
 

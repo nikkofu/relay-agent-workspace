@@ -771,3 +771,14 @@ type AIUsage struct {
 	TotalTokens  int     `json:"total_tokens"`
 	CostUSD      float64 `json:"cost_usd,omitempty"`
 }
+
+type AnalysisListDraft struct {
+	ID                 string    `gorm:"primaryKey" json:"id"`
+	ArtifactID         string    `gorm:"index" json:"artifact_id"`
+	ChannelID          string    `gorm:"index" json:"channel_id"`
+	AnalysisSnapshotID string    `gorm:"index" json:"analysis_snapshot_id"`
+	Title              string    `json:"title"`
+	ItemsJSON          string    `json:"items_json"` // JSON array of strings (item titles)
+	CreatedBy          string    `gorm:"index" json:"created_by"`
+	CreatedAt          time.Time `json:"created_at"`
+}

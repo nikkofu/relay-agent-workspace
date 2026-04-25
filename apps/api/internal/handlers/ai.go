@@ -935,6 +935,189 @@ func AnalyzeCanvasFileGroup(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+func GenerateListDraftFromAnalysis(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var req struct {
+		ArtifactID         string `json:"artifact_id" binding:"required"`
+		ChannelID          string `json:"channel_id" binding:"required"`
+		AnalysisSnapshotID string `json:"analysis_snapshot_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request, analysis_snapshot_id required"})
+		return
+	}
+
+	var msg domain.AIConversationMessage
+	if err := db.DB.First(&msg, "id = ?", req.AnalysisSnapshotID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "analysis snapshot not found"})
+		return
+	}
+
+	var sidecar domain.AISidecar
+	if err := json.Unmarshal([]byte(msg.AISidecarJSON), &sidecar); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to parse analysis snapshot"})
+		return
+	}
+
+	// Extract analysis.next_steps
+	analysis, ok := sidecar.Analysis.(map[string]any)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "message does not contain a valid analysis"})
+		return
+	}
+
+	nextSteps, ok := analysis["next_steps"].([]any)
+	if !ok || len(nextSteps) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "analysis does not contain any next steps"})
+		return
+	}
+
+	// Generate list items from next steps
+	itemTitles := make([]string, 0, len(nextSteps))
+	for _, step := range nextSteps {
+		if s, ok := step.(map[string]any); ok {
+			if title, ok := s["text"].(string); ok && title != "" {
+				itemTitles = append(itemTitles, title)
+			}
+		}
+	}
+
+	if len(itemTitles) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no valid task titles found in analysis"})
+		return
+	}
+
+	// Derive title
+	title := "Action items"
+	if summary, ok := analysis["summary"].(string); ok && summary != "" {
+		// Use first sentence of summary or a truncated version as title hint
+		if idx := strings.Index(summary, "."); idx != -1 && idx < 50 {
+			title = summary[:idx]
+		} else if len(summary) > 50 {
+			title = summary[:50] + "..."
+		} else {
+			title = summary
+		}
+	}
+
+	itemsJSON, _ := json.Marshal(itemTitles)
+	draft := domain.AnalysisListDraft{
+		ID:                 ids.NewPrefixedUUID("draft"),
+		ArtifactID:         req.ArtifactID,
+		ChannelID:          req.ChannelID,
+		AnalysisSnapshotID: req.AnalysisSnapshotID,
+		Title:              title,
+		ItemsJSON:          string(itemsJSON),
+		CreatedBy:          currentUser.ID,
+		CreatedAt:          time.Now().UTC(),
+	}
+
+	if err := db.DB.Create(&draft).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save list draft"})
+		return
+	}
+
+	type itemResp struct {
+		Title string `json:"title"`
+	}
+	items := make([]itemResp, len(itemTitles))
+	for i, t := range itemTitles {
+		items[i] = itemResp{Title: t}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"draft": gin.H{
+			"draft_id":   draft.ID,
+			"channel_id": draft.ChannelID,
+			"title":      draft.Title,
+			"items":      items,
+		},
+	})
+}
+
+func ConfirmCreateListFromDraft(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var req struct {
+		DraftID string `json:"draft_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "draft_id is required"})
+		return
+	}
+
+	var draft domain.AnalysisListDraft
+	if err := db.DB.First(&draft, "id = ?", req.DraftID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "draft not found"})
+		return
+	}
+
+	var itemTitles []string
+	if err := json.Unmarshal([]byte(draft.ItemsJSON), &itemTitles); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to parse draft items"})
+		return
+	}
+
+	// Find workspace ID from channel
+	var channel domain.Channel
+	if err := db.DB.First(&channel, "id = ?", draft.ChannelID).Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "target channel not found"})
+		return
+	}
+
+	now := time.Now().UTC()
+	list := domain.WorkspaceList{
+		ID:          ids.NewPrefixedUUID("list"),
+		WorkspaceID: channel.WorkspaceID,
+		ChannelID:   draft.ChannelID,
+		Title:       draft.Title,
+		CreatedBy:   currentUser.ID,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+
+	if err := db.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&list).Error; err != nil {
+			return err
+		}
+
+		for i, title := range itemTitles {
+			item := domain.WorkspaceListItem{
+				ListID:    list.ID,
+				Content:   title,
+				Position:  i,
+				CreatedBy: currentUser.ID,
+				CreatedAt: now,
+				UpdatedAt: now,
+			}
+			if err := tx.Create(&item).Error; err != nil {
+				return err
+			}
+		}
+
+		// Delete draft after successful creation
+		return tx.Delete(&draft).Error
+	}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create list from draft: " + err.Error()})
+		return
+	}
+
+	broadcastStructuredRealtime("list.updated", list.ID, gin.H{"list": hydrateWorkspaceList(list, true)})
+
+	c.JSON(http.StatusCreated, gin.H{
+		"list_id": list.ID,
+	})
+}
+
 func ExecuteAI(c *gin.Context) {
 	if AIGateway == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ai gateway is not configured"})
