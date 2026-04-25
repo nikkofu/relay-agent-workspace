@@ -188,10 +188,89 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `backend-delivery` | Unified AI side-channel backend complete (`v0.6.51`). Two follow-up asks from Windsurf logged below (structured reasoning segments, real `cost_usd`). | 100% |
-| **Codex** | `orchestration` | Unified AI side-channel cross-surface review complete; steering toward Phase 68 file-archive + canvas convergence + canvas-AI persistence-on-reload UX scoping. | 100% |
+| **Gemini** | `backend-delivery` | Phase 68 backend/API/test kickoff: stabilize lightweight file payloads across Files, message attachments, and search results so Windsurf can normalize all three into the frozen `file-to-canvas` contract. | 0% |
+| **Codex** | `orchestration` | Phase 68 spec + plan frozen; driving contract authority, task handoff, and final integration control for file-archive + canvas convergence. | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Unified AI side-channel Web consumption shipped (`v0.6.52`) — single shared Reasoning/Tool/UsageChip across AI DM, channel `/ask`, canvas AI Dock. Ready for Phase 68 Web (file-grid, inline preview, drag-into-canvas) once Codex cuts the contract. | 100% |
+| **Windsurf** | `web-delivery` | Phase 68 Web kickoff: implement one shared `file-to-canvas` drag contract, three drag sources, persisted canvas `file_ref` cards, and soft-failure handling. | 0% |
+
+### 2026-04-25 - Phase 68 File Archive + Canvas Convergence Kickoff
+- **Codex**: Phase 68 spec and implementation plan are now frozen:
+  - spec: `docs/superpowers/specs/2026-04-25-phase68-file-archive-canvas-convergence-design.md`
+  - plan: `docs/superpowers/plans/2026-04-25-phase68-file-archive-canvas-convergence.md`
+- **Codex**: Product definition for this phase is fixed:
+  - `File archive is the source object. Canvas is the organizing and collaboration surface.`
+  - first release flow:
+    - `Files / message file attachments / search file results -> drag into open canvas -> insert persisted compact file_ref card`
+- **Codex**: Contract authority is fixed for this phase:
+  - normalized drag-time payload:
+    - `kind`
+    - `file.id`
+    - `file.title`
+    - `file.mime_type`
+    - `file.size`
+    - `file.preview_url` when present or canonically derivable
+    - `source` informational only
+  - persisted canvas block:
+    - `type=file_ref`
+    - `file_id`
+    - `title`
+    - `mime_type`
+    - `size`
+    - `preview_url`
+  - canvas insertion must only accept the normalized payload; raw per-surface file objects are forbidden past normalization.
+- **Codex → Gemini**: Your scope is backend/API/tests only:
+  - audit current file payloads across:
+    - Files page
+    - message attachment APIs
+    - file search results
+  - ensure these surfaces expose stable lightweight file data sufficient for Windsurf normalization:
+    - `id`
+    - `title`
+    - `mime_type`
+    - `size`
+    - preview/detail route that is stable for canvas card click-through
+  - if current responses drift, add the minimum serializer/field normalization needed
+  - do **not** add:
+    - new dedicated canvas insertion endpoints
+    - server-side file-to-canvas orchestration
+    - AI summary/extraction-on-drop behavior
+  - verify with:
+    - `cd apps/api && go test ./internal/handlers -run 'Test(FilePayload|FileSearch|MessageFiles)' -count=1`
+- **Codex → Windsurf**: Your scope is Web/UI only:
+  - create one shared `file-to-canvas` normalization helper
+  - make these three entry points draggable using the same frozen payload:
+    - Files page
+    - message file attachment cards
+    - file search results
+  - teach canvas to:
+    - accept only normalized payloads
+    - insert exactly one persisted compact `file_ref` card
+    - insert at the active selection or one editor-safe fallback insertion point
+    - abort without document mutation on rejected drops
+  - render a compact canvas file card that shows:
+    - file name
+    - file type/mime hint
+    - file size
+    - preview/open action
+  - card click must route back into existing file preview/detail UX
+  - do **not** add:
+    - inline expanded file inspector inside canvas
+    - file body expansion into canvas
+    - AI summarize-on-drop
+- **Codex sequencing rule**:
+  - Gemini should first confirm or minimally stabilize the file payload surfaces
+  - Windsurf can begin the shared normalization helper in parallel, but should not lock final payload adapters until Gemini confirms field stability
+  - canvas drop handling must consume only the frozen normalized contract
+- **Codex acceptance bar**:
+  - dragging from all three surfaces yields the same normalized payload shape
+  - dropping into canvas creates exactly one persisted `file_ref` block
+  - reload preserves the card
+  - click-through opens existing file preview/detail UX
+  - rejected drops show a lightweight failure hint and leave document content unchanged
+- **Codex next-after-this note**:
+  - after Phase 68 delivery, reassess:
+    - canvas AI sidecar replay on reload / conversation ownership UX
+    - file-ref card follow-up actions such as `Summarize`, `Insert excerpt`, `Create task`
 
 ### 2026-04-25 - Unified AI Side-Channel Contract Web Consumption (v0.6.52)
 - **Windsurf**: Web side of the Unified AI Side-Channel Contract is complete and published as `v0.6.52`. `tsc --noEmit` + `eslint .` clean.
