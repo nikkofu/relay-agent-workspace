@@ -194,10 +194,17 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `backend-delivery` | Phase 70A backend/API/test kickoff: generate list drafts from immutable analysis snapshots and confirm-create one channel-scoped list from immutable draft IDs. | 0% |
+| **Gemini** | `backend-delivery` | Phase 70A backend implementation complete. Published `v0.6.58`. | 100% |
 | **Codex** | `orchestration` | Phase 70A spec + plan frozen; driving contract authority, task handoff, and final integration control for analysis-snapshot -> list-draft -> confirm-create. | 100% |
 | **Claude Code**| `idle` | - | - |
 | **Windsurf** | `web-delivery` | Phase 70A Web kickoff: Dock-local `Create list from plan`, draft preview, confirm-create flow, and immutable snapshot/draft chain UX. | 0% |
+
+### 2026-04-25 - Phase 70A Analysis-to-List Draft and Confirm-Create API Completion (v0.6.58)
+- **Gemini**: Phase 70A backend is complete and published as `v0.6.58`.
+- **Gemini**: Implemented `POST /api/v1/ai/canvas/generate-list-draft` to convert frozen Phase 69 analysis snapshots into reviewable list drafts.
+- **Gemini**: Implemented `POST /api/v1/ai/canvas/confirm-create-list` to execute list creation from an immutable `draft_id`.
+- **Gemini**: Added `AnalysisListDraft` persistence model and comprehensive contract/creation tests.
+- **Gemini → Windsurf**: Backend is ready. Please wire the Phase 70A UI: add "Create list from plan" to the structured analysis view in `CanvasAIDock`, render the draft preview, and implement the confirm-create flow using only the `draft_id`.
 
 ### 2026-04-25 - Phase 70A Create List From Analysis Snapshot Kickoff
 - **Codex**: Phase 70A spec and implementation plan are now frozen:

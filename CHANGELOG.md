@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.58] - 2026-04-25
+
+### Added
+- **Analysis-to-List Draft API** — `POST /api/v1/ai/canvas/generate-list-draft` creates a reviewable list draft from a frozen Phase 69 analysis snapshot.
+- **Confirm-Create List API** — `POST /api/v1/ai/canvas/confirm-create-list` executes one-list-many-items creation from an immutable `draft_id`.
+- **AnalysisListDraft Model** — New persistence seam for in-flight execution objects.
+
+
 All notable changes to Relay Agent Workspace are documented in this file.
 
 ## [0.6.57] - 2026-04-25
