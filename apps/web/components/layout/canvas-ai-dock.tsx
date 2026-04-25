@@ -46,7 +46,8 @@ import type { CanvasEditorHandle, EditorRange } from "./canvas-tiptap-editor"
 import { normalizeAISidecar, parseAIStreamEvent } from "@/lib/ai-sidecar"
 import { ToolTimeline, UsageChip } from "@/components/ai/ai-sidecar-blocks"
 import { extractFileRefsFromHtml, getUniqueFileRefs } from "@/lib/canvas-file-group"
-import { MultiFileAnalysisResponse, isMultiFileAnalysisResponse } from "@/lib/multi-file-analysis"
+import type { MultiFileAnalysisRequest, MultiFileAnalysisResponse } from "@/lib/multi-file-analysis"
+import { isMultiFileAnalysisResponse } from "@/lib/multi-file-analysis"
 import { FileGroupAnalysisResult } from "@/components/canvas/file-group-analysis-result"
 
 // ── Public handle ────────────────────────────────────────────────────────────
@@ -124,6 +125,7 @@ interface DockMessage {
   errored?: boolean
   /** Phase 69: Structured multi-file analysis result. */
   analysisResult?: MultiFileAnalysisResponse["analysis"]
+  analysisRequest?: MultiFileAnalysisRequest
 }
 
 // ── Props ────────────────────────────────────────────────────────────────────
@@ -542,12 +544,22 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
     const handleAnalyzeFileGroup = async () => {
       const h = editorRef.current
       if (!h) return
+      if (!artifactId) {
+        toast.error("Canvas must be saved before analyzing a file group")
+        return
+      }
       
       const html = h.getHTML()
       const fileRefs = getUniqueFileRefs(extractFileRefsFromHtml(html))
       if (fileRefs.length < 2) {
         toast.error("At least two files are required for group analysis")
         return
+      }
+
+      const request: MultiFileAnalysisRequest = {
+        artifact_id: artifactId,
+        file_refs: fileRefs,
+        mode: "multi_file_analysis",
       }
 
       const aiMsgId = `a-ana-${Date.now()}`
@@ -562,6 +574,7 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
           id: aiMsgId,
           role: "assistant",
           text: "",
+          analysisRequest: request,
           isStreaming: true,
         }
       ])
@@ -572,10 +585,7 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
         const res = await fetch(`${API_BASE_URL}/ai/canvas/analyze`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            artifact_id: artifactId,
-            file_refs: fileRefs,
-          }),
+          body: JSON.stringify(request),
         })
 
         if (!res.ok) {
@@ -771,25 +781,28 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
     const handleInsertSummary = (text: string) => {
       const h = editorRef.current
       if (!h) return
-      const range = h.insertHtmlAtCursor(`<h2>Summary</h2><p>${text}</p>`)
+      const range = h.insertHtmlAtCursor(`<h2>Summary</h2>${plainTextToHtml(text)}`)
       if (range) h.highlightRange(range)
       showAppliedToast("Analysis summary")
     }
 
-    const handleInsertObservations = (text: string) => {
+    const handleInsertObservations = (observations: string[]) => {
       const h = editorRef.current
       if (!h) return
-      // observations are markdown-formatted in the helper
-      const html = plainTextToHtml(text)
+      const html = observations.length > 0
+        ? `<h2>Key observations</h2><ul>${observations.map(observation => `<li>${escapeHtml(observation)}</li>`).join("")}</ul>`
+        : `<h2>Key observations</h2><p>No observations were returned.</p>`
       const range = h.insertHtmlAtCursor(html)
       if (range) h.highlightRange(range)
       showAppliedToast("Key observations")
     }
 
-    const handleInsertPlan = (text: string) => {
+    const handleInsertPlan = (steps: MultiFileAnalysisResponse["analysis"]["next_steps"]) => {
       const h = editorRef.current
       if (!h) return
-      const html = plainTextToHtml(text)
+      const html = steps.length > 0
+        ? `<h2>Next steps</h2><ol>${steps.map(step => `<li><p><strong>${escapeHtml(step.text)}</strong></p><p>${escapeHtml(step.rationale)}</p><p><em>Action hint:</em> ${escapeHtml(step.action_hint)}</p></li>`).join("")}</ol>`
+        : `<h2>Next steps</h2><p>No next steps were returned.</p>`
       const range = h.insertHtmlAtCursor(html)
       if (range) h.highlightRange(range)
       showAppliedToast("Next steps plan")
@@ -1093,8 +1106,8 @@ interface ChatBubbleProps {
   onStop: () => void
   onReSelect: () => void
   onInsertSummary: (text: string) => void
-  onInsertObservations: (text: string) => void
-  onInsertPlan: (text: string) => void
+  onInsertObservations: (observations: string[]) => void
+  onInsertPlan: (steps: MultiFileAnalysisResponse["analysis"]["next_steps"]) => void
   isStreaming: boolean
 }
 
@@ -1186,7 +1199,7 @@ function ChatBubble({
         </div>
 
         {/* Actions */}
-        {!isStreaming && message.text && !message.errored && (
+        {!isStreaming && message.text && !message.errored && !message.analysisResult && !message.analysisRequest && (
           <div className="flex items-center flex-wrap gap-1 mt-1.5">
             {!message.applied ? (
               <>
@@ -1240,7 +1253,7 @@ function ChatBubble({
             </Button>
           </div>
         )}
-        {message.errored && !isStreaming && (
+        {message.errored && !message.analysisRequest && !isStreaming && (
           <div className="flex items-center gap-1 mt-1.5">
             <Button
               size="sm"

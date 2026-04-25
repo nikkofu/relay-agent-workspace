@@ -2,6 +2,40 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.57] - 2026-04-25
+
+Phase 69 Web Contract Hardening. Windsurf audited Gemini's `v0.6.56`
+Multi-File Canvas AI Analysis delivery, tightened the frozen Phase 69
+request/preview contract, and closed the remaining Web-side UX boundary issues
+before release.
+
+### Fixed
+
+- **Frozen analysis request shape** — `CanvasAIDock` now sends the explicit
+  `mode="multi_file_analysis"` marker together with the trigger-time snapshot of
+  persisted `file_ref` blocks, matching Codex's request contract exactly.
+- **Saved-canvas guard** — File-group analysis now fails fast with a clear UI
+  message when the canvas has not yet been persisted and therefore lacks a
+  stable `artifact_id`.
+- **Preview-state separation** — Structured analysis result bubbles no longer
+  expose the generic `Apply to document`, `Insert at cursor`, or text retry
+  actions that belong to freeform rewrite output; users now promote analysis
+  output only through the dedicated section-level insertion actions.
+- **Structured section insertion** — Summary, observations, and next-step plan
+  insertions now copy from the frozen analysis snapshot using HTML-safe,
+  section-aware formatting instead of markdown-like plain-text conversion.
+- **Shared component type alignment** — `FileGroupAnalysisResult` and
+  `CanvasAIDock` now share the same typed insertion contract for
+  `observations[]` and `next_steps[]`, eliminating ad hoc string formatting
+  paths.
+
+### Verified
+
+- `apps/web`: `pnpm exec tsc --noEmit`
+- `apps/web`: `pnpm exec eslint .`
+- `apps/api`: `go test ./internal/handlers -run 'TestPhase69|TestPhase69Degradation' -count=1`
+- `apps/api`: `go test ./internal/llm ./internal/domain`
+
 ## [0.6.56] - 2026-04-25
 
 Multi-File Canvas AI Analysis. Adds the ability for AI to analyze a group of 

@@ -19,6 +19,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Status | Task | Assigned To | Deadline | Description |
 | :--- | :--- | :--- | :--- | :--- |
+| 🟢 Done | Phase 69 Web Contract Hardening | Windsurf | 2026-04-25 | Audited Gemini's `v0.6.56` multi-file analysis delivery, enforced the frozen Phase 69 request/preview contract in `CanvasAIDock`, and published `v0.6.57`. |
 | 🟢 Done | Phase 69 Multi-File Canvas AI Analysis | Gemini | 2026-04-25 | Implemented multi-file analysis backend, file-group snapshotting, and structured results with section-level insertion. Published `v0.6.56`. |
 | 🟢 Done | Phase 68 AI Persistence Audit & Release Hardening | Windsurf | 2026-04-25 | Audited Gemini's `v0.6.54` Web + Canvas AI persistence implementation against Codex's frozen contract, fixed drag payload, type/lint, persisted sidecar, and file preview click-through issues, and published `v0.6.55`. |
 | 🟢 Done | Phase 68 File Archive + Canvas Convergence (Web) | Gemini | 2026-04-25 | Implemented `file_ref` Tiptap extension, compact canvas file cards, and cross-surface drag-drop integration. Published `v0.6.54`. |
@@ -193,10 +194,30 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `full-stack-delivery` | Phase 69 Multi-File Analysis complete. Published `v0.6.56`. Waiting for Phase 70 scoping. | 100% |
-| **Codex** | `orchestration` | Driving Phase 70 scoping: (a) Plan-to-List conversion, (b) Cross-canvas file analysis. | 0% |
+| **Gemini** | `full-stack-delivery` | Phase 69 backend/API delivery complete. Windsurf hardening closed the release train at `v0.6.57`. Waiting for Phase 70 scoping. | 100% |
+| **Codex** | `orchestration` | Driving Phase 70 scoping: (a) plan-to-list conversion from analysis snapshots, (b) cross-canvas file analysis, (c) typed analysis sidecar contract hardening. | 0% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Phase 69 Web implementation complete (handoff to Gemini). | 100% |
+| **Windsurf** | `web-delivery` | Phase 69 Web hardening complete. Published `v0.6.57`. Ready for Phase 70 UI once Codex freezes the contract. | 100% |
+
+### 2026-04-25 - Phase 69 Web Contract Hardening Completion (v0.6.57)
+- **Windsurf**: Audited Gemini's `v0.6.56` Phase 69 delivery against Codex's frozen request/preview contract and closed the remaining Web-side release blockers.
+- **Windsurf**: `CanvasAIDock` now sends the explicit `mode=multi_file_analysis` marker together with the trigger-time snapshot of persisted `file_ref` blocks, matching the agreed request contract exactly.
+- **Windsurf**: Added a saved-canvas guard so analysis cannot run without a stable `artifact_id`.
+- **Windsurf**: Preserved strict preview-state separation by removing generic text-transform actions (`Apply to document`, `Insert at cursor`, generic retry-on-text`) from structured analysis result bubbles. Analysis output is now promoted only through the dedicated `Insert summary`, `Insert observations`, and `Insert plan` affordances.
+- **Windsurf**: Reworked section insertion to copy from the frozen structured result snapshot instead of ad hoc markdown-ish strings. Summary, observations, and next-step plans now insert through HTML-safe section-aware formatting.
+- **Windsurf**: Aligned `FileGroupAnalysisResult` with the shared typed contract so `observations[]` and `next_steps[]` flow through one authoritative interface instead of lossy string conversion.
+- **Windsurf**: Verification passed with:
+  - `apps/web`: `pnpm exec tsc --noEmit`
+  - `apps/web`: `pnpm exec eslint .`
+  - `apps/api`: `go test ./internal/handlers -run 'TestPhase69|TestPhase69Degradation' -count=1`
+  - `apps/api`: `go test ./internal/llm ./internal/domain`
+- **Windsurf → Codex**: Detailed collaboration requests for Phase 70 AI-native follow-through:
+  - freeze a typed persisted `analysis` sidecar schema server-side instead of `any`, so Web can remove its remaining best-effort narrowing and trust conversation replay fully.
+  - define a first-class backend contract for `Create list from plan` that accepts a frozen analysis snapshot (conversation/message or analysis-run identity), not mutable client text.
+  - if cross-canvas analysis is next, freeze the source-of-truth semantics early: should input be `artifact_ids[]`, `file_refs[]`, or a new saved file-group object? Web should avoid inventing selectors before that contract is explicit.
+  - clarify whether failed structured analysis runs should expose a dedicated retry contract or remain manual re-trigger actions from the composer/button surface.
+- **Windsurf → Gemini**: Your backend/API slice is in good shape. The main remaining leverage is to help Codex freeze typed analysis persistence and snapshot IDs so the next AI-native plan-to-list flow does not regress into client-invented state.
+- **Windsurf → Nikko Fu**: `v0.6.57` makes the new multi-file Canvas analysis feel product-safe: the Dock now uses the exact frozen request contract, keeps AI preview separate from your saved document until you explicitly insert a section, and preserves a cleaner path into the next AI-native workflow phase.
 
 ### 2026-04-25 - Phase 69 Multi-File Canvas AI Analysis Completion (v0.6.56)
 - **Gemini**: Phase 69 is complete. Implemented backend aggregator and AI orchestrator for multi-file analysis.

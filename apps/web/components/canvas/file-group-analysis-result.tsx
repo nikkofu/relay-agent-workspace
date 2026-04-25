@@ -7,8 +7,8 @@ import { Check, ClipboardList, Lightbulb, Zap } from "lucide-react"
 interface FileGroupAnalysisResultProps {
   result: MultiFileAnalysisResponse["analysis"]
   onInsertSummary: (text: string) => void
-  onInsertObservations: (text: string) => void
-  onInsertPlan: (text: string) => void
+  onInsertObservations: (observations: string[]) => void
+  onInsertPlan: (steps: MultiFileAnalysisResponse["analysis"]["next_steps"]) => void
 }
 
 export function FileGroupAnalysisResult({
@@ -17,16 +17,6 @@ export function FileGroupAnalysisResult({
   onInsertObservations,
   onInsertPlan,
 }: FileGroupAnalysisResultProps) {
-  const formatObservations = (obs: string[]) => {
-    return "### Key Observations\n\n" + obs.map(o => `- ${o}`).join("\n")
-  }
-
-  const formatPlan = (steps: MultiFileAnalysisResponse["analysis"]["next_steps"]) => {
-    return "### Proposed Plan\n\n" + steps.map((s, i) => (
-      `${i + 1}. **${s.text}**\n   - *Rationale*: ${s.rationale}\n   - *Action*: ${s.action_hint}`
-    )).join("\n\n")
-  }
-
   return (
     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
       {/* Summary Section */}
@@ -62,7 +52,7 @@ export function FileGroupAnalysisResult({
             variant="ghost" 
             size="sm" 
             className="h-6 text-[9px] font-bold uppercase gap-1"
-            onClick={() => onInsertObservations(formatObservations(result.observations))}
+            onClick={() => onInsertObservations(result.observations)}
           >
             <Check className="w-2.5 h-2.5" />
             Insert
@@ -89,7 +79,7 @@ export function FileGroupAnalysisResult({
             variant="ghost" 
             size="sm" 
             className="h-6 text-[9px] font-bold uppercase gap-1"
-            onClick={() => onInsertPlan(formatPlan(result.next_steps))}
+            onClick={() => onInsertPlan(result.next_steps)}
           >
             <Check className="w-2.5 h-2.5" />
             Insert
