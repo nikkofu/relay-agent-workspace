@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.6.60] - 2026-04-25
+
+### Fixed
+- **AI Assistant DM Markdown rendering** — Assistant replies in `/workspace/dms/[id]` now render Markdown-like output as user-friendly rich text instead of exposing raw markers such as `**bold**`, list prefixes, code fences, or inline backticks directly in the bubble.
+- **Streaming DM readability** — In-progress AI Assistant DM replies now use the same safe Markdown-compatible rendering path while streaming, so the live response is visually closer to the final answer.
+- **Phase 70A release lint cleanup** — Removed a stale unused import in `AnalysisListDraftPreview` so the latest Gemini Phase 70A Web work remains release-clean under Web linting.
+- **Legacy AI sidecar dual-read compatibility** — Restored legacy synthesized `metadata.ai_sidecar` output for channel and DM message metadata so older flat `reasoning/tool_calls/usage` payloads still serialize in the shape expected by existing compatibility tests while canonical persisted sidecars continue to work.
+
+### Verified
+- `apps/web`: `pnpm exec tsc --noEmit`
+- `apps/web`: `pnpm lint`
+- `apps/api`: `go test ./internal/handlers ./internal/llm ./internal/domain`
+
 ## [0.6.59] - 2026-04-25
 
 ### Added

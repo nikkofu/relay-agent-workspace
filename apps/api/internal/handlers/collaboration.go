@@ -40,7 +40,7 @@ type messageAttachment struct {
 	Type           string               `json:"type"`
 	URL            string               `json:"url"`
 	Name           string               `json:"name"`
-	Title          string               `json:"title"`               // Phase 68 normalization: alias for Name
+	Title          string               `json:"title"` // Phase 68 normalization: alias for Name
 	Size           int64                `json:"size,omitempty"`
 	MimeType       string               `json:"mime_type,omitempty"` // Phase 68 normalization
 	LegacyMimeType string               `json:"mimeType,omitempty"`  // Backward compatibility
@@ -82,12 +82,12 @@ type messageMetadata struct {
 	UserMentions    []messageUserMention              `json:"user_mentions,omitempty"`
 	EntityMentions  []knowledge.MentionedEntity       `json:"entity_mentions,omitempty"`
 	KnowledgeDigest *knowledge.ChannelKnowledgeDigest `json:"knowledge_digest,omitempty"`
-	AISidecar       *domain.AISidecar                 `json:"ai_sidecar,omitempty"`
+	AISidecar       any                               `json:"ai_sidecar,omitempty"`
 
 	// Legacy fields for backward compatibility
-	Reasoning string            `json:"reasoning,omitempty"`
+	Reasoning string              `json:"reasoning,omitempty"`
 	ToolCalls []domain.AIToolCall `json:"tool_calls,omitempty"`
-	Usage     *domain.AIUsage   `json:"usage,omitempty"`
+	Usage     *domain.AIUsage     `json:"usage,omitempty"`
 }
 
 func getCurrentUser() (domain.User, error) {
@@ -323,10 +323,10 @@ func decodeMessageMetadata(message domain.Message) messageMetadata {
 
 	// Phase 67B/SIDE: Dual-read legacy flat fields
 	if meta.AISidecar == nil && (meta.Reasoning != "" || len(meta.ToolCalls) > 0 || meta.Usage != nil) {
-		meta.AISidecar = &domain.AISidecar{
-			Reasoning: &domain.AIReasoning{Summary: meta.Reasoning},
-			ToolCalls: meta.ToolCalls,
-			Usage:     meta.Usage,
+		meta.AISidecar = map[string]any{
+			"reasoning":  meta.Reasoning,
+			"tool_calls": meta.ToolCalls,
+			"usage":      meta.Usage,
 		}
 	}
 
@@ -723,7 +723,7 @@ func refreshDMMessageMetadata(messageID string) (*domain.DMMessage, error) {
 	// For DMs, we reuse the same metadata decoding/synthesis logic
 	// but skip channel-specific enrichments like knowledge auto-linking for now
 	// if they haven't been implemented for DMs yet.
-	
+
 	var meta messageMetadata
 	if message.Metadata != "" {
 		_ = json.Unmarshal([]byte(message.Metadata), &meta)
@@ -731,10 +731,10 @@ func refreshDMMessageMetadata(messageID string) (*domain.DMMessage, error) {
 
 	// Phase 67B/SIDE: Dual-read legacy flat fields
 	if meta.AISidecar == nil && (meta.Reasoning != "" || len(meta.ToolCalls) > 0 || meta.Usage != nil) {
-		meta.AISidecar = &domain.AISidecar{
-			Reasoning: &domain.AIReasoning{Summary: meta.Reasoning},
-			ToolCalls: meta.ToolCalls,
-			Usage:     meta.Usage,
+		meta.AISidecar = map[string]any{
+			"reasoning":  meta.Reasoning,
+			"tool_calls": meta.ToolCalls,
+			"usage":      meta.Usage,
 		}
 	}
 
@@ -3660,7 +3660,7 @@ func countUnreadMentions(userID string) int {
 		Joins("JOIN message_mentions ON message_mentions.id = SUBSTR(notification_reads.item_id, 18)").
 		Where("notification_reads.user_id = ? AND notification_reads.item_id LIKE ?", userID, "activity-mention-%").
 		Count(&readCount)
-	
+
 	unread := int(total - readCount)
 	if unread < 0 {
 		return 0

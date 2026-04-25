@@ -18,6 +18,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 ## 📋 Task Board
 
 | Status | Task | Assigned To | Deadline | Description |
+| 🟢 Done | Phase 70A Release Hardening + DM AI Markdown Compatibility | Windsurf | 2026-04-25 | Hardened Gemini's `v0.6.59` release by fixing AI Assistant DM markdown rendering, cleaning Phase 70A Web lint noise, restoring legacy AI sidecar dual-read compatibility, and publishing `v0.6.60`. |
 | 🟢 Done | Phase 70A Create List From Analysis Snapshot | Gemini | 2026-04-25 | Implemented full-stack flow to convert AI analysis snapshots into reviewable list drafts and confirmed lists. Published `v0.6.59`. |
 | :--- | :--- | :--- | :--- | :--- |
 | 🟢 Done | Phase 69 Web Contract Hardening | Windsurf | 2026-04-25 | Audited Gemini's `v0.6.56` multi-file analysis delivery, enforced the frozen Phase 69 request/preview contract in `CanvasAIDock`, and published `v0.6.57`. |
@@ -196,9 +197,27 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `full-stack-delivery` | Phase 70A full-stack delivery complete. Published `v0.6.59`. | 100% |
-| **Codex** | `orchestration` | Phase 70A implementation verified; driving Phase 70B scoping and coordination. | 100% |
+| **Codex** | `orchestration` | Phase 70A verified at release-hardening level; driving Phase 70B scoping around typed execution mapping and cross-surface AI content contracts. | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Phase 70A Web implementation complete (delivered by Gemini). | 100% |
+| **Windsurf** | `web-delivery` | `v0.6.60` hardening complete. Ready to consume a frozen Phase 70B AI-native execution contract from Codex. | 100% |
+
+### 2026-04-25 - Phase 70A Release Hardening + DM AI Markdown Compatibility Completion (v0.6.60)
+- **Windsurf**: Audited the live `v0.6.59` state, reviewed Gemini's Phase 70A delivery, and published a hardening patch as `v0.6.60`.
+- **Windsurf**: Fixed the user-facing DM bug where AI Assistant replies arrived as Markdown-ish plain text but the DM page rendered them as raw HTML content, exposing `**bold**`, list markers, and code fences directly in the bubble.
+- **Windsurf**: `/workspace/dms/[id]` now renders assistant replies through a safe Markdown-compatible formatter for both persisted assistant messages and streaming assistant output, while preserving the existing HTML path for user-authored rich-text messages.
+- **Windsurf**: Cleaned the Phase 70A Web release by removing an unused import in `AnalysisListDraftPreview`, keeping Gemini's new list-draft UI lint-clean.
+- **Windsurf**: Release verification also surfaced a backend compatibility regression in legacy synthesized `metadata.ai_sidecar`; patched dual-read synthesis so flat legacy `reasoning/tool_calls/usage` still serialize in the legacy-compatible shape expected by current tests, without changing canonical persisted sidecars.
+- **Windsurf**: Verification passed with:
+  - `apps/web`: `pnpm exec tsc --noEmit`
+  - `apps/web`: `pnpm lint`
+  - `apps/api`: `go test ./internal/handlers ./internal/llm ./internal/domain`
+- **Windsurf → Codex**: Detailed Phase 70B / AI-native collaboration requests after this hardening pass:
+  - freeze a cross-surface assistant content contract for DM, channel AI, and canvas AI replies: if assistant body is Markdown, expose it explicitly as Markdown (`content_format: markdown` or equivalent) instead of making Web infer from plain text vs HTML.
+  - build on Gemini's recommendation and freeze a typed `action_hint -> execution_target` mapping for Phase 70B so analysis plans can deterministically become lists, workflows, or channel actions without UI heuristics.
+  - keep the `analysis_snapshot_id -> draft_id -> confirm-create` chain immutable, but define whether drafts need durable re-open/review APIs across sessions before Web invents local recovery behavior.
+  - harden the server-side AI sidecar contract so dual-read compatibility is formally specified: what exact JSON shape should legacy synthesized `ai_sidecar.reasoning` use, and when can that legacy path be retired?
+- **Windsurf → Gemini**: Phase 70A landed well. The main follow-through is to help Codex freeze the typed execution taxonomy and rich-content contract so the next AI-native step does not force Web to guess whether model output is HTML, Markdown, or plain text.
+- **Windsurf → Nikko Fu**: `v0.6.60` makes the AI DM experience much friendlier. Assistant replies that come back in Markdown now read like proper formatted answers instead of showing raw `**` and list syntax, and the Phase 70A create-list flow remains release-clean underneath.
 
 ### 2026-04-25 - Phase 70A Create List From Analysis Snapshot Completion (v0.6.59)
 - **Gemini**: Phase 70A is complete (Backend + Web). Published as `v0.6.59`.

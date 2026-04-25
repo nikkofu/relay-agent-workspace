@@ -192,6 +192,7 @@ function DMConversationContent() {
           const senderIsAI = sender ? isAIUserCheck(sender) : false
           const isOwn = msg.senderId === currentUser?.id
           const text = plainTextOf(msg.content || "")
+          const renderedContent = senderIsAI ? renderAssistantMessageHtml(msg.content || "") : (msg.content || "")
 
           // Unified AI Side-Channel Contract: every AI surface funnels its
           // metadata through `normalizeAISidecar`, which accepts the
@@ -238,7 +239,10 @@ function DMConversationContent() {
                     ? "bg-violet-600 text-white rounded-br-sm"
                     : "bg-muted dark:bg-muted/60 text-foreground rounded-bl-sm",
                 )}>
-                  <div dangerouslySetInnerHTML={{ __html: msg.content }} />
+                  <div
+                    className="break-words [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-current/20 [&_blockquote]:my-2 [&_blockquote]:pl-3 [&_blockquote]:italic [&_code]:rounded [&_code]:bg-black/10 [&_code]:px-1 [&_code]:py-0.5 [&_h1]:mb-2 [&_h1]:text-base [&_h1]:font-black [&_h2]:mb-2 [&_h2]:text-sm [&_h2]:font-black [&_h3]:mb-2 [&_h3]:text-sm [&_h3]:font-bold [&_li]:my-1 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-2 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-black/10 [&_pre]:px-3 [&_pre]:py-2 [&_pre]:font-mono [&_pre]:text-xs [&_strong]:font-black [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5"
+                    dangerouslySetInnerHTML={{ __html: renderedContent }}
+                  />
                 </div>
 
                 {/* Token + action footer (request #2). Hidden on user bubbles
@@ -319,8 +323,10 @@ function DMConversationContent() {
                 live
               />
               <div className="bg-muted dark:bg-muted/60 px-3.5 py-2 rounded-2xl rounded-bl-sm text-sm leading-relaxed text-foreground">
-                <span>{s.text}</span>
-                <span className="inline-block w-0.5 h-4 bg-violet-500 ml-0.5 animate-[blink_0.9s_step-end_infinite] align-middle" />
+                <div
+                  className="break-words [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-current/20 [&_blockquote]:my-2 [&_blockquote]:pl-3 [&_blockquote]:italic [&_code]:rounded [&_code]:bg-black/10 [&_code]:px-1 [&_code]:py-0.5 [&_h1]:mb-2 [&_h1]:text-base [&_h1]:font-black [&_h2]:mb-2 [&_h2]:text-sm [&_h2]:font-black [&_h3]:mb-2 [&_h3]:text-sm [&_h3]:font-bold [&_li]:my-1 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-2 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-black/10 [&_pre]:px-3 [&_pre]:py-2 [&_pre]:font-mono [&_pre]:text-xs [&_strong]:font-black [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5"
+                  dangerouslySetInnerHTML={{ __html: `${renderAssistantMessageHtml(s.text || "")}<span class="inline-block w-0.5 h-4 bg-violet-500 ml-0.5 animate-[blink_0.9s_step-end_infinite] align-middle"></span>` }}
+                />
               </div>
               <div className="flex items-center gap-2 text-[9px] text-muted-foreground/80 px-1">
                 <span className="inline-flex items-center gap-0.5">
@@ -350,6 +356,169 @@ function DMConversationContent() {
       </div>
     </div>
   )
+}
+
+function renderAssistantMessageHtml(content: string): string {
+  const normalized = content.replace(/\r\n?/g, "\n").trim()
+  if (!normalized) return ""
+
+  let html = ""
+  let paragraphBuffer: string[] = []
+  let quoteBuffer: string[] = []
+  let listType: "ul" | "ol" | null = null
+  let listItems: string[] = []
+  let inCodeBlock = false
+  let codeLanguage = ""
+  let codeLines: string[] = []
+
+  const flushParagraph = () => {
+    if (paragraphBuffer.length === 0) return
+    html += `<p>${paragraphBuffer.map(formatInlineMarkdown).join("<br/>")}</p>`
+    paragraphBuffer = []
+  }
+
+  const flushQuote = () => {
+    if (quoteBuffer.length === 0) return
+    html += `<blockquote><p>${quoteBuffer.map(formatInlineMarkdown).join("<br/>")}</p></blockquote>`
+    quoteBuffer = []
+  }
+
+  const flushList = () => {
+    if (!listType || listItems.length === 0) return
+    html += `<${listType}>${listItems.map(item => `<li>${formatInlineMarkdown(item)}</li>`).join("")}</${listType}>`
+    listType = null
+    listItems = []
+  }
+
+  const flushCodeBlock = () => {
+    html += `<pre><code${codeLanguage ? ` class="language-${escapeAttribute(codeLanguage)}"` : ""}>${escapeHtml(codeLines.join("\n"))}</code></pre>`
+    codeLanguage = ""
+    codeLines = []
+  }
+
+  for (const line of normalized.split("\n")) {
+    const codeFence = line.match(/^```([\w-]+)?\s*$/)
+    if (codeFence) {
+      flushParagraph()
+      flushQuote()
+      flushList()
+      if (inCodeBlock) {
+        flushCodeBlock()
+      } else {
+        codeLanguage = codeFence[1] ?? ""
+      }
+      inCodeBlock = !inCodeBlock
+      continue
+    }
+
+    if (inCodeBlock) {
+      codeLines.push(line)
+      continue
+    }
+
+    if (!line.trim()) {
+      flushParagraph()
+      flushQuote()
+      flushList()
+      continue
+    }
+
+    const heading = line.match(/^(#{1,6})\s+(.*)$/)
+    if (heading) {
+      flushParagraph()
+      flushQuote()
+      flushList()
+      const level = Math.min(heading[1].length, 6)
+      html += `<h${level}>${formatInlineMarkdown(heading[2])}</h${level}>`
+      continue
+    }
+
+    if (/^(?:-{3,}|\*{3,}|_{3,})$/.test(line.trim())) {
+      flushParagraph()
+      flushQuote()
+      flushList()
+      html += "<hr/>"
+      continue
+    }
+
+    const quote = line.match(/^>\s?(.*)$/)
+    if (quote) {
+      flushParagraph()
+      flushList()
+      quoteBuffer.push(quote[1])
+      continue
+    }
+
+    flushQuote()
+
+    const ordered = line.match(/^\d+\.\s+(.*)$/)
+    if (ordered) {
+      flushParagraph()
+      if (listType !== "ol") {
+        flushList()
+        listType = "ol"
+      }
+      listItems.push(ordered[1])
+      continue
+    }
+
+    const unordered = line.match(/^[-*+]\s+(.*)$/)
+    if (unordered) {
+      flushParagraph()
+      if (listType !== "ul") {
+        flushList()
+        listType = "ul"
+      }
+      listItems.push(unordered[1])
+      continue
+    }
+
+    flushList()
+    paragraphBuffer.push(line)
+  }
+
+  if (inCodeBlock) {
+    flushCodeBlock()
+  }
+
+  flushParagraph()
+  flushQuote()
+  flushList()
+  return html
+}
+
+function formatInlineMarkdown(content: string): string {
+  const tokens: string[] = []
+  const stash = (value: string) => `@@MD_TOKEN_${tokens.push(value) - 1}@@`
+
+  let html = escapeHtml(content)
+  html = html.replace(/`([^`]+)`/g, (_, code: string) => stash(`<code>${code}</code>`))
+  html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_, label: string, href: string) => (
+    stash(`<a href="${escapeAttribute(href)}" target="_blank" rel="noreferrer noopener">${label}</a>`)
+  ))
+  html = html.replace(/\*\*([^*][\s\S]*?)\*\*/g, "<strong>$1</strong>")
+  html = html.replace(/__([^_][\s\S]*?)__/g, "<strong>$1</strong>")
+  html = html.replace(/~~([^~][\s\S]*?)~~/g, "<del>$1</del>")
+  html = html.replace(/(^|[\s(])\*([^*\n]+)\*(?=$|[\s).,!?:;])/g, "$1<em>$2</em>")
+  html = html.replace(/(^|[\s(])_([^_\n]+)_(?=$|[\s).,!?:;])/g, "$1<em>$2</em>")
+  return html.replace(/@@MD_TOKEN_(\d+)@@/g, (_, index: string) => tokens[Number(index)] ?? "")
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+}
+
+function escapeAttribute(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
 }
 
 // ── AI welcome state ────────────────────────────────────────────────────────
