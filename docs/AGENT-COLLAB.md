@@ -192,10 +192,104 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `full-stack-delivery` | Phase 68 delivery complete; Windsurf audit closed the release train at `v0.6.55`. Waiting for Phase 69 scoping. | 100% |
-| **Codex** | `orchestration` | Driving Phase 69 scoping: (a) AI-powered file summarization, (b) Batch extraction UI. | 0% |
+| **Gemini** | `backend-delivery` | Phase 69 backend/API/test kickoff: structured multi-file canvas analysis, trigger-time file-group snapshots, and graceful degradation across mixed file quality. | 0% |
+| **Codex** | `orchestration` | Phase 69 spec + plan frozen; driving contract authority, task handoff, and final integration control for multi-file canvas AI analysis. | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Phase 68 audit/hardening complete. Published `v0.6.55`. | 100% |
+| **Windsurf** | `web-delivery` | Phase 69 Web kickoff: file-group detection in Canvas AI Dock, structured preview rendering, section-level insertion, and preview/persisted-state separation. | 0% |
+
+### 2026-04-25 - Phase 69 Multi-File Canvas AI Analysis Kickoff
+- **Codex**: Phase 69 spec and implementation plan are now frozen:
+  - spec: `docs/superpowers/specs/2026-04-25-phase69-multi-file-canvas-ai-analysis-design.md`
+  - plan: `docs/superpowers/plans/2026-04-25-phase69-multi-file-canvas-ai-analysis.md`
+- **Codex**: Product definition for this phase is fixed:
+  - `Canvas is the working surface for a file group. Canvas AI Dock is the analysis and proposal layer. The user decides which AI conclusions become formal canvas content.`
+  - first release flow:
+    - `multiple persisted file_ref cards in one canvas -> Canvas AI Dock analyzes the file group -> AI returns structured preview -> user selectively inserts approved sections`
+- **Codex**: Contract authority is fixed for this phase:
+  - input source of truth:
+    - persisted `file_ref` blocks in the active canvas
+  - file-group semantics:
+    - first release means all persisted `file_ref` blocks in the active canvas
+  - request semantics:
+    - `artifact_id`
+    - trigger-time snapshotted `file_refs[]`
+    - `mode=multi_file_analysis`
+  - response semantics:
+    - `analysis.summary`
+    - `analysis.observations[]`
+    - `analysis.next_steps[]`
+      - `text`
+      - `rationale`
+      - `action_hint`
+  - raw drag payloads are forbidden as analysis input for Phase 69
+  - Dock result is preview state until explicit user insertion
+- **Codex → Gemini**: Your scope is backend/API/tests only:
+  - define the final Phase 69 analysis request/response route and schema
+  - accept:
+    - `artifact_id`
+    - trigger-time snapshotted `file_refs[]`
+  - reject:
+    - raw drag-payload-shaped requests
+    - malformed or empty file-group requests
+  - aggregate the file group from persisted `file_id`s
+  - resolve extraction text, metadata, and fallback file context as available
+  - degrade gracefully when some files are partially indexed, missing extraction text, or otherwise incomplete
+  - return structured output only:
+    - `summary`
+    - `observations[]`
+    - `next_steps[].text`
+    - `next_steps[].rationale`
+    - `next_steps[].action_hint`
+  - do **not** add:
+    - direct List creation
+    - Workflow creation
+    - Tool execution
+    - auto-write into canvas
+  - verify with:
+    - `cd apps/api && go test ./internal/handlers -run TestPhase69 -count=1`
+    - `cd apps/api && go test ./internal/handlers -run 'TestPhase69.*Degradation' -count=1`
+- **Codex → Windsurf**: Your scope is Web/UI only:
+  - create one shared file-group snapshot helper from persisted canvas `file_ref` blocks
+  - create one shared Phase 69 Web contract module for request/response types
+  - in `CanvasAIDock`, expose `Analyze file group` only when the active canvas has multiple persisted `file_ref` blocks
+  - trigger analysis from the snapshotted file group, not from mutable drag state
+  - render structured preview sections:
+    - summary
+    - observations
+    - next-step suggestions
+  - support explicit section-level insertion:
+    - `Insert summary`
+    - `Insert observations`
+    - `Insert plan`
+  - preserve strict separation between:
+    - temporary Dock preview state
+    - already persisted canvas content
+  - do **not** add:
+    - auto-insert after generation
+    - complex file-group manager UI
+    - direct List/Workflow/Tool actions in this phase
+- **Codex sequencing rule**:
+  - Gemini Task 1 and Windsurf Task 3 can begin in parallel because the conceptual contract is frozen
+  - Windsurf should not finalize result rendering against ad hoc shapes; use one shared Phase 69 response type module
+  - insertion logic must copy from the frozen analysis result snapshot for that run, not from mutable live UI state
+- **Codex acceptance bar**:
+  - multi-file canvases expose `Analyze file group`
+  - analysis request uses snapshotted persisted `file_ref` inputs
+  - backend rejects raw drag-payload-shaped analysis requests
+  - Dock returns:
+    - summary
+    - observations
+    - next steps with `text/rationale/action_hint`
+  - user can insert summary / observations / plan independently
+  - inserted content persists as normal canvas content
+  - preview state remains distinct from persisted document content
+  - partial file-quality problems degrade analysis instead of forcing unnecessary total failure
+- **Codex next-after-this note**:
+  - after Phase 69 delivery, reassess:
+    - `Create list from plan`
+    - `Send plan to channel`
+    - `Run workflow/tool from suggestion`
+    - file-group selection beyond “all file_ref blocks in current canvas”
 
 ### 2026-04-25 - Phase 68 Contract Audit & Persistence Hardening Completion (v0.6.55)
 - **Windsurf**: Audited Gemini's `v0.6.54` Web + Canvas AI persistence implementation against Codex's frozen Phase 68 contract and closed the remaining release blockers.
