@@ -49,6 +49,9 @@ import { extractFileRefsFromHtml, getUniqueFileRefs } from "@/lib/canvas-file-gr
 import type { MultiFileAnalysisRequest, MultiFileAnalysisResponse } from "@/lib/multi-file-analysis"
 import { isMultiFileAnalysisResponse } from "@/lib/multi-file-analysis"
 import { FileGroupAnalysisResult } from "@/components/canvas/file-group-analysis-result"
+import { AnalysisListDraft, isGenerateListDraftResponse, isConfirmCreateListResponse } from "@/lib/analysis-list-draft"
+import { AnalysisListDraftPreview } from "@/components/canvas/analysis-list-draft-preview"
+import { useRouter } from "next/navigation"
 
 // ── Public handle ────────────────────────────────────────────────────────────
 
@@ -148,6 +151,8 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
     const [input, setInput] = useState("")
     const [expanded, setExpanded] = useState(layout === "rail")
     const [messages, setMessages] = useState<DockMessage[]>([])
+    const [listDraft, setListDraft] = useState<AnalysisListDraft | null>(null)
+    const router = useRouter()
     const [isLoadingHistory, setIsLoadingHistory] = useState(false)
     const [conversationId, setConversationId] = useState<string | null>(null)
     const conversationIdRef = useRef<string | null>(null)
@@ -615,6 +620,65 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
       }
     }
 
+    const handleCreateListFromAnalysis = async (snapshotId: string) => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/ai/canvas/generate-list-draft`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            artifact_id: artifactId,
+            channel_id: channelId,
+            analysis_snapshot_id: snapshotId,
+          }),
+        })
+
+        if (!res.ok) {
+          const detail = await res.json()
+          throw new Error(detail.error || "Failed to generate list draft")
+        }
+
+        const data = await res.json()
+        if (!isGenerateListDraftResponse(data)) {
+          throw new Error("Invalid draft response format")
+        }
+
+        setListDraft(data.draft)
+      } catch (err: any) {
+        toast.error(err.message)
+      }
+    }
+
+    const handleConfirmCreateList = async (): Promise<string | null> => {
+      if (!listDraft) return null
+      try {
+        const res = await fetch(`${API_BASE_URL}/ai/canvas/confirm-create-list`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ draft_id: listDraft.draft_id }),
+        })
+
+        if (!res.ok) {
+          const detail = await res.json()
+          throw new Error(detail.error || "Failed to create list")
+        }
+
+        const data = await res.json()
+        if (!isConfirmCreateListResponse(data)) {
+          throw new Error("Invalid creation response format")
+        }
+        
+        toast.success("List created successfully")
+        return data.list_id
+      } catch (err: any) {
+        toast.error(err.message)
+        return null
+      }
+    }
+
+    const handleOpenCreatedList = (listId: string) => {
+      router.push(`/workspace/lists?id=${listId}`)
+    }
+
     // ── Send ─────────────────────────────────────────────────────────────────
     const handleSend = useCallback(() => {
       const trimmed = input.trim()
@@ -864,7 +928,7 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
           </div>
         )}
 
-        {/* Chat history */}
+        {/* Chat history / Draft Preview */}
         {(showHistory || isRail) && (
           <div className={cn(
             "overflow-y-auto p-3 space-y-3",
@@ -872,7 +936,14 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
               ? "flex-1 min-h-0"
               : "max-h-[280px] border-b border-purple-500/10",
           )}>
-            {isLoadingHistory ? (
+            {listDraft ? (
+              <AnalysisListDraftPreview 
+                draft={listDraft}
+                onConfirm={handleConfirmCreateList}
+                onCancel={() => setListDraft(null)}
+                onOpenList={handleOpenCreatedList}
+              />
+            ) : isLoadingHistory ? (
               <div className="h-full flex flex-col items-center justify-center text-center gap-2 py-8 px-4">
                 <Loader2 className="w-5 h-5 text-purple-400 animate-spin" />
                 <p className="text-[11px] font-bold text-muted-foreground max-w-xs leading-relaxed">
@@ -907,6 +978,7 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
                   onInsertSummary={handleInsertSummary}
                   onInsertObservations={handleInsertObservations}
                   onInsertPlan={handleInsertPlan}
+                  onCreateList={handleCreateListFromAnalysis}
                   isStreaming={streamingId === m.id}
                 />
               ))
@@ -1108,12 +1180,14 @@ interface ChatBubbleProps {
   onInsertSummary: (text: string) => void
   onInsertObservations: (observations: string[]) => void
   onInsertPlan: (steps: MultiFileAnalysisResponse["analysis"]["next_steps"]) => void
+  onCreateList?: (snapshotId: string) => void
   isStreaming: boolean
 }
 
 function ChatBubble({
   message, onApply, onInsert, onCopy, onRetry, onStop, onReSelect,
   onInsertSummary, onInsertObservations, onInsertPlan,
+  onCreateList,
   isStreaming,
 }: ChatBubbleProps) {
   if (message.role === "user") {
@@ -1188,6 +1262,7 @@ function ChatBubble({
               onInsertSummary={onInsertSummary}
               onInsertObservations={onInsertObservations}
               onInsertPlan={onInsertPlan}
+              onCreateList={onCreateList ? () => onCreateList(message.id) : undefined}
             />
           ) : message.text ? (
             <p className="whitespace-pre-wrap break-words">{message.text}</p>

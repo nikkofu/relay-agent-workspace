@@ -2,13 +2,14 @@
 
 import { MultiFileAnalysisResponse } from "@/lib/multi-file-analysis"
 import { Button } from "@/components/ui/button"
-import { Check, ClipboardList, Lightbulb, Zap } from "lucide-react"
+import { Check, ClipboardList, Lightbulb, Zap, ListPlus } from "lucide-react"
 
 interface FileGroupAnalysisResultProps {
   result: MultiFileAnalysisResponse["analysis"]
   onInsertSummary: (text: string) => void
   onInsertObservations: (observations: string[]) => void
   onInsertPlan: (steps: MultiFileAnalysisResponse["analysis"]["next_steps"]) => void
+  onCreateList?: () => void
 }
 
 export function FileGroupAnalysisResult({
@@ -16,6 +17,7 @@ export function FileGroupAnalysisResult({
   onInsertSummary,
   onInsertObservations,
   onInsertPlan,
+  onCreateList,
 }: FileGroupAnalysisResultProps) {
   return (
     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -99,6 +101,17 @@ export function FileGroupAnalysisResult({
           ))}
         </div>
       </section>
+
+      {/* Phase 70A: Action item to convert to list */}
+      {onCreateList && (
+        <Button 
+          className="w-full h-9 gap-2 text-xs font-black uppercase tracking-wider shadow-md hover:scale-[1.01] active:scale-95 transition-all"
+          onClick={onCreateList}
+        >
+          <ListPlus className="w-4 h-4" />
+          Create list from plan
+        </Button>
+      )}
     </div>
   )
 }

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.59] - 2026-04-25
+
+### Added
+- **Create List from Plan (UI)** — Canvas AI Dock can now convert a structured file-group analysis into a reviewable List draft and create one channel-scoped execution list after confirmation.
+- **Draft Preview & Confirmation** — Dock-local preview of list titles, items, and target channels before formal creation.
+- **One-Click List Navigation** — Immediate access to newly created lists directly from the Dock success state.
+
 ## [0.6.58] - 2026-04-25
 
 ### Added
