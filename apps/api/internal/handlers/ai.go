@@ -1072,8 +1072,16 @@ func persistAIConversation(user domain.User, input llm.Request, session *llm.Str
 		Role:           "assistant",
 		Content:        assistantContent,
 		Reasoning:      reasoning,
-		AISidecarJSON:  `{"reasoning":"` + reasoning + `","tool_calls":[],"usage":{"input_tokens":20,"output_tokens":40,"total_tokens":60}}`,
 		CreatedAt:      now,
+	}
+	if strings.TrimSpace(reasoning) != "" {
+		sidecarJSON, err := json.Marshal(domain.AISidecar{
+			Reasoning: reasoning,
+		})
+		if err != nil {
+			return err
+		}
+		assistantMessage.AISidecarJSON = string(sidecarJSON)
 	}
 	if err := db.DB.Create(&assistantMessage).Error; err != nil {
 		return err
@@ -1843,7 +1851,7 @@ func AISlashCommandAsk(c *gin.Context) {
 		// Mock streaming for now or call real LLM
 		time.Sleep(500 * time.Millisecond)
 		answer := "I've analyzed the channel context for your question: '" + question + "'. Here is what I found..."
-		
+
 		// Update with final answer and sidecar
 		sidecar := domain.AISidecar{
 			Reasoning: "Found relevant documents in channel history.",
@@ -1852,7 +1860,7 @@ func AISlashCommandAsk(c *gin.Context) {
 			},
 			Usage: &domain.AIUsage{InputTokens: 50, OutputTokens: 120, TotalTokens: 170},
 		}
-		
+
 		meta := messageMetadata{
 			AISidecar: &sidecar,
 		}

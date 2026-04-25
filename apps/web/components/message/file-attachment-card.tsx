@@ -97,9 +97,14 @@ export function FileAttachmentCard({ attachment, messageId }: FileAttachmentCard
     )}
       draggable
       onDragStart={(e) => {
+        const filePayload = normalizeMessageAttachment(attachment)
+        if (!filePayload) {
+          e.preventDefault()
+          return
+        }
         const payload = {
           kind: "file-to-canvas" as const,
-          file: normalizeMessageAttachment(attachment),
+          file: filePayload,
           source: "message" as const,
         };
         e.dataTransfer.setData("application/json", encodeFileDragPayload(payload));

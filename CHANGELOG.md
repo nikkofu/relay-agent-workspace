@@ -2,6 +2,42 @@
 
 All notable changes to Relay Agent Workspace are documented in this file.
 
+## [0.6.55] - 2026-04-25
+
+Phase 68 Contract Audit & Persistence Hardening. Windsurf audited Gemini's
+`v0.6.54` Web + Canvas AI Persistence implementation against Codex's frozen
+contract and fixed release-blocking type, lint, drag payload, click-through,
+and persisted AI sidecar issues.
+
+### Fixed
+
+- **Strict file-to-canvas payload gate** — Centralized drag payload
+  normalization now rejects malformed file data instead of allowing undefined
+  `id`, `title`, `mime_type`, or `size` values into Canvas.
+- **Cross-surface drag-source consistency** — Files page rows, content-search
+  hits, message attachment cards, and citation file results now all use the
+  same normalizer and prevent drag start when normalization fails.
+- **Canvas AI conversation continuation** — `CanvasAIDock` now tracks the real
+  backend `conversation_id` from SSE lifecycle frames instead of incorrectly
+  reusing the first message ID, so subsequent turns append to the same
+  artifact-scoped conversation.
+- **Persisted AI sidecar safety** — AI conversation persistence now serializes
+  sidecar JSON with `json.Marshal` and no longer invents fake token usage when
+  the provider did not supply usage telemetry.
+- **Canvas AI history replay** — Reloaded Canvas AI Dock messages now route
+  through `normalizeAISidecar`, preserving canonical and legacy sidecar replay.
+- **Canvas file card click-through** — `/workspace/files?id=<file_id>` now
+  opens the existing Files preview/collaboration dialog when the file list is
+  hydrated.
+- **TipTap extension typing** — Added missing `@tiptap/core` dependency and
+  explicit extension callback types so Web `tsc --noEmit` is clean.
+
+### Verified
+
+- `apps/web`: `pnpm exec tsc --noEmit`
+- `apps/web`: `pnpm exec eslint .`
+- `apps/api`: `go test ./internal/handlers ./internal/llm ./internal/domain`
+
 ## [0.6.54] - 2026-04-25
 
 File Archive + Canvas Convergence (Web) & AI Sidecar Persistence. Completes the 

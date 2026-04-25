@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useFileStore } from "@/stores/file-store"
 import { Search, Folder, FileIcon, Archive, Trash2, Download, Filter, MoreVertical, RefreshCcw, History, ShieldCheck, Loader2, Star, MessageSquare, Share2, BookOpen, Tag, Send, Globe, CheckCircle2, Edit2, X, Cpu, AlertTriangle, AlignLeft, Layers, Link2, FileSearch, RefreshCw } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -52,6 +52,7 @@ export default function FilesPage() {
   } = useFileStore()
   const { channels } = useChannelStore()
   const { users, fetchUsers } = useUserStore()
+  const openedQueryFileIdRef = useRef<string | null>(null)
   
   const [q, setQ] = useState("")
   const [uploaderId, setUploaderId] = useState("all")
@@ -137,7 +138,7 @@ export default function FilesPage() {
     setIsViewingAudit(true)
   }
 
-  const handleViewPreview = async (file: any) => {
+  const handleViewPreview = useCallback(async (file: any) => {
     setSelectedFile(file)
     setIsPreviewLoading(true)
     setIsViewingPreview(true)
@@ -165,7 +166,16 @@ export default function FilesPage() {
     setSourceKind(file.source_kind || "")
     setKnowledgeSummary(file.summary || "")
     setKnowledgeTags((file.tags || []).join(", "))
-  }
+  }, [fetchFilePreview, fetchFileComments, fetchFileShares])
+
+  useEffect(() => {
+    const queryFileId = new URLSearchParams(window.location.search).get("id")
+    if (!queryFileId || openedQueryFileIdRef.current === queryFileId) return
+    const file = activeFiles.find(f => f.id === queryFileId)
+    if (!file) return
+    openedQueryFileIdRef.current = queryFileId
+    handleViewPreview(file)
+  }, [activeFiles, handleViewPreview])
 
   const handleLoadExtraction = async (fileId: string) => {
     if (extraction) return
@@ -317,9 +327,14 @@ export default function FilesPage() {
                   onClick={() => handleViewPreview(r)}
                   draggable
                   onDragStart={(e) => {
+                    const filePayload = normalizeFilesPageFile(r)
+                    if (!filePayload) {
+                      e.preventDefault()
+                      return
+                    }
                     const payload = {
                       kind: "file-to-canvas" as const,
-                      file: normalizeFilesPageFile(r),
+                      file: filePayload,
                       source: "search" as const,
                     };
                     e.dataTransfer.setData("application/json", encodeFileDragPayload(payload));
@@ -407,9 +422,14 @@ export default function FilesPage() {
                 onClick={() => handleViewPreview(file)}
                 draggable
                 onDragStart={(e) => {
+                  const filePayload = normalizeFilesPageFile(file)
+                  if (!filePayload) {
+                    e.preventDefault()
+                    return
+                  }
                   const payload = {
                     kind: "file-to-canvas" as const,
-                    file: normalizeFilesPageFile(file),
+                    file: filePayload,
                     source: "files" as const,
                   };
                   e.dataTransfer.setData("application/json", encodeFileDragPayload(payload));

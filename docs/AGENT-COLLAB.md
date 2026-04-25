@@ -19,6 +19,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Status | Task | Assigned To | Deadline | Description |
 | :--- | :--- | :--- | :--- | :--- |
+| 🟢 Done | Phase 68 AI Persistence Audit & Release Hardening | Windsurf | 2026-04-25 | Audited Gemini's `v0.6.54` Web + Canvas AI persistence implementation against Codex's frozen contract, fixed drag payload, type/lint, persisted sidecar, and file preview click-through issues, and published `v0.6.55`. |
 | 🟢 Done | Phase 68 File Archive + Canvas Convergence (Web) | Gemini | 2026-04-25 | Implemented `file_ref` Tiptap extension, compact canvas file cards, and cross-surface drag-drop integration. Published `v0.6.54`. |
 | 🟢 Done | Canvas AI Sidecar Persistence | Gemini | 2026-04-25 | Linked AI conversations to artifacts via `artifact_id`. Dock now reloads history on mount. Published `v0.6.54`. |
 | 🟢 Done | Phase 68 Backend Normalization | Gemini | 2026-04-25 | Stabilized and normalized file payloads across all entry points for drag-drop. Published `v0.6.53`. |
@@ -191,10 +192,24 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `full-stack-delivery` | Phase 68 Web + Canvas AI Persistence complete. Published `v0.6.54`. Waiting for Phase 69 scoping. | 100% |
+| **Gemini** | `full-stack-delivery` | Phase 68 delivery complete; Windsurf audit closed the release train at `v0.6.55`. Waiting for Phase 69 scoping. | 100% |
 | **Codex** | `orchestration` | Driving Phase 69 scoping: (a) AI-powered file summarization, (b) Batch extraction UI. | 0% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Phase 68 Web implementation complete (handoff to Gemini). | 100% |
+| **Windsurf** | `web-delivery` | Phase 68 audit/hardening complete. Published `v0.6.55`. | 100% |
+
+### 2026-04-25 - Phase 68 Contract Audit & Persistence Hardening Completion (v0.6.55)
+- **Windsurf**: Audited Gemini's `v0.6.54` Web + Canvas AI persistence implementation against Codex's frozen Phase 68 contract and closed the remaining release blockers.
+- **Windsurf**: Hardened `file-to-canvas` normalization so malformed drag payloads are rejected before Canvas mutation. Files page rows, content-search hits, message attachment cards, and citation-backed file entries now all share the same strict payload gate.
+- **Windsurf**: Fixed `CanvasAIDock` conversation continuity. The dock now tracks the real backend `conversation_id` from SSE lifecycle frames, reloads persisted messages through `normalizeAISidecar`, and continues the correct artifact-scoped conversation instead of incorrectly reusing the first message ID.
+- **Windsurf**: Fixed backend AI persistence JSON safety in `persistAIConversation` by serializing `AISidecar` with `json.Marshal` instead of string concatenation.
+- **Windsurf**: Completed the file card click-through contract by teaching `/workspace/files?id=<file_id>` to open the existing file preview/collaboration dialog after hydration.
+- **Windsurf**: Cleaned the final Web static issues: explicit TipTap extension callback typing plus the missing `@tiptap/core` dependency. `pnpm exec tsc --noEmit` and `pnpm exec eslint .` are both clean.
+- **Windsurf**: Final verification passed with:
+  - `apps/web`: `pnpm exec tsc --noEmit`
+  - `apps/web`: `pnpm exec eslint .`
+  - `apps/api`: `go test ./internal/handlers ./internal/llm ./internal/domain`
+- **Windsurf → Codex**: Phase 68 is now contract-clean at `v0.6.55`. No new canvas insertion endpoints were added, no AI summarize-on-drop behavior was introduced, and the existing file preview/detail UX remains the click-through target for `file_ref` cards.
+- **Windsurf → Nikko Fu**: `v0.6.55` closes the Phase 68 audit pass. Canvas file cards now deep-link cleanly into Files preview, persisted AI sidecars replay correctly on reopen, and the release is type/lint/test clean.
 
 ### 2026-04-25 - Phase 68 File Archive + Canvas Convergence Web Completion (v0.6.54)
 - **Gemini**: Phase 68 Web implementation is complete. Users can now drag files from Files page, content search results, message attachments, and global search citations into an open canvas.

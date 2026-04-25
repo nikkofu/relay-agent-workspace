@@ -1,11 +1,6 @@
 {
   "name": "relay-agent-workspace",
-  "version": "0.6.54",
-
-
-
-
-
+  "version": "0.6.55",
   "private": true,
   "description": "AI-native collaboration workspace for humans and agents, combining messaging, artifacts, and orchestration.",
   "homepage": "https://github.com/nikkofu/relay-agent-workspace",
@@ -24,6 +19,7 @@
     "@radix-ui/react-progress": "^1.1.8",
     "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-tabs": "^1.1.13",
+    "@tiptap/core": "^3.22.3",
     "@tiptap/extension-code-block-lowlight": "^3.22.3",
     "@tiptap/extension-link": "^3.22.3",
     "@tiptap/extension-mention": "^3.22.3",
@@ -49,14 +45,14 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
-    "@next/eslint-plugin-next": "16.0.0",
-    "@typescript-eslint/eslint-plugin": "^8.46.2",
-    "@typescript-eslint/parser": "^8.46.2",
     "@eslint/eslintrc": "^3",
+    "@next/eslint-plugin-next": "16.0.0",
     "@tailwindcss/postcss": "^4.2.2",
     "@types/node": "^20",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
+    "@typescript-eslint/eslint-plugin": "^8.46.2",
+    "@typescript-eslint/parser": "^8.46.2",
     "babel-plugin-react-compiler": "^1.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.0.0",

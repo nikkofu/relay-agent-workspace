@@ -43,7 +43,7 @@ import { cn } from "@/lib/utils"
 import { API_BASE_URL } from "@/lib/constants"
 import { toast } from "sonner"
 import type { CanvasEditorHandle, EditorRange } from "./canvas-tiptap-editor"
-import { parseAIStreamEvent } from "@/lib/ai-sidecar"
+import { normalizeAISidecar, parseAIStreamEvent } from "@/lib/ai-sidecar"
 import { ToolTimeline, UsageChip } from "@/components/ai/ai-sidecar-blocks"
 
 // ── Public handle ────────────────────────────────────────────────────────────
@@ -142,14 +142,26 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
     const [expanded, setExpanded] = useState(layout === "rail")
     const [messages, setMessages] = useState<DockMessage[]>([])
     const [isLoadingHistory, setIsLoadingHistory] = useState(false)
+    const [conversationId, setConversationId] = useState<string | null>(null)
+    const conversationIdRef = useRef<string | null>(null)
+
+    useEffect(() => {
+      conversationIdRef.current = conversationId
+    }, [conversationId])
 
     // Load conversation history for this artifact on mount.
     useEffect(() => {
-      if (!artifactId) return
+      if (!artifactId) {
+        setConversationId(null)
+        setMessages([])
+        return
+      }
       
       const loadHistory = async () => {
         try {
           setIsLoadingHistory(true)
+          setConversationId(null)
+          setMessages([])
           // 1. Find the latest conversation for this artifact
           const listRes = await fetch(`${API_BASE_URL}/ai/conversations?artifact_id=${artifactId}`)
           if (!listRes.ok) return
@@ -157,20 +169,26 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
           if (!conversations || conversations.length === 0) return
 
           const latest = conversations[0]
+          if (typeof latest.id === "string") setConversationId(latest.id)
           // 2. Load the full conversation detail
           const detailRes = await fetch(`${API_BASE_URL}/ai/conversations/${latest.id}`)
           if (!detailRes.ok) return
           const { messages: historyMessages } = await detailRes.json()
 
           // 3. Map to DockMessage shape
-          const mapped: DockMessage[] = historyMessages.map((m: any) => ({
-            id: m.id,
-            role: m.role,
-            text: m.content,
-            reasoning: m.reasoning,
-            sidecar: m.metadata?.ai_sidecar,
-            isStreaming: false,
-          }))
+          const mapped: DockMessage[] = historyMessages.map((m: any) => {
+            const sidecar = normalizeAISidecar(m.metadata)
+            return {
+              id: m.id,
+              role: m.role,
+              text: m.content,
+              reasoning: typeof m.reasoning === "string" && m.reasoning
+                ? m.reasoning
+                : sidecar?.reasoning?.summary,
+              sidecar: sidecar ?? undefined,
+              isStreaming: false,
+            }
+          })
           setMessages(mapped)
         } catch (err) {
           console.error("Failed to load canvas AI history:", err)
@@ -343,7 +361,7 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
             prompt, 
             channel_id: channelId,
             artifact_id: artifactId,
-            conversation_id: messages.length > 0 ? messages[0].id : undefined // Use existing conv if available
+            conversation_id: conversationIdRef.current ?? undefined,
           }),
           signal: ctrl.signal,
         })
@@ -395,6 +413,17 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
               else if (line.startsWith("data:")) data += line.slice(5).trim()
             }
             if (!data) continue
+            if (evt === "start" || evt === "conversation" || evt === "done") {
+              try {
+                const lifecycle = JSON.parse(data)
+                if (typeof lifecycle.conversation_id === "string" && lifecycle.conversation_id) {
+                  conversationIdRef.current = lifecycle.conversation_id
+                  setConversationId(lifecycle.conversation_id)
+                }
+              } catch {
+                continue
+              }
+            }
             // Use the unified parser that understands BOTH the new normative
             // `{ kind, message_id, payload }` envelope (Gemini v0.6.51+) and
             // the legacy `event: chunk|reasoning|error` + `{ text }` form
@@ -495,7 +524,7 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
           prev.map(m => m.id === aiMsgId ? { ...m, isStreaming: false } : m),
         )
       }
-    }, [channelId])
+    }, [channelId, artifactId])
 
     // ── Send ─────────────────────────────────────────────────────────────────
     const handleSend = useCallback(() => {
@@ -724,7 +753,14 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
               ? "flex-1 min-h-0"
               : "max-h-[280px] border-b border-purple-500/10",
           )}>
-            {messages.length === 0 ? (
+            {isLoadingHistory ? (
+              <div className="h-full flex flex-col items-center justify-center text-center gap-2 py-8 px-4">
+                <Loader2 className="w-5 h-5 text-purple-400 animate-spin" />
+                <p className="text-[11px] font-bold text-muted-foreground max-w-xs leading-relaxed">
+                  Loading canvas AI history…
+                </p>
+              </div>
+            ) : messages.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center gap-2 py-8 px-4">
                 <Wand2 className="w-5 h-5 text-purple-400" />
                 <p className="text-[11px] font-bold text-muted-foreground max-w-xs leading-relaxed">

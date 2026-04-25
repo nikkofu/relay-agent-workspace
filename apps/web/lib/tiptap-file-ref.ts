@@ -21,7 +21,7 @@ export const FileRef = Node.create({
     return [
       {
         tag: 'div[data-type="file_ref"]',
-        getAttributes: element => ({
+        getAttributes: (element: HTMLElement) => ({
           file_id: element.getAttribute('data-file-id'),
           title: element.getAttribute('data-title'),
           mime_type: element.getAttribute('data-mime-type'),
@@ -32,7 +32,7 @@ export const FileRef = Node.create({
     ]
   },
 
-  renderHTML({ HTMLAttributes }) {
+  renderHTML({ HTMLAttributes }: { HTMLAttributes: Record<string, unknown> }) {
     return [
       "div",
       mergeAttributes(HTMLAttributes, {

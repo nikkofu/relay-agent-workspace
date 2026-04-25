@@ -5,7 +5,7 @@ import { FileText, MessageSquare, MessageCircle, Layout, Quote, MapPin, Tag, Use
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import type { CitationEvidence, EvidenceKind } from "@/types"
-import { encodeFileDragPayload } from "@/lib/file-to-canvas"
+import { encodeFileDragPayload, normalizeSearchFile } from "@/lib/file-to-canvas"
 
 type KindConfig = {
   label: string
@@ -72,15 +72,20 @@ export function CitationCard({ citation, compact = false, onClick }: CitationCar
       draggable={isFile}
       onDragStart={(e) => {
         if (!isFile) return;
+        const file = normalizeSearchFile({
+          id: citation.source_ref,
+          title: citation.title || "Untitled File",
+          mime_type: citation.mime_type || "application/octet-stream",
+          size: citation.size || 0,
+          preview_url: citation.preview_url,
+        })
+        if (!file) {
+          e.preventDefault()
+          return
+        }
         const payload = {
           kind: "file-to-canvas" as const,
-          file: {
-            id: citation.source_ref, // File ID
-            title: citation.title || "Untitled File",
-            mime_type: citation.mime_type || "application/octet-stream",
-            size: citation.size || 0,
-            preview_url: citation.preview_url,
-          },
+          file,
           source: "search" as const,
         };
         e.dataTransfer.setData("application/json", encodeFileDragPayload(payload));
