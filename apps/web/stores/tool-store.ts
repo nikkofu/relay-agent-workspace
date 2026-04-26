@@ -3,6 +3,7 @@ import { API_BASE_URL } from "@/lib/constants"
 import { toast } from "sonner"
 
 // Phase 66 T07 — frozen Codex contract (Q3):
+// Phase 70B (tool-run detail): ToolRunLog structured shape added for real-time detail panel.
 //   writeback_target = "message" | "list_item"
 //   writeback payload is per-target ("message" → { channel_id, thread_id? }, "list_item" → { list_id })
 export type WritebackTarget = "message" | "list_item"
@@ -16,6 +17,12 @@ export interface WritebackListItemInput {
   list_id: string
 }
 
+export interface ToolRunLog {
+  level: string
+  message: string
+  createdAt: string
+}
+
 export interface ToolRun {
   id: string
   toolId: string
@@ -24,7 +31,11 @@ export interface ToolRun {
   status: 'pending' | 'running' | 'success' | 'failed'
   input: any
   output?: any
+  summary?: string
+  /** Legacy string array for backward compat. */
   logs: string[]
+  /** Structured log entries from the detail endpoint. */
+  structuredLogs?: ToolRunLog[]
   userId: string
   channelId?: string
   startedAt: string
@@ -56,20 +67,32 @@ interface ToolState {
 // raw snake_case `tool.run.*` payloads into the `ToolRun` shape the store
 // expects before invoking the local-only update actions. Without this,
 // WS-delivered runs lose `toolId` / `startedAt` / `durationMs` / etc.
-export const mapToolRun = (r: any): ToolRun => ({
-  ...r,
-  toolId: r.tool_id,
-  toolName: r.tool_name,
-  toolKey: r.tool_key,
-  startedAt: r.started_at,
-  finishedAt: r.finished_at,
-  durationMs: r.duration_ms,
-  userId: r.user_id,
-  channelId: r.channel_id,
-  // Phase 66 T07: hydrate writeback telemetry
-  writebackTarget: r.writeback_target || undefined,
-  writeback: r.writeback || undefined,
-})
+export const mapToolRun = (r: any): ToolRun => {
+  const rawLogs: any[] = Array.isArray(r.logs) ? r.logs : []
+  const structuredLogs: ToolRunLog[] = rawLogs
+    .filter((l) => typeof l === "object" && l !== null)
+    .map((l) => ({ level: l.level || "info", message: l.message || "", createdAt: l.created_at || "" }))
+  const stringLogs: string[] = rawLogs.map((l) =>
+    typeof l === "string" ? l : (l.message || "")
+  )
+  return {
+    ...r,
+    toolId: r.tool_id,
+    toolName: r.tool_name,
+    toolKey: r.tool_key,
+    summary: r.summary || undefined,
+    startedAt: r.started_at,
+    finishedAt: r.finished_at,
+    durationMs: r.duration_ms,
+    userId: r.user_id,
+    channelId: r.channel_id,
+    logs: stringLogs,
+    structuredLogs: structuredLogs.length > 0 ? structuredLogs : undefined,
+    // Phase 66 T07: hydrate writeback telemetry
+    writebackTarget: r.writeback_target || undefined,
+    writeback: r.writeback || undefined,
+  }
+}
 
 export const useToolStore = create<ToolState>((set, get) => ({
   toolRuns: [],

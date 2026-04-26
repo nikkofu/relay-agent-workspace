@@ -203,6 +203,10 @@ export function useWebsocket() {
           if (run) {
             updateRunLocally(mapToolRun(run))
             useWorkspaceStore.getState().markHomeExecutionStale?.()
+            // Phase 70B: notify ToolRunDetailPanel so it can stop polling immediately.
+            if (data.type === 'tool.run.completed') {
+              window.dispatchEvent(new CustomEvent('tool-run-completed', { detail: { runId: run.id } }))
+            }
           }
         } else if (data.type === 'agent_collab.sync') {
           console.log("Syncing Agent Collab data from backend...")

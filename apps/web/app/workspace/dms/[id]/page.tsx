@@ -31,7 +31,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
-  ArrowLeft, Sparkles, Hash, RotateCcw, Copy as CopyIcon,
+  ArrowLeft, Sparkles, Hash, RotateCcw, Copy as CopyIcon, Zap,
 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { cn } from "@/lib/utils"
@@ -39,6 +39,7 @@ import { UserAvatar } from "@/components/common/user-avatar"
 import { toast } from "sonner"
 import { normalizeAISidecar, estimateTokens, plainTextOf } from "@/lib/ai-sidecar"
 import { ReasoningPanel, ToolTimeline, UsageChip } from "@/components/ai/ai-sidecar-blocks"
+import { normalizeExecutionTarget, TARGET_LABELS, TARGET_STYLES } from "@/lib/execution-target"
 
 function isAIUserCheck(user: { id: string; name: string; email?: string }) {
   const name = user.name.toLowerCase()
@@ -244,6 +245,28 @@ function DMConversationContent() {
                     dangerouslySetInnerHTML={{ __html: renderedContent }}
                   />
                 </div>
+
+                {/* Phase 70B: light execution-target chip — shown only when
+                    the AI message carries a normalized execution target via
+                    `ai_sidecar.analysis.default_execution_target`. No action
+                    is triggered from DM surface per Codex spec. */}
+                {(() => {
+                  if (!senderIsAI || !sidecar?.analysis) return null
+                  const et = normalizeExecutionTarget(sidecar.analysis?.default_execution_target)
+                  if (!et) return null
+                  const style = TARGET_STYLES[et.type]
+                  return (
+                    <div className="px-1">
+                      <span className={cn(
+                        "inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ring-1",
+                        style.bg, style.text, style.ring,
+                      )}>
+                        <Zap className="w-2.5 h-2.5" />
+                        {TARGET_LABELS[et.type]}
+                      </span>
+                    </div>
+                  )
+                })()}
 
                 {/* Token + action footer (request #2). Hidden on user bubbles
                     in the user's preferred dense layout — only AI bubbles get

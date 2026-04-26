@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.6.62] - 2026-04-26
+
+### Added
+- **Phase 70B Typed Execution Targets (Web)** — Created a shared `lib/execution-target.ts` contract module: `normalizeExecutionTarget()` normalizes raw API payloads, `resolveExecutionTarget()` applies the deterministic step-override > analysis-default > null resolution rule. Malformed or unknown target types silently normalize to null — no guessing.
+- **Canvas AI Execution Target UX** — `FileGroupAnalysisResult` now shows the analysis-level `default_execution_target` badge in the Summary header, and each `next_steps[]` row shows its resolved execution target (step override or inherited default with a dimmed arrow). The "Create list from plan" button turns violet and shows a "· suggested" hint when the analysis default target is `list`.
+- **DM AI Execution Target chip (light)** — AI DM bubbles now show a small execution-target chip below the content when `ai_sidecar.analysis.default_execution_target` is present. Light rendering only per Codex contract — no execution action on DM surface.
+- **Tool Run Real-time Progress Panel** — Clicking any run row in the Channel Execution Hub → Tools tab now opens a `ToolRunDetailPanel` with live log streaming, status indicator (with animated "Live" badge while running), structured log timeline with level badges (INFO/WARN/ERROR) + timestamps, run meta strip (started-ago, duration, writeback target), and a footer showing the run ID. The panel polls every 1.5 s while status is `running` and stops immediately on `tool.run.completed` WebSocket event.
+
+### Changed
+- **ChannelToolsPanel run rows** are now clickable with a `ChevronRight` affordance; clicking opens the detail panel inline.
+- **tool-store `ToolRun`** now carries `structuredLogs?: ToolRunLog[]` (parsed from the detail endpoint's structured log objects) in addition to the legacy `logs: string[]` array.
+- **WebSocket handler** now dispatches a `tool-run-completed` custom DOM event when `tool.run.completed` arrives, so `ToolRunDetailPanel` can finalize without waiting for the next poll.
+
+### Verified
+- `apps/web`: `pnpm exec tsc --noEmit`
+- `apps/web`: `pnpm lint`
+- `apps/api`: `go test ./internal/handlers ./internal/llm ./internal/domain`
+
 ## [0.6.61] - 2026-04-26
 
 ### Added

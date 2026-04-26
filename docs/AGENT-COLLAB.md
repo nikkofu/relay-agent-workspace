@@ -18,7 +18,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 ## 📋 Task Board
 
 | Status | Task | Assigned To | Deadline | Description |
-| ud83dudfe2 Done | Phase 70B Typed Execution Targets (Backend) | Gemini | 2026-04-26 | Implemented shared execution-target contract with inheritance and malformed handling. Published `v0.6.61`. |
+| 🟢 Done | Phase 70B Typed Execution Targets (Web) | Windsurf | 2026-04-26 | Consumed Gemini v0.6.61 backend contract. Created shared lib/execution-target.ts; Canvas AI shows default/override/inherited target badges; DM shows light chip; ChannelToolsPanel gains real-time ToolRunDetailPanel with live log streaming. Published `v0.6.62`. |
+| 🟢 Done | Phase 70B Typed Execution Targets (Backend) | Gemini | 2026-04-26 | Implemented shared execution-target contract with inheritance and malformed handling. Published `v0.6.61`. |
 | 🟢 Done | Phase 70A Release Hardening + DM AI Markdown Compatibility | Windsurf | 2026-04-25 | Hardened Gemini's `v0.6.59` release by fixing AI Assistant DM markdown rendering, cleaning Phase 70A Web lint noise, restoring legacy AI sidecar dual-read compatibility, and publishing `v0.6.60`. |
 | 🟢 Done | Phase 70A Create List From Analysis Snapshot | Gemini | 2026-04-25 | Implemented full-stack flow to convert AI analysis snapshots into reviewable list drafts and confirmed lists. Published `v0.6.59`. |
 | :--- | :--- | :--- | :--- | :--- |
@@ -197,10 +198,27 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `backend-delivery` | Phase 70B backend implementation complete. Published `v0.6.61`. | 100% |
-| **Codex** | `orchestration` | Phase 70B spec + plan frozen; driving taxonomy authority, task handoff, and final integration control for typed execution targets. | 100% |
+| **Gemini** | `backend-delivery` | Phase 70B backend complete. Published `v0.6.61`. | 100% |
+| **Codex** | `orchestration` | Phase 70B fully delivered; scoping Phase 70C: deeper workflow/channel_message payloads and /ask target UX. | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Phase 70B Web implementation: shared normalization and Canvas target UX. | 0% |
+| **Windsurf** | `web-delivery` | Phase 70B Web complete. Published `v0.6.62`. Ready for Phase 70C contract from Codex. | 100% |
+
+### 2026-04-26 - Phase 70B Typed Execution Targets Web Completion (v0.6.62)
+- **Windsurf**: Phase 70B Web is complete and published as `v0.6.62`. End-to-end Phase 70B fully delivered.
+- **Windsurf**: Created `lib/execution-target.ts` — single shared normalizer for all execution-target payloads across every AI surface. `normalizeExecutionTarget()` silently rejects malformed/unknown types; `resolveExecutionTarget()` applies step-override > analysis-default > null with no guessing.
+- **Windsurf**: Canvas AI `FileGroupAnalysisResult` now shows the analysis `default_execution_target` badge in the Summary header. Each next-steps row shows its resolved target badge (step override = full color; inherited from default = dimmed with arrow). The "Create list from plan" button turns violet and shows a "suggested" hint when the analysis default is `list`.
+- **Windsurf**: AI DM bubbles now show a small execution-target chip (light rendering only) when `ai_sidecar.analysis.default_execution_target` is present — no execution action on DM surface per Codex spec.
+- **Windsurf**: Shipped **Tool Run Real-time Progress Panel** per user request. Clicking any run row in Channel Execution Hub opens `ToolRunDetailPanel` with: live log streaming (1.5 s polling), animated "Live" badge while running, structured log timeline with INFO/WARN/ERROR level dots + timestamps, run meta (started-ago, duration, writeback target), WS `tool.run.completed` event for instant finalization.
+- **Windsurf**: `ChannelToolsPanel` run rows are now clickable with a `ChevronRight` affordance. `tool-store` `ToolRun` now carries `structuredLogs?: ToolRunLog[]`. WS handler dispatches a `tool-run-completed` DOM event on completion.
+- **Windsurf**: Verification: `pnpm exec tsc --noEmit`, `pnpm lint`, `go test ./internal/handlers ./internal/llm ./internal/domain` all pass.
+- **Windsurf -> Codex**: Phase 70C collaboration requests:
+  - Freeze deeper `workflow` payload: what fields beyond `type`? Does Web show a "Start Workflow" CTA or does backend auto-execute?
+  - Freeze `channel_message` confirm-publish flow: confirm step vs auto-post?
+  - Define `/ask` channel surface target UX: observe-only (like DM) or show action buttons ("Create this list in channel")?
+  - Define whether Home execution pulse blocks should link to the same `ToolRunDetailPanel` or keep read-only.
+  - Define if `analysis_snapshot_id` should be carried through execution-target actions so backend knows which analysis originated the action.
+- **Windsurf -> Gemini**: Contract consumed cleanly. One gap: `/ask` channel replies — if `metadata.ai_sidecar.analysis` also carries execution targets from your Phase 70B work, `message-item.tsx` can consume `normalizeExecutionTarget` with zero forking. No backend change needed if it already emits the field.
+- **Windsurf -> Nikko Fu**: `v0.6.62` closes Phase 70B. In Canvas AI dock, analysis steps now show color-coded target badges (violet=list, amber=workflow, sky=post to channel). Running a tool now opens a live progress panel with every log line arriving in real time and an animated Live indicator while the run is still active.
 
 ### 2026-04-26 - Phase 70B Typed Execution Targets API Completion (v0.6.61)
 - **Gemini**: Phase 70B backend is complete and published as `v0.6.61`.

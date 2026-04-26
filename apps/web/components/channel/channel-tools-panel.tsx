@@ -8,17 +8,21 @@
 //     status pill. Runs without a writeback target render unchanged.
 //   - "Run Tool" CTA now enabled via <RunToolDialog> which supports both
 //     writeback targets per-contract.
+//
+// Phase 70B enhancement: clicking a run row opens the ToolRunDetailPanel with
+// real-time log streaming and live status polling.
 
 import { useEffect, useRef, useState } from "react"
 import {
   Loader2, Terminal, CheckCircle2, XCircle, Clock, RefreshCw, Play,
-  MessageSquare, ListTodo,
+  MessageSquare, ListTodo, ChevronRight,
 } from "lucide-react"
 import { useToolStore } from "@/stores/tool-store"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { formatDistanceToNow } from "date-fns"
 import { RunToolDialog } from "./run-tool-dialog"
+import { ToolRunDetailPanel } from "./tool-run-detail-panel"
 
 interface ChannelToolsPanelProps {
   channelId: string
@@ -35,6 +39,7 @@ export function ChannelToolsPanel({ channelId }: ChannelToolsPanelProps) {
   const { toolRuns, isLoading, fetchToolRuns } = useToolStore()
   const didFetch = useRef<string>("")
   const [showRunDialog, setShowRunDialog] = useState(false)
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
 
   useEffect(() => {
     if (didFetch.current !== channelId) {
@@ -85,6 +90,15 @@ export function ChannelToolsPanel({ channelId }: ChannelToolsPanelProps) {
     )
   }
 
+  if (selectedRunId) {
+    return (
+      <ToolRunDetailPanel
+        runId={selectedRunId}
+        onClose={() => setSelectedRunId(null)}
+      />
+    )
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* Header row */}
@@ -128,6 +142,8 @@ export function ChannelToolsPanel({ channelId }: ChannelToolsPanelProps) {
             <div
               key={run.id}
               className="px-3 py-2.5 border-b hover:bg-muted/30 transition-colors cursor-pointer group"
+              onClick={() => setSelectedRunId(run.id)}
+              title="View run details"
             >
               <div className="flex items-start gap-2">
                 <div className={cn(
@@ -186,6 +202,7 @@ export function ChannelToolsPanel({ channelId }: ChannelToolsPanelProps) {
                     </p>
                   )}
                 </div>
+                <ChevronRight className="w-3 h-3 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors shrink-0 mt-1" />
               </div>
             </div>
           )
