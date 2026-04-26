@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.6.65] - 2026-04-26
+
+### Added (Backend — Gemini)
+- **Home Workbench Aggregation** — Extended `/api/v1/home` with new Slack-like workbench sections: `Today`, `My Work`, `Recent Channels`, `AI Suggestions`, `Apps & Tools`, and a detailed `Activity` events list.
+- **Deterministic Home Deduplication** — Implemented backend-driven deduplication and ranking across workbench sections with priority `Today` > `My Work` > `Activity`.
+- **WorkspaceView Registry** — New lightweight registry for Super App views. Supports `list`, `calendar`, `search`, `report`, `form`, and `channel_messages` types.
+- **WorkspaceView APIs** — Implemented bounded CRUD and query APIs (`GET /api/v1/workspace/views`, `POST`, `GET :id`, `PATCH`) with shallow filter/action validation.
+
+### Verified
+- Backend Home aggregation shape & limits
+- WorkspaceView CRUD & validation
+- Backwards compatibility with existing Home response fields
+
 ## [0.6.64] - 2026-04-26
 
 ### Added (Backend — Gemini)

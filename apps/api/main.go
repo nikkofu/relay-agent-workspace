@@ -166,6 +166,11 @@ func main() {
 		v1.GET("/knowledge/inbox/:id", handlers.GetKnowledgeInboxItem)
 		v1.GET("/workspace/settings", handlers.GetWorkspaceSettings)
 		v1.PATCH("/workspace/settings", handlers.PatchWorkspaceSettings)
+
+		v1.GET("/workspace/views", handlers.ListWorkspaceViews)
+		v1.POST("/workspace/views", handlers.CreateWorkspaceView)
+		v1.GET("/workspace/views/:id", handlers.GetWorkspaceView)
+		v1.PATCH("/workspace/views/:id", handlers.PatchWorkspaceView)
 		v1.GET("/users/me/knowledge/followed", handlers.GetMyFollowedKnowledgeEntities)
 		v1.GET("/users/me/knowledge/followed/stats", handlers.GetMyFollowedKnowledgeStats)
 		v1.PATCH("/users/me/knowledge/followed/bulk", handlers.PatchMyKnowledgeFollowsBulk)

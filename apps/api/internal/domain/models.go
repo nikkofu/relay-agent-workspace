@@ -843,3 +843,16 @@ type ExecutionHistoryEvent struct {
 	ErrorMessage        string    `json:"error_message,omitempty"`
 	CreatedAt           time.Time `gorm:"index" json:"created_at"`
 }
+
+type WorkspaceView struct {
+	ID               string    `gorm:"primaryKey" json:"id"`
+	Title            string    `json:"title"`
+	ViewType         string    `gorm:"index" json:"view_type"` // list|calendar|search|report|form|channel_messages
+	Source           string    `gorm:"index" json:"source"`    // manual|agent|tool|system
+	PrimaryChannelID string    `gorm:"index" json:"primary_channel_id,omitempty"`
+	Filters          string    `json:"filters"` // JSON string
+	Actions          string    `json:"actions"` // JSON string
+	CreatedBy        string    `gorm:"index" json:"created_by"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}

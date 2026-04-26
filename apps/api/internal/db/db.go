@@ -92,6 +92,7 @@ func InitDB() error {
 		&domain.AnalysisWorkflowDraft{},
 		&domain.AnalysisMessageDraft{},
 		&domain.ExecutionHistoryEvent{},
+		&domain.WorkspaceView{},
 		); err != nil {
 		return err
 	}

@@ -58,6 +58,19 @@ type homeStatsResponse struct {
 	ActiveThreads  int `json:"active_threads"`
 }
 
+type homeWorkbenchSection struct {
+	Items []any `json:"items"`
+}
+
+type homeWorkbenchResponse struct {
+	Today          homeWorkbenchSection `json:"today"`
+	MyWork         homeWorkbenchSection `json:"my_work"`
+	RecentChannels homeWorkbenchSection `json:"recent_channels"`
+	AISuggestions  homeWorkbenchSection `json:"ai_suggestions"`
+	AppsTools      homeWorkbenchSection `json:"apps_tools"`
+	Activity       homeWorkbenchSection `json:"activity"`
+}
+
 type homeRecentActivityResponse struct {
 	ID          string    `json:"id"`
 	ChannelID   string    `json:"channel_id"`
@@ -468,41 +481,230 @@ func GetHome(c *gin.Context) {
 		}
 	}
 
+	usedIDs := make(map[string]bool)
+	today := buildHomeTodaySection(currentUser.ID, usedIDs)
+	myWork := buildHomeMyWorkSection(currentUser.ID, usedIDs)
+	activityV2 := buildHomeActivitySection(currentUser.ID, usedIDs)
+
 	c.JSON(http.StatusOK, gin.H{
 		"home": gin.H{
-			"user":                     currentUser,
-			"profile":                  buildUserProfileSummary(currentUser),
-			"activity":                 activity,
-			"stats":                    stats,
-			"starred_channels":         starredChannels,
-			"recent_dms":               recentDMs,
-			"drafts":                   drafts,
-			"tools":                    tools,
-			"workflows":                workflows,
-			"recent_activity":          listRecentChannelActivity(currentUser.ID, 6),
-			"recent_artifacts":         recentArtifacts,
-			"recent_lists":             listRecentWorkspaceLists(currentUser.ID, 5),
-			"recent_tool_runs":         listRecentToolRunsForHome(currentUser.ID, 5),
-			"recent_files":             listRecentFilesForHome(currentUser.ID, 5),
+			"user":             currentUser,
+			"profile":          buildUserProfileSummary(currentUser),
+			"stats":            stats,
+			"starred_channels": starredChannels,
+			"recent_dms":       recentDMs,
+			"drafts":           drafts,
+			"tools":            tools,
+			"workflows":        workflows,
+			"recent_activity":  listRecentChannelActivity(currentUser.ID, 6),
+			"recent_artifacts": recentArtifacts,
+			"recent_lists":     listRecentWorkspaceLists(currentUser.ID, 5),
+			"recent_tool_runs": listRecentToolRunsForHome(currentUser.ID, 5),
+			"recent_files":     listRecentFilesForHome(currentUser.ID, 5),
 			"open_list_work":              listOpenWorkForHome(currentUser.ID, 5),
 			"tool_runs_needing_attention": listToolRunsNeedingAttentionForHome(currentUser.ID, 5),
 			"channel_execution_pulse":     listChannelExecutionPulseForHome(currentUser.ID, 5),
 			"recent_ai_executions":        listRecentAIExecutionsForHome(currentUser.ID, 5),
 			"knowledge_inbox_count":    knowledgeInboxCount,
 			"recent_knowledge_digests": knowledgeDigests,
-			},
-			})
-			}
 
-			func listRecentAIExecutionsForHome(userID string, limit int) []domain.ExecutionHistoryEvent {
-				var events []domain.ExecutionHistoryEvent
-				_ = db.DB.Where("actor_user_id = ?", userID).
-					Where("event_type IN ?", []string{"created", "published", "failed"}).
-					Order("created_at desc").
-					Limit(limit).
-					Find(&events).Error
-				return events
-			}
+			// Phase 72 sections
+			"activity": gin.H{
+				"unread_count":         activity.UnreadCount,
+				"unread_mention_count": activity.UnreadMentionCount,
+				"draft_count":          activity.DraftCount,
+				"dm_count":             activity.DMCount,
+				"starred_count":        activity.StarredCount,
+				"group_count":          activity.GroupCount,
+				"workflow_count":       activity.WorkflowCount,
+				"items":                activityV2.Items,
+			},
+			"today":           today,
+			"my_work":         myWork,
+			"recent_channels": buildHomeRecentChannelsSection(currentUser.ID),
+			"ai_suggestions":  buildHomeAISuggestionsSection(currentUser.ID),
+			"apps_tools":      buildHomeAppsToolsSection(currentUser.ID),
+		},
+	})
+}
+
+func buildHomeTodaySection(userID string, usedIDs map[string]bool) homeWorkbenchSection {
+	items := make([]any, 0)
+
+	// 1. Unread mentions (priority)
+	var mentions []domain.MessageMention
+	db.DB.Table("message_mentions").
+		Select("message_mentions.*").
+		Joins("LEFT JOIN notification_reads ON notification_reads.item_id = 'activity-mention-' || message_mentions.id AND notification_reads.user_id = ?", userID).
+		Where("message_mentions.mentioned_user_id = ? AND notification_reads.id IS NULL", userID).
+		Order("message_mentions.created_at desc").Limit(8).Find(&mentions)
+	
+	for _, m := range mentions {
+		id := "activity-mention-" + m.ID
+		items = append(items, gin.H{
+			"id":         id,
+			"type":       "mention",
+			"message_id": m.MessageID,
+			"channel_id": m.ChannelID,
+			"occurred_at": m.CreatedAt,
+			"summary":    "You were mentioned",
+		})
+		usedIDs["msg-"+m.MessageID] = true
+		usedIDs[id] = true
+	}
+
+	// 2. Failed AI executions
+	var failures []domain.ExecutionHistoryEvent
+	db.DB.Where("actor_user_id = ? AND event_type = ?", userID, "failed").
+		Order("created_at desc").Limit(8).Find(&failures)
+	
+	for _, f := range failures {
+		if len(items) >= 8 { break }
+		if usedIDs["exec-hist-"+f.ID] { continue }
+
+		items = append(items, gin.H{
+			"id":         "exec-fail-" + f.ID,
+			"type":       "ai_failure",
+			"event":      f,
+			"occurred_at": f.CreatedAt,
+			"summary":    "AI execution failed: " + f.ErrorMessage,
+		})
+		usedIDs["exec-hist-"+f.ID] = true
+	}
+
+	// 3. Due today list items
+	var dueToday []domain.WorkspaceListItem
+	now := time.Now().UTC()
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	endOfDay := startOfDay.Add(24 * time.Hour)
+	
+	db.DB.Where("assigned_to = ? AND is_completed = ? AND due_at >= ? AND due_at < ?", userID, false, startOfDay, endOfDay).
+		Order("due_at asc").Limit(8).Find(&dueToday)
+	
+	for _, di := range dueToday {
+		if len(items) >= 8 { break }
+		id := "list-item-" + strconv.FormatUint(uint64(di.ID), 10)
+		if usedIDs[id] { continue }
+
+		items = append(items, gin.H{
+			"id":         id,
+			"type":       "list_item_due",
+			"item":       hydrateWorkspaceListItem(di),
+			"occurred_at": di.DueAt,
+			"summary":    "Item due today: " + di.Content,
+		})
+		usedIDs[id] = true
+	}
+
+	return homeWorkbenchSection{Items: items}
+}
+
+func buildHomeMyWorkSection(userID string, usedIDs map[string]bool) homeWorkbenchSection {
+	items := make([]any, 0)
+	// 1. Assigned list items (not due today)
+	var assigned []domain.WorkspaceListItem
+	now := time.Now().UTC()
+	endOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).Add(24 * time.Hour)
+
+	db.DB.Where("assigned_to = ? AND is_completed = ? AND (due_at IS NULL OR due_at >= ?)", userID, false, endOfDay).
+		Order("updated_at desc").Limit(8).Find(&assigned)
+	
+	for _, ai := range assigned {
+		id := "list-item-" + strconv.FormatUint(uint64(ai.ID), 10)
+		if usedIDs[id] { continue }
+
+		items = append(items, gin.H{
+			"id":         "my-work-item-" + strconv.FormatUint(uint64(ai.ID), 10),
+			"type":       "list_item_assigned",
+			"item":       hydrateWorkspaceListItem(ai),
+			"occurred_at": ai.UpdatedAt,
+			"summary":    "Assigned to you: " + ai.Content,
+		})
+		usedIDs[id] = true
+	}
+
+	return homeWorkbenchSection{Items: items}
+}
+
+func buildHomeRecentChannelsSection(userID string) homeWorkbenchSection {
+	// Reuses existing logic
+	recent := listRecentChannelActivity(userID, 6)
+	items := make([]any, len(recent))
+	for i, r := range recent {
+		items[i] = r
+	}
+	return homeWorkbenchSection{Items: items}
+}
+
+func buildHomeAISuggestionsSection(userID string) homeWorkbenchSection {
+	items := make([]any, 0)
+	
+	// 1. Check for failed executions that need attention
+	var failures []domain.ExecutionHistoryEvent
+	db.DB.Where("actor_user_id = ? AND event_type = ?", userID, "failed").
+		Order("created_at desc").Limit(2).Find(&failures)
+	
+	for _, f := range failures {
+		items = append(items, gin.H{
+			"id":      "suggest-fail-" + f.ID,
+			"type":    "action_required",
+			"title":   "Execution failed: " + f.ExecutionTargetType,
+			"summary": "AI was unable to complete the task. Review the error and retry.",
+			"source":  gin.H{"type": "execution_event", "id": f.ID},
+		})
+	}
+
+	// 2. Check for unread mentions in important channels
+	// (Simulated for now)
+	
+	return homeWorkbenchSection{Items: items}
+}
+
+func buildHomeAppsToolsSection(userID string) homeWorkbenchSection {
+	// Returns entry points
+	items := []any{
+		gin.H{"id": "app-lists", "title": "Lists", "view_type": "list", "route": "/workspace/lists"},
+		gin.H{"id": "app-calendar", "title": "Calendar", "view_type": "calendar", "route": "/workspace/calendar"},
+		gin.H{"id": "app-search", "title": "Search", "view_type": "search", "route": "/workspace/search"},
+		gin.H{"id": "app-reports", "title": "Reports", "view_type": "report", "route": "/workspace/reports"},
+		gin.H{"id": "app-forms", "title": "Forms", "view_type": "form", "route": "/workspace/forms"},
+		gin.H{"id": "app-workflows", "title": "Workflows", "view_type": "workflow", "route": "/workspace/workflows"},
+		gin.H{"id": "app-files", "title": "Files", "view_type": "file", "route": "/workspace/files"},
+		gin.H{"id": "app-tools", "title": "Tools", "view_type": "tool", "route": "/workspace/tools"},
+	}
+	return homeWorkbenchSection{Items: items}
+}
+
+func buildHomeActivitySection(userID string, usedIDs map[string]bool) homeWorkbenchSection {
+	// Reuses buildActivityFeed logic but ensures dedupe
+	var user domain.User
+	db.DB.First(&user, "id = ?", userID)
+	activities := buildActivityFeed(user)
+	
+	items := make([]any, 0, len(activities))
+	for _, a := range activities {
+		if usedIDs[a.ID] { continue }
+		// Also check logical mappings if any
+		if a.Type == "mention" && a.Message != nil {
+			// This is tricky because Message might be a map or a struct
+			// For now, simple ID check is enough
+		}
+		
+		items = append(items, a)
+		if len(items) >= 10 { break }
+	}
+	return homeWorkbenchSection{Items: items}
+}
+
+func listRecentAIExecutionsForHome(userID string, limit int) []domain.ExecutionHistoryEvent {
+	var events []domain.ExecutionHistoryEvent
+	_ = db.DB.Where("actor_user_id = ?", userID).
+		Where("event_type IN ?", []string{"created", "published", "failed"}).
+		Order("created_at desc").
+		Limit(limit).
+		Find(&events).Error
+	return events
+}
 func GetUserGroups(c *gin.Context) {
 	query := db.DB.Model(&domain.UserGroup{})
 	if workspaceID := c.Query("workspace_id"); workspaceID != "" {
