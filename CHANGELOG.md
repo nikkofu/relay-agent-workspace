@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.67] - 2026-04-26
+
+### Fixed (Contract — Codex)
+- **WorkspaceView pagination contract** — `GET /api/v1/workspace/views` now returns `next_cursor` and honors `cursor` for bounded pagination.
+- **WorkspaceView patch parity** — `PATCH /api/v1/workspace/views/:id` now supports validated `source` and `view_type` updates, matching the Phase 72 registry contract.
+- **WorkspaceView shallow validation** — Create/update now rejects empty titles, empty sources, nested `filters`, and nested `actions` descriptors while preserving unknown shallow action types as metadata.
+
+### Verified
+- `apps/api`: `go test ./internal/handlers -run 'TestPhase72Home|TestPhase72WorkspaceViews' -count=1`
+- `apps/web`: `pnpm exec tsc --noEmit`
+- `apps/web`: `pnpm lint`
+
 ## [0.6.66] - 2026-04-26
 
 ### Added (Web — Windsurf)

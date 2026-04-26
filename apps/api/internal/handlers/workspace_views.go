@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -52,6 +53,53 @@ func hydrateWorkspaceView(view domain.WorkspaceView) workspaceViewResponse {
 	}
 }
 
+func isValidWorkspaceViewType(viewType string) bool {
+	validViewTypes := map[string]bool{
+		"list":             true,
+		"calendar":         true,
+		"search":           true,
+		"report":           true,
+		"form":             true,
+		"channel_messages": true,
+	}
+	return validViewTypes[viewType]
+}
+
+func isShallowJSONValue(value any) bool {
+	switch value.(type) {
+	case nil, string, bool, float64, int, int64, uint, uint64:
+		return true
+	default:
+		return false
+	}
+}
+
+func isShallowObject(value map[string]any) bool {
+	for _, v := range value {
+		if !isShallowJSONValue(v) {
+			return false
+		}
+	}
+	return true
+}
+
+func isShallowActions(actions []any) bool {
+	for _, action := range actions {
+		descriptor, ok := action.(map[string]any)
+		if !ok {
+			return false
+		}
+		actionType, ok := descriptor["type"].(string)
+		if !ok || strings.TrimSpace(actionType) == "" {
+			return false
+		}
+		if !isShallowObject(descriptor) {
+			return false
+		}
+	}
+	return true
+}
+
 func ListWorkspaceViews(c *gin.Context) {
 	viewType := c.Query("view_type")
 	channelID := c.Query("primary_channel_id")
@@ -60,6 +108,16 @@ func ListWorkspaceViews(c *gin.Context) {
 	limit, _ := strconv.Atoi(limitStr)
 	if limit <= 0 || limit > 50 {
 		limit = 20
+	}
+	cursorStr := c.Query("cursor")
+	offset := 0
+	if cursorStr != "" {
+		parsed, err := strconv.Atoi(cursorStr)
+		if err != nil || parsed < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid cursor"})
+			return
+		}
+		offset = parsed
 	}
 
 	query := db.DB.Model(&domain.WorkspaceView{}).Order("updated_at desc")
@@ -75,9 +133,15 @@ func ListWorkspaceViews(c *gin.Context) {
 	}
 
 	var views []domain.WorkspaceView
-	if err := query.Limit(limit).Find(&views).Error; err != nil {
+	if err := query.Offset(offset).Limit(limit + 1).Find(&views).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load workspace views"})
 		return
+	}
+
+	nextCursor := ""
+	if len(views) > limit {
+		views = views[:limit]
+		nextCursor = strconv.Itoa(offset + limit)
 	}
 
 	results := make([]workspaceViewResponse, len(views))
@@ -86,7 +150,8 @@ func ListWorkspaceViews(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"views": results,
+		"views":       results,
+		"next_cursor": nextCursor,
 	})
 }
 
@@ -111,17 +176,26 @@ func CreateWorkspaceView(c *gin.Context) {
 		return
 	}
 
-	// Validate view_type
-	validViewTypes := map[string]bool{
-		"list":             true,
-		"calendar":         true,
-		"search":           true,
-		"report":           true,
-		"form":             true,
-		"channel_messages": true,
+	input.Title = strings.TrimSpace(input.Title)
+	input.Source = strings.TrimSpace(input.Source)
+	if input.Title == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "title cannot be empty"})
+		return
 	}
-	if !validViewTypes[input.ViewType] {
+	if input.Source == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "source cannot be empty"})
+		return
+	}
+	if !isValidWorkspaceViewType(input.ViewType) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid view_type"})
+		return
+	}
+	if input.Filters != nil && !isShallowObject(input.Filters) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "filters must be a shallow object"})
+		return
+	}
+	if input.Actions != nil && !isShallowActions(input.Actions) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "actions must be shallow descriptors"})
 		return
 	}
 
@@ -174,6 +248,8 @@ func PatchWorkspaceView(c *gin.Context) {
 
 	var input struct {
 		Title            *string         `json:"title"`
+		ViewType         *string         `json:"view_type"`
+		Source           *string         `json:"source"`
 		PrimaryChannelID *string         `json:"primary_channel_id"`
 		Filters          *map[string]any `json:"filters"`
 		Actions          *[]any          `json:"actions"`
@@ -185,16 +261,44 @@ func PatchWorkspaceView(c *gin.Context) {
 	}
 
 	if input.Title != nil {
-		view.Title = *input.Title
+		title := strings.TrimSpace(*input.Title)
+		if title == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "title cannot be empty"})
+			return
+		}
+		view.Title = title
+	}
+	if input.ViewType != nil {
+		if !isValidWorkspaceViewType(*input.ViewType) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid view_type"})
+			return
+		}
+		view.ViewType = *input.ViewType
+	}
+	if input.Source != nil {
+		source := strings.TrimSpace(*input.Source)
+		if source == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "source cannot be empty"})
+			return
+		}
+		view.Source = source
 	}
 	if input.PrimaryChannelID != nil {
 		view.PrimaryChannelID = *input.PrimaryChannelID
 	}
 	if input.Filters != nil {
+		if !isShallowObject(*input.Filters) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "filters must be a shallow object"})
+			return
+		}
 		fJSON, _ := json.Marshal(*input.Filters)
 		view.Filters = string(fJSON)
 	}
 	if input.Actions != nil {
+		if !isShallowActions(*input.Actions) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "actions must be shallow descriptors"})
+			return
+		}
 		aJSON, _ := json.Marshal(*input.Actions)
 		view.Actions = string(aJSON)
 	}

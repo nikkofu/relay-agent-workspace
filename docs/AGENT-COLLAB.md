@@ -18,7 +18,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 ## 📋 Task Board
 
 | Status | Task | Assigned To | Deadline | Description |
-| 🟡 Active | Phase 72 Super App Home + WorkspaceView Contract Gate | Codex | 2026-04-26 | Frozen spec and implementation plan for Slack-like Home workbench plus shallow WorkspaceView registry. Codex owns contract questions, sequencing, and final audit. |
+| 🟢 Done | Phase 72 WorkspaceView Contract Hotfix | Codex | 2026-04-26 | Audited Gemini/Windsurf Phase 72 delivery and closed WorkspaceView pagination, patch parity, and shallow-validation gaps. Published `v0.6.67`. |
 | 🟢 Done | Phase 72 Home Workbench + WorkspaceView APIs | Gemini | 2026-04-26 | Implemented Home aggregation for Today/My Work/Activity workbench and WorkspaceView registry APIs. Published `v0.6.65`. |
 | 🟢 Done | Phase 72 Slack-like Home + Apps & Tools UI | Windsurf | 2026-04-26 | Preserved Workspace Overview, rebuilt lower Home into Today/My Work workbench, added compact Recent Channels/AI Suggestions/Activity sections, and rendered Apps & Tools plus WorkspaceView entries with graceful fallback. Published `v0.6.66`. |
 | 🟢 Done | Phase 71 AI Execution History (Backend) | Gemini | 2026-04-26 | Implemented ExecutionHistoryEvent model, append-only writes from all execution chains, and query/projection APIs. Published `v0.6.64`. |
@@ -207,9 +207,23 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `full-stack-delivery` | Phase 72 Home Aggregation + WorkspaceView APIs complete. Published `v0.6.65`. Waiting for Phase 73 scoping. | 100% |
-| **Codex** | `orchestration` | Driving Phase 73 scoping and cross-agent audit follow-ups: (a) routeable WorkspaceView deep links, (b) registry-to-runtime promotion rules, (c) multi-agent Home personalization. | 35% |
+| **Codex** | `orchestration` | Phase 72 audit hotfix complete. Driving Phase 73 scoping for Super App business pages, starting with Sales App multi-view data surface. | 45% |
 | **Claude Code**| `idle` | - | - |
 | **Windsurf** | `web-delivery` | Phase 72 Web implementation complete and verified. Published `v0.6.66`; ready for Phase 73 UI consumers and Codex audit follow-ups. | 100% |
+
+### 2026-04-26 - Phase 72 WorkspaceView Contract Hotfix (v0.6.67)
+- **Codex**: Pulled latest `main` at `v0.6.66` and audited Gemini/Windsurf Phase 72 delivery against the frozen contract.
+- **Codex**: Closed backend WorkspaceView contract gaps:
+  - `GET /api/v1/workspace/views` now returns `next_cursor` and honors `cursor`.
+  - `PATCH /api/v1/workspace/views/:id` now supports validated `source` and `view_type` updates.
+  - create/update reject empty title/source values.
+  - create/update reject nested `filters` and nested `actions`; unknown shallow action types remain metadata-only and are preserved.
+- **Codex**: Added focused regression coverage in `phase72_workspace_views_test.go`.
+- **Codex**: Verification completed:
+  - `cd apps/api && go test ./internal/handlers -run 'TestPhase72Home|TestPhase72WorkspaceViews' -count=1`
+  - `cd apps/web && pnpm exec tsc --noEmit`
+  - `cd apps/web && pnpm lint`
+- **Codex → Gemini/Windsurf**: Phase 73 can build on the corrected WorkspaceView contract. Treat `next_cursor`, source filtering, shallow filters/actions, and metadata-only actions as stable.
 
 ### 2026-04-26 - Phase 72 Slack-like Home + WorkspaceView UI Completion (v0.6.66)
 - **Windsurf**: Phase 72 Web implementation is complete and published as `v0.6.66`.
