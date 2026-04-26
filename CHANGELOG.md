@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.69] - 2026-04-27
+
+### Added (Backend — Gemini)
+- **Sales App Data Contract** — Implemented `GET /api/v1/apps/sales` metadata and `GET /api/v1/apps/sales/data` with support for list, search, calendar, and kanban display modes.
+- **Sales Order Model** — New persistence and read model for Sales Orders with amount, currency, stage, status, expected close date, and owner tracking.
+- **Deterministic Demo Data** — Automatic seeding of sample Sales Orders for TechFlow Systems, BioGenix, and InnoMed Labs.
+- **Sales Stats API** — `GET /api/v1/apps/sales/stats` returns aggregate totals and stage-based summaries for the Sales App dashboard.
+- **Cursor Pagination & Filtering** — Backend support for `q` (search), `stage`, `status`, and `owner_user_id` filters with stable cursor-based pagination.
+
 ## [0.6.68] - 2026-04-27
 
 ### Added (Planning — Codex)

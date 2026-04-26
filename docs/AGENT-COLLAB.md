@@ -18,8 +18,8 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 ## 📋 Task Board
 
 | Status | Task | Assigned To | Deadline | Description |
+| 🟢 Done | Phase 73 Sales App Data Contract | Gemini | 2026-04-27 | Implemented Sales Order read model, app metadata, multiview data endpoints (search/list/calendar/kanban), and stats aggregation. Published `v0.6.69`. |
 | 🟡 Active | Phase 73 Business App Multiview Sales Contract | Codex | 2026-04-27 | Frozen design and implementation plan for App Hub Sales App: one reusable business-app page with search/list/calendar/kanban/stats modes over Sales Orders. |
-| 🟡 Active | Phase 73 Sales App Data Contract | Gemini | 2026-04-27 | Backend/API/test scope: app metadata, Sales Order read model, search/filter/cursor data endpoint, calendar/kanban grouping, stats endpoint. |
 | 🟡 Active | Phase 73 Sales App Multiview UI | Windsurf | 2026-04-27 | Web/UI scope: `/workspace/apps/sales`, reusable business app shell, mode switcher, Sales Orders list/calendar/kanban/stats/search, App Hub/menu link. |
 | 🟢 Done | Phase 72 WorkspaceView Contract Hotfix | Codex | 2026-04-26 | Audited Gemini/Windsurf Phase 72 delivery and closed WorkspaceView pagination, patch parity, and shallow-validation gaps. Published `v0.6.67`. |
 | 🟢 Done | Phase 72 Home Workbench + WorkspaceView APIs | Gemini | 2026-04-26 | Implemented Home aggregation for Today/My Work/Activity workbench and WorkspaceView registry APIs. Published `v0.6.65`. |
@@ -209,10 +209,19 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `full-stack-delivery` | Phase 73 backend assignment ready: Sales App data contract, Sales Order read model, multiview grouping/stats APIs. | 0% |
+| **Gemini** | `full-stack-delivery` | Phase 73 Sales App data contract complete. Published `v0.6.69`. Waiting for Windsurf UI. | 100% |
 | **Codex** | `orchestration` | Phase 73 contract owner: Business App multiview Sales spec/plan frozen; coordinating Gemini/Windsurf execution and final audit. | 20% |
 | **Claude Code**| `idle` | - | - |
 | **Windsurf** | `web-delivery` | Phase 73 Web assignment ready: App Hub/Sales App route, reusable business app shell, mode switcher, Sales Orders views. | 0% |
+
+### 2026-04-27 - Phase 73 Sales App Data Contract Completion (v0.6.69)
+- **Gemini**: Phase 73 backend is complete and published as `v0.6.69`.
+- **Gemini**: Implemented `SalesOrder` read model and deterministic seeding for 3 sample orders.
+- **Gemini**: Added `GET /api/v1/apps` and `GET /api/v1/apps/sales` for app discovery and metadata.
+- **Gemini**: Implemented `GET /api/v1/apps/sales/data` with support for `mode=list|search|calendar|kanban` and cursor-based pagination.
+- **Gemini**: Implemented `GET /api/v1/apps/sales/stats` for aggregate pipeline totals and stage-based grouping.
+- **Gemini → Windsurf**: Backend is ready. You can now fetch Sales Order data using the standard multiview contract. Every mode (list, search, etc.) returns the same `SalesOrder` record shape; use the `schema` field in the response to build your dynamic table/column views.
+- **Gemini → Nikko Fu**: We've added the first business app to Relay: the Sales App. You can now view and search your sales orders across list, calendar, and kanban views, with real-time stats summarized on the dashboard.
 
 ### 2026-04-27 - Phase 73 Business App Multiview Sales Kickoff
 - **Codex**: Phase 73 spec and implementation plan are frozen:

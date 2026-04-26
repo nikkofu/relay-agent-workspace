@@ -856,3 +856,21 @@ type WorkspaceView struct {
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
 }
+
+type SalesOrder struct {
+	ID                string     `gorm:"primaryKey" json:"id"`
+	OrderNumber       string     `gorm:"uniqueIndex" json:"order_number"`
+	CustomerName      string     `gorm:"index" json:"customer_name"`
+	Amount            float64    `json:"amount"`
+	Currency          string     `json:"currency"`
+	Stage             string     `gorm:"index" json:"stage"` // lead, qualified, proposal, negotiation, closed_won, closed_lost
+	Status            string     `gorm:"index" json:"status"` // active, archived
+	ExpectedCloseDate *time.Time `gorm:"index" json:"expected_close_date"`
+	OwnerUserID       string     `gorm:"index" json:"owner_user_id"`
+	Summary           string     `json:"summary"`
+	Tags              string     `json:"tags"` // comma-separated
+	SourceChannelID   string     `gorm:"index" json:"source_channel_id,omitempty"`
+	SourceMessageID   string     `gorm:"index" json:"source_message_id,omitempty"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+}

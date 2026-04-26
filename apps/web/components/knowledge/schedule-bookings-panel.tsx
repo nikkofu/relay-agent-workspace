@@ -2,6 +2,7 @@
 
 import { useEffect } from "react"
 import { CalendarCheck, CalendarX, Download, Loader2, XCircle } from "lucide-react"
+import { useShallow } from "zustand/react/shallow"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useKnowledgeStore } from "@/stores/knowledge-store"
@@ -44,13 +45,13 @@ export function ScheduleBookingsPanel({ channelId, dmId, compact = false, classN
     hasHydratedScheduleBookings,
     fetchAIScheduleBookings,
     cancelAIScheduleBooking,
-  } = useKnowledgeStore(s => ({
+  } = useKnowledgeStore(useShallow(s => ({
     scheduleBookings: s.scheduleBookings,
     isLoadingScheduleBookings: s.isLoadingScheduleBookings,
     hasHydratedScheduleBookings: s.hasHydratedScheduleBookings,
     fetchAIScheduleBookings: s.fetchAIScheduleBookings,
     cancelAIScheduleBooking: s.cancelAIScheduleBooking,
-  }))
+  })))
 
   const scopeKey = channelId ? `ch:${channelId}` : dmId ? `dm:${dmId}` : 'all'
   const isLoading = isLoadingScheduleBookings[scopeKey]

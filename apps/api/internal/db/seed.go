@@ -7,6 +7,11 @@ import (
 	"github.com/nikkofu/relay-agent-workspace/api/internal/domain"
 )
 
+// Forward declaration if needed, or just let InitDB handle it via handlers if appropriate.
+// Since SeedData is in internal/db and handlers is in internal/handlers,
+// we might have a circular dependency if we call handlers from db.
+// Better to implement seeding logic for SalesOrders in internal/db as well.
+
 func SeedData() {
 	seedNow := time.Now().UTC()
 	at := func(offset time.Duration) time.Time {

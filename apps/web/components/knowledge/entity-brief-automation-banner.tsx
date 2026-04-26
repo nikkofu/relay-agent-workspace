@@ -2,6 +2,7 @@
 
 import { useEffect } from "react"
 import { RefreshCw, Loader2, AlertCircle, CheckCircle2, Clock } from "lucide-react"
+import { useShallow } from "zustand/react/shallow"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useKnowledgeStore } from "@/stores/knowledge-store"
@@ -35,13 +36,13 @@ export function EntityBriefAutomationBanner({ entityId }: Props) {
     fetchEntityBriefAutomation,
     runEntityBriefAutomation,
     retryEntityBriefAutomation,
-  } = useKnowledgeStore(s => ({
+  } = useKnowledgeStore(useShallow(s => ({
     entityBriefAutomation: s.entityBriefAutomation,
     isLoadingEntityBriefAutomation: s.isLoadingEntityBriefAutomation,
     fetchEntityBriefAutomation: s.fetchEntityBriefAutomation,
     runEntityBriefAutomation: s.runEntityBriefAutomation,
     retryEntityBriefAutomation: s.retryEntityBriefAutomation,
-  }))
+  })))
 
   const job = entityBriefAutomation[entityId]   // undefined = not yet loaded; null = never queued
   const isLoading = isLoadingEntityBriefAutomation[entityId]
