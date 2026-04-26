@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.66] - 2026-04-26
+
+### Added (Web — Windsurf)
+- **Slack-like Home workbench UI** — Rebuilt the lower Home experience under the existing Workspace Overview so `Today` and `My Work` become the primary workbench sections while `Recent Channels`, `AI Suggestions`, and `Activity` render compactly in a secondary rail.
+- **Typed Home + WorkspaceView consumer layer** — Added shared Phase 72 Home workbench / `WorkspaceView` Web types plus `apps/web/lib/workspace-views.ts` for frozen known-type handling, unknown future `view_type` fallback, safe route resolution, and normalized registry parsing.
+- **WorkspaceView-aware Apps & Tools section** — Home now renders backend `apps_tools` entries alongside saved `WorkspaceView` registry entries, explicitly degrades unsupported surfaces like Calendar/Reports/Forms/Lists/Tools into registry-only cards, and preserves core Home rendering even if `/api/v1/workspace/views` fails.
+- **Phase 72 Home store wiring** — `workspace-store` now types `GET /api/v1/home`, fetches `GET /api/v1/workspace/views?limit=8`, and isolates WorkspaceView loading/error state from the core Home payload so Today/My Work never blank on secondary failures.
+
+### Verified
+- `apps/web`: `pnpm exec tsc --noEmit`
+- `apps/web`: `pnpm lint`
+
 ## [0.6.65] - 2026-04-26
 
 ### Added (Backend — Gemini)

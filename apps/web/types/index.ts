@@ -1077,11 +1077,193 @@ export interface Tool {
   url?: string
 }
 
+export type WorkspaceViewKnownType = 'list' | 'calendar' | 'search' | 'report' | 'form' | 'channel_messages'
+
+export type WorkspaceViewType = WorkspaceViewKnownType | string
+
+export interface WorkspaceViewAction {
+  type: string
+  [key: string]: unknown
+}
+
+export interface WorkspaceView {
+  id: string
+  title: string
+  view_type: WorkspaceViewType
+  source: string
+  primary_channel_id?: string
+  filters: Record<string, unknown>
+  actions: WorkspaceViewAction[]
+  created_by: string
+  created_at: string
+  updated_at: string
+}
+
+export interface HomeStats {
+  pending_actions: number
+  active_threads: number
+}
+
+export interface HomeRecentActivityItem {
+  id: string
+  channel_id: string
+  channel_name: string
+  last_message: string
+  occurred_at: string
+}
+
+export interface HomeArtifactSummary {
+  id: string
+  title: string
+  type: string
+  status?: string
+  version: number
+  updated_at: string
+}
+
+export interface HomeWorkbenchSection<T> {
+  items: T[]
+}
+
+export interface HomeWorkbenchListItem {
+  id: string | number
+  list_id?: string
+  content: string
+  position?: number
+  is_completed?: boolean
+  assigned_to?: string
+  due_at?: string | null
+  completed_at?: string | null
+  assigned_user?: User
+  created_by?: string
+  source_message_id?: string
+  source_channel_id?: string
+  source_snippet?: string
+  user_id?: string
+  created_at?: string
+  updated_at?: string
+}
+
+export interface HomeWorkbenchMentionItem {
+  id: string
+  type: 'mention'
+  message_id?: string
+  channel_id?: string
+  occurred_at?: string
+  summary: string
+}
+
+export interface HomeWorkbenchAIFailureItem {
+  id: string
+  type: 'ai_failure'
+  event?: Record<string, unknown>
+  occurred_at?: string
+  summary: string
+}
+
+export interface HomeWorkbenchListTaskItem {
+  id: string
+  type: 'list_item_due' | 'list_item_assigned'
+  item: HomeWorkbenchListItem
+  occurred_at?: string | null
+  summary: string
+}
+
+export interface HomeWorkbenchGenericItem {
+  id: string
+  type: string
+  occurred_at?: string | null
+  summary?: string
+  [key: string]: unknown
+}
+
+export type HomeTodayItem =
+  | HomeWorkbenchMentionItem
+  | HomeWorkbenchAIFailureItem
+  | HomeWorkbenchListTaskItem
+  | HomeWorkbenchGenericItem
+
+export type HomeMyWorkItem = HomeWorkbenchListTaskItem | HomeWorkbenchGenericItem
+
+export interface HomeAISuggestionItem {
+  id: string
+  type: string
+  title?: string
+  summary: string
+  source?: {
+    type?: string
+    id?: string
+    [key: string]: unknown
+  }
+}
+
+export interface HomeAppToolItem {
+  id: string
+  title: string
+  view_type: string
+  route?: string
+}
+
+export interface HomeActivityItem {
+  id: string
+  type: string
+  user?: User
+  channel?: {
+    id?: string
+    name?: string
+    [key: string]: unknown
+  } | null
+  message?: {
+    id?: string
+    dm_conversation_id?: string
+    [key: string]: unknown
+  } | null
+  target?: string
+  summary: string
+  occurred_at: string
+  is_read?: boolean
+  metadata?: Record<string, unknown>
+}
+
+export interface HomeActivitySummary {
+  unread_count: number
+  unread_mention_count: number
+  draft_count: number
+  dm_count: number
+  starred_count: number
+  group_count: number
+  workflow_count: number
+  items: HomeActivityItem[]
+}
+
+export interface HomeData {
+  user?: User
+  profile?: User['profile']
+  stats?: HomeStats
+  recent_activity?: HomeRecentActivityItem[]
+  recent_artifacts?: HomeArtifactSummary[]
+  recent_knowledge_digests?: Array<Record<string, unknown>>
+  knowledge_inbox_count?: number
+  open_list_work?: Array<Record<string, unknown>>
+  tool_runs_needing_attention?: Array<Record<string, unknown>>
+  channel_execution_pulse?: Array<Record<string, unknown>>
+  recent_ai_executions?: Array<Record<string, unknown>>
+  activity?: HomeActivitySummary
+  activity_summary?: Partial<HomeActivitySummary>
+  unread_mention_count?: number
+  today?: HomeWorkbenchSection<HomeTodayItem>
+  my_work?: HomeWorkbenchSection<HomeMyWorkItem>
+  recent_channels?: HomeWorkbenchSection<HomeRecentActivityItem>
+  ai_suggestions?: HomeWorkbenchSection<HomeAISuggestionItem>
+  apps_tools?: HomeWorkbenchSection<HomeAppToolItem>
+}
+
 export interface Workspace {
   id: string
   name: string
   slug: string
   logo?: string
+  views?: WorkspaceView[]
 }
 
 export interface Channel {

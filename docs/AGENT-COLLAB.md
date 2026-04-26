@@ -20,7 +20,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Status | Task | Assigned To | Deadline | Description |
 | 🟡 Active | Phase 72 Super App Home + WorkspaceView Contract Gate | Codex | 2026-04-26 | Frozen spec and implementation plan for Slack-like Home workbench plus shallow WorkspaceView registry. Codex owns contract questions, sequencing, and final audit. |
 | 🟢 Done | Phase 72 Home Workbench + WorkspaceView APIs | Gemini | 2026-04-26 | Implemented Home aggregation for Today/My Work/Activity workbench and WorkspaceView registry APIs. Published `v0.6.65`. |
-| 🟡 Active | Phase 72 Slack-like Home + Apps & Tools UI | Windsurf | 2026-04-26 | Web/UI scope only: preserve Workspace Overview, rebuild lower Home into Today/My Work workbench, add Apps & Tools/WorkspaceView entry rendering with graceful fallbacks. |
+| 🟢 Done | Phase 72 Slack-like Home + Apps & Tools UI | Windsurf | 2026-04-26 | Preserved Workspace Overview, rebuilt lower Home into Today/My Work workbench, added compact Recent Channels/AI Suggestions/Activity sections, and rendered Apps & Tools plus WorkspaceView entries with graceful fallback. Published `v0.6.66`. |
 | 🟢 Done | Phase 71 AI Execution History (Backend) | Gemini | 2026-04-26 | Implemented ExecutionHistoryEvent model, append-only writes from all execution chains, and query/projection APIs. Published `v0.6.64`. |
 | 🟢 Done | Phase 71 AI Execution History (Web) | Windsurf | 2026-04-26 | Consumed analysis execution history in Canvas AI Dock, rendered per-step execution state and created-object links, and wired Activity/Home `ai_execution` projections. Published `v0.6.64`. |
 | 🟢 Done | Phase 70C Draft-First Workflow and Channel Publish (Backend) | Gemini | 2026-04-26 | Implemented workflow draft generation, channel-message draft generation, and confirm-create/publish endpoints. Deepened AIExecutionTarget with nested drafts. Published `v0.6.63`. |
@@ -207,9 +207,24 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
 | **Gemini** | `full-stack-delivery` | Phase 72 Home Aggregation + WorkspaceView APIs complete. Published `v0.6.65`. Waiting for Phase 73 scoping. | 100% |
-| **Codex** | `orchestration` | Driving Phase 72 Web handoff and Phase 73 scoping: (a) Cross-view data orchestration, (b) Multi-agent Home workbench collaboration. | 20% |
+| **Codex** | `orchestration` | Driving Phase 73 scoping and cross-agent audit follow-ups: (a) routeable WorkspaceView deep links, (b) registry-to-runtime promotion rules, (c) multi-agent Home personalization. | 35% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Phase 72 Web assignment ready: rebuild Home below Workspace Overview and render Apps & Tools/WorkspaceView entries without full app-runtime overreach. | 0% |
+| **Windsurf** | `web-delivery` | Phase 72 Web implementation complete and verified. Published `v0.6.66`; ready for Phase 73 UI consumers and Codex audit follow-ups. | 100% |
+
+### 2026-04-26 - Phase 72 Slack-like Home + WorkspaceView UI Completion (v0.6.66)
+- **Windsurf**: Phase 72 Web implementation is complete and published as `v0.6.66`.
+- **Windsurf**: Preserved the existing Workspace Overview top section and rebuilt the lower Home into a Slack-like workbench centered on `Today` and `My Work`, with compact `Recent Channels`, `AI Suggestions`, and `Activity` sections in a secondary rail.
+- **Windsurf**: Added shared Home workbench / `WorkspaceView` Web types plus `apps/web/lib/workspace-views.ts` so the Web can normalize registry payloads, keep the frozen known view types, and safely degrade unknown future `view_type` values to generic cards.
+- **Windsurf**: `workspace-store` now types `GET /api/v1/home`, fetches `GET /api/v1/workspace/views?limit=8`, and isolates WorkspaceView loading failures from the core Home payload so Today/My Work still render when secondary registry loading fails.
+- **Windsurf**: Home now renders backend `apps_tools` entries alongside saved `WorkspaceView` registry entries and explicitly marks unsupported surfaces like Calendar/Reports/Forms/Lists/Tools as registry-only entry points instead of pretending those products are implemented in Phase 72.
+- **Windsurf**: Verification completed:
+  - `cd apps/web && pnpm exec tsc --noEmit`
+  - `cd apps/web && pnpm lint`
+- **Windsurf → Codex**: Detailed follow-ups to keep Phase 73 and AI-Native construction aligned:
+  - freeze a routeability contract for `WorkspaceView` so `list`, `calendar`, `report`, and `form` entries can move from registry-only shells to real deep-links without every client inventing bespoke fallback rules
+  - define registry-to-runtime promotion semantics: what minimum metadata turns a Phase 72 registry entry into a Phase 73 executable surface, and how agents/tools should discover that capability safely
+  - add a normalized Home personalization contract so Today/My Work can absorb AI-native prioritization signals without reintroducing frontend ranking heuristics
+  - specify whether `apps_tools` should become a canonical source of app availability, or whether `WorkspaceView` + capability discovery should eventually replace static app tiles
 
 ### 2026-04-26 - Phase 72 Home Workbench + WorkspaceView API Completion (v0.6.65)
 - **Gemini**: Phase 72 backend is complete and published as `v0.6.65`.
