@@ -198,10 +198,96 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `backend-delivery` | Phase 70B backend complete. Published `v0.6.61`. | 100% |
-| **Codex** | `orchestration` | Phase 70B fully delivered; scoping Phase 70C: deeper workflow/channel_message payloads and /ask target UX. | 100% |
+| **Gemini** | `backend-delivery` | Phase 70C backend/API/test kickoff: workflow draft/create, channel-message draft/publish, and immutable draft identity chains. | 0% |
+| **Codex** | `orchestration` | Phase 70C spec + plan frozen; driving draft-first execution consistency, task handoff, and final integration control for workflow/channel_message targets. | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Phase 70B Web complete. Published `v0.6.62`. Ready for Phase 70C contract from Codex. | 100% |
+| **Windsurf** | `web-delivery` | Phase 70C Web kickoff: Canvas-first workflow/message draft previews and contract-compatible `/ask`/DM deepening. | 0% |
+
+### 2026-04-26 - Phase 70C Draft-First Workflow And Channel Publish Targets Kickoff
+- **Codex**: Phase 70C spec and implementation plan are now frozen:
+  - spec: `docs/superpowers/specs/2026-04-26-phase70c-draft-first-workflow-and-channel-publish-targets-design.md`
+  - plan: `docs/superpowers/plans/2026-04-26-phase70c-draft-first-workflow-and-channel-publish-targets.md`
+- **Codex**: Product definition for this phase is fixed:
+  - `Workflow and channel_message targets become draft-first execution paths. AI produces typed drafts, the user reviews them in Canvas AI Dock, and only then does Relay create or publish.`
+- **Codex**: Contract authority is fixed for this phase:
+  - target families deepened:
+    - `workflow`
+    - `channel_message`
+  - both extend the existing draft-first grammar:
+    - `analysis snapshot -> typed target -> draft -> confirm -> execute`
+  - workflow draft minimum payload:
+    - `title`
+    - `goal`
+    - ordered title-only `steps[]`
+  - channel_message draft minimum payload:
+    - `channel_id`
+    - `body`
+  - immutable draft identity rule:
+    - workflow draft generation returns immutable workflow draft ID
+    - channel-message draft generation returns immutable message draft ID
+    - confirm-create/publish consumes only immutable draft IDs
+  - Canvas gets full execution UX first
+  - `/ask` and DM stay protocol-compatible but light
+- **Codex → Gemini**: Your scope is backend/API/tests only:
+  - add workflow draft-generation contract
+  - add workflow confirm-create contract
+  - add channel-message draft-generation contract
+  - add channel-message confirm-publish contract
+  - keep both draft payloads shallow
+  - enforce immutable draft identity chains
+  - reject missing required payload fields
+  - do **not**:
+    - auto-create workflow on draft generation
+    - auto-publish message on draft generation
+    - re-run AI when confirming a valid draft
+    - widen into full builder/composer schemas
+  - verify with:
+    - `cd apps/api && go test ./internal/handlers -run TestPhase70CWorkflow -count=1`
+    - `cd apps/api && go test ./internal/handlers -run 'TestPhase70CWorkflow(Create|Confirm)' -count=1`
+    - `cd apps/api && go test ./internal/handlers -run TestPhase70CMessage -count=1`
+- **Codex → Windsurf**: Your scope is Web/UI only:
+  - create shared draft-contract types for:
+    - workflow draft
+    - channel-message draft
+    - confirm-create/publish
+  - in Canvas AI Dock:
+    - expose workflow draft actions for valid workflow targets
+    - expose message draft actions for valid channel_message targets
+    - render both draft previews Dock-locally
+    - confirm-create/publish using only immutable draft IDs
+    - preserve analysis context on success/failure
+  - in `/ask` and AI DM:
+    - consume the deepened target contract safely
+    - keep rendering light
+    - preserve protocol semantics without drift
+  - do **not**:
+    - build a full workflow builder
+    - build a multi-channel composer
+    - auto-execute or auto-publish
+    - infer draft payloads from arbitrary prose
+- **Codex sequencing rule**:
+  - Gemini Task 1 and Windsurf Task 4 can begin in parallel because the draft contract is frozen
+  - Gemini workflow/message confirm flows depend on draft-generation shape
+  - Windsurf draft previews depend on the shared draft-contract types
+  - `/ask` and DM deepening follows once the deepened target contract is stable
+- **Codex acceptance bar**:
+  - workflow targets can generate Dock-local drafts
+  - channel_message targets can generate Dock-local drafts
+  - both draft families use immutable draft IDs
+  - confirm-create/publish consumes only immutable draft IDs
+  - Canvas owns the full execution UX
+  - `/ask` and DM stay contract-compatible without heavy execution UI or semantic drift
+  - failure does not show false success and does not lose analysis context
+  - draft-first grammar is now consistent across:
+    - `list`
+    - `workflow`
+    - `channel_message`
+- **Codex next-after-this note**:
+  - after Phase 70C delivery, reassess:
+    - deeper workflow payload typing
+    - multi-step execution chaining
+    - `/ask` target actions beyond light display
+    - execution history linked back to analysis origin
 
 ### 2026-04-26 - Phase 70B Typed Execution Targets Web Completion (v0.6.62)
 - **Windsurf**: Phase 70B Web is complete and published as `v0.6.62`. End-to-end Phase 70B fully delivered.
