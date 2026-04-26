@@ -51,6 +51,12 @@ import { isMultiFileAnalysisResponse } from "@/lib/multi-file-analysis"
 import { FileGroupAnalysisResult } from "@/components/canvas/file-group-analysis-result"
 import { AnalysisListDraft, isGenerateListDraftResponse, isConfirmCreateListResponse } from "@/lib/analysis-list-draft"
 import { AnalysisListDraftPreview } from "@/components/canvas/analysis-list-draft-preview"
+import {
+  AnalysisWorkflowDraft, AnalysisMessageDraft,
+  isGenerateWorkflowDraftResponse, isGenerateMessageDraftResponse,
+} from "@/lib/analysis-draft-contract"
+import { WorkflowDraftPreview } from "@/components/canvas/workflow-draft-preview"
+import { MessageDraftPreview } from "@/components/canvas/message-draft-preview"
 import { useRouter } from "next/navigation"
 
 // ── Public handle ────────────────────────────────────────────────────────────
@@ -152,6 +158,8 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
     const [expanded, setExpanded] = useState(layout === "rail")
     const [messages, setMessages] = useState<DockMessage[]>([])
     const [listDraft, setListDraft] = useState<AnalysisListDraft | null>(null)
+    const [workflowDraft, setWorkflowDraft] = useState<AnalysisWorkflowDraft | null>(null)
+    const [messageDraft, setMessageDraft] = useState<AnalysisMessageDraft | null>(null)
     const router = useRouter()
     const [isLoadingHistory, setIsLoadingHistory] = useState(false)
     const [conversationId, setConversationId] = useState<string | null>(null)
@@ -679,6 +687,104 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
       router.push(`/workspace/lists?id=${listId}`)
     }
 
+    const handleGenerateWorkflowDraft = async (snapshotId: string, stepIndex?: number) => {
+      if (!artifactId) return
+      setListDraft(null)
+      setMessageDraft(null)
+      try {
+        const body: Record<string, unknown> = {
+          artifact_id: artifactId,
+          channel_id: channelId,
+          analysis_snapshot_id: snapshotId,
+        }
+        if (stepIndex !== undefined) body.step_index = stepIndex
+        const res = await fetch(`${API_BASE_URL}/ai/canvas/generate-workflow-draft`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        })
+        if (!res.ok) {
+          const detail = await res.json()
+          throw new Error(detail.error || "Failed to generate workflow draft")
+        }
+        const data = await res.json()
+        if (!isGenerateWorkflowDraftResponse(data)) throw new Error("Invalid workflow draft response")
+        setWorkflowDraft(data.draft)
+      } catch (err: any) {
+        toast.error(err.message)
+      }
+    }
+
+    const handleConfirmCreateWorkflow = async (): Promise<string | null> => {
+      if (!workflowDraft) return null
+      try {
+        const res = await fetch(`${API_BASE_URL}/ai/canvas/confirm-create-workflow`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ draft_id: workflowDraft.draft_id }),
+        })
+        if (!res.ok) {
+          const detail = await res.json()
+          throw new Error(detail.error || "Failed to create workflow")
+        }
+        const data = await res.json()
+        toast.success("Workflow created")
+        return data.workflow_id ?? null
+      } catch (err: any) {
+        toast.error(err.message)
+        return null
+      }
+    }
+
+    const handleGenerateMessageDraft = async (snapshotId: string, stepIndex?: number) => {
+      if (!artifactId) return
+      setListDraft(null)
+      setWorkflowDraft(null)
+      try {
+        const body: Record<string, unknown> = {
+          artifact_id: artifactId,
+          channel_id: channelId,
+          analysis_snapshot_id: snapshotId,
+        }
+        if (stepIndex !== undefined) body.step_index = stepIndex
+        const res = await fetch(`${API_BASE_URL}/ai/canvas/generate-message-draft`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        })
+        if (!res.ok) {
+          const detail = await res.json()
+          throw new Error(detail.error || "Failed to generate message draft")
+        }
+        const data = await res.json()
+        if (!isGenerateMessageDraftResponse(data)) throw new Error("Invalid message draft response")
+        setMessageDraft(data.draft)
+      } catch (err: any) {
+        toast.error(err.message)
+      }
+    }
+
+    const handleConfirmPublishMessage = async (): Promise<string | null> => {
+      if (!messageDraft) return null
+      try {
+        const res = await fetch(`${API_BASE_URL}/ai/canvas/confirm-publish-message`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ draft_id: messageDraft.draft_id }),
+        })
+        if (!res.ok) {
+          const detail = await res.json()
+          throw new Error(detail.error || "Failed to publish message")
+        }
+        const data = await res.json()
+        toast.success("Message published to channel")
+        return data.message_id ?? null
+      } catch (err: any) {
+        toast.error(err.message)
+        return null
+      }
+    }
+
     // ── Send ─────────────────────────────────────────────────────────────────
     const handleSend = useCallback(() => {
       const trimmed = input.trim()
@@ -936,8 +1042,20 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
               ? "flex-1 min-h-0"
               : "max-h-[280px] border-b border-purple-500/10",
           )}>
-            {listDraft ? (
-              <AnalysisListDraftPreview 
+            {workflowDraft ? (
+              <WorkflowDraftPreview
+                draft={workflowDraft}
+                onConfirm={handleConfirmCreateWorkflow}
+                onCancel={() => setWorkflowDraft(null)}
+              />
+            ) : messageDraft ? (
+              <MessageDraftPreview
+                draft={messageDraft}
+                onConfirm={handleConfirmPublishMessage}
+                onCancel={() => setMessageDraft(null)}
+              />
+            ) : listDraft ? (
+              <AnalysisListDraftPreview
                 draft={listDraft}
                 onConfirm={handleConfirmCreateList}
                 onCancel={() => setListDraft(null)}
@@ -979,6 +1097,8 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
                   onInsertObservations={handleInsertObservations}
                   onInsertPlan={handleInsertPlan}
                   onCreateList={handleCreateListFromAnalysis}
+                  onStartWorkflow={(stepIdx) => handleGenerateWorkflowDraft(m.id, stepIdx)}
+                  onPostToChannel={(stepIdx) => handleGenerateMessageDraft(m.id, stepIdx)}
                   isStreaming={streamingId === m.id}
                 />
               ))
@@ -1181,13 +1301,16 @@ interface ChatBubbleProps {
   onInsertObservations: (observations: string[]) => void
   onInsertPlan: (steps: MultiFileAnalysisResponse["analysis"]["next_steps"]) => void
   onCreateList?: (snapshotId: string) => void
+  /** stepIndex is undefined when the action targets the analysis-level default. */
+  onStartWorkflow?: (stepIndex?: number) => void
+  onPostToChannel?: (stepIndex?: number) => void
   isStreaming: boolean
 }
 
 function ChatBubble({
   message, onApply, onInsert, onCopy, onRetry, onStop, onReSelect,
   onInsertSummary, onInsertObservations, onInsertPlan,
-  onCreateList,
+  onCreateList, onStartWorkflow, onPostToChannel,
   isStreaming,
 }: ChatBubbleProps) {
   if (message.role === "user") {
@@ -1257,12 +1380,14 @@ function ChatBubble({
           !message.applied && !message.errored && "border-purple-500/20",
         )}>
           {message.analysisResult ? (
-            <FileGroupAnalysisResult 
+            <FileGroupAnalysisResult
               result={message.analysisResult}
               onInsertSummary={onInsertSummary}
               onInsertObservations={onInsertObservations}
               onInsertPlan={onInsertPlan}
               onCreateList={onCreateList ? () => onCreateList(message.id) : undefined}
+              onStartWorkflow={onStartWorkflow}
+              onPostToChannel={onPostToChannel}
             />
           ) : message.text ? (
             <p className="whitespace-pre-wrap break-words">{message.text}</p>

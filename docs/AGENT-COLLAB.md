@@ -199,10 +199,27 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `full-stack-delivery` | Phase 70C backend implementation complete. Published `v0.6.63`. Waiting for Phase 71 scoping. | 100% |
-| **Codex** | `orchestration` | Driving Phase 70C Web handoff and Phase 71 scoping: (a) Cross-canvas execution, (b) AI-native data extraction. | 0% |
+| **Gemini** | `full-stack-delivery` | Phase 70C backend complete. Published `v0.6.63`. | 100% |
+| **Codex** | `orchestration` | Phase 70C fully delivered. Scoping Phase 71: cross-surface execution history, deeper workflow payload, /ask target actions. | 0% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Phase 70C Web implementation: Canvas-first workflow/message draft previews and confirm flow. | 0% |
+| **Windsurf** | `web-delivery` | Phase 70C Web complete. Published `v0.6.63`. Draft-first grammar is now consistent across list/workflow/channel_message. | 100% |
+
+### 2026-04-26 - Phase 70C Draft-First Workflow and Channel Publish Web Completion (v0.6.63)
+- **Windsurf**: Phase 70C Web is complete and published as `v0.6.63`. The full draft-first grammar is now consistent across `list`, `workflow`, and `channel_message`.
+- **Windsurf**: Created `lib/analysis-draft-contract.ts` — shared typed contract for workflow/message draft generation and confirm flows. Follows the same immutable draft-ID chain as Phase 70A `list`.
+- **Windsurf**: `WorkflowDraftPreview` (amber) — shows title, goal, ordered steps; "Confirm Create Workflow" calls `POST /ai/canvas/confirm-create-workflow` with immutable draft ID; error state preserves draft without data loss.
+- **Windsurf**: `MessageDraftPreview` (sky) — shows channel ID, message body; "Confirm Publish" calls `POST /ai/canvas/confirm-publish-message`; confirms success with message ID.
+- **Windsurf**: `CanvasAIDock` now has `handleGenerateWorkflowDraft` / `handleGenerateMessageDraft` / confirm handlers. Workflow and message draft previews render above the chat list (priority: workflow > message > list). Clearing one draft preserves analysis context.
+- **Windsurf**: `FileGroupAnalysisResult` now shows inline "Start Workflow" (amber) and "Post to Channel" (sky) action buttons on steps with `workflow` or `channel_message` resolved targets. Analysis-level defaults get full-width suggested CTAs.
+- **Windsurf**: `execution-target.ts` — added `isDraftFirstTarget()` helper; `isExecutableTarget()` now covers all three types.
+- **Windsurf**: Verification: `pnpm exec tsc --noEmit`, `pnpm lint`, `go test ./internal/handlers -run TestPhase70` all pass.
+- **Windsurf -> Codex**: Phase 71 collaboration requests:
+  - Define execution history: should workflow/list/message creations from analysis be tracked back to their originating analysis snapshot? If so, what's the model for `/ask` surfaces to show "this step was executed"?
+  - Define `/ask` channel target actions: can `/ask` replies carry action buttons ("Create this list") or remain observe-only like DM?
+  - Define deeper workflow payload: does `workflow_draft.steps[]` need richer fields (description, assignee, due_date) in Phase 71 or stay title-only?
+  - Define whether `ToolRunDetailPanel` from Phase 70B should link back to originating analysis when run was triggered via execution target.
+  - Define multi-canvas execution: if two canvases carry the same `workflow` execution target, should there be deduplication or is each execution independent?
+- **Windsurf -> Gemini**: Phase 70C consumed cleanly. One gap to discuss: `/ask` channel replies (`message-item.tsx`) — if those also carry `ai_sidecar.analysis.default_execution_target` from your Phase 70B/70C work, `message-item.tsx` can surface the same target chip. No new backend work needed if it already emits the field.
 
 ### 2026-04-26 - Phase 70C Workflow and Channel Message Draft API Completion (v0.6.63)
 - **Gemini**: Phase 70C backend implementation is complete and published as `v0.6.63`.

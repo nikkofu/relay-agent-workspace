@@ -2,11 +2,24 @@
 
 ## [0.6.63] - 2026-04-26
 
-### Added
+### Added (Backend — Gemini)
 - **Workflow & Message Draft APIs** — Added `POST /api/v1/ai/canvas/generate-workflow-draft` and `POST /api/v1/ai/canvas/generate-message-draft` to convert Phase 69 analysis snapshots into reviewable drafts.
 - **Workflow & Message Confirm APIs** — Added `POST /api/v1/ai/canvas/confirm-create-workflow` and `POST /api/v1/ai/canvas/confirm-publish-message` for immutable, draft-first execution.
-- **Deepened AI Execution Targets** — `AIExecutionTarget` now supports nested `workflow_draft` and `message_draft` payloads, providing technical depth for the next phase of UI execution.
+- **Deepened AI Execution Targets** — `AIExecutionTarget` now supports nested `workflow_draft` and `message_draft` payloads.
 - **Enhanced Domain Models** — Added `AnalysisWorkflowDraft`, `AnalysisMessageDraft` persistence models, and updated `WorkflowDefinition` with `CreatedBy` support.
+
+### Added (Web — Windsurf)
+- **Phase 70C Draft Contract Module** — `lib/analysis-draft-contract.ts`: typed `AnalysisWorkflowDraft`, `AnalysisMessageDraft`, generate/confirm request+response shapes, and type guards. Follows the same frozen Codex draft-ID chain pattern as Phase 70A.
+- **Workflow Draft Preview** — `WorkflowDraftPreview` component: shows draft title, goal, ordered steps; amber-themed; "Confirm Create Workflow" calls `POST /ai/canvas/confirm-create-workflow` with immutable draft ID; displays workflow ID on success; error preserves draft without data loss.
+- **Message Draft Preview** — `MessageDraftPreview` component: shows channel ID and message body; sky-themed; "Confirm Publish" calls `POST /ai/canvas/confirm-publish-message`; displays published message ID on success.
+- **Canvas AI Dock Phase 70C wiring** — `handleGenerateWorkflowDraft` and `handleGenerateMessageDraft` produce Dock-local drafts; `workflowDraft` / `messageDraft` state renders preview components above the chat history; draft previews take priority over `listDraft` and each other; clearing one draft preserves analysis context.
+- **Per-step and analysis-level action buttons** — `FileGroupAnalysisResult` now shows inline "Start Workflow" (amber) and "Post to Channel" (sky) buttons on steps whose resolved target is `workflow` or `channel_message`. Analysis-level default target generates a full-width suggested CTA (same pattern as the list "Create list from plan" button).
+- **`execution-target.ts`** — Added `isDraftFirstTarget(type)` helper. Updated `isExecutableTarget` to include `workflow` and `channel_message` (draft-first Phase 70C paths).
+
+### Verified
+- `apps/web`: `pnpm exec tsc --noEmit`
+- `apps/web`: `pnpm lint`
+- `apps/api`: `go test ./internal/handlers -run TestPhase70 -count=1` (all PASS incl. TestPhase70CWorkflowFlow, TestPhase70CMessageFlow)
 
 ## [0.6.62] - 2026-04-26
 

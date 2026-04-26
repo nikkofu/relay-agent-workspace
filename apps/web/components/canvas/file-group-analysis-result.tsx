@@ -6,12 +6,12 @@ import {
   resolveExecutionTarget,
   TARGET_LABELS,
   TARGET_STYLES,
-  isExecutableTarget,
+  isDraftFirstTarget,
   type ExecutionTarget,
 } from "@/lib/execution-target"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { Check, ClipboardList, Lightbulb, Zap, ListPlus, ArrowRight } from "lucide-react"
+import { Check, ClipboardList, Lightbulb, Zap, ListPlus, ArrowRight, GitBranch, MessageSquare } from "lucide-react"
 
 interface FileGroupAnalysisResultProps {
   result: MultiFileAnalysisResponse["analysis"]
@@ -19,6 +19,10 @@ interface FileGroupAnalysisResultProps {
   onInsertObservations: (observations: string[]) => void
   onInsertPlan: (steps: MultiFileAnalysisResponse["analysis"]["next_steps"]) => void
   onCreateList?: () => void
+  /** Phase 70C: start workflow draft for the analysis default or a specific step. */
+  onStartWorkflow?: (stepIndex?: number) => void
+  /** Phase 70C: post to channel draft for the analysis default or a specific step. */
+  onPostToChannel?: (stepIndex?: number) => void
 }
 
 function ExecutionTargetBadge({
@@ -52,6 +56,8 @@ export function FileGroupAnalysisResult({
   onInsertObservations,
   onInsertPlan,
   onCreateList,
+  onStartWorkflow,
+  onPostToChannel,
 }: FileGroupAnalysisResultProps) {
   const analysisDefault = normalizeExecutionTarget(result.default_execution_target)
 
@@ -145,13 +151,38 @@ export function FileGroupAnalysisResult({
                 <div className="pl-4 mt-0.5 text-muted-foreground italic text-[11px]">
                   {step.rationale}
                 </div>
+                {/* Phase 70C: per-step draft action for workflow/channel_message */}
+                {resolved && isDraftFirstTarget(resolved.type) && (
+                  <div className="pl-4 mt-1.5">
+                    {resolved.type === "workflow" && onStartWorkflow && (
+                      <button
+                        type="button"
+                        onClick={() => onStartWorkflow(i)}
+                        className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 transition-colors"
+                      >
+                        <GitBranch className="w-2.5 h-2.5" />
+                        Start Workflow
+                      </button>
+                    )}
+                    {resolved.type === "channel_message" && onPostToChannel && (
+                      <button
+                        type="button"
+                        onClick={() => onPostToChannel(i)}
+                        className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded bg-sky-500/10 text-sky-700 dark:text-sky-300 hover:bg-sky-500/20 transition-colors"
+                      >
+                        <MessageSquare className="w-2.5 h-2.5" />
+                        Post to Channel
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             )
           })}
         </div>
       </section>
 
-      {/* Phase 70A/70B: Create list action — visible when analysis default or any step targets "list" */}
+      {/* Phase 70A/70B: Create list action */}
       {onCreateList && (
         <Button
           className={cn(
@@ -164,11 +195,39 @@ export function FileGroupAnalysisResult({
         >
           <ListPlus className="w-4 h-4" />
           Create list from plan
-          {analysisDefault && isExecutableTarget(analysisDefault.type) && (
+          {analysisDefault?.type === "list" && (
             <span className="ml-1 text-[9px] font-medium normal-case tracking-normal opacity-80">
               · suggested
             </span>
           )}
+        </Button>
+      )}
+
+      {/* Phase 70C: analysis-level workflow draft CTA */}
+      {analysisDefault?.type === "workflow" && onStartWorkflow && (
+        <Button
+          className="w-full h-9 gap-2 text-xs font-black uppercase tracking-wider bg-amber-600 hover:bg-amber-700 text-white shadow-md hover:scale-[1.01] active:scale-95 transition-all"
+          onClick={() => onStartWorkflow(undefined)}
+        >
+          <GitBranch className="w-4 h-4" />
+          Start Workflow
+          <span className="ml-1 text-[9px] font-medium normal-case tracking-normal opacity-80">
+            · suggested
+          </span>
+        </Button>
+      )}
+
+      {/* Phase 70C: analysis-level channel_message draft CTA */}
+      {analysisDefault?.type === "channel_message" && onPostToChannel && (
+        <Button
+          className="w-full h-9 gap-2 text-xs font-black uppercase tracking-wider bg-sky-600 hover:bg-sky-700 text-white shadow-md hover:scale-[1.01] active:scale-95 transition-all"
+          onClick={() => onPostToChannel(undefined)}
+        >
+          <MessageSquare className="w-4 h-4" />
+          Post to Channel
+          <span className="ml-1 text-[9px] font-medium normal-case tracking-normal opacity-80">
+            · suggested
+          </span>
         </Button>
       )}
     </div>

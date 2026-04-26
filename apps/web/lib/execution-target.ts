@@ -59,9 +59,18 @@ export const TARGET_STYLES: Record<
 }
 
 /**
- * Whether this execution target type has a real end-to-end execution path
- * in first release. Others are rendered as visible-but-light targets.
+ * Whether this execution target type has a real end-to-end execution path.
+ * Phase 70B: `list` (direct).
+ * Phase 70C: `workflow` and `channel_message` (draft-first).
  */
 export function isExecutableTarget(type: ExecutionTargetType): boolean {
-  return type === "list"
+  return type === "list" || type === "workflow" || type === "channel_message"
+}
+
+/**
+ * Whether this target uses the draft-first flow (generate → preview → confirm).
+ * Distinct from `list` which uses a single generate step.
+ */
+export function isDraftFirstTarget(type: ExecutionTargetType): boolean {
+  return type === "workflow" || type === "channel_message"
 }
