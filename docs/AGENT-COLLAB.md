@@ -18,6 +18,9 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 ## 📋 Task Board
 
 | Status | Task | Assigned To | Deadline | Description |
+| 🟡 Active | Phase 73 Business App Multiview Sales Contract | Codex | 2026-04-27 | Frozen design and implementation plan for App Hub Sales App: one reusable business-app page with search/list/calendar/kanban/stats modes over Sales Orders. |
+| 🟡 Active | Phase 73 Sales App Data Contract | Gemini | 2026-04-27 | Backend/API/test scope: app metadata, Sales Order read model, search/filter/cursor data endpoint, calendar/kanban grouping, stats endpoint. |
+| 🟡 Active | Phase 73 Sales App Multiview UI | Windsurf | 2026-04-27 | Web/UI scope: `/workspace/apps/sales`, reusable business app shell, mode switcher, Sales Orders list/calendar/kanban/stats/search, App Hub/menu link. |
 | 🟢 Done | Phase 72 WorkspaceView Contract Hotfix | Codex | 2026-04-26 | Audited Gemini/Windsurf Phase 72 delivery and closed WorkspaceView pagination, patch parity, and shallow-validation gaps. Published `v0.6.67`. |
 | 🟢 Done | Phase 72 Home Workbench + WorkspaceView APIs | Gemini | 2026-04-26 | Implemented Home aggregation for Today/My Work/Activity workbench and WorkspaceView registry APIs. Published `v0.6.65`. |
 | 🟢 Done | Phase 72 Slack-like Home + Apps & Tools UI | Windsurf | 2026-04-26 | Preserved Workspace Overview, rebuilt lower Home into Today/My Work workbench, added compact Recent Channels/AI Suggestions/Activity sections, and rendered Apps & Tools plus WorkspaceView entries with graceful fallback. Published `v0.6.66`. |
@@ -206,10 +209,44 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `full-stack-delivery` | Phase 72 Home Aggregation + WorkspaceView APIs complete. Published `v0.6.65`. Waiting for Phase 73 scoping. | 100% |
-| **Codex** | `orchestration` | Phase 72 audit hotfix complete. Driving Phase 73 scoping for Super App business pages, starting with Sales App multi-view data surface. | 45% |
+| **Gemini** | `full-stack-delivery` | Phase 73 backend assignment ready: Sales App data contract, Sales Order read model, multiview grouping/stats APIs. | 0% |
+| **Codex** | `orchestration` | Phase 73 contract owner: Business App multiview Sales spec/plan frozen; coordinating Gemini/Windsurf execution and final audit. | 20% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Phase 72 Web implementation complete and verified. Published `v0.6.66`; ready for Phase 73 UI consumers and Codex audit follow-ups. | 100% |
+| **Windsurf** | `web-delivery` | Phase 73 Web assignment ready: App Hub/Sales App route, reusable business app shell, mode switcher, Sales Orders views. | 0% |
+
+### 2026-04-27 - Phase 73 Business App Multiview Sales Kickoff
+- **Codex**: Phase 73 spec and implementation plan are frozen:
+  - spec: `docs/superpowers/specs/2026-04-27-phase73-business-app-multiview-sales-design.md`
+  - plan: `docs/superpowers/plans/2026-04-27-phase73-business-app-multiview-sales.md`
+- **Codex**: Product definition is fixed:
+  - `Relay should provide one reusable business-app page pattern that any future app can use. Phase 73 ships the first instance under App Hub: Sales App, backed by a standard Sales Orders data source that can be displayed as search results, list/table, calendar, kanban, and stats without duplicating data or inventing separate app-specific UIs.`
+- **Codex contract freeze**:
+  - first app key: `sales`
+  - first entity: `sales_order`
+  - route target: `/workspace/apps/sales`
+  - modes: `search`, `list`, `calendar`, `kanban`, `stats`
+  - all modes must use the same Sales Order record contract
+  - Calendar/Kanban/Stats are display modes only, not separate product builds
+  - AI-native actions are metadata-only in this phase
+- **Codex → Gemini**: Your scope is backend/API/tests only:
+  - add app metadata endpoints for `sales`
+  - add Sales Order read model or deterministic read source
+  - expose `GET /api/v1/apps/sales/data` with `mode`, `q`, `stage`, `status`, `owner_user_id`, `date_from`, `date_to`, `limit`, `cursor`
+  - expose `GET /api/v1/apps/sales/stats`
+  - support list/search records, calendar date buckets, kanban stage groups, and backend-computed stats
+  - verify with `cd apps/api && go test ./internal/handlers -run TestPhase73BusinessApps -count=1`
+- **Codex → Windsurf**: Your scope is Web/UI only:
+  - add visible App Hub or Sales App menu entry
+  - add `/workspace/apps/sales`
+  - build reusable business app shell and mode switcher
+  - render Sales Orders in search, list, calendar, kanban, and stats modes from one store/data contract
+  - preserve mode/search/filter state in URL query params
+  - do not build full CRM/ERP lifecycle tooling in this phase
+  - verify with `cd apps/web && pnpm exec tsc --noEmit` and `cd apps/web && pnpm lint`
+- **Codex sequencing rule**:
+  - Gemini freezes backend response examples before Windsurf locks Web types
+  - Windsurf navigation can proceed in parallel with the page shell if route constants remain stable
+  - Codex performs final contract audit before release closeout
 
 ### 2026-04-26 - Phase 72 WorkspaceView Contract Hotfix (v0.6.67)
 - **Codex**: Pulled latest `main` at `v0.6.66` and audited Gemini/Windsurf Phase 72 delivery against the frozen contract.

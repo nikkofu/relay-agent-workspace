@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.6.68] - 2026-04-27
+
+### Added (Planning — Codex)
+- **Phase 73 Business App Multiview Sales plan** — Frozen the next Super App Workspace slice: App Hub → Sales App with one reusable business-app page supporting search, list, calendar, kanban, and stats modes over the same Sales Orders data source.
+- **Gemini/Windsurf split** — Gemini owns backend/API/tests for Sales Orders data, grouping, filtering, pagination, and stats. Windsurf owns `/workspace/apps/sales`, App Hub navigation, reusable Web shell, and multiview rendering.
+
+### Notes
+- Phase 73 is intentionally not a full CRM/ERP or app builder.
+- AI-native actions remain metadata-only until a later write/execution contract is frozen.
+
 ## [0.6.67] - 2026-04-26
 
 ### Fixed (Contract — Codex)
