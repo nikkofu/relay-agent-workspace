@@ -94,6 +94,7 @@ type WorkflowDefinition struct {
 	Description string    `json:"description"`
 	Trigger     string    `json:"trigger"`
 	IsActive    bool      `json:"is_active"`
+	CreatedBy   string    `gorm:"index" json:"created_by"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
@@ -757,9 +758,58 @@ type ReasoningSegment struct {
 }
 
 type AIExecutionTarget struct {
-	Type string `json:"type"` // list, workflow, channel_message
+	Type          string                 `json:"type"` // list, workflow, channel_message
+	WorkflowDraft *AIWorkflowDraftTarget `json:"workflow_draft,omitempty"`
+	MessageDraft  *AIMessageDraftTarget  `json:"message_draft,omitempty"`
 }
 
+type AIWorkflowDraftTarget struct {
+	Title string               `json:"title"`
+	Goal  string               `json:"goal"`
+	Steps []AIWorkflowStepTarget `json:"steps"`
+}
+
+type AIWorkflowStepTarget struct {
+	Title string `json:"title"`
+}
+
+type AIMessageDraftTarget struct {
+	ChannelID string `json:"channel_id"`
+	Body      string `json:"body"`
+}
+
+type AnalysisListDraft struct {
+	ID                 string    `gorm:"primaryKey" json:"id"`
+	ArtifactID         string    `gorm:"index" json:"artifact_id"`
+	ChannelID          string    `gorm:"index" json:"channel_id"`
+	AnalysisSnapshotID string    `gorm:"index" json:"analysis_snapshot_id"`
+	Title              string    `json:"title"`
+	ItemsJSON          string    `json:"items_json"` // JSON array of strings (item titles)
+	CreatedBy          string    `gorm:"index" json:"created_by"`
+	CreatedAt          time.Time `json:"created_at"`
+}
+
+type AnalysisWorkflowDraft struct {
+	ID                 string    `gorm:"primaryKey" json:"id"`
+	ArtifactID         string    `gorm:"index" json:"artifact_id"`
+	ChannelID          string    `gorm:"index" json:"channel_id"`
+	AnalysisSnapshotID string    `gorm:"index" json:"analysis_snapshot_id"`
+	Title              string    `json:"title"`
+	Goal               string    `json:"goal"`
+	StepsJSON          string    `json:"steps_json"` // JSON array of objects
+	CreatedBy          string    `gorm:"index" json:"created_by"`
+	CreatedAt          time.Time `json:"created_at"`
+}
+
+type AnalysisMessageDraft struct {
+	ID                 string    `gorm:"primaryKey" json:"id"`
+	ArtifactID         string    `gorm:"index" json:"artifact_id"`
+	ChannelID          string    `gorm:"index" json:"channel_id"` // target channel
+	AnalysisSnapshotID string    `gorm:"index" json:"analysis_snapshot_id"`
+	Body               string    `json:"body"`
+	CreatedBy          string    `gorm:"index" json:"created_by"`
+	CreatedAt          time.Time `json:"created_at"`
+}
 
 type AIToolCall struct {
 	ID         string `json:"id"`
@@ -774,15 +824,4 @@ type AIUsage struct {
 	OutputTokens int     `json:"output_tokens"`
 	TotalTokens  int     `json:"total_tokens"`
 	CostUSD      float64 `json:"cost_usd,omitempty"`
-}
-
-type AnalysisListDraft struct {
-	ID                 string    `gorm:"primaryKey" json:"id"`
-	ArtifactID         string    `gorm:"index" json:"artifact_id"`
-	ChannelID          string    `gorm:"index" json:"channel_id"`
-	AnalysisSnapshotID string    `gorm:"index" json:"analysis_snapshot_id"`
-	Title              string    `json:"title"`
-	ItemsJSON          string    `json:"items_json"` // JSON array of strings (item titles)
-	CreatedBy          string    `gorm:"index" json:"created_by"`
-	CreatedAt          time.Time `json:"created_at"`
 }

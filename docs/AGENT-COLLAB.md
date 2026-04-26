@@ -18,6 +18,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 ## 📋 Task Board
 
 | Status | Task | Assigned To | Deadline | Description |
+| 🟢 Done | Phase 70C Draft-First Workflow and Channel Publish (Backend) | Gemini | 2026-04-26 | Implemented workflow draft generation, channel-message draft generation, and confirm-create/publish endpoints. Deepened AIExecutionTarget with nested drafts. Published `v0.6.63`. |
 | 🟢 Done | Phase 70B Typed Execution Targets (Web) | Windsurf | 2026-04-26 | Consumed Gemini v0.6.61 backend contract. Created shared lib/execution-target.ts; Canvas AI shows default/override/inherited target badges; DM shows light chip; ChannelToolsPanel gains real-time ToolRunDetailPanel with live log streaming. Published `v0.6.62`. |
 | 🟢 Done | Phase 70B Typed Execution Targets (Backend) | Gemini | 2026-04-26 | Implemented shared execution-target contract with inheritance and malformed handling. Published `v0.6.61`. |
 | 🟢 Done | Phase 70A Release Hardening + DM AI Markdown Compatibility | Windsurf | 2026-04-25 | Hardened Gemini's `v0.6.59` release by fixing AI Assistant DM markdown rendering, cleaning Phase 70A Web lint noise, restoring legacy AI sidecar dual-read compatibility, and publishing `v0.6.60`. |
@@ -198,10 +199,19 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `backend-delivery` | Phase 70C backend/API/test kickoff: workflow draft/create, channel-message draft/publish, and immutable draft identity chains. | 0% |
-| **Codex** | `orchestration` | Phase 70C spec + plan frozen; driving draft-first execution consistency, task handoff, and final integration control for workflow/channel_message targets. | 100% |
+| **Gemini** | `full-stack-delivery` | Phase 70C backend implementation complete. Published `v0.6.63`. Waiting for Phase 71 scoping. | 100% |
+| **Codex** | `orchestration` | Driving Phase 70C Web handoff and Phase 71 scoping: (a) Cross-canvas execution, (b) AI-native data extraction. | 0% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Phase 70C Web kickoff: Canvas-first workflow/message draft previews and contract-compatible `/ask`/DM deepening. | 0% |
+| **Windsurf** | `web-delivery` | Phase 70C Web implementation: Canvas-first workflow/message draft previews and confirm flow. | 0% |
+
+### 2026-04-26 - Phase 70C Workflow and Channel Message Draft API Completion (v0.6.63)
+- **Gemini**: Phase 70C backend implementation is complete and published as `v0.6.63`.
+- **Gemini**: Implemented `POST /api/v1/ai/canvas/generate-workflow-draft` and `POST /api/v1/ai/canvas/generate-message-draft` to support draft-first execution for these target families.
+- **Gemini**: Implemented `POST /api/v1/ai/canvas/confirm-create-workflow` and `POST /api/v1/ai/canvas/confirm-publish-message` using immutable draft IDs.
+- **Gemini**: Added `AnalysisWorkflowDraft` and `AnalysisMessageDraft` models to manage the execution lifecycle.
+- **Gemini**: Deepened `AIExecutionTarget` schema to carry typed nested draft payloads (`workflow_draft`, `message_draft`), enabling more deterministic UI previews.
+- **Gemini → Windsurf**: Backend is ready. Please wire the Phase 70C Web UX: add workflow and message draft previews to `CanvasAIDock`, and implement the confirm flows using the immutable draft IDs.
+- **Gemini → Nikko Fu**: You can now turn AI suggestions into formal workflow drafts or channel announcements before they are finalized. This ensures you always have the final say before any automated execution or broadcast.
 
 ### 2026-04-26 - Phase 70C Draft-First Workflow And Channel Publish Targets Kickoff
 - **Codex**: Phase 70C spec and implementation plan are now frozen:

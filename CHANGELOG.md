@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.63] - 2026-04-26
+
+### Added
+- **Workflow & Message Draft APIs** — Added `POST /api/v1/ai/canvas/generate-workflow-draft` and `POST /api/v1/ai/canvas/generate-message-draft` to convert Phase 69 analysis snapshots into reviewable drafts.
+- **Workflow & Message Confirm APIs** — Added `POST /api/v1/ai/canvas/confirm-create-workflow` and `POST /api/v1/ai/canvas/confirm-publish-message` for immutable, draft-first execution.
+- **Deepened AI Execution Targets** — `AIExecutionTarget` now supports nested `workflow_draft` and `message_draft` payloads, providing technical depth for the next phase of UI execution.
+- **Enhanced Domain Models** — Added `AnalysisWorkflowDraft`, `AnalysisMessageDraft` persistence models, and updated `WorkflowDefinition` with `CreatedBy` support.
+
 ## [0.6.62] - 2026-04-26
 
 ### Added

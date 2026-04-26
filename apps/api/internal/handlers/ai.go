@@ -1077,6 +1077,303 @@ func GenerateListDraftFromAnalysis(c *gin.Context) {
 	})
 }
 
+func GenerateWorkflowDraftFromAnalysis(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var req struct {
+		ArtifactID         string `json:"artifact_id" binding:"required"`
+		ChannelID          string `json:"channel_id" binding:"required"`
+		AnalysisSnapshotID string `json:"analysis_snapshot_id" binding:"required"`
+		StepIndex          *int   `json:"step_index"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+
+	var msg domain.AIConversationMessage
+	if err := db.DB.First(&msg, "id = ?", req.AnalysisSnapshotID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "analysis snapshot not found"})
+		return
+	}
+
+	var sidecar domain.AISidecar
+	if err := json.Unmarshal([]byte(msg.AISidecarJSON), &sidecar); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to parse sidecar"})
+		return
+	}
+
+	analysis, ok := sidecar.Analysis.(map[string]any)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid analysis"})
+		return
+	}
+
+	// Resolve target
+	var target map[string]any
+	if req.StepIndex != nil && *req.StepIndex >= 0 {
+		nextSteps, _ := analysis["next_steps"].([]any)
+		if *req.StepIndex < len(nextSteps) {
+			step, _ := nextSteps[*req.StepIndex].(map[string]any)
+			if et, ok := step["execution_target"].(map[string]any); ok {
+				target = et
+			}
+		}
+	}
+	if target == nil {
+		if et, ok := analysis["default_execution_target"].(map[string]any); ok {
+			target = et
+		}
+	}
+
+	if target == nil || target["type"] != "workflow" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no valid workflow target found"})
+		return
+	}
+
+	wfDraft, _ := target["workflow_draft"].(map[string]any)
+	if wfDraft == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing workflow draft payload"})
+		return
+	}
+
+	title, _ := wfDraft["title"].(string)
+	goal, _ := wfDraft["goal"].(string)
+	steps, _ := wfDraft["steps"].([]any)
+
+	stepsJSON, _ := json.Marshal(steps)
+	draft := domain.AnalysisWorkflowDraft{
+		ID:                 ids.NewPrefixedUUID("draft-wf"),
+		ArtifactID:         req.ArtifactID,
+		ChannelID:          req.ChannelID,
+		AnalysisSnapshotID: req.AnalysisSnapshotID,
+		Title:              title,
+		Goal:               goal,
+		StepsJSON:          string(stepsJSON),
+		CreatedBy:          currentUser.ID,
+		CreatedAt:          time.Now().UTC(),
+	}
+
+	if err := db.DB.Create(&draft).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save draft"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"draft": gin.H{
+			"draft_id": draft.ID,
+			"title":    draft.Title,
+			"goal":     draft.Goal,
+			"steps":    steps,
+		},
+	})
+}
+
+func ConfirmCreateWorkflowFromDraft(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var req struct {
+		DraftID string `json:"draft_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "draft_id is required"})
+		return
+	}
+
+	var draft domain.AnalysisWorkflowDraft
+	if err := db.DB.First(&draft, "id = ?", req.DraftID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "draft not found"})
+		return
+	}
+
+	now := time.Now().UTC()
+
+	// Construct description from goal and steps
+	var steps []struct {
+		Title string `json:"title"`
+	}
+	json.Unmarshal([]byte(draft.StepsJSON), &steps)
+
+	description := draft.Goal
+	if len(steps) > 0 {
+		description += "\n\nSteps:\n"
+		for i, s := range steps {
+			description += fmt.Sprintf("%d. %s\n", i+1, s.Title)
+		}
+	}
+
+	workflow := domain.WorkflowDefinition{
+		ID:          ids.NewPrefixedUUID("wf"),
+		Name:        draft.Title,
+		Category:    "AI-Generated",
+		Description: description,
+		Trigger:     "manual",
+		IsActive:    true,
+		CreatedBy:   currentUser.ID,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+
+	if err := db.DB.Create(&workflow).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create workflow"})
+		return
+	}
+
+	db.DB.Delete(&draft)
+
+	c.JSON(http.StatusCreated, gin.H{
+		"workflow_id": workflow.ID,
+	})
+}
+
+func GenerateMessageDraftFromAnalysis(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var req struct {
+		ArtifactID         string `json:"artifact_id" binding:"required"`
+		ChannelID          string `json:"channel_id" binding:"required"`
+		AnalysisSnapshotID string `json:"analysis_snapshot_id" binding:"required"`
+		StepIndex          *int   `json:"step_index"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+
+	var msg domain.AIConversationMessage
+	if err := db.DB.First(&msg, "id = ?", req.AnalysisSnapshotID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "analysis snapshot not found"})
+		return
+	}
+
+	var sidecar domain.AISidecar
+	if err := json.Unmarshal([]byte(msg.AISidecarJSON), &sidecar); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to parse sidecar"})
+		return
+	}
+
+	analysis, ok := sidecar.Analysis.(map[string]any)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid analysis"})
+		return
+	}
+
+	// Resolve target
+	var target map[string]any
+	if req.StepIndex != nil && *req.StepIndex >= 0 {
+		nextSteps, _ := analysis["next_steps"].([]any)
+		if *req.StepIndex < len(nextSteps) {
+			step, _ := nextSteps[*req.StepIndex].(map[string]any)
+			if et, ok := step["execution_target"].(map[string]any); ok {
+				target = et
+			}
+		}
+	}
+	if target == nil {
+		if et, ok := analysis["default_execution_target"].(map[string]any); ok {
+			target = et
+		}
+	}
+
+	if target == nil || target["type"] != "channel_message" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no valid message target found"})
+		return
+	}
+
+	msgDraft, _ := target["message_draft"].(map[string]any)
+	if msgDraft == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing message draft payload"})
+		return
+	}
+
+	targetChannelID, _ := msgDraft["channel_id"].(string)
+	if targetChannelID == "" {
+		targetChannelID = req.ChannelID // default to current
+	}
+	body, _ := msgDraft["body"].(string)
+
+	draft := domain.AnalysisMessageDraft{
+		ID:                 ids.NewPrefixedUUID("draft-msg"),
+		ArtifactID:         req.ArtifactID,
+		ChannelID:          targetChannelID,
+		AnalysisSnapshotID: req.AnalysisSnapshotID,
+		Body:               body,
+		CreatedBy:          currentUser.ID,
+		CreatedAt:          time.Now().UTC(),
+	}
+
+	if err := db.DB.Create(&draft).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save draft"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"draft": gin.H{
+			"draft_id":   draft.ID,
+			"channel_id": draft.ChannelID,
+			"body":       draft.Body,
+		},
+	})
+}
+
+func ConfirmPublishMessageFromDraft(c *gin.Context) {
+	currentUser, err := getCurrentUser()
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var req struct {
+		DraftID string `json:"draft_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "draft_id is required"})
+		return
+	}
+
+	var draft domain.AnalysisMessageDraft
+	if err := db.DB.First(&draft, "id = ?", req.DraftID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "draft not found"})
+		return
+	}
+
+	now := time.Now().UTC()
+	message := domain.Message{
+		ID:        ids.NewPrefixedUUID("msg"),
+		ChannelID: draft.ChannelID,
+		UserID:    currentUser.ID,
+		Content:   draft.Body,
+		CreatedAt: now,
+	}
+
+	if err := db.DB.Create(&message).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to publish message"})
+		return
+	}
+
+	db.DB.Delete(&draft)
+
+	if RealtimeHub != nil {
+		broadcastRealtimeEvent("message.created", message, message)
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message_id": message.ID,
+	})
+}
+
 func ConfirmCreateListFromDraft(c *gin.Context) {
 	currentUser, err := getCurrentUser()
 	if err != nil {
