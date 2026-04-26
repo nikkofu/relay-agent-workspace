@@ -58,6 +58,11 @@ import {
 import { WorkflowDraftPreview } from "@/components/canvas/workflow-draft-preview"
 import { MessageDraftPreview } from "@/components/canvas/message-draft-preview"
 import { useRouter } from "next/navigation"
+import {
+  fetchAnalysisExecutionHistory,
+  projectAnalysisExecutionHistory,
+  type AnalysisExecutionProjection,
+} from "@/lib/execution-history"
 
 // ── Public handle ────────────────────────────────────────────────────────────
 
@@ -134,6 +139,8 @@ interface DockMessage {
   errored?: boolean
   /** Phase 69: Structured multi-file analysis result. */
   analysisResult?: MultiFileAnalysisResponse["analysis"]
+  /** Phase 71: projected execution history for this analysis snapshot. */
+  analysisExecution?: AnalysisExecutionProjection
   analysisRequest?: MultiFileAnalysisRequest
 }
 
@@ -158,8 +165,11 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
     const [expanded, setExpanded] = useState(layout === "rail")
     const [messages, setMessages] = useState<DockMessage[]>([])
     const [listDraft, setListDraft] = useState<AnalysisListDraft | null>(null)
+    const [listDraftSnapshotId, setListDraftSnapshotId] = useState<string | null>(null)
     const [workflowDraft, setWorkflowDraft] = useState<AnalysisWorkflowDraft | null>(null)
+    const [workflowDraftSnapshotId, setWorkflowDraftSnapshotId] = useState<string | null>(null)
     const [messageDraft, setMessageDraft] = useState<AnalysisMessageDraft | null>(null)
+    const [messageDraftSnapshotId, setMessageDraftSnapshotId] = useState<string | null>(null)
     const router = useRouter()
     const [isLoadingHistory, setIsLoadingHistory] = useState(false)
     const [conversationId, setConversationId] = useState<string | null>(null)
@@ -168,6 +178,20 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
     useEffect(() => {
       conversationIdRef.current = conversationId
     }, [conversationId])
+
+    const refreshAnalysisExecution = useCallback(async (snapshotId: string) => {
+      try {
+        const events = await fetchAnalysisExecutionHistory(snapshotId)
+        const projection = projectAnalysisExecutionHistory(events)
+        setMessages(prev => prev.map(message => (
+          message.id === snapshotId
+            ? { ...message, analysisExecution: projection }
+            : message
+        )))
+      } catch (err) {
+        console.error("Failed to load analysis execution history:", err)
+      }
+    }, [])
 
     // Load conversation history for this artifact on mount.
     useEffect(() => {
@@ -210,7 +234,27 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
               isStreaming: false,
             }
           })
-          setMessages(mapped)
+          const analysisHistoryEntries = await Promise.all(
+            mapped
+              .filter(message => message.analysisResult)
+              .map(async (message) => {
+                try {
+                  const events = await fetchAnalysisExecutionHistory(message.id)
+                  return [message.id, projectAnalysisExecutionHistory(events)] as const
+                } catch (err) {
+                  console.error("Failed to hydrate execution history for analysis snapshot:", err)
+                  return [message.id, null] as const
+                }
+              })
+          )
+          const executionHistoryBySnapshotId = new Map(
+            analysisHistoryEntries.filter((entry): entry is readonly [string, AnalysisExecutionProjection] => entry[1] !== null)
+          )
+          setMessages(mapped.map(message => (
+            message.analysisResult
+              ? { ...message, analysisExecution: executionHistoryBySnapshotId.get(message.id) }
+              : message
+          )))
         } catch (err) {
           console.error("Failed to load canvas AI history:", err)
         } finally {
@@ -651,13 +695,17 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
         }
 
         setListDraft(data.draft)
+        setListDraftSnapshotId(snapshotId)
       } catch (err: any) {
         toast.error(err.message)
+      } finally {
+        void refreshAnalysisExecution(snapshotId)
       }
     }
 
     const handleConfirmCreateList = async (): Promise<string | null> => {
       if (!listDraft) return null
+      const snapshotId = listDraftSnapshotId
       try {
         const res = await fetch(`${API_BASE_URL}/ai/canvas/confirm-create-list`, {
           method: "POST",
@@ -680,6 +728,8 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
       } catch (err: any) {
         toast.error(err.message)
         return null
+      } finally {
+        if (snapshotId) void refreshAnalysisExecution(snapshotId)
       }
     }
 
@@ -690,7 +740,9 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
     const handleGenerateWorkflowDraft = async (snapshotId: string, stepIndex?: number) => {
       if (!artifactId) return
       setListDraft(null)
+      setListDraftSnapshotId(null)
       setMessageDraft(null)
+      setMessageDraftSnapshotId(null)
       try {
         const body: Record<string, unknown> = {
           artifact_id: artifactId,
@@ -710,13 +762,17 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
         const data = await res.json()
         if (!isGenerateWorkflowDraftResponse(data)) throw new Error("Invalid workflow draft response")
         setWorkflowDraft(data.draft)
+        setWorkflowDraftSnapshotId(snapshotId)
       } catch (err: any) {
         toast.error(err.message)
+      } finally {
+        void refreshAnalysisExecution(snapshotId)
       }
     }
 
     const handleConfirmCreateWorkflow = async (): Promise<string | null> => {
       if (!workflowDraft) return null
+      const snapshotId = workflowDraftSnapshotId
       try {
         const res = await fetch(`${API_BASE_URL}/ai/canvas/confirm-create-workflow`, {
           method: "POST",
@@ -733,13 +789,17 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
       } catch (err: any) {
         toast.error(err.message)
         return null
+      } finally {
+        if (snapshotId) void refreshAnalysisExecution(snapshotId)
       }
     }
 
     const handleGenerateMessageDraft = async (snapshotId: string, stepIndex?: number) => {
       if (!artifactId) return
       setListDraft(null)
+      setListDraftSnapshotId(null)
       setWorkflowDraft(null)
+      setWorkflowDraftSnapshotId(null)
       try {
         const body: Record<string, unknown> = {
           artifact_id: artifactId,
@@ -759,13 +819,17 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
         const data = await res.json()
         if (!isGenerateMessageDraftResponse(data)) throw new Error("Invalid message draft response")
         setMessageDraft(data.draft)
+        setMessageDraftSnapshotId(snapshotId)
       } catch (err: any) {
         toast.error(err.message)
+      } finally {
+        void refreshAnalysisExecution(snapshotId)
       }
     }
 
     const handleConfirmPublishMessage = async (): Promise<string | null> => {
       if (!messageDraft) return null
+      const snapshotId = messageDraftSnapshotId
       try {
         const res = await fetch(`${API_BASE_URL}/ai/canvas/confirm-publish-message`, {
           method: "POST",
@@ -782,6 +846,8 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
       } catch (err: any) {
         toast.error(err.message)
         return null
+      } finally {
+        if (snapshotId) void refreshAnalysisExecution(snapshotId)
       }
     }
 
@@ -1046,19 +1112,28 @@ export const CanvasAIDock = forwardRef<CanvasAIDockHandle, CanvasAIDockProps>(
               <WorkflowDraftPreview
                 draft={workflowDraft}
                 onConfirm={handleConfirmCreateWorkflow}
-                onCancel={() => setWorkflowDraft(null)}
+                onCancel={() => {
+                  setWorkflowDraft(null)
+                  setWorkflowDraftSnapshotId(null)
+                }}
               />
             ) : messageDraft ? (
               <MessageDraftPreview
                 draft={messageDraft}
                 onConfirm={handleConfirmPublishMessage}
-                onCancel={() => setMessageDraft(null)}
+                onCancel={() => {
+                  setMessageDraft(null)
+                  setMessageDraftSnapshotId(null)
+                }}
               />
             ) : listDraft ? (
               <AnalysisListDraftPreview
                 draft={listDraft}
                 onConfirm={handleConfirmCreateList}
-                onCancel={() => setListDraft(null)}
+                onCancel={() => {
+                  setListDraft(null)
+                  setListDraftSnapshotId(null)
+                }}
                 onOpenList={handleOpenCreatedList}
               />
             ) : isLoadingHistory ? (
@@ -1382,6 +1457,7 @@ function ChatBubble({
           {message.analysisResult ? (
             <FileGroupAnalysisResult
               result={message.analysisResult}
+              execution={message.analysisExecution}
               onInsertSummary={onInsertSummary}
               onInsertObservations={onInsertObservations}
               onInsertPlan={onInsertPlan}

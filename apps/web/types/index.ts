@@ -778,6 +778,7 @@ export type UnifiedActivityEventType =
   | 'knowledge_ask'
   | 'automation_job'
   | 'tool_run'
+  | 'ai_execution'
 
 export interface UnifiedActivityFeedItem {
   id: string

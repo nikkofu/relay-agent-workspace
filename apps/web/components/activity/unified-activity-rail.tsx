@@ -11,10 +11,17 @@ import {
   Paperclip, Terminal, ListTodo, Cpu, Wand2, BookOpen,
   CalendarCheck, ExternalLink, ChevronDown,
   Tag, User2, Building2, FileText, Layout,
+  Sparkles,
 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import Link from "next/link"
 import type { UnifiedActivityFeedItem, UnifiedActivityEventType } from "@/types"
+import {
+  buildExecutionHistoryBody,
+  buildExecutionHistorySummary,
+  getCreatedObjectHref,
+  normalizeExecutionHistoryEvent,
+} from "@/lib/execution-history"
 
 // ── Phase 64C: Unified Activity Rail ─────────────────────────────────────────
 //
@@ -69,6 +76,7 @@ const EVENT_CONFIG: Partial<Record<UnifiedActivityEventType, EventCfg>> = {
   knowledge_ask:    { label: 'Ask AI',       icon: BookOpen,      pill: 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-400/30' },
   automation_job:   { label: 'Automation',   icon: Cpu,           pill: 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-400/30' },
   tool_run:         { label: 'Tool Run',     icon: Terminal,      pill: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-400/30' },
+  ai_execution:    { label: 'AI Execute',   icon: Sparkles,      pill: 'bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-400/30' },
 }
 const getEventCfg = (t: UnifiedActivityEventType): EventCfg =>
   EVENT_CONFIG[t] ?? { label: t, icon: Activity, pill: 'bg-muted/40 text-muted-foreground border-muted' }
@@ -88,11 +96,39 @@ const getKindColor = (kind?: string) => (kind && KIND_CONFIG[kind]?.color) || 't
 
 // ── AI feed aggregation from existing stores ──────────────────────────────────
 
-function useAIFeedItems(workspaceId?: string): UnifiedActivityFeedItem[] {
+function normalizeAIExecutionFeedItem(item: UnifiedActivityFeedItem): UnifiedActivityFeedItem {
+  if (item.event_type !== 'ai_execution') return item
+  const event = normalizeExecutionHistoryEvent({
+    id: item.id,
+    event_type: item.meta?.event_type,
+    status: item.meta?.event_type === 'failed' ? 'failed' : 'success',
+    analysis_snapshot_id: item.meta?.analysis_snapshot_id ?? item.id,
+    execution_target_type: item.meta?.execution_target_type,
+    created_object_id: item.meta?.created_object_id,
+    created_object_type: item.meta?.created_object_type,
+    failure_stage: item.meta?.failure_stage,
+    error_message: item.meta?.error_message,
+    created_at: item.occurred_at,
+  })
+  if (!event) return item
+  return {
+    ...item,
+    title: buildExecutionHistorySummary(event),
+    body: buildExecutionHistoryBody(event) ?? item.body,
+    link: item.link ?? getCreatedObjectHref(event) ?? undefined,
+  }
+}
+
+function useAIFeedItems(workspaceId: string | undefined, unifiedFeedItems: UnifiedActivityFeedItem[]): UnifiedActivityFeedItem[] {
   const { composeSuggestionActivity, knowledgeAskRecent, automationJobs } = useKnowledgeStore()
 
   return useMemo(() => {
     const items: UnifiedActivityFeedItem[] = []
+
+    for (const item of unifiedFeedItems) {
+      if (item.event_type !== 'ai_execution') continue
+      items.push(normalizeAIExecutionFeedItem(item))
+    }
 
     // Compose activity rows
     for (const a of composeSuggestionActivity) {
@@ -144,7 +180,7 @@ function useAIFeedItems(workspaceId?: string): UnifiedActivityFeedItem[] {
     }
 
     return items.sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime())
-  }, [composeSuggestionActivity, knowledgeAskRecent, automationJobs, workspaceId])
+  }, [composeSuggestionActivity, knowledgeAskRecent, automationJobs, unifiedFeedItems, workspaceId])
 }
 
 // ── Row component ─────────────────────────────────────────────────────────────
@@ -247,11 +283,13 @@ export function UnifiedActivityRail({
   const currentWorkspaceId = useWorkspaceStore(s => s.currentWorkspace?.id)
   const wsId = workspaceId ?? currentWorkspaceId
 
-  const aiFeedItems = useAIFeedItems(wsId)
+  const aiFeedItems = useAIFeedItems(wsId, unifiedFeedItems)
 
   useEffect(() => {
     if (!wsId) return
-    if (activeTab === 'all') {
+    if (activeTab === 'ai') {
+      fetchUnifiedFeed({ workspaceId: wsId, eventType: 'ai_execution', limit: 40 })
+    } else if (activeTab === 'all') {
       fetchUnifiedFeed({ workspaceId: wsId, limit: 50 })
     } else if (activeTab === 'files') {
       fetchUnifiedFeed({ workspaceId: wsId, eventType: 'file_uploaded', limit: 40 })
@@ -271,7 +309,7 @@ export function UnifiedActivityRail({
   const visibleAI = showMore ? aiFeedItems : aiFeedItems.slice(0, 30)
   const visibleAll = showMore ? unifiedFeedItems : unifiedFeedItems.slice(0, 30)
 
-  const isLoading = ['all', 'mentions', 'files', 'bookings'].includes(activeTab) ? isLoadingUnifiedFeed : false
+  const isLoading = ['ai', 'all', 'mentions', 'files', 'bookings'].includes(activeTab) ? isLoadingUnifiedFeed : false
   const isEmpty = {
     ai:       aiFeedItems.length === 0,
     all:      unifiedFeedItems.length === 0 && !isLoadingUnifiedFeed,

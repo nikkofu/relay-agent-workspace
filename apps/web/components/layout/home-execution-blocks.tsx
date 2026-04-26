@@ -13,10 +13,16 @@
 
 import { useRouter } from "next/navigation"
 import {
-  ListTodo, Terminal, Zap, AlertCircle, Clock, CheckCircle2, XCircle, TrendingUp, TrendingDown,
+  ListTodo, Terminal, Zap, AlertCircle, Clock, CheckCircle2, XCircle, TrendingUp, TrendingDown, Sparkles,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatDistanceToNow } from "date-fns"
+import {
+  buildExecutionHistoryBody,
+  buildExecutionHistorySummary,
+  getCreatedObjectHref,
+  splitHomeAIExecutions,
+} from "@/lib/execution-history"
 
 interface HomeExecutionBlocksProps {
   homeData: any
@@ -28,8 +34,9 @@ export function HomeExecutionBlocks({ homeData }: HomeExecutionBlocksProps) {
   const openWork: any[] = homeData?.open_list_work || []
   const toolRuns: any[] = homeData?.tool_runs_needing_attention || []
   const pulse: any[] = homeData?.channel_execution_pulse || []
+  const aiExecutions = splitHomeAIExecutions(homeData?.recent_ai_executions || [])
 
-  const hasAny = openWork.length > 0 || toolRuns.length > 0 || pulse.length > 0
+  const hasAny = openWork.length > 0 || toolRuns.length > 0 || pulse.length > 0 || aiExecutions.recent.length > 0
   if (!hasAny) return null
 
   return (
@@ -39,7 +46,7 @@ export function HomeExecutionBlocks({ homeData }: HomeExecutionBlocksProps) {
         Channel Execution
       </h3>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
         {/* Open List Work */}
         {openWork.length > 0 && (
           <ExecutionCard
@@ -196,6 +203,105 @@ export function HomeExecutionBlocks({ homeData }: HomeExecutionBlocksProps) {
             </div>
           </ExecutionCard>
         )}
+
+        {aiExecutions.recent.length > 0 && (
+          <ExecutionCard
+            title="Recent AI Executions"
+            subtitle={`${aiExecutions.recent.length} recent`}
+            icon={<Sparkles className="w-4 h-4" />}
+            tint="violet"
+          >
+            <div className="space-y-1.5">
+              {aiExecutions.recent.slice(0, 5).map((event) => {
+                const href = getCreatedObjectHref(event)
+                const body = buildExecutionHistoryBody(event)
+                const ago = safeRelative(event.created_at)
+                return (
+                  <button
+                    key={event.id}
+                    type="button"
+                    onClick={() => href && router.push(href)}
+                    className="w-full text-left px-2 py-1.5 rounded hover:bg-violet-500/10 transition-colors group disabled:opacity-100"
+                    disabled={!href}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-[11px] font-semibold truncate flex-1 group-hover:text-violet-700 dark:group-hover:text-violet-300">
+                        {buildExecutionHistorySummary(event)}
+                      </p>
+                      <span className={cn(
+                        "text-[8px] font-black uppercase tracking-widest px-1 py-0.5 rounded shrink-0",
+                        event.event_type === "failed"
+                          ? "bg-rose-500/10 text-rose-700 dark:text-rose-300"
+                          : event.event_type === "published"
+                          ? "bg-sky-500/10 text-sky-700 dark:text-sky-300"
+                          : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                      )}>
+                        {event.event_type.replace(/_/g, " ")}
+                      </span>
+                    </div>
+                    {(body || ago) && (
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {body && (
+                          <p className="text-[9px] text-muted-foreground/80 line-clamp-1 flex-1">
+                            {body}
+                          </p>
+                        )}
+                        {ago && (
+                          <span className="text-[9px] uppercase tracking-widest text-muted-foreground/60 shrink-0">
+                            {ago}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </ExecutionCard>
+        )}
+
+        {aiExecutions.failed.length > 0 && (
+          <ExecutionCard
+            title="Failed AI Executions"
+            subtitle={`${aiExecutions.failed.length} failed`}
+            icon={<AlertCircle className="w-4 h-4" />}
+            tint="rose"
+          >
+            <div className="space-y-1.5">
+              {aiExecutions.failed.slice(0, 5).map((event) => (
+                <div
+                  key={event.id}
+                  className="px-2 py-1.5 rounded bg-rose-500/5"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-[11px] font-semibold truncate flex-1 text-rose-700 dark:text-rose-300">
+                      {buildExecutionHistorySummary(event)}
+                    </p>
+                    {event.failure_stage && (
+                      <span className="text-[8px] font-black uppercase tracking-widest px-1 py-0.5 rounded bg-rose-500/10 text-rose-700 dark:text-rose-300 shrink-0">
+                        {event.failure_stage.replace(/_/g, " ")}
+                      </span>
+                    )}
+                  </div>
+                  {(event.error_message || event.created_at) && (
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      {event.error_message && (
+                        <p className="text-[9px] text-rose-700/80 dark:text-rose-300/80 line-clamp-2 flex-1">
+                          {event.error_message}
+                        </p>
+                      )}
+                      {safeRelative(event.created_at) && (
+                        <span className="text-[9px] uppercase tracking-widest text-rose-700/60 dark:text-rose-300/60 shrink-0">
+                          {safeRelative(event.created_at)}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </ExecutionCard>
+        )}
       </div>
     </div>
   )
@@ -207,13 +313,14 @@ function ExecutionCard({
   title: string
   subtitle: string
   icon: React.ReactNode
-  tint: "violet" | "amber" | "sky"
+  tint: "violet" | "amber" | "sky" | "rose"
   children: React.ReactNode
 }) {
   const tintMap = {
     violet: { bg: "bg-violet-500/5", border: "border-violet-500/20", text: "text-violet-700 dark:text-violet-300", iconBg: "bg-violet-500/10" },
     amber:  { bg: "bg-amber-500/5",  border: "border-amber-500/20",  text: "text-amber-700 dark:text-amber-300",  iconBg: "bg-amber-500/10" },
     sky:    { bg: "bg-sky-500/5",    border: "border-sky-500/20",    text: "text-sky-700 dark:text-sky-300",      iconBg: "bg-sky-500/10" },
+    rose:   { bg: "bg-rose-500/5",   border: "border-rose-500/20",   text: "text-rose-700 dark:text-rose-300",    iconBg: "bg-rose-500/10" },
   }
   const t = tintMap[tint]
   return (

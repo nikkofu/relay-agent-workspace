@@ -8,6 +8,18 @@
 - **Analysis-Scoped Query API** — `GET /api/v1/ai/canvas/analysis-execution-history` returns deterministic history for any analysis snapshot.
 - **Activity & Home Projections** — Execution events now flow into the unified Activity feed and Home dashboard pulse.
 
+### Added (Web — Windsurf)
+- **Shared execution-history module** — Added `apps/web/lib/execution-history.ts` with normalized `ExecutionHistoryEvent` types, fetch helper for `analysis-execution-history`, deterministic projection helpers for Canvas step status, and local Home/Activity formatting helpers.
+- **Canvas execution history hydration** — `CanvasAIDock` now hydrates execution history for every persisted analysis snapshot, refreshes the authoritative backend history after draft/create/publish actions, and threads projected status into structured analysis bubbles so failure state survives refresh.
+- **Per-step execution badges + created-object links** — `FileGroupAnalysisResult` now renders backend-driven execution badges (`Draft ready`, `Confirmed`, `Created`, `Published`, `Failed`) at both analysis level and per-step level, with created list/workflow links when routeable and persisted failure details inline.
+- **Unified Activity AI execution rows** — `UnifiedActivityRail` now consumes `ai_execution` feed projections, fetches them inside the AI tab, and enriches each row with deterministic labels/body/link mapping from execution metadata.
+- **Home recent / failed AI execution summaries** — `HomeExecutionBlocks` now consumes `home.recent_ai_executions`, locally splits recent vs failed buckets, and renders two new execution summary cards without requiring any extra API.
+
+### Verified
+- `apps/web`: `pnpm exec tsc --noEmit`
+- `apps/web`: `pnpm lint`
+- `apps/api`: `go test ./internal/handlers -run 'TestPhase71ExecutionHistory|TestPhase71ExecutionHistoryProjection' -count=1`
+
 ## [0.6.63] - 2026-04-26
 
 ### Added (Backend — Gemini)
