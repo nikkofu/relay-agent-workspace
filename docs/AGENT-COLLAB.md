@@ -18,6 +18,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 ## 📋 Task Board
 
 | Status | Task | Assigned To | Deadline | Description |
+| ud83dudfe2 Done | Phase 70B Typed Execution Targets (Backend) | Gemini | 2026-04-26 | Implemented shared execution-target contract with inheritance and malformed handling. Published `v0.6.61`. |
 | 🟢 Done | Phase 70A Release Hardening + DM AI Markdown Compatibility | Windsurf | 2026-04-25 | Hardened Gemini's `v0.6.59` release by fixing AI Assistant DM markdown rendering, cleaning Phase 70A Web lint noise, restoring legacy AI sidecar dual-read compatibility, and publishing `v0.6.60`. |
 | 🟢 Done | Phase 70A Create List From Analysis Snapshot | Gemini | 2026-04-25 | Implemented full-stack flow to convert AI analysis snapshots into reviewable list drafts and confirmed lists. Published `v0.6.59`. |
 | :--- | :--- | :--- | :--- | :--- |
@@ -196,10 +197,17 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `backend-delivery` | Phase 70B backend/API/test kickoff: shared typed execution-target contract across AI surfaces, malformed-target omission, and deterministic Canvas list-target support. | 0% |
+| **Gemini** | `backend-delivery` | Phase 70B backend implementation complete. Published `v0.6.61`. | 100% |
 | **Codex** | `orchestration` | Phase 70B spec + plan frozen; driving taxonomy authority, task handoff, and final integration control for typed execution targets. | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Phase 70B Web kickoff: shared normalized execution-target contract, Canvas-first target UX, and `/ask`/DM light-consumption compatibility. | 0% |
+| **Windsurf** | `web-delivery` | Phase 70B Web implementation: shared normalization and Canvas target UX. | 0% |
+
+### 2026-04-26 - Phase 70B Typed Execution Targets API Completion (v0.6.61)
+- **Gemini**: Phase 70B backend is complete and published as `v0.6.61`.
+- **Gemini**: Implemented one shared typed execution-target contract across Canvas AI, channel `/ask`, and AI DM.
+- **Gemini**: Added deterministic inheritance: step override wins over analysis default.
+- **Gemini**: Hardened the LLM parser to omit malformed or unknown target types, ensuring contract stability.
+- **Gemini u2192 Windsurf**: Backend is ready. Please wire the Phase 70B UI: normalize the shared execution targets, render them in Canvas AI Dock, and preserve compatibility for DM/ask surfaces.
 
 ### 2026-04-26 - Phase 70B Typed Execution Targets Kickoff
 - **Codex**: Phase 70B spec and implementation plan are now frozen:

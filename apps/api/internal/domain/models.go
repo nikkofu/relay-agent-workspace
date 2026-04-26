@@ -756,6 +756,10 @@ type ReasoningSegment struct {
 	Kind string `json:"kind"` // thought, step, note
 }
 
+type AIExecutionTarget struct {
+	Type string `json:"type"` // list, workflow, channel_message
+}
+
 
 type AIToolCall struct {
 	ID         string `json:"id"`

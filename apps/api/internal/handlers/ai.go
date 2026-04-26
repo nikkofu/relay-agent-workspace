@@ -763,12 +763,18 @@ type AnalyzeCanvasRequest struct {
 
 type AnalyzeCanvasResponse struct {
 	Analysis struct {
-		Summary      string   `json:"summary"`
+		Summary                string `json:"summary"`
+		DefaultExecutionTarget *struct {
+			Type string `json:"type"`
+		} `json:"default_execution_target,omitempty"`
 		Observations []string `json:"observations"`
 		NextSteps    []struct {
-			Text       string `json:"text"`
-			Rationale  string `json:"rationale"`
-			ActionHint string `json:"action_hint"`
+			Text            string `json:"text"`
+			Rationale       string `json:"rationale"`
+			ActionHint      string `json:"action_hint"`
+			ExecutionTarget *struct {
+				Type string `json:"type"`
+			} `json:"execution_target,omitempty"`
 		} `json:"next_steps"`
 	} `json:"analysis"`
 }
@@ -820,13 +826,26 @@ func AnalyzeCanvasFileGroup(c *gin.Context) {
 		// Mock for tests if gateway not set
 		var resp AnalyzeCanvasResponse
 		resp.Analysis.Summary = "Mock analysis for " + strconv.Itoa(len(inputs)) + " files."
+		resp.Analysis.DefaultExecutionTarget = &struct {
+			Type string `json:"type"`
+		}{Type: "list"}
 		resp.Analysis.Observations = []string{"Obs 1", "Obs 2"}
 		resp.Analysis.NextSteps = []struct {
-			Text       string `json:"text"`
-			Rationale  string `json:"rationale"`
-			ActionHint string `json:"action_hint"`
+			Text            string `json:"text"`
+			Rationale       string `json:"rationale"`
+			ActionHint      string `json:"action_hint"`
+			ExecutionTarget *struct {
+				Type string `json:"type"`
+			} `json:"execution_target,omitempty"`
 		}{
-			{Text: "Next step", Rationale: "Reason", ActionHint: "plan"},
+			{
+				Text:       "Next step",
+				Rationale:  "Reason",
+				ActionHint: "plan",
+				ExecutionTarget: &struct {
+					Type string `json:"type"`
+				}{Type: "list"},
+			},
 		}
 		c.JSON(http.StatusOK, resp)
 		return
@@ -871,16 +890,34 @@ func AnalyzeCanvasFileGroup(c *gin.Context) {
 
 	var resp AnalyzeCanvasResponse
 	resp.Analysis.Summary = result.Summary
+	if result.DefaultExecutionTarget != nil {
+		resp.Analysis.DefaultExecutionTarget = &struct {
+			Type string `json:"type"`
+		}{Type: result.DefaultExecutionTarget.Type}
+	}
 	resp.Analysis.Observations = result.Observations
 	for _, s := range result.NextSteps {
+		var et *struct {
+			Type string `json:"type"`
+		}
+		if s.ExecutionTarget != nil {
+			et = &struct {
+				Type string `json:"type"`
+			}{Type: s.ExecutionTarget.Type}
+		}
+
 		resp.Analysis.NextSteps = append(resp.Analysis.NextSteps, struct {
-			Text       string `json:"text"`
-			Rationale  string `json:"rationale"`
-			ActionHint string `json:"action_hint"`
+			Text            string `json:"text"`
+			Rationale       string `json:"rationale"`
+			ActionHint      string `json:"action_hint"`
+			ExecutionTarget *struct {
+				Type string `json:"type"`
+			} `json:"execution_target,omitempty"`
 		}{
-			Text:       s.Text,
-			Rationale:  s.Rationale,
-			ActionHint: s.ActionHint,
+			Text:            s.Text,
+			Rationale:       s.Rationale,
+			ActionHint:      s.ActionHint,
+			ExecutionTarget: et,
 		})
 	}
 
@@ -2222,7 +2259,11 @@ func AISlashCommandAsk(c *gin.Context) {
 			ToolCalls: []domain.AIToolCall{
 				{ID: "tc-1", Name: "search_knowledge", Arguments: fmt.Sprintf(`{"query":"%s"}`, question), Result: "Success"},
 			},
-			Usage: &domain.AIUsage{InputTokens: 50, OutputTokens: 120, TotalTokens: 170},
+			Usage:    &domain.AIUsage{InputTokens: 50, OutputTokens: 120, TotalTokens: 170},
+			Analysis: map[string]any{
+				"summary": "Detected knowledge spike",
+				"default_execution_target": map[string]any{"type": "channel_message"},
+			},
 		}
 
 		meta := messageMetadata{

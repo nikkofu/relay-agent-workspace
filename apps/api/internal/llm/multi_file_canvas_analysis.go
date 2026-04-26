@@ -8,12 +8,18 @@ import (
 )
 
 type MultiFileAnalysisResult struct {
-	Summary      string `json:"summary"`
+	Summary                string `json:"summary"`
+	DefaultExecutionTarget *struct {
+		Type string `json:"type"`
+	} `json:"default_execution_target,omitempty"`
 	Observations []string `json:"observations"`
 	NextSteps    []struct {
-		Text       string `json:"text"`
-		Rationale  string `json:"rationale"`
-		ActionHint string `json:"action_hint"`
+		Text            string `json:"text"`
+		Rationale       string `json:"rationale"`
+		ActionHint      string `json:"action_hint"`
+		ExecutionTarget *struct {
+			Type string `json:"type"`
+		} `json:"execution_target,omitempty"`
 	} `json:"next_steps"`
 }
 
@@ -74,9 +80,15 @@ func BuildAnalysisPrompt(files []FileAnalysisInput) string {
 	b.WriteString("\nResponse MUST be a single JSON object with the following schema:\n")
 	b.WriteString("{\n")
 	b.WriteString("  \"summary\": \"Overall merged summary\",\n")
+	b.WriteString("  \"default_execution_target\": {\"type\": \"list|workflow|channel_message\"},\n")
 	b.WriteString("  \"observations\": [\"concise finding 1\", \"concise finding 2\"],\n")
 	b.WriteString("  \"next_steps\": [\n")
-	b.WriteString("    {\"text\": \"Step text\", \"rationale\": \"Short why\", \"action_hint\": \"summarize|compare|decide|share|plan|investigate|custom\"}\n")
+	b.WriteString("    {\n")
+	b.WriteString("      \"text\": \"Step text\",\n")
+	b.WriteString("      \"rationale\": \"Short why\",\n")
+	b.WriteString("      \"action_hint\": \"summarize|compare|decide|share|plan|investigate|custom\",\n")
+	b.WriteString("      \"execution_target\": {\"type\": \"list|workflow|channel_message\"}\n")
+	b.WriteString("    }\n")
 	b.WriteString("  ]\n")
 	b.WriteString("}\n")
 	
@@ -100,5 +112,25 @@ func ParseAnalysisResult(raw string) (*MultiFileAnalysisResult, error) {
 			Observations: []string{"Error: " + err.Error()},
 		}, nil
 	}
+
+	// Phase 70B: Harden execution targets
+	isValid := func(t string) bool {
+		switch t {
+		case "list", "workflow", "channel_message":
+			return true
+		}
+		return false
+	}
+
+	if result.DefaultExecutionTarget != nil && !isValid(result.DefaultExecutionTarget.Type) {
+		result.DefaultExecutionTarget = nil
+	}
+
+	for i := range result.NextSteps {
+		if result.NextSteps[i].ExecutionTarget != nil && !isValid(result.NextSteps[i].ExecutionTarget.Type) {
+			result.NextSteps[i].ExecutionTarget = nil
+		}
+	}
+
 	return &result, nil
 }

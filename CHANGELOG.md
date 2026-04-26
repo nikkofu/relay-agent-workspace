@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.61] - 2026-04-26
+
+### Added
+- **Typed Execution Targets (Backend)** — Added shared contract for execution targets across all AI surfaces. Supports `list`, `workflow`, and `channel_message` with deterministic inheritance.
+- **Harden AI Parsing** — Server-side validation and filtering of unknown execution target types to ensure contract stability.
+
+
 ## [0.6.60] - 2026-04-25
 
 ### Fixed
