@@ -487,12 +487,22 @@ func GetHome(c *gin.Context) {
 			"open_list_work":              listOpenWorkForHome(currentUser.ID, 5),
 			"tool_runs_needing_attention": listToolRunsNeedingAttentionForHome(currentUser.ID, 5),
 			"channel_execution_pulse":     listChannelExecutionPulseForHome(currentUser.ID, 5),
+			"recent_ai_executions":        listRecentAIExecutionsForHome(currentUser.ID, 5),
 			"knowledge_inbox_count":    knowledgeInboxCount,
 			"recent_knowledge_digests": knowledgeDigests,
-		},
-	})
-}
+			},
+			})
+			}
 
+			func listRecentAIExecutionsForHome(userID string, limit int) []domain.ExecutionHistoryEvent {
+				var events []domain.ExecutionHistoryEvent
+				_ = db.DB.Where("actor_user_id = ?", userID).
+					Where("event_type IN ?", []string{"created", "published", "failed"}).
+					Order("created_at desc").
+					Limit(limit).
+					Find(&events).Error
+				return events
+			}
 func GetUserGroups(c *gin.Context) {
 	query := db.DB.Model(&domain.UserGroup{})
 	if workspaceID := c.Query("workspace_id"); workspaceID != "" {

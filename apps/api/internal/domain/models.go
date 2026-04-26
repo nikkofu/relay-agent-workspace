@@ -825,3 +825,21 @@ type AIUsage struct {
 	TotalTokens  int     `json:"total_tokens"`
 	CostUSD      float64 `json:"cost_usd,omitempty"`
 }
+
+type ExecutionHistoryEvent struct {
+	ID                  string    `gorm:"primaryKey" json:"id"`
+	EventType           string    `gorm:"index" json:"event_type"` // draft_generated|confirmed|created|published|failed
+	Status              string    `gorm:"index" json:"status"`     // success|failed
+	ActorUserID         string    `gorm:"index" json:"actor_user_id"`
+	AnalysisSnapshotID  string    `gorm:"index" json:"analysis_snapshot_id"`
+	NextStepID          string    `gorm:"index" json:"next_step_id,omitempty"`
+	StepIndex           *int      `json:"step_index,omitempty"`
+	ExecutionTargetType string    `gorm:"index" json:"execution_target_type"` // list|workflow|channel_message
+	DraftID             string    `gorm:"index" json:"draft_id,omitempty"`
+	DraftType           string    `json:"draft_type,omitempty"`
+	CreatedObjectID     string    `gorm:"index" json:"created_object_id,omitempty"`
+	CreatedObjectType   string    `json:"created_object_type,omitempty"`
+	FailureStage        string    `json:"failure_stage,omitempty"` // draft_generation|confirmation|creation|publish
+	ErrorMessage        string    `json:"error_message,omitempty"`
+	CreatedAt           time.Time `gorm:"index" json:"created_at"`
+}

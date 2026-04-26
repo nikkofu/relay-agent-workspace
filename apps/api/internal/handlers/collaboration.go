@@ -879,9 +879,10 @@ type activityItem struct {
 	Channel    any         `json:"channel,omitempty"`
 	Message    any         `json:"message,omitempty"`
 	Target     string      `json:"target,omitempty"`
-	Summary    string      `json:"summary"`
-	OccurredAt time.Time   `json:"occurred_at"`
-	IsRead     bool        `json:"is_read"`
+	Summary    string         `json:"summary"`
+	OccurredAt time.Time      `json:"occurred_at"`
+	IsRead     bool           `json:"is_read"`
+	Metadata   map[string]any `json:"metadata,omitempty"`
 }
 
 func buildActivityFeed(currentUser domain.User) []activityItem {
@@ -1009,6 +1010,7 @@ func buildActivityFeed(currentUser domain.User) []activityItem {
 	activities = append(activities, buildStructuredListActivities(currentUser)...)
 	activities = append(activities, buildStructuredToolRunActivities(currentUser)...)
 	activities = append(activities, buildStructuredFileActivities(currentUser)...)
+	activities = append(activities, buildStructuredAIExecutionActivities(currentUser)...)
 
 	sort.Slice(activities, func(i, j int) bool {
 		return activities[i].OccurredAt.After(activities[j].OccurredAt)
@@ -1171,6 +1173,57 @@ func buildStructuredFileActivities(currentUser domain.User) []activityItem {
 			Target:     file.Name,
 			Summary:    actor.Name + " uploaded a file in #" + channel.Name,
 			OccurredAt: file.CreatedAt,
+		})
+	}
+	return items
+}
+
+func buildStructuredAIExecutionActivities(currentUser domain.User) []activityItem {
+	var rows []domain.ExecutionHistoryEvent
+	_ = db.DB.Where("actor_user_id = ?", currentUser.ID).Order("created_at desc").Limit(20).Find(&rows).Error
+
+	items := make([]activityItem, 0, len(rows))
+	for _, row := range rows {
+		if row.EventType == "draft_generated" || row.EventType == "confirmed" {
+			continue
+		}
+
+		summary := ""
+		switch row.EventType {
+		case "created":
+			summary = "AI created " + row.ExecutionTargetType
+			if row.CreatedObjectID != "" {
+				summary += ": " + row.CreatedObjectID
+			}
+		case "published":
+			summary = "AI published " + row.ExecutionTargetType
+			if row.CreatedObjectID != "" {
+				summary += ": " + row.CreatedObjectID
+			}
+		case "failed":
+			summary = "AI execution failed: " + row.ErrorMessage
+		default:
+			continue
+		}
+
+		var actor domain.User
+		db.DB.First(&actor, "id = ?", row.ActorUserID)
+
+		items = append(items, activityItem{
+			ID:         "activity-exec-" + row.ID,
+			Type:       "ai_execution",
+			User:       enrichUser(actor),
+			Summary:    summary,
+			OccurredAt: row.CreatedAt,
+			Metadata: map[string]any{
+				"event_type":            row.EventType,
+				"execution_target_type": row.ExecutionTargetType,
+				"created_object_id":     row.CreatedObjectID,
+				"created_object_type":   row.CreatedObjectType,
+				"failure_stage":         row.FailureStage,
+				"error_message":         row.ErrorMessage,
+				"analysis_snapshot_id":  row.AnalysisSnapshotID,
+			},
 		})
 	}
 	return items

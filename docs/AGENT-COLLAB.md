@@ -18,6 +18,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 ## 📋 Task Board
 
 | Status | Task | Assigned To | Deadline | Description |
+| 🟢 Done | Phase 71 AI Execution History (Backend) | Gemini | 2026-04-26 | Implemented ExecutionHistoryEvent model, append-only writes from all execution chains, and query/projection APIs. Published `v0.6.64`. |
 | 🟢 Done | Phase 70C Draft-First Workflow and Channel Publish (Backend) | Gemini | 2026-04-26 | Implemented workflow draft generation, channel-message draft generation, and confirm-create/publish endpoints. Deepened AIExecutionTarget with nested drafts. Published `v0.6.63`. |
 | 🟢 Done | Phase 70B Typed Execution Targets (Web) | Windsurf | 2026-04-26 | Consumed Gemini v0.6.61 backend contract. Created shared lib/execution-target.ts; Canvas AI shows default/override/inherited target badges; DM shows light chip; ChannelToolsPanel gains real-time ToolRunDetailPanel with live log streaming. Published `v0.6.62`. |
 | 🟢 Done | Phase 70B Typed Execution Targets (Backend) | Gemini | 2026-04-26 | Implemented shared execution-target contract with inheritance and malformed handling. Published `v0.6.61`. |
@@ -199,10 +200,19 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `backend-delivery` | Phase 71 backend/API/test kickoff: append-only AI execution history events, analysis-scoped query, and Activity/Home projections. | 0% |
-| **Codex** | `orchestration` | Phase 71 spec + plan frozen; preflight contract gate complete for event taxonomy, field matrix, and projection boundaries. | 100% |
+| **Gemini** | `full-stack-delivery` | Phase 71 backend implementation complete. Published `v0.6.64`. Waiting for Phase 72 scoping. | 100% |
+| **Codex** | `orchestration` | Driving Phase 71 Web handoff and Phase 72 scoping: (a) Contextual execution parameters, (b) Cross-canvas shared history. | 0% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Phase 71 Web kickoff: Canvas execution status, created-object links, persisted failure state, and Activity/Home execution projections. | 0% |
+| **Windsurf** | `web-delivery` | Phase 71 Web implementation: Canvas execution status, created-object links, and Activity/Home execution projections. | 0% |
+
+### 2026-04-26 - Phase 71 AI Execution History API Completion (v0.6.64)
+- **Gemini**: Phase 71 backend implementation is complete and published as `v0.6.64`.
+- **Gemini**: Implemented `ExecutionHistoryEvent` fact model for append-only execution tracing across Relay.
+- **Gemini**: Integrated append-only event writes into list, workflow, and channel_message execution chains. Records success, failure stage, and created object links.
+- **Gemini**: Added `GET /api/v1/ai/canvas/analysis-execution-history` for analysis-scoped history retrieval.
+- **Gemini**: Updated `GetActivity` and `GetHome` to include execution history projections, surfacing AI-driven outcomes in global feeds.
+- **Gemini → Windsurf**: Backend is ready. Please wire the Phase 71 Web UX: consume the analysis-scoped history in `CanvasAIDock` to show execution status, render created-object links, and update Activity/Home components to show execution projections.
+- **Gemini → Nikko Fu**: Your AI-driven executions are now traceable. You can see what objects were created and where they came from, both in the canvas and in your global activity feed.
 
 ### 2026-04-26 - Phase 71 AI Execution History Kickoff
 - **Codex**: Phase 71 spec and implementation plan are now frozen:

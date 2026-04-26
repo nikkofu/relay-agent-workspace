@@ -972,6 +972,22 @@ func AnalyzeCanvasFileGroup(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+func GetAnalysisExecutionHistory(c *gin.Context) {
+	snapshotID := c.Query("analysis_snapshot_id")
+	if snapshotID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "analysis_snapshot_id is required"})
+		return
+	}
+
+	var events []domain.ExecutionHistoryEvent
+	if err := db.DB.Where("analysis_snapshot_id = ?", snapshotID).Order("created_at asc").Find(&events).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load execution history"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"events": events})
+}
+
 func GenerateListDraftFromAnalysis(c *gin.Context) {
 	currentUser, err := getCurrentUser()
 	if err != nil {
@@ -1055,9 +1071,20 @@ func GenerateListDraftFromAnalysis(c *gin.Context) {
 	}
 
 	if err := db.DB.Create(&draft).Error; err != nil {
+		recordExecutionHistoryFailure(currentUser.ID, req.AnalysisSnapshotID, "list", "draft_generation", err.Error(), nil, "")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save list draft"})
 		return
 	}
+
+	recordExecutionHistoryEvent(domain.ExecutionHistoryEvent{
+		EventType:           "draft_generated",
+		Status:              "success",
+		ActorUserID:         currentUser.ID,
+		AnalysisSnapshotID:  req.AnalysisSnapshotID,
+		ExecutionTargetType: "list",
+		DraftID:             draft.ID,
+		DraftType:           "list",
+	})
 
 	type itemResp struct {
 		Title string `json:"title"`
@@ -1159,9 +1186,21 @@ func GenerateWorkflowDraftFromAnalysis(c *gin.Context) {
 	}
 
 	if err := db.DB.Create(&draft).Error; err != nil {
+		recordExecutionHistoryFailure(currentUser.ID, req.AnalysisSnapshotID, "workflow", "draft_generation", err.Error(), req.StepIndex, "")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save draft"})
 		return
 	}
+
+	recordExecutionHistoryEvent(domain.ExecutionHistoryEvent{
+		EventType:           "draft_generated",
+		Status:              "success",
+		ActorUserID:         currentUser.ID,
+		AnalysisSnapshotID:  req.AnalysisSnapshotID,
+		ExecutionTargetType: "workflow",
+		DraftID:             draft.ID,
+		DraftType:           "workflow",
+		StepIndex:           req.StepIndex,
+	})
 
 	c.JSON(http.StatusOK, gin.H{
 		"draft": gin.H{
@@ -1222,10 +1261,33 @@ func ConfirmCreateWorkflowFromDraft(c *gin.Context) {
 		UpdatedAt:   now,
 	}
 
+	recordExecutionHistoryEvent(domain.ExecutionHistoryEvent{
+		EventType:           "confirmed",
+		Status:              "success",
+		ActorUserID:         currentUser.ID,
+		AnalysisSnapshotID:  draft.AnalysisSnapshotID,
+		ExecutionTargetType: "workflow",
+		DraftID:             draft.ID,
+		DraftType:           "workflow",
+	})
+
 	if err := db.DB.Create(&workflow).Error; err != nil {
+		recordExecutionHistoryFailure(currentUser.ID, draft.AnalysisSnapshotID, "workflow", "creation", err.Error(), nil, "")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create workflow"})
 		return
 	}
+
+	recordExecutionHistoryEvent(domain.ExecutionHistoryEvent{
+		EventType:           "created",
+		Status:              "success",
+		ActorUserID:         currentUser.ID,
+		AnalysisSnapshotID:  draft.AnalysisSnapshotID,
+		ExecutionTargetType: "workflow",
+		DraftID:             draft.ID,
+		DraftType:           "workflow",
+		CreatedObjectID:     workflow.ID,
+		CreatedObjectType:   "workflow",
+	})
 
 	db.DB.Delete(&draft)
 
@@ -1315,9 +1377,21 @@ func GenerateMessageDraftFromAnalysis(c *gin.Context) {
 	}
 
 	if err := db.DB.Create(&draft).Error; err != nil {
+		recordExecutionHistoryFailure(currentUser.ID, req.AnalysisSnapshotID, "channel_message", "draft_generation", err.Error(), req.StepIndex, "")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save draft"})
 		return
 	}
+
+	recordExecutionHistoryEvent(domain.ExecutionHistoryEvent{
+		EventType:           "draft_generated",
+		Status:              "success",
+		ActorUserID:         currentUser.ID,
+		AnalysisSnapshotID:  req.AnalysisSnapshotID,
+		ExecutionTargetType: "channel_message",
+		DraftID:             draft.ID,
+		DraftType:           "channel_message",
+		StepIndex:           req.StepIndex,
+	})
 
 	c.JSON(http.StatusOK, gin.H{
 		"draft": gin.H{
@@ -1358,10 +1432,33 @@ func ConfirmPublishMessageFromDraft(c *gin.Context) {
 		CreatedAt: now,
 	}
 
+	recordExecutionHistoryEvent(domain.ExecutionHistoryEvent{
+		EventType:           "confirmed",
+		Status:              "success",
+		ActorUserID:         currentUser.ID,
+		AnalysisSnapshotID:  draft.AnalysisSnapshotID,
+		ExecutionTargetType: "channel_message",
+		DraftID:             draft.ID,
+		DraftType:           "channel_message",
+	})
+
 	if err := db.DB.Create(&message).Error; err != nil {
+		recordExecutionHistoryFailure(currentUser.ID, draft.AnalysisSnapshotID, "channel_message", "publish", err.Error(), nil, "")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to publish message"})
 		return
 	}
+
+	recordExecutionHistoryEvent(domain.ExecutionHistoryEvent{
+		EventType:           "published",
+		Status:              "success",
+		ActorUserID:         currentUser.ID,
+		AnalysisSnapshotID:  draft.AnalysisSnapshotID,
+		ExecutionTargetType: "channel_message",
+		DraftID:             draft.ID,
+		DraftType:           "channel_message",
+		CreatedObjectID:     message.ID,
+		CreatedObjectType:   "message",
+	})
 
 	db.DB.Delete(&draft)
 
@@ -1419,6 +1516,16 @@ func ConfirmCreateListFromDraft(c *gin.Context) {
 		UpdatedAt:   now,
 	}
 
+	recordExecutionHistoryEvent(domain.ExecutionHistoryEvent{
+		EventType:           "confirmed",
+		Status:              "success",
+		ActorUserID:         currentUser.ID,
+		AnalysisSnapshotID:  draft.AnalysisSnapshotID,
+		ExecutionTargetType: "list",
+		DraftID:             draft.ID,
+		DraftType:           "list",
+	})
+
 	if err := db.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&list).Error; err != nil {
 			return err
@@ -1441,9 +1548,22 @@ func ConfirmCreateListFromDraft(c *gin.Context) {
 		// Delete draft after successful creation
 		return tx.Delete(&draft).Error
 	}); err != nil {
+		recordExecutionHistoryFailure(currentUser.ID, draft.AnalysisSnapshotID, "list", "creation", err.Error(), nil, "")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create list from draft: " + err.Error()})
 		return
 	}
+
+	recordExecutionHistoryEvent(domain.ExecutionHistoryEvent{
+		EventType:           "created",
+		Status:              "success",
+		ActorUserID:         currentUser.ID,
+		AnalysisSnapshotID:  draft.AnalysisSnapshotID,
+		ExecutionTargetType: "list",
+		DraftID:             draft.ID,
+		DraftType:           "list",
+		CreatedObjectID:     list.ID,
+		CreatedObjectType:   "list",
+	})
 
 	broadcastStructuredRealtime("list.updated", list.ID, gin.H{"list": hydrateWorkspaceList(list, true)})
 
@@ -2583,4 +2703,30 @@ func AISlashCommandAsk(c *gin.Context) {
 	}()
 
 	c.JSON(http.StatusCreated, gin.H{"message": aiMsg})
+}
+
+func recordExecutionHistoryEvent(event domain.ExecutionHistoryEvent) {
+	if event.ID == "" {
+		event.ID = ids.NewPrefixedUUID("exec-hist")
+	}
+	if event.CreatedAt.IsZero() {
+		event.CreatedAt = time.Now().UTC()
+	}
+	if err := db.DB.Create(&event).Error; err != nil {
+		log.Printf("failed to record execution history event: %v", err)
+	}
+}
+
+func recordExecutionHistoryFailure(actorID, snapshotID, targetType, stage, errMsg string, stepIndex *int, stepID string) {
+	recordExecutionHistoryEvent(domain.ExecutionHistoryEvent{
+		EventType:           "failed",
+		Status:              "failed",
+		ActorUserID:         actorID,
+		AnalysisSnapshotID:  snapshotID,
+		ExecutionTargetType: targetType,
+		FailureStage:        stage,
+		ErrorMessage:        errMsg,
+		StepIndex:           stepIndex,
+		NextStepID:          stepID,
+	})
 }

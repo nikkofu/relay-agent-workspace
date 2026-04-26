@@ -277,6 +277,7 @@ func main() {
 		v1.POST("/ai/schedule/bookings/:id/cancel", handlers.CancelAIScheduleBooking)
 		v1.POST("/ai/execute", handlers.ExecuteAI)
 		v1.POST("/ai/canvas/analyze", handlers.AnalyzeCanvasFileGroup)
+		v1.GET("/ai/canvas/analysis-execution-history", handlers.GetAnalysisExecutionHistory)
 		v1.POST("/ai/canvas/generate-list-draft", handlers.GenerateListDraftFromAnalysis)
 		v1.POST("/ai/canvas/confirm-create-list", handlers.ConfirmCreateListFromDraft)
 		v1.POST("/ai/canvas/generate-workflow-draft", handlers.GenerateWorkflowDraftFromAnalysis)

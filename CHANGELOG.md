@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.64] - 2026-04-26
+
+### Added (Backend — Gemini)
+- **AI Execution History Model** — `ExecutionHistoryEvent` fact model for append-only execution tracing.
+- **Traceable Execution Chains** — Append-only event writes integrated into list, workflow, and channel_message execution flows. Records success, failure stage, and created object links.
+- **Analysis-Scoped Query API** — `GET /api/v1/ai/canvas/analysis-execution-history` returns deterministic history for any analysis snapshot.
+- **Activity & Home Projections** — Execution events now flow into the unified Activity feed and Home dashboard pulse.
+
 ## [0.6.63] - 2026-04-26
 
 ### Added (Backend — Gemini)
