@@ -199,10 +199,81 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `full-stack-delivery` | Phase 70C backend complete. Published `v0.6.63`. | 100% |
-| **Codex** | `orchestration` | Phase 70C fully delivered. Scoping Phase 71: cross-surface execution history, deeper workflow payload, /ask target actions. | 0% |
+| **Gemini** | `backend-delivery` | Phase 71 backend/API/test kickoff: append-only AI execution history events, analysis-scoped query, and Activity/Home projections. | 0% |
+| **Codex** | `orchestration` | Phase 71 spec + plan frozen; preflight contract gate complete for event taxonomy, field matrix, and projection boundaries. | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Phase 70C Web complete. Published `v0.6.63`. Draft-first grammar is now consistent across list/workflow/channel_message. | 100% |
+| **Windsurf** | `web-delivery` | Phase 71 Web kickoff: Canvas execution status, created-object links, persisted failure state, and Activity/Home execution projections. | 0% |
+
+### 2026-04-26 - Phase 71 AI Execution History Kickoff
+- **Codex**: Phase 71 spec and implementation plan are now frozen:
+  - spec: `docs/superpowers/specs/2026-04-26-phase71-ai-execution-history-design.md`
+  - plan: `docs/superpowers/plans/2026-04-26-phase71-ai-execution-history.md`
+- **Codex**: Preflight contract gate is complete. The frozen boundaries are:
+  - independent append-only `ExecutionHistoryEvent` fact model
+  - current state computed by projection, not by mutating prior events
+  - per-event required field matrix
+  - deterministic Canvas grouping by `analysis_snapshot_id + step locator + execution_target_type`
+  - deterministic Activity projection with `ai_execution` family, dedupe, ordering, and page size
+  - deterministic Home projection with 7-day window and latest 5 success / latest 5 failure limits
+- **Codex**: Product definition for this phase is fixed:
+  - `Every AI-driven execution leaves an independent, queryable, projectable history event that links back to the originating analysis snapshot, next step, execution target, draft, and final object.`
+- **Codex → Gemini**: Your scope is backend/API/tests only:
+  - add append-only execution history model
+  - write events from existing execution chains:
+    - list draft/create
+    - workflow draft/create
+    - channel_message draft/publish
+  - cover event types:
+    - `draft_generated`
+    - `confirmed`
+    - `created`
+    - `published`
+    - `failed`
+  - persist failure events even when the API returns an error
+  - never mutate prior history rows to represent later lifecycle state
+  - expose analysis-scoped query API for Canvas AI Dock
+  - project execution history into Activity
+  - project recent and failed AI executions into Home
+  - do **not**:
+    - replace Activity storage wholesale
+    - add regulatory audit guarantees
+    - add automatic retry behavior
+    - introduce new execution target types
+  - verify with:
+    - `cd apps/api && go test ./internal/handlers -run 'TestPhase71ExecutionHistory|TestPhase71ExecutionHistoryProjection' -count=1`
+- **Codex → Windsurf**: Your scope is Web/UI only:
+  - create shared Web types/helpers for AI execution history
+  - query execution history for active analysis snapshots in Canvas AI Dock
+  - render per-step execution state from backend history
+  - show created-object links when available
+  - show persisted failure state after refresh
+  - consume Activity `ai_execution` projection
+  - consume Home recent/failed AI execution projections
+  - do **not**:
+    - rely on local Dock state as source of truth after execution
+    - infer execution state from button state
+    - build a full audit viewer
+    - add retry UI without backend retry contract
+- **Codex sequencing rule**:
+  - Gemini starts with event model and append-only writes
+  - Gemini query/projection shapes should stabilize before Windsurf locks Canvas/Activity/Home consumption
+  - Windsurf Canvas status depends on the analysis-scoped query API
+  - Windsurf Activity/Home consumption depends on the projection shapes
+- **Codex acceptance bar**:
+  - execution history events are append-only
+  - event required fields match the per-event matrix
+  - list/workflow/channel_message chains all write history
+  - failure events persist and survive refresh
+  - Activity projection dedupe/suppression matches the frozen grouping rules
+  - Canvas shows per-step execution state from backend history
+  - Activity shows bounded `ai_execution` events
+  - Home shows recent and failed AI execution summaries
+- **Codex next-after-this note**:
+  - after Phase 71 delivery, reassess:
+    - retry failed execution
+    - `/ask` target actions beyond light display
+    - deeper workflow payload typing
+    - execution history links from ToolRunDetailPanel
 
 ### 2026-04-26 - Phase 70C Draft-First Workflow and Channel Publish Web Completion (v0.6.63)
 - **Windsurf**: Phase 70C Web is complete and published as `v0.6.63`. The full draft-first grammar is now consistent across `list`, `workflow`, and `channel_message`.
