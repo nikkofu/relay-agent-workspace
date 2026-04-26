@@ -1197,6 +1197,117 @@ export interface HomeAISuggestionItem {
   }
 }
 
+export type BusinessAppMode = "search" | "list" | "calendar" | "kanban" | "stats"
+
+export interface BusinessApp {
+  id: string
+  key: string
+  title: string
+  description?: string
+  icon?: string
+  modes: BusinessAppMode[]
+  primary_entity?: string
+}
+
+export interface BusinessAppSchemaField {
+  key: string
+  type: string
+  label: string
+}
+
+export interface BusinessAppSchema {
+  entity: string
+  fields: BusinessAppSchemaField[]
+}
+
+export interface SalesOrder {
+  id: string
+  order_number: string
+  customer_name: string
+  customer_id?: string
+  owner_user_id?: string
+  owner_name?: string
+  stage?: string
+  status?: string
+  priority?: string
+  amount?: number
+  currency?: string
+  probability?: number
+  expected_close_date?: string | null
+  order_date?: string | null
+  due_date?: string | null
+  last_activity_at?: string | null
+  source_channel_id?: string
+  source_message_id?: string
+  summary?: string
+  tags?: string[]
+  created_at?: string
+  updated_at?: string
+}
+
+export interface BusinessAppDataGroup {
+  id: string
+  key: string
+  title: string
+  count: number
+  records: SalesOrder[]
+}
+
+export interface BusinessAppViewState {
+  mode: BusinessAppMode
+  available_modes: BusinessAppMode[]
+}
+
+export interface BusinessAppDataResponse {
+  app?: BusinessApp | null
+  view: BusinessAppViewState
+  schema: BusinessAppSchema | null
+  records: SalesOrder[]
+  groups: BusinessAppDataGroup[]
+  next_cursor: string | null
+}
+
+export interface BusinessAppStatsStageBucket {
+  stage: string
+  count: number
+  sum: number
+}
+
+export interface BusinessAppExpectedCloseBucket {
+  label: string
+  count: number
+  amount: number
+}
+
+export interface BusinessAppStats {
+  total_amount?: number
+  weighted_pipeline_amount?: number
+  order_count?: number
+  open_count?: number
+  won_count?: number
+  lost_count?: number
+  at_risk_count?: number
+  by_stage: BusinessAppStatsStageBucket[]
+  expected_close_buckets?: BusinessAppExpectedCloseBucket[]
+}
+
+export interface BusinessAppStatsResponse {
+  app?: BusinessApp | null
+  stats: BusinessAppStats
+}
+
+export interface BusinessAppQueryState {
+  mode: BusinessAppMode
+  q?: string
+  stage?: string
+  status?: string
+  owner_user_id?: string
+  date_from?: string
+  date_to?: string
+  limit?: number
+  cursor?: string
+}
+
 export interface HomeAppToolItem {
   id: string
   title: string

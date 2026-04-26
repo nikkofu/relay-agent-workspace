@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.6.70] - 2026-04-27
+
+### Added (Web — Windsurf)
+- **App Hub + Sales App navigation** — Added an `Apps` primary-nav entry, shipped `/workspace/apps` as an App Hub landing surface, and exposed the first business app at `/workspace/apps/sales`.
+- **Reusable business-app Web contract** — Added `apps/web/lib/business-apps.ts`, `apps/web/stores/business-app-store.ts`, and shared Phase 73 types so the Web can normalize app metadata, Sales Order records, grouped multiview data, stats payloads, and routeable query state from Gemini's `v0.6.69` backend.
+- **Sales multiview workspace** — Built a reusable business-app shell with URL-backed mode/search/filter state and rendered Sales Orders across `search`, `list`, `calendar`, `kanban`, and `stats` modes without inventing separate app-specific datasets.
+- **Graceful multiview fallbacks** — Calendar and Kanban groupings degrade safely from the canonical Sales Order records if backend group envelopes are absent, stats remain read-only, and AI-native actions stay explicitly metadata-only in this phase.
+- **Home Apps & Tools App Hub promotion** — Home now pins `App Hub` and `Sales App` entry points ahead of backend-driven app/tool tiles while preserving existing WorkspaceView fallback behavior.
+
+### Verified
+- `apps/web`: `pnpm exec tsc --noEmit`
+- `apps/web`: `pnpm lint`
+
 ## [0.6.69] - 2026-04-27
 
 ### Added (Backend — Gemini)

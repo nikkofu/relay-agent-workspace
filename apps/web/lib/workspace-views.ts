@@ -1,3 +1,4 @@
+import { APPS_HUB_ROUTE, SALES_APP_ROUTE } from "@/lib/business-apps"
 import type { HomeAppToolItem, WorkspaceView, WorkspaceViewAction, WorkspaceViewKnownType, WorkspaceViewType } from "@/types"
 
 const KNOWN_WORKSPACE_VIEW_TYPES: WorkspaceViewKnownType[] = [
@@ -10,6 +11,8 @@ const KNOWN_WORKSPACE_VIEW_TYPES: WorkspaceViewKnownType[] = [
 ]
 
 const SUPPORTED_APP_TOOL_ROUTES = new Set<string>([
+  APPS_HUB_ROUTE,
+  SALES_APP_ROUTE,
   "/workspace/search",
   "/workspace/workflows",
   "/workspace/files",

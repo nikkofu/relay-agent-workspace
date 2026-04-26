@@ -1,6 +1,6 @@
 "use client"
 
-import { Home, MessageSquare, Bell, Bookmark, Sparkles, Users, Folder, Zap, Settings, Quote, Globe, Sun, Moon } from "lucide-react"
+import { Home, MessageSquare, Bell, Bookmark, Sparkles, Users, Folder, Zap, Settings, Quote, Globe, Sun, Moon, AppWindow } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -20,6 +20,7 @@ const NAV_ITEMS = [
   { icon: Home, label: "Home", href: "/workspace" },
   { icon: MessageSquare, label: "DMs", href: "/workspace/dms" },
   { icon: Bell, label: "Activity", href: "/workspace/activity" },
+  { icon: AppWindow, label: "Apps", href: "/workspace/apps" },
   { icon: Users, label: "People", href: "/workspace/people" },
   { icon: Folder, label: "Files", href: "/workspace/files" },
   { icon: Zap, label: "Workflows", href: "/workspace/workflows" },
@@ -85,7 +86,7 @@ export function PrimaryNav() {
 
       <div className="flex flex-col gap-1 w-full items-center">
         {NAV_ITEMS.map((item, idx) => {
-          const isActive = pathname === item.href
+          const isActive = pathname === item.href || (item.href !== "/workspace" && pathname.startsWith(`${item.href}/`))
           let unreadCount = 0
           if (item.label === "DMs") {
             unreadCount = conversations.reduce((acc, c) => acc + (c.unreadCount || 0), 0)

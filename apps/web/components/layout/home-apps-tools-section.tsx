@@ -1,12 +1,15 @@
 "use client"
 
+import { useMemo } from "react"
 import { useRouter } from "next/navigation"
 import type { LucideIcon } from "lucide-react"
 import {
   AlertCircle,
+  AppWindow,
   BarChart3,
   CalendarDays,
   ChevronRight,
+  DollarSign,
   FileSignature,
   Files,
   LayoutGrid,
@@ -18,6 +21,7 @@ import {
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { APPS_HUB_ROUTE, SALES_APP_ROUTE } from "@/lib/business-apps"
 import type { HomeAppToolItem, WorkspaceView } from "@/types"
 import {
   getWorkspaceViewKindLabel,
@@ -34,6 +38,8 @@ interface HomeAppsToolsSectionProps {
 }
 
 const iconByType: Record<string, LucideIcon> = {
+  apps: AppWindow,
+  sales: DollarSign,
   list: ListTodo,
   calendar: CalendarDays,
   search: Search,
@@ -56,6 +62,19 @@ export function HomeAppsToolsSection({
   workspaceViewsError,
 }: HomeAppsToolsSectionProps) {
   const router = useRouter()
+  const displayItems = useMemo<HomeAppToolItem[]>(() => {
+    const pinnedItems: HomeAppToolItem[] = [
+      { id: "app-hub", title: "App Hub", view_type: "apps", route: APPS_HUB_ROUTE },
+      { id: "app-sales", title: "Sales App", view_type: "sales", route: SALES_APP_ROUTE },
+    ]
+    const seen = new Set(pinnedItems.map((item) => item.route ?? item.id))
+    return [...pinnedItems, ...items.filter((item) => {
+      const key = item.route ?? item.id
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })]
+  }, [items])
 
   return (
     <div className="rounded-3xl border bg-white dark:bg-[#222529] shadow-sm">
@@ -69,10 +88,11 @@ export function HomeAppsToolsSection({
 
       <div className="p-5 space-y-5">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {items.map((item) => {
+          {displayItems.map((item) => {
             const Icon = getIcon(item.view_type)
             const href = resolveHomeAppToolHref(item)
             const disabled = !href
+            const kindLabel = item.view_type === "apps" ? "App Hub" : item.view_type === "sales" ? "Business App" : getWorkspaceViewKindLabel(item.view_type)
             return (
               <button
                 key={item.id}
@@ -92,7 +112,7 @@ export function HomeAppsToolsSection({
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       <Badge variant="outline" className="text-[10px] font-black uppercase tracking-widest">
-                        {getWorkspaceViewKindLabel(item.view_type)}
+                        {kindLabel}
                       </Badge>
                       <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
                         {disabled ? "Registry only" : "Open page"}

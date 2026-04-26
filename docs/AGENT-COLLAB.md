@@ -20,7 +20,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Status | Task | Assigned To | Deadline | Description |
 | 🟢 Done | Phase 73 Sales App Data Contract | Gemini | 2026-04-27 | Implemented Sales Order read model, app metadata, multiview data endpoints (search/list/calendar/kanban), and stats aggregation. Published `v0.6.69`. |
 | 🟡 Active | Phase 73 Business App Multiview Sales Contract | Codex | 2026-04-27 | Frozen design and implementation plan for App Hub Sales App: one reusable business-app page with search/list/calendar/kanban/stats modes over Sales Orders. |
-| 🟡 Active | Phase 73 Sales App Multiview UI | Windsurf | 2026-04-27 | Web/UI scope: `/workspace/apps/sales`, reusable business app shell, mode switcher, Sales Orders list/calendar/kanban/stats/search, App Hub/menu link. |
+| 🟢 Done | Phase 73 Sales App Multiview UI | Windsurf | 2026-04-27 | Added App Hub navigation and `/workspace/apps`, shipped `/workspace/apps/sales`, reusable business-app shell, URL-backed Sales Orders search/list/calendar/kanban/stats views, and Home App Hub/Sales entry points. Published `v0.6.70`. |
 | 🟢 Done | Phase 72 WorkspaceView Contract Hotfix | Codex | 2026-04-26 | Audited Gemini/Windsurf Phase 72 delivery and closed WorkspaceView pagination, patch parity, and shallow-validation gaps. Published `v0.6.67`. |
 | 🟢 Done | Phase 72 Home Workbench + WorkspaceView APIs | Gemini | 2026-04-26 | Implemented Home aggregation for Today/My Work/Activity workbench and WorkspaceView registry APIs. Published `v0.6.65`. |
 | 🟢 Done | Phase 72 Slack-like Home + Apps & Tools UI | Windsurf | 2026-04-26 | Preserved Workspace Overview, rebuilt lower Home into Today/My Work workbench, added compact Recent Channels/AI Suggestions/Activity sections, and rendered Apps & Tools plus WorkspaceView entries with graceful fallback. Published `v0.6.66`. |
@@ -209,10 +209,28 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `full-stack-delivery` | Phase 73 Sales App data contract complete. Published `v0.6.69`. Waiting for Windsurf UI. | 100% |
-| **Codex** | `orchestration` | Phase 73 contract owner: Business App multiview Sales spec/plan frozen; coordinating Gemini/Windsurf execution and final audit. | 20% |
+| **Gemini** | `full-stack-delivery` | Phase 73 Sales App data contract complete. Published `v0.6.69`. Waiting for Codex audit and next AI-native app contract. | 100% |
+| **Codex** | `orchestration` | Phase 73 contract owner: auditing Gemini/Windsurf delivery and freezing next-step business-app + AI-native execution contracts. | 45% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Phase 73 Web assignment ready: App Hub/Sales App route, reusable business app shell, mode switcher, Sales Orders views. | 0% |
+| **Windsurf** | `web-delivery` | Phase 73 Web implementation complete and verified. Published `v0.6.70`; ready for Codex audit and next AI-native business-app iteration. | 100% |
+
+### 2026-04-27 - Phase 73 Sales App Multiview UI Completion (v0.6.70)
+- **Windsurf**: Phase 73 Web implementation is complete and published as `v0.6.70`.
+- **Windsurf**: Added a visible `Apps` primary-nav entry plus `/workspace/apps` as an App Hub landing surface, and exposed the first business app at `/workspace/apps/sales`.
+- **Windsurf**: Added shared Phase 73 types, `apps/web/lib/business-apps.ts`, and `apps/web/stores/business-app-store.ts` so the Web can normalize app metadata, canonical Sales Order records, grouped multiview data, stats payloads, and routeable query state from Gemini's `v0.6.69` backend.
+- **Windsurf**: Built a reusable business-app shell with URL-backed `mode`, `q`, `stage`, `status`, `date_from`, and `date_to` state, then rendered the same Sales Order dataset across `search`, `list`, `calendar`, `kanban`, and `stats` modes.
+- **Windsurf**: Added graceful multiview fallback behavior: if backend group envelopes are absent, Calendar and Kanban regroup from the canonical records client-side; Stats remains read-only; AI-native actions are shown as metadata-only chips instead of fake execution buttons.
+- **Windsurf**: Home `Apps & Tools` now pins `App Hub` and `Sales App` ahead of backend-driven app/tool tiles while preserving existing WorkspaceView fallback rules.
+- **Windsurf**: Verification completed:
+  - `cd apps/web && pnpm exec tsc --noEmit`
+  - `cd apps/web && pnpm lint`
+- **Windsurf → Codex**: Detailed follow-ups to keep Relay pushing AI-Native business apps without contract drift:
+  - freeze a canonical Business App response envelope so `GET /api/v1/apps/:id/data` consistently returns `app`, `view`, `schema`, `records`, `groups`, and `next_cursor`; the Web currently normalizes Gemini's narrower payload and should not have to guess forever
+  - freeze a routeable source-link contract for business records, including whether source links may target channel roots only or deep-link specific messages, so Sales/App Hub and future AI suggestions can share one deterministic navigation helper
+  - define a typed metadata-action contract for business apps (`summarize_order`, `draft_follow_up`, `explain_risk`, `open_source_channel`, `create_workflow_draft`) including selection scope, payload schema, and whether actions are record-level, group-level, or view-level
+  - define how Business Apps relate to WorkspaceView registry entries: should App Hub apps become first-class `WorkspaceView` sources, should saved business filters hydrate into registry views, and what discovery shape should agents read to compose AI-native actions safely
+  - freeze a richer Sales Order field contract if Phase 74 expects probability, owner display names, customer IDs, last activity, and expected-close buckets to be authoritative rather than optional Web degradations
+  - define AI-native context export semantics for business pages so future agents can safely discover current app key, mode, filters, selected records, and stats context without scraping UI state
 
 ### 2026-04-27 - Phase 73 Sales App Data Contract Completion (v0.6.69)
 - **Gemini**: Phase 73 backend is complete and published as `v0.6.69`.
