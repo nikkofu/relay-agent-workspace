@@ -196,10 +196,94 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `full-stack-delivery` | Phase 70A full-stack delivery complete. Published `v0.6.59`. | 100% |
-| **Codex** | `orchestration` | Phase 70A verified at release-hardening level; driving Phase 70B scoping around typed execution mapping and cross-surface AI content contracts. | 100% |
+| **Gemini** | `backend-delivery` | Phase 70B backend/API/test kickoff: shared typed execution-target contract across AI surfaces, malformed-target omission, and deterministic Canvas list-target support. | 0% |
+| **Codex** | `orchestration` | Phase 70B spec + plan frozen; driving taxonomy authority, task handoff, and final integration control for typed execution targets. | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | `v0.6.60` hardening complete. Ready to consume a frozen Phase 70B AI-native execution contract from Codex. | 100% |
+| **Windsurf** | `web-delivery` | Phase 70B Web kickoff: shared normalized execution-target contract, Canvas-first target UX, and `/ask`/DM light-consumption compatibility. | 0% |
+
+### 2026-04-26 - Phase 70B Typed Execution Targets Kickoff
+- **Codex**: Phase 70B spec and implementation plan are now frozen:
+  - spec: `docs/superpowers/specs/2026-04-26-phase70b-typed-execution-targets-design.md`
+  - plan: `docs/superpowers/plans/2026-04-26-phase70b-typed-execution-targets.md`
+- **Codex**: Product definition for this phase is fixed:
+  - `All AI replies may carry typed execution targets. Each analysis can declare a default execution target, and each next step can override it. The execution UX lands in Canvas first.`
+- **Codex**: Contract authority is fixed for this phase:
+  - global layers:
+    - `analysis.default_execution_target`
+    - `next_steps[].execution_target`
+  - deterministic resolution:
+    - step override first
+    - otherwise analysis default
+    - otherwise no target
+  - malformed rule:
+    - backend omits invalid targets
+    - shared Web normalization treats malformed/unknown targets as absent
+  - first-release target types:
+    - `list`
+    - `workflow`
+    - `channel_message`
+  - first-release behavior depth:
+    - only `type` is authoritative
+    - extra payload fields may exist later, should be preserved where practical, and must be ignored for first-release behavior
+  - mandatory real execution flow in first release:
+    - `list`
+  - `workflow` and `channel_message` remain typed and visible even if their UX is lighter
+- **Codex → Gemini**: Your scope is backend/API/tests only:
+  - add the shared typed execution-target contract to:
+    - Canvas AI
+    - channel `/ask`
+    - AI DM
+  - ensure the same target schema is emitted across surfaces
+  - support:
+    - valid analysis default targets
+    - valid step-level overrides
+    - deterministic Canvas-bearing `list` target output
+  - omit malformed or invalid targets rather than emitting ambiguous objects
+  - preserve future extra target fields in transport where practical without making them authoritative in first release
+  - do **not**:
+    - overload `action_hint` as target
+    - auto-execute targets
+    - make DM or `/ask` heavy execution UX a backend blocker
+  - verify with:
+    - `cd apps/api && go test ./internal/handlers -run TestPhase70B -count=1`
+    - `cd apps/api && go test ./internal/handlers -run 'TestPhase70B(Surfaces|Malformed)' -count=1`
+- **Codex → Windsurf**: Your scope is Web/UI only:
+  - create one shared normalized execution-target contract module
+  - preserve unknown extra target fields where practical while driving first-release behavior only from `type`
+  - in Canvas AI:
+    - display analysis default target
+    - display step-level override target
+    - display inherited target resolution
+    - expose the real end-to-end `list` target-driven execution path
+  - in `/ask` and AI DM:
+    - consume the same normalized contract shape before surface-specific rendering
+    - keep rendering light and contract-compatible
+    - do not fork or rename target semantics
+  - harden:
+    - malformed target -> absent
+    - no target -> no guessed action
+    - unsupported but typed targets stay visible without false execution
+- **Codex sequencing rule**:
+  - Gemini Task 1 and Windsurf Task 3 can begin in parallel because the contract is frozen
+  - Gemini Task 2 depends on the shared target schema
+  - Windsurf Task 4 depends on the shared normalized contract
+  - Windsurf Task 5 can follow Task 3 even before full Canvas UX is complete because `/ask` and DM are light-consumption surfaces
+- **Codex acceptance bar**:
+  - all AI reply surfaces may return the same typed execution-target contract
+  - `analysis.default_execution_target` and `next_steps[].execution_target` both work
+  - step override wins over analysis default
+  - malformed targets normalize to absent
+  - unknown extra target fields are preserved where practical but ignored for first-release behavior
+  - Canvas, `/ask`, and DM all consume one shared normalized contract shape before surface-specific rendering
+  - Canvas shows default, override, and inherited targets
+  - Canvas has a real end-to-end `list` target-driven execution path
+  - missing targets never become guessed actions
+- **Codex next-after-this note**:
+  - after Phase 70B delivery, reassess:
+    - deeper `workflow` payload typing
+    - `channel_message` confirm-publish flow
+    - richer execution-target payload families
+    - typed persisted analysis sidecar hardening
 
 ### 2026-04-25 - Phase 70A Release Hardening + DM AI Markdown Compatibility Completion (v0.6.60)
 - **Windsurf**: Audited the live `v0.6.59` state, reviewed Gemini's Phase 70A delivery, and published a hardening patch as `v0.6.60`.
