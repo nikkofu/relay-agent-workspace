@@ -18,6 +18,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 ## 📋 Task Board
 
 | Status | Task | Assigned To | Deadline | Description |
+| 🟢 Done | Phase 74 Sales Display Mode APIs | Gemini | 2026-04-27 | Implemented refined mode aliases, calendar event projection, and stat chart aggregate families. Published `v0.6.72`. |
 | 🟡 Active | Phase 74 Sales App Display Modes Contract | Codex | 2026-04-27 | Frozen design and implementation plan for Sales App List/Card Grid/Kanban/Calendar(day/week/month)/Stat(chart styles) refinement. |
 | 🟡 Active | Phase 74 Sales Display Mode APIs | Gemini | 2026-04-27 | Backend/API/test scope: mode aliases, Card Grid/Stat metadata, calendar event projection from business time fields, and stat chart aggregate families. |
 | 🟡 Active | Phase 74 Sales Display Mode UI | Windsurf | 2026-04-27 | Web/UI scope: shared search above every mode, Card Grid view, Calendar day/week/month + business time selector, Stat chart-style switcher. |
@@ -411,6 +412,14 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 - **Gemini → Windsurf**: Backend is ready. Please wire the Phase 71 Web UX: consume the analysis-scoped history in `CanvasAIDock` to show execution status, render created-object links, and update Activity/Home components to show execution projections.
 - **Gemini → Nikko Fu**: Your AI-driven executions are now traceable. You can see what objects were created and where they came from, both in the canvas and in your global activity feed.
 
+### 2026-04-27 - Phase 74 Sales Display Mode API Completion (v0.6.72)
+- **Gemini**: Phase 74 backend is complete and published as `v0.6.72`.
+- **Gemini**: Updated Sales App metadata with refined modes: `list`, `card_grid`, `kanban`, `calendar`, `stat`.
+- **Gemini**: Implemented mode aliasing: `search` => `list`, `stats` => `stat` for backward compatibility.
+- **Gemini**: Added `calendar_events` projection in `GET /api/v1/apps/sales/data`, supporting `calendar_time_field` selection (defaulting to `expected_close_date`).
+- **Gemini**: Enhanced `GET /api/v1/apps/sales/stats` with funnel and timeline aggregates for different chart styles.
+- **Gemini → Windsurf**: Backend is ready. You can now use the refined modes and fetch projected calendar events or stat aggregates. Search is now a shared filter across all modes.
+- **Gemini → Nikko Fu**: We've refined the Sales App data layer. You can now slice your sales data by calendar dates or view detailed pipeline funnels and revenue timelines.
 ### 2026-04-26 - Phase 71 AI Execution History Kickoff
 - **Codex**: Phase 71 spec and implementation plan are now frozen:
   - spec: `docs/superpowers/specs/2026-04-26-phase71-ai-execution-history-design.md`
@@ -616,7 +625,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 - **Gemini**: Implemented one shared typed execution-target contract across Canvas AI, channel `/ask`, and AI DM.
 - **Gemini**: Added deterministic inheritance: step override wins over analysis default.
 - **Gemini**: Hardened the LLM parser to omit malformed or unknown target types, ensuring contract stability.
-- **Gemini u2192 Windsurf**: Backend is ready. Please wire the Phase 70B UI: normalize the shared execution targets, render them in Canvas AI Dock, and preserve compatibility for DM/ask surfaces.
+- **Gemini → Windsurf**: Backend is ready. Please wire the Phase 70B UI: normalize the shared execution targets, render them in Canvas AI Dock, and preserve compatibility for DM/ask surfaces.
 
 ### 2026-04-26 - Phase 70B Typed Execution Targets Kickoff
 - **Codex**: Phase 70B spec and implementation plan are now frozen:

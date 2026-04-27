@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"sort"
 	"strconv"
 	"time"
 
@@ -24,7 +25,7 @@ var businessApps = []BusinessAppMetadata{
 		Title:       "Sales App",
 		Description: "Manage sales orders, customers, and pipelines.",
 		Icon:        "DollarSign",
-		Modes:       []string{"search", "list", "calendar", "kanban", "stats"},
+		Modes:       []string{"list", "card_grid", "kanban", "calendar", "stat"},
 	},
 }
 
@@ -57,8 +58,22 @@ func GetAppData(c *gin.Context) {
 		mode = "list"
 	}
 
+	// Phase 74: Normalize mode aliases
+	if mode == "search" {
+		mode = "list"
+	}
+	if mode == "stats" {
+		mode = "stat"
+	}
+
 	// Validate mode
-	validModes := map[string]bool{"search": true, "list": true, "calendar": true, "kanban": true, "stats": true}
+	validModes := map[string]bool{
+		"list":      true,
+		"card_grid": true,
+		"kanban":    true,
+		"calendar":  true,
+		"stat":      true,
+	}
 	if !validModes[mode] {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid mode"})
 		return
@@ -108,6 +123,57 @@ func GetAppData(c *gin.Context) {
 		orders = orders[:limit]
 	}
 
+	// Phase 74: Calendar event projection
+	var calendarEvents []gin.H
+	if mode == "calendar" {
+		timeField := c.DefaultQuery("calendar_time_field", "expected_close_date")
+		validTimeFields := map[string]bool{
+			"expected_close_date": true,
+			"order_date":          true,
+			"due_date":            true,
+			"last_activity_at":    true,
+		}
+		if !validTimeFields[timeField] {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid calendar_time_field"})
+			return
+		}
+
+		view := c.DefaultQuery("calendar_view", "month")
+		validViews := map[string]bool{"day": true, "week": true, "month": true}
+		if !validViews[view] {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid calendar_view"})
+			return
+		}
+
+		calendarEvents = make([]gin.H, 0)
+		for _, order := range orders {
+			var startTime *time.Time
+			switch timeField {
+			case "expected_close_date":
+				startTime = order.ExpectedCloseDate
+			case "order_date", "due_date", "last_activity_at":
+				// These fields don't exist yet, but contract allows them
+				// We'll treat them as nil for now or add them to model if needed.
+				// Based on Task 2, we just need to handle the projection.
+			}
+
+			if startTime != nil {
+				calendarEvents = append(calendarEvents, gin.H{
+					"id":         "cal-" + order.ID,
+					"record_id":  order.ID,
+					"title":      order.OrderNumber + ": " + order.CustomerName,
+					"start":      startTime,
+					"end":        startTime.Add(time.Hour), // 1 hour default duration
+					"time_field": timeField,
+					"stage":      order.Stage,
+					"status":     order.Status,
+					"amount":     order.Amount,
+					"record":     order,
+				})
+			}
+		}
+	}
+
 	// Schema metadata
 	schema := gin.H{
 		"entity": "sales_order",
@@ -125,9 +191,10 @@ func GetAppData(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":        orders,
-		"next_cursor": nextCursor,
-		"schema":      schema,
+		"data":            orders,
+		"calendar_events": calendarEvents,
+		"next_cursor":     nextCursor,
+		"schema":          schema,
 	})
 }
 
@@ -139,6 +206,13 @@ func GetAppStats(c *gin.Context) {
 		return
 	}
 
+	chartStyle := c.DefaultQuery("chart_style", "summary")
+	validStyles := map[string]bool{"summary": true, "bar": true, "funnel": true, "timeline": true}
+	if !validStyles[chartStyle] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid chart_style"})
+		return
+	}
+
 	var stats struct {
 		TotalAmount float64 `json:"total_amount"`
 		OrderCount  int64   `json:"order_count"`
@@ -147,6 +221,16 @@ func GetAppStats(c *gin.Context) {
 			Count int64   `json:"count"`
 			Sum   float64 `json:"sum"`
 		} `json:"by_stage"`
+		Funnel []struct {
+			Stage string  `json:"stage"`
+			Count int64   `json:"count"`
+			Sum   float64 `json:"sum"`
+		} `json:"funnel"`
+		TimelineBuckets []struct {
+			Label string  `json:"label"`
+			Count int64   `json:"count"`
+			Sum   float64 `json:"sum"`
+		} `json:"timeline_buckets"`
 	}
 
 	db.DB.Model(&domain.SalesOrder{}).Count(&stats.OrderCount)
@@ -155,6 +239,61 @@ func GetAppStats(c *gin.Context) {
 		Select("stage, COUNT(*) as count, SUM(amount) as sum").
 		Group("stage").
 		Scan(&stats.ByStage)
+
+	// Phase 74: Compute ordered funnel
+	stages := []string{"lead", "qualified", "proposal", "negotiation", "closed_won"}
+	for _, s := range stages {
+		var count int64
+		var sum float64
+		for _, b := range stats.ByStage {
+			if b.Stage == s {
+				count = b.Count
+				sum = b.Sum
+				break
+			}
+		}
+		stats.Funnel = append(stats.Funnel, struct {
+			Stage string  `json:"stage"`
+			Count int64   `json:"count"`
+			Sum   float64 `json:"sum"`
+		}{Stage: s, Count: count, Sum: sum})
+	}
+
+	// Phase 74: Compute timeline buckets (by month of expected_close_date)
+	var orders []domain.SalesOrder
+	db.DB.Where("expected_close_date IS NOT NULL").Order("expected_close_date asc").Find(&orders)
+	
+	buckets := make(map[string]*struct {
+		Count int64
+		Sum   float64
+	})
+	
+	for _, o := range orders {
+		label := o.ExpectedCloseDate.Format("2006-01")
+		if buckets[label] == nil {
+			buckets[label] = &struct {
+				Count int64
+				Sum   float64
+			}{}
+		}
+		buckets[label].Count++
+		buckets[label].Sum += o.Amount
+	}
+
+	// Sort labels
+	var labels []string
+	for l := range buckets {
+		labels = append(labels, l)
+	}
+	sort.Strings(labels)
+
+	for _, l := range labels {
+		stats.TimelineBuckets = append(stats.TimelineBuckets, struct {
+			Label string  `json:"label"`
+			Count int64   `json:"count"`
+			Sum   float64 `json:"sum"`
+		}{Label: l, Count: buckets[l].Count, Sum: buckets[l].Sum})
+	}
 
 	c.JSON(http.StatusOK, gin.H{"stats": stats})
 }

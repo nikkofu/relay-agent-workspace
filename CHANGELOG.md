@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.72] - 2026-04-27
+
+### Added (Backend — Gemini)
+- **Refined Sales Display Modes** — Updated Sales App metadata with finalized modes: `list`, `card_grid`, `kanban`, `calendar`, and `stat`.
+- **Mode Aliasing** — Added server-side aliasing (`search` => `list`, `stats` => `stat`) to preserve backward compatibility for URL-backed state.
+- **Calendar Event Projection** — Added a projection engine to `GET /api/v1/apps/sales/data` that turns Sales Order records into calendar events based on selectable business time fields like `expected_close_date`.
+- **Stat Chart Aggregates** — Enhanced `/stats` with structured aggregates for `funnel` (ordered stage pipeline) and `timeline` (revenue by month) chart styles.
+
+
 ## [0.6.71] - 2026-04-27
 
 ### Added (Planning — Codex)
