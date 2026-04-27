@@ -1197,7 +1197,13 @@ export interface HomeAISuggestionItem {
   }
 }
 
-export type BusinessAppMode = "search" | "list" | "calendar" | "kanban" | "stats"
+export type BusinessAppMode = "list" | "card_grid" | "kanban" | "calendar" | "stat"
+
+export type BusinessCalendarView = "day" | "week" | "month"
+
+export type BusinessCalendarTimeField = "expected_close_date" | "order_date" | "due_date" | "last_activity_at"
+
+export type BusinessChartStyle = "summary" | "bar" | "funnel" | "timeline"
 
 export interface BusinessApp {
   id: string
@@ -1253,9 +1259,25 @@ export interface BusinessAppDataGroup {
   records: SalesOrder[]
 }
 
+export interface BusinessCalendarEvent {
+  id: string
+  record_id: string
+  title: string
+  start: string
+  end: string
+  time_field: BusinessCalendarTimeField
+  amount?: number
+  stage?: string
+  status?: string
+  record: SalesOrder | null
+}
+
 export interface BusinessAppViewState {
   mode: BusinessAppMode
   available_modes: BusinessAppMode[]
+  calendar_view?: BusinessCalendarView
+  calendar_time_field?: BusinessCalendarTimeField
+  chart_style?: BusinessChartStyle
 }
 
 export interface BusinessAppDataResponse {
@@ -1264,6 +1286,7 @@ export interface BusinessAppDataResponse {
   schema: BusinessAppSchema | null
   records: SalesOrder[]
   groups: BusinessAppDataGroup[]
+  calendar_events: BusinessCalendarEvent[]
   next_cursor: string | null
 }
 
@@ -1273,7 +1296,7 @@ export interface BusinessAppStatsStageBucket {
   sum: number
 }
 
-export interface BusinessAppExpectedCloseBucket {
+export interface BusinessAppTimelineBucket {
   label: string
   count: number
   amount: number
@@ -1288,11 +1311,14 @@ export interface BusinessAppStats {
   lost_count?: number
   at_risk_count?: number
   by_stage: BusinessAppStatsStageBucket[]
-  expected_close_buckets?: BusinessAppExpectedCloseBucket[]
+  funnel?: BusinessAppStatsStageBucket[]
+  timeline_buckets?: BusinessAppTimelineBucket[]
+  expected_close_buckets?: BusinessAppTimelineBucket[]
 }
 
 export interface BusinessAppStatsResponse {
   app?: BusinessApp | null
+  chart_style?: BusinessChartStyle
   stats: BusinessAppStats
 }
 
@@ -1304,6 +1330,9 @@ export interface BusinessAppQueryState {
   owner_user_id?: string
   date_from?: string
   date_to?: string
+  calendar_view?: BusinessCalendarView
+  calendar_time_field?: BusinessCalendarTimeField
+  chart_style?: BusinessChartStyle
   limit?: number
   cursor?: string
 }

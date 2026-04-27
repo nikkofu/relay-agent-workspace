@@ -30,6 +30,7 @@ interface BusinessAppShellProps {
   onFiltersChange: (patch: { stage?: string; status?: string; date_from?: string; date_to?: string }) => void
   stageOptions: SelectOption[]
   statusOptions: SelectOption[]
+  modeControls?: ReactNode
   summary?: ReactNode
   children: ReactNode
   className?: string
@@ -51,6 +52,7 @@ export function BusinessAppShell({
   onFiltersChange,
   stageOptions,
   statusOptions,
+  modeControls,
   summary,
   children,
   className,
@@ -164,6 +166,7 @@ export function BusinessAppShell({
               value={dateTo ?? ""}
               onChange={(event) => onFiltersChange({ date_to: event.target.value || undefined })}
             />
+            {modeControls ? <div className="flex flex-wrap items-center gap-2">{modeControls}</div> : null}
           </div>
         </form>
 

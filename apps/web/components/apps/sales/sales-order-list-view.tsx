@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Loader2, MessageSquareText, Search, Sparkles } from "lucide-react"
+import { Loader2, MessageSquareText, Sparkles } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -16,10 +16,8 @@ import {
 import type { BusinessAppSchema, SalesOrder } from "@/types"
 
 interface SalesOrderListViewProps {
-  mode: "list" | "search"
   records: SalesOrder[]
   schema: BusinessAppSchema | null
-  query?: string
   isLoading?: boolean
   error?: string | null
   nextCursor?: string | null
@@ -27,63 +25,9 @@ interface SalesOrderListViewProps {
   isLoadingMore?: boolean
 }
 
-function SearchResultCard({ order }: { order: SalesOrder }) {
-  const sourceHref = resolveSalesOrderSourceHref(order)
-
-  return (
-    <div className="rounded-2xl border bg-background/70 p-4 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-black tracking-tight">{order.customer_name}</p>
-            <Badge variant="outline" className="text-[10px] font-black uppercase tracking-widest">
-              {order.order_number}
-            </Badge>
-          </div>
-          <p className="text-xs text-muted-foreground">{order.summary ?? "No summary available."}</p>
-        </div>
-        <div className="text-right">
-          <p className="text-sm font-black">{formatSalesCurrency(order.amount, order.currency)}</p>
-          <p className="text-[11px] text-muted-foreground">Close {formatBusinessAppDate(order.expected_close_date)}</p>
-        </div>
-      </div>
-
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Badge className={`text-[10px] font-black uppercase tracking-widest ${getSalesOrderStageTone(order.stage)}`}>
-          {getSalesOrderStageLabel(order.stage)}
-        </Badge>
-        <Badge className={`text-[10px] font-black uppercase tracking-widest ${getSalesOrderStatusTone(order.status)}`}>
-          {getSalesOrderStatusLabel(order.status)}
-        </Badge>
-        {order.owner_name || order.owner_user_id ? (
-          <span className="text-[11px] text-muted-foreground">Owner {order.owner_name ?? order.owner_user_id}</span>
-        ) : null}
-        {sourceHref ? (
-          <Link href={sourceHref} className="inline-flex items-center gap-1 text-[11px] font-semibold text-violet-600 hover:underline">
-            <MessageSquareText className="h-3.5 w-3.5" />
-            Source channel
-          </Link>
-        ) : null}
-      </div>
-
-      {order.tags && order.tags.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {order.tags.map((tag) => (
-            <Badge key={`${order.id}-${tag}`} variant="secondary" className="text-[10px]">
-              {tag}
-            </Badge>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 export function SalesOrderListView({
-  mode,
   records,
   schema,
-  query,
   isLoading,
   error,
   nextCursor,
@@ -103,20 +47,6 @@ export function SalesOrderListView({
     )
   }
 
-  if (mode === "search" && !query?.trim()) {
-    return (
-      <div className="flex min-h-[260px] flex-col items-center justify-center gap-3 rounded-3xl border border-dashed bg-muted/10 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-500">
-          <Search className="h-6 w-6" />
-        </div>
-        <div className="space-y-1">
-          <p className="text-sm font-black tracking-tight">Search Sales Orders</p>
-          <p className="max-w-md text-sm text-muted-foreground">Search by customer, order number, summary, or tags. Results stay on the same Sales data contract as every other mode.</p>
-        </div>
-      </div>
-    )
-  }
-
   if (records.length === 0) {
     return (
       <div className="flex min-h-[220px] flex-col items-center justify-center gap-3 rounded-3xl border border-dashed bg-muted/10 text-center">
@@ -131,34 +61,15 @@ export function SalesOrderListView({
     )
   }
 
-  if (mode === "search") {
-    return (
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">
-            {records.length} result{records.length === 1 ? "" : "s"}{query ? ` for “${query}”` : ""}
-          </p>
-          {schema?.entity && <Badge variant="outline" className="text-[10px] font-black uppercase tracking-widest">{schema.entity}</Badge>}
-        </div>
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-          {records.map((order) => (
-            <SearchResultCard key={order.id} order={order} />
-          ))}
-        </div>
-        {nextCursor && onLoadMore && (
-          <div className="flex justify-center pt-2">
-            <Button variant="outline" onClick={onLoadMore} disabled={!!isLoadingMore}>
-              {isLoadingMore ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Load more
-            </Button>
-          </div>
-        )}
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">
+          {records.length} visible order{records.length === 1 ? "" : "s"}
+        </p>
+        {schema?.entity ? <Badge variant="outline" className="text-[10px] font-black uppercase tracking-widest">{schema.entity}</Badge> : null}
+      </div>
+
       <div className="hidden grid-cols-[1.1fr_1.1fr_0.9fr_0.9fr_0.9fr_0.9fr_0.9fr] gap-3 rounded-2xl border bg-muted/30 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground lg:grid">
         <span>Order</span>
         <span>Customer</span>

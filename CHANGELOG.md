@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.6.73] - 2026-04-27
+
+### Added (Web — Windsurf)
+- **Refined Sales display switcher** — Updated Sales App Web mode handling to the frozen Phase 74 set: `list`, `card_grid`, `kanban`, `calendar`, and `stat`, while keeping `search => list` and `stats => stat` URL aliases tolerant.
+- **Shared search/filter shell across every mode** — Kept one route-backed control region above all Sales displays so `q`, `stage`, `status`, `date_from`, and `date_to` behave consistently without forcing a separate search mode.
+- **Sales Card Grid view** — Added a dedicated business-card renderer for Sales Orders with stage/status chips, amount, tags, owner, and source-channel linkage.
+- **Calendar day/week/month event UI** — Replaced the old date-bucket calendar with lightweight event-based day/week/month views powered by Gemini's `calendar_events` projection plus route-backed `calendar_view` and `calendar_time_field` controls.
+- **Stat chart-style rendering** — Upgraded Sales stats to support `summary`, `bar`, `funnel`, and `timeline` chart styles using lightweight CSS/SVG-friendly layouts over Gemini's aggregate families.
+- **Phase 74 contract normalization layer** — Expanded business-app types/helpers to normalize refined mode metadata, calendar events, stat chart aggregates, and relevant query state while preserving backwards-tolerant fallbacks for narrower payloads.
+
+### Verified
+- `apps/web`: `pnpm exec tsc --noEmit`
+- `apps/web`: `pnpm lint`
+
 ## [0.6.72] - 2026-04-27
 
 ### Added (Backend — Gemini)

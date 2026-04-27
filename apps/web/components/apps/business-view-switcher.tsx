@@ -1,6 +1,7 @@
 "use client"
 
-import { BarChart3, CalendarDays, Columns3, Search, TableProperties } from "lucide-react"
+import type { ElementType } from "react"
+import { BarChart3, CalendarDays, Columns3, LayoutGrid, TableProperties } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { getBusinessAppModeLabel } from "@/lib/business-apps"
@@ -13,12 +14,12 @@ interface BusinessViewSwitcherProps {
   className?: string
 }
 
-const MODE_ICONS: Record<BusinessAppMode, React.ElementType> = {
-  search: Search,
+const MODE_ICONS: Record<BusinessAppMode, ElementType> = {
   list: TableProperties,
+  card_grid: LayoutGrid,
   calendar: CalendarDays,
   kanban: Columns3,
-  stats: BarChart3,
+  stat: BarChart3,
 }
 
 export function BusinessViewSwitcher({ mode, availableModes, onModeChange, className }: BusinessViewSwitcherProps) {

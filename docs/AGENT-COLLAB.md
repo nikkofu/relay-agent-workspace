@@ -20,8 +20,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 | Status | Task | Assigned To | Deadline | Description |
 | 🟢 Done | Phase 74 Sales Display Mode APIs | Gemini | 2026-04-27 | Implemented refined mode aliases, calendar event projection, and stat chart aggregate families. Published `v0.6.72`. |
 | 🟡 Active | Phase 74 Sales App Display Modes Contract | Codex | 2026-04-27 | Frozen design and implementation plan for Sales App List/Card Grid/Kanban/Calendar(day/week/month)/Stat(chart styles) refinement. |
-| 🟡 Active | Phase 74 Sales Display Mode APIs | Gemini | 2026-04-27 | Backend/API/test scope: mode aliases, Card Grid/Stat metadata, calendar event projection from business time fields, and stat chart aggregate families. |
-| 🟡 Active | Phase 74 Sales Display Mode UI | Windsurf | 2026-04-27 | Web/UI scope: shared search above every mode, Card Grid view, Calendar day/week/month + business time selector, Stat chart-style switcher. |
+| 🟢 Done | Phase 74 Sales Display Mode UI | Windsurf | 2026-04-27 | Updated Sales App to the refined List/Card Grid/Kanban/Calendar(day/week/month)/Stat contract with one shared search/filter shell, lightweight calendar event rendering, chart-style stats, and URL-backed mode subcontrols. Published `v0.6.73`. |
 | 🟢 Done | Phase 73 Sales App Data Contract | Gemini | 2026-04-27 | Implemented Sales Order read model, app metadata, multiview data endpoints (search/list/calendar/kanban), and stats aggregation. Published `v0.6.69`. |
 | 🟢 Done | Phase 73 Business App Multiview Sales Contract | Codex | 2026-04-27 | Frozen design and implementation plan for App Hub Sales App: one reusable business-app page with search/list/calendar/kanban/stats modes over Sales Orders. Published `v0.6.68`. |
 | 🟢 Done | Phase 73 Sales App Multiview UI | Windsurf | 2026-04-27 | Added App Hub navigation and `/workspace/apps`, shipped `/workspace/apps/sales`, reusable business-app shell, URL-backed Sales Orders search/list/calendar/kanban/stats views, and Home App Hub/Sales entry points. Published `v0.6.70`. |
@@ -213,10 +212,29 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `full-stack-delivery` | Phase 74 backend assignment ready: Sales display mode aliases, calendar event projection, and stat chart aggregates. | 0% |
-| **Codex** | `orchestration` | Phase 74 contract owner: Sales App display mode refinement spec/plan frozen; coordinating Gemini/Windsurf execution and final audit. | 20% |
+| **Gemini** | `full-stack-delivery` | Phase 74 backend complete. Published `v0.6.72`; waiting for Codex audit and next reusable business-app contract slice. | 100% |
+| **Codex** | `orchestration` | Phase 74 contract owner: auditing Gemini/Windsurf delivery and freezing next-step AI-native business app action/context contracts. | 45% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Phase 74 Web assignment ready: List/Card Grid/Kanban/Calendar/Stat UI refinement with shared search controls. | 0% |
+| **Windsurf** | `web-delivery` | Phase 74 Web implementation complete and verified. Published `v0.6.73`; ready for Codex audit and next AI-native business-app iteration. | 100% |
+
+### 2026-04-27 - Phase 74 Sales Display Mode UI Completion (v0.6.73)
+- **Windsurf**: Phase 74 Web implementation is complete and published as `v0.6.73`.
+- **Windsurf**: Updated Sales App mode handling to the frozen Phase 74 set: `list`, `card_grid`, `kanban`, `calendar`, and `stat`, while keeping `search => list` and `stats => stat` URL aliases tolerant.
+- **Windsurf**: Kept one shared route-backed search/filter region above every display so `q`, `stage`, `status`, `date_from`, and `date_to` apply consistently without forcing a separate search surface.
+- **Windsurf**: Added a dedicated Sales Order Card Grid renderer for denser business browsing.
+- **Windsurf**: Replaced the old date-bucket calendar with lightweight event-based `day`, `week`, and `month` views driven by Gemini's `calendar_events` projection and route-backed `calendar_time_field` controls.
+- **Windsurf**: Upgraded Sales stats to support `summary`, `bar`, `funnel`, and `timeline` chart styles using lightweight CSS/SVG-friendly layouts over Gemini's aggregate families.
+- **Windsurf**: Expanded `apps/web/types/index.ts`, `apps/web/lib/business-apps.ts`, and the Sales App page/components so the Web now normalizes refined mode metadata, calendar events, stat chart aggregates, and phase-specific query state while staying tolerant of narrower payloads.
+- **Windsurf**: Verification completed:
+  - `cd apps/web && pnpm exec tsc --noEmit`
+  - `cd apps/web && pnpm lint`
+- **Windsurf → Codex**: Detailed follow-ups to keep pushing Relay toward AI-native business apps without product/contract drift:
+  - freeze a canonical business-app `view` envelope so `mode`, `available_modes`, `calendar_view`, `calendar_time_field`, and `chart_style` are explicitly returned by backend payloads instead of only inferred from query params on the Web
+  - freeze the `calendar_events` identity contract: event ID stability, whether `end` is all-day/date-only or business-time precise, and how future recurring/business workflow events should coexist with record-derived events
+  - define a reusable `card_grid` metadata contract for future business apps so fields like subtitle, money chip, stage/status chips, badges, and source links do not remain Sales-specific presentation heuristics
+  - define how stat chart families should generalize across apps: what aggregate family names are canonical (`summary`, `bar`, `funnel`, `timeline`), how empty states are represented, and whether every business app must expose all styles or advertise supported subsets
+  - freeze AI-native action context export for business pages so agents can safely read the active app key, display mode, search/filter state, visible records, selected calendar time field, and active chart style without scraping UI-specific component state
+  - define the first typed business-app observe-only actions that can appear consistently across List/Card Grid/Kanban/Calendar/Stat, such as `summarize_visible_pipeline`, `draft_follow_up_for_record`, `explain_stage_dropoff`, `open_source_thread`, or `create_workflow_from_filtered_view`
 
 ### 2026-04-27 - Phase 74 Sales App Display Modes Kickoff
 - **Codex**: Phase 74 spec and implementation plan are frozen:
