@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.74] - 2026-04-27
+
+### Fixed (Web — Windsurf)
+- **Sales App blocking-route hotfix** — Wrapped `/workspace/apps/sales` search-param dependent client content in `<Suspense>` so Next.js no longer treats the route as blocking during navigation.
+- **Streaming fallback for Sales route** — Added a lightweight Sales App fallback shell so navigation can render immediately while route-backed query state resolves.
+
+### Verified
+- `apps/web`: `pnpm exec tsc --noEmit`
+
 ## [0.6.73] - 2026-04-27
 
 ### Added (Web — Windsurf)

@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useMemo, useState } from "react"
+import { Suspense, useEffect, useMemo, useState } from "react"
 import { ChevronLeft } from "lucide-react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useShallow } from "zustand/react/shallow"
@@ -56,7 +56,26 @@ function createEmptyData(mode: BusinessAppQueryState["mode"]): BusinessAppDataRe
   }
 }
 
-export default function SalesAppPage() {
+function SalesAppPageFallback() {
+  return (
+    <div className="flex h-full w-full flex-col overflow-hidden">
+      <div className="border-b bg-background px-6 py-3">
+        <Button asChild variant="ghost" size="sm" className="gap-1.5 text-[11px] font-black uppercase tracking-widest">
+          <Link href={APPS_HUB_ROUTE}>
+            <ChevronLeft className="h-3.5 w-3.5" />
+            App Hub
+          </Link>
+        </Button>
+      </div>
+
+      <div className="flex flex-1 items-center justify-center px-6 py-12 text-sm text-muted-foreground">
+        Loading Sales App…
+      </div>
+    </div>
+  )
+}
+
+function SalesAppPageContent() {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -349,5 +368,13 @@ export default function SalesAppPage() {
         )}
       </BusinessAppShell>
     </div>
+  )
+}
+
+export default function SalesAppPage() {
+  return (
+    <Suspense fallback={<SalesAppPageFallback />}>
+      <SalesAppPageContent />
+    </Suspense>
   )
 }
