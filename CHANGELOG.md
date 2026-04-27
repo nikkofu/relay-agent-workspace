@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.71] - 2026-04-27
+
+### Added (Planning — Codex)
+- **Phase 74 Sales App display mode refinement** — Frozen the next Sales App iteration: `List`, `Card Grid`, `Kanban`, `Calendar`, and `Stat`, with one shared search/filter area above every display mode.
+- **Calendar contract** — Calendar mode will project Sales Orders into business-time events using `expected_close_date`, `order_date`, `due_date`, or `last_activity_at`, with `day`, `week`, and `month` subviews inspired by calendar event models.
+- **Stat chart contract** — Stat mode will support `summary`, `bar`, `funnel`, and `timeline` chart styles from backend aggregate families.
+
+### Notes
+- `search` becomes a shared filter state, not a display mode.
+- `stats` is replaced by `stat`, with backwards-tolerant alias handling.
+- Phase 74 remains read-only for Sales Orders; no drag-to-update Kanban, full BI runtime, or full calendar scheduling product.
+
 ## [0.6.70] - 2026-04-27
 
 ### Added (Web — Windsurf)

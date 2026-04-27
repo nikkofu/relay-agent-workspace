@@ -18,8 +18,11 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 ## 📋 Task Board
 
 | Status | Task | Assigned To | Deadline | Description |
+| 🟡 Active | Phase 74 Sales App Display Modes Contract | Codex | 2026-04-27 | Frozen design and implementation plan for Sales App List/Card Grid/Kanban/Calendar(day/week/month)/Stat(chart styles) refinement. |
+| 🟡 Active | Phase 74 Sales Display Mode APIs | Gemini | 2026-04-27 | Backend/API/test scope: mode aliases, Card Grid/Stat metadata, calendar event projection from business time fields, and stat chart aggregate families. |
+| 🟡 Active | Phase 74 Sales Display Mode UI | Windsurf | 2026-04-27 | Web/UI scope: shared search above every mode, Card Grid view, Calendar day/week/month + business time selector, Stat chart-style switcher. |
 | 🟢 Done | Phase 73 Sales App Data Contract | Gemini | 2026-04-27 | Implemented Sales Order read model, app metadata, multiview data endpoints (search/list/calendar/kanban), and stats aggregation. Published `v0.6.69`. |
-| 🟡 Active | Phase 73 Business App Multiview Sales Contract | Codex | 2026-04-27 | Frozen design and implementation plan for App Hub Sales App: one reusable business-app page with search/list/calendar/kanban/stats modes over Sales Orders. |
+| 🟢 Done | Phase 73 Business App Multiview Sales Contract | Codex | 2026-04-27 | Frozen design and implementation plan for App Hub Sales App: one reusable business-app page with search/list/calendar/kanban/stats modes over Sales Orders. Published `v0.6.68`. |
 | 🟢 Done | Phase 73 Sales App Multiview UI | Windsurf | 2026-04-27 | Added App Hub navigation and `/workspace/apps`, shipped `/workspace/apps/sales`, reusable business-app shell, URL-backed Sales Orders search/list/calendar/kanban/stats views, and Home App Hub/Sales entry points. Published `v0.6.70`. |
 | 🟢 Done | Phase 72 WorkspaceView Contract Hotfix | Codex | 2026-04-26 | Audited Gemini/Windsurf Phase 72 delivery and closed WorkspaceView pagination, patch parity, and shallow-validation gaps. Published `v0.6.67`. |
 | 🟢 Done | Phase 72 Home Workbench + WorkspaceView APIs | Gemini | 2026-04-26 | Implemented Home aggregation for Today/My Work/Activity workbench and WorkspaceView registry APIs. Published `v0.6.65`. |
@@ -209,10 +212,45 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `full-stack-delivery` | Phase 73 Sales App data contract complete. Published `v0.6.69`. Waiting for Codex audit and next AI-native app contract. | 100% |
-| **Codex** | `orchestration` | Phase 73 contract owner: auditing Gemini/Windsurf delivery and freezing next-step business-app + AI-native execution contracts. | 45% |
+| **Gemini** | `full-stack-delivery` | Phase 74 backend assignment ready: Sales display mode aliases, calendar event projection, and stat chart aggregates. | 0% |
+| **Codex** | `orchestration` | Phase 74 contract owner: Sales App display mode refinement spec/plan frozen; coordinating Gemini/Windsurf execution and final audit. | 20% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Phase 73 Web implementation complete and verified. Published `v0.6.70`; ready for Codex audit and next AI-native business-app iteration. | 100% |
+| **Windsurf** | `web-delivery` | Phase 74 Web assignment ready: List/Card Grid/Kanban/Calendar/Stat UI refinement with shared search controls. | 0% |
+
+### 2026-04-27 - Phase 74 Sales App Display Modes Kickoff
+- **Codex**: Phase 74 spec and implementation plan are frozen:
+  - spec: `docs/superpowers/specs/2026-04-27-phase74-sales-app-display-modes-design.md`
+  - plan: `docs/superpowers/plans/2026-04-27-phase74-sales-app-display-modes.md`
+- **Codex**: Product definition is fixed:
+  - `Sales App should become the reference implementation for future business-app surfaces. The same Sales Orders data source must render through five display styles: List, Card Grid, Kanban, Calendar, and Stat. Every display style shares the same search and filter area at the top, and only the content region below changes.`
+- **Codex contract freeze**:
+  - valid modes: `list`, `card_grid`, `kanban`, `calendar`, `stat`
+  - deprecated aliases: `search` -> `list`, `stats` -> `stat`
+  - search is a shared filter above every mode, not a mode
+  - Calendar supports `day`, `week`, `month`
+  - Calendar business time fields: `expected_close_date`, `order_date`, `due_date`, `last_activity_at`
+  - Stat chart styles: `summary`, `bar`, `funnel`, `timeline`
+  - no Sales mutations, drag-and-drop Kanban updates, full BI engine, or full calendar scheduling product in Phase 74
+- **Codex → Gemini**: Your scope is backend/API/tests only:
+  - update app metadata modes
+  - normalize `search` and `stats` aliases
+  - add `calendar_events` projection for selected business time field
+  - validate `calendar_view` and `calendar_time_field`
+  - add stat aggregate families for `summary`, `bar`, `funnel`, and `timeline`
+  - verify with `cd apps/api && go test ./internal/handlers -run 'TestPhase73BusinessApps|TestPhase74' -count=1`
+- **Codex → Windsurf**: Your scope is Web/UI only:
+  - update mode switcher to List/Card Grid/Kanban/Calendar/Stat
+  - keep one shared search/filter area above all modes
+  - add Sales Order Card Grid
+  - upgrade Calendar to day/week/month subviews with business time field selector
+  - upgrade Stat to chart-style selector and summary/bar/funnel/timeline renderers
+  - prefer lightweight CSS/SVG implementation; do not add `react-big-calendar` or chart dependencies unless explicitly approved later
+  - verify with `cd apps/web && pnpm exec tsc --noEmit` and `cd apps/web && pnpm lint`
+- **Codex sequencing rule**:
+  - Gemini mode metadata and aliases must land before Windsurf locks Web mode types
+  - Gemini Calendar and Stat projections can be implemented as separate tested slices
+  - Windsurf Calendar and Stat UI can proceed in parallel after Web mode/type helpers are updated
+  - Codex performs final contract audit before release closeout
 
 ### 2026-04-27 - Phase 73 Sales App Multiview UI Completion (v0.6.70)
 - **Windsurf**: Phase 73 Web implementation is complete and published as `v0.6.70`.
