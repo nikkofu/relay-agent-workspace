@@ -19,6 +19,7 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Status | Task | Assigned To | Deadline | Description |
 | :--- | :--- | :--- | :--- | :--- |
+| 🟢 Done | Phase 75 Atomic Mentions Integration Hotfix | Codex | 2026-04-29 | Fixed mention trigger replacement, atomic Backspace behavior, AI-to-AI loop guard, final stream message correlation, `/ask` normalization, Web user type defaults, and streamed tool-call merging. Published `v0.6.76`. |
 | 🟢 Done | Phase 75 Atomic Mentions + Channel AI Replies Contract | Codex | 2026-04-29 | Frozen design/plan and coordinated the implementation/verification envelope for atomic `@user` chips, durable AI/bot user classification, channel AI mention auto-replies, and DM-style AI sidecar rendering in channel messages. Release `v0.6.75` prepared. |
 | 🟢 Done | Phase 75 Atomic Mention + Channel AI Backend | Gemini | 2026-04-29 | Implemented `user_type`, structured mention parsing, deterministic mention persistence, channel AI mention trigger + stream events, and `/ask` compatibility with focused backend tests. |
 | 🟢 Done | Phase 75 Atomic Mention + Channel AI Web | Windsurf | 2026-04-29 | Implemented Tiptap atomic mention chip, structured mention picker target shape, metadata-preserving realtime message mapping, and channel AI streaming UI. |

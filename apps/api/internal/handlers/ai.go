@@ -306,6 +306,10 @@ func buildChannelAIPrompt(aiUser domain.User, recentMessages []domain.Message, l
 }
 
 func broadcastChannelAIStreamChunk(channelID, tempID, triggerMessageID, aiUserID, kind, chunk string, isFinal bool) {
+	broadcastChannelAIStreamChunkWithMessageID(channelID, tempID, triggerMessageID, aiUserID, kind, chunk, "", isFinal)
+}
+
+func broadcastChannelAIStreamChunkWithMessageID(channelID, tempID, triggerMessageID, aiUserID, kind, chunk, messageID string, isFinal bool) {
 	if RealtimeHub == nil {
 		return
 	}
@@ -326,6 +330,7 @@ func broadcastChannelAIStreamChunk(channelID, tempID, triggerMessageID, aiUserID
 			"ai_user_id":         aiUserID,
 			"kind":               kind,
 			"chunk":              chunk,
+			"message_id":          messageID,
 			"is_final":           isFinal,
 		},
 	})
@@ -337,6 +342,10 @@ func triggerChannelAIMentionReply(channelID, triggerMessageID, aiUserID, senderU
 	}
 	var triggerMessage domain.Message
 	if err := db.DB.First(&triggerMessage, "id = ? AND channel_id = ?", triggerMessageID, channelID).Error; err != nil {
+		return
+	}
+	var sender domain.User
+	if err := db.DB.First(&sender, "id = ?", triggerMessage.UserID).Error; err == nil && isAIUser(sender) {
 		return
 	}
 	if triggerMessage.UserID == aiUserID || triggerMessage.UserID == senderUserID {
@@ -453,7 +462,7 @@ finalize:
 		log.Printf("[ai-channel] failed to save reply: %v", err)
 		return
 	}
-	broadcastChannelAIStreamChunk(channelID, tempID, triggerMessageID, aiUser.ID, "answer", "", true)
+	broadcastChannelAIStreamChunkWithMessageID(channelID, tempID, triggerMessageID, aiUser.ID, "answer", "", aiMessage.ID, true)
 	if updated, err := refreshMessageMetadata(aiMessage.ID); err == nil && updated != nil {
 		_ = broadcastRealtimeEvent("message.created", *updated, *updated)
 	}
@@ -2864,7 +2873,10 @@ func AISlashCommandAsk(c *gin.Context) {
 		return
 	}
 
-	question := strings.TrimPrefix(input.Content, "/ask ")
+	question := strings.TrimSpace(input.Content)
+	if strings.HasPrefix(strings.ToLower(question), "/ask") {
+		question = strings.TrimSpace(question[len("/ask"):])
+	}
 	aiUser, err := preferredAIUserForChannel(channelID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to resolve ai user"})

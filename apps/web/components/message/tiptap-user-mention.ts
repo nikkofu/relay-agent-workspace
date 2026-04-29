@@ -96,16 +96,10 @@ export const UserMention = Node.create({
       insertUserMention:
         (attrs: UserMentionAttrs) =>
         ({ chain }) =>
-          chain().insertContent([
-            {
-              type: this.name,
-              attrs,
-            },
-            {
-              type: "text",
-              text: " ",
-            },
-          ]).run(),
+          chain().insertContent({
+            type: this.name,
+            attrs,
+          }).run(),
     }
   },
 

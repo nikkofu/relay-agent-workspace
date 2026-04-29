@@ -2,6 +2,7 @@ import { create } from "zustand"
 import { Message } from "@/types"
 import { API_BASE_URL } from "@/lib/constants"
 import { toast } from "sonner"
+import type { AIToolCall } from "@/lib/ai-sidecar"
 
 interface MessageState {
   messages: Message[]
@@ -32,7 +33,7 @@ interface MessageState {
   // Streaming DM messages from AI
   streamingDMMessages: Record<string, { dmId: string; text: string }>
   addStreamingChunk: (tempId: string, dmId: string, chunk: string, isFinal: boolean) => void
-  streamingChannelMessages: Record<string, { channelId: string; aiUserId: string; triggerMessageId: string; createdAt: string; answer: string; reasoning: string; toolCalls: { id: string; name: string; arguments: string }[]; usage?: Record<string, unknown> }>
+  streamingChannelMessages: Record<string, { channelId: string; aiUserId: string; triggerMessageId: string; createdAt: string; answer: string; reasoning: string; toolCalls: AIToolCall[]; usage?: Record<string, unknown> }>
   addChannelStreamingChunk: (tempId: string, payload: { channelId: string; aiUserId: string; triggerMessageId: string; kind: string; chunk: string; isFinal: boolean }) => void
   clearChannelStreamingForTrigger: (triggerMessageId: string, aiUserId?: string) => void
 }
@@ -261,7 +262,30 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       const toolCalls = existing?.toolCalls ? [...existing.toolCalls] : []
       let usage = existing?.usage
       if (payload.kind === "tool_call" && payload.chunk) {
-        toolCalls.push({ id: `${tempId}-tool-${toolCalls.length + 1}`, name: "channel_context", arguments: payload.chunk })
+        let nextTool: AIToolCall = {
+          id: `${tempId}-tool-${toolCalls.length + 1}`,
+          name: "channel_context",
+          status: "running",
+          input_summary: payload.chunk,
+        }
+        try {
+          const parsed = JSON.parse(payload.chunk)
+          if (parsed && typeof parsed === "object") {
+            nextTool = {
+              id: typeof parsed.id === "string" ? parsed.id : nextTool.id,
+              name: typeof parsed.name === "string" ? parsed.name : typeof parsed.tool_name === "string" ? parsed.tool_name : nextTool.name,
+              status: parsed.status === "pending" || parsed.status === "running" || parsed.status === "success" || parsed.status === "failed" ? parsed.status : nextTool.status,
+              input_summary: typeof parsed.input_summary === "string" ? parsed.input_summary : typeof parsed.arguments === "string" ? parsed.arguments : nextTool.input_summary,
+              output_summary: typeof parsed.output_summary === "string" ? parsed.output_summary : typeof parsed.result === "string" ? parsed.result : undefined,
+              duration_ms: typeof parsed.duration_ms === "number" ? parsed.duration_ms : undefined,
+            }
+          }
+        } catch {
+          // Plain-text tool deltas are still valid; render them as input summary.
+        }
+        const index = toolCalls.findIndex(tool => tool.id === nextTool.id)
+        if (index >= 0) toolCalls[index] = { ...toolCalls[index], ...nextTool }
+        else toolCalls.push(nextTool)
       }
       if (payload.kind === "usage" && payload.chunk) {
         try {

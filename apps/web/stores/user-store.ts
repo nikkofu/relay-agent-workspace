@@ -25,9 +25,9 @@ interface UserState {
 
 const AI_DICEBEAR_URL = "https://api.dicebear.com/7.x/bottts/svg?seed=ai"
 
-const normalizeUserType = (value: unknown): UserType | undefined => {
+const normalizeUserType = (value: unknown): UserType => {
   if (value === "human" || value === "bot" || value === "ai") return value
-  return undefined
+  return "human"
 }
 
 export const isAIUserLike = (user: Pick<User, "id" | "name" | "email" | "userType"> | null | undefined) => {

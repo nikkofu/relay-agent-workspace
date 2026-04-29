@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.6.76] - 2026-04-29
+
+### Fixed (Integration — Codex)
+- **Atomic mention replacement** — Fixed `@user` selection so the full typed mention trigger range is replaced by one Tiptap atom instead of leaving stale trigger text in the draft.
+- **Atomic mention Backspace behavior** — Removed the automatic trailing spacer from inserted user-mention atoms so Backspace at the chip boundary deletes the whole mention component, not just whitespace.
+- **Channel AI loop guard** — Hardened channel AI mention replies so AI-authored messages do not trigger additional AI replies to other bots.
+- **Channel AI stream final correlation** — Added `message_id` to final `channel.ai.stream.chunk` events so clients can correlate the temporary stream with the persisted AI reply.
+- **`/ask` input normalization** — Normalized bare `/ask`, repeated whitespace, and direct question payloads before building channel AI questions.
+- **Web AI stream tool-call merging** — Preserved streamed tool identity when the backend sends structured tool-call deltas, with safe plain-text fallback.
+- **Web user type default** — Normalized missing `user_type` to canonical `human` at the Web store boundary.
+
+### Verified
+- `apps/api`: `go test ./internal/handlers -run 'TestPhase75|TestPhase65CAISlashCommandAsk|TestCreateMessage|TestCreateDMMessage' -count=1`
+- `apps/web`: `pnpm exec tsc --noEmit`
+- `apps/web`: `pnpm lint`
+
 ## [0.6.75] - 2026-04-29
 
 ### Added (Backend + Web — Gemini/Windsurf)

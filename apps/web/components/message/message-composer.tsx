@@ -83,6 +83,7 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
   const [entityMentionQuery, setEntityMentionQuery] = useState("")
   const [entitySuggestions, setEntitySuggestions] = useState<EntitySuggestResult[]>([])
   const [isLoadingEntitySuggestions, setIsLoadingEntitySuggestions] = useState(false)
+  const mentionStartRef = useRef<number>(0)
   const entityMentionStartRef = useRef<number>(0)
   const entitySuggestTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const { openCanvas } = useUIStore()
@@ -232,12 +233,15 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
         setSlashQuery("")
       }
 
-      if (lastChar === "@") {
+      const mentionMatch = text.match(/@([^\s@]*)$/)
+      if (mentionMatch) {
+        mentionStartRef.current = editor.state.selection.to - mentionMatch[0].length
         setShowMentions(true)
         setShowSlashCommands(false)
         setShowEntityMentions(false)
       } else {
-        if (!text.includes("@")) setShowMentions(false)
+        setShowMentions(false)
+        mentionStartRef.current = 0
       }
 
       // @entity: autocomplete
@@ -433,20 +437,21 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
   const handleMentionSelect = (target: ComposerMentionTarget) => {
     if (!editor) return
     const to = editor.state.selection.to
-    const from = Math.max(1, to - 1)
+    const from = mentionStartRef.current > 0 ? mentionStartRef.current : Math.max(1, to - 1)
     const chain = editor.chain().focus().deleteRange({ from, to })
     if (target.kind === "user") {
       chain.insertUserMention({
         kind: "user",
         userId: target.user_id,
         name: target.name,
-        userType: target.user_type,
+        userType: target.user_type ?? "human",
         mentionText: `@${target.name}`,
       }).run()
     } else {
       chain.insertContent(`@${target.handle} `).run()
     }
     setShowMentions(false)
+    mentionStartRef.current = 0
     editor.commands.focus()
   }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/nikkofu/relay-agent-workspace/api/internal/db"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/domain"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/llm"
+	"github.com/nikkofu/relay-agent-workspace/api/internal/realtime"
 )
 
 type stubGateway struct{}
@@ -465,13 +467,53 @@ func TestPhase65CAISlashCommandAsk(t *testing.T) {
 	router := gin.New()
 	router.POST("/api/v1/channels/:id/messages/ask", AISlashCommandAsk)
 
-	rec := httptest.NewRecorder()
-	reqBody := `{"content":"/ask how to deploy?"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/channels/ch-1/messages/ask", strings.NewReader(reqBody))
-	req.Header.Set("Content-Type", "application/json")
-	router.ServeHTTP(rec, req)
+	for _, content := range []string{"/ask how to deploy?", "/ask    how to deploy?", "how to deploy?"} {
+		t.Run(content, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			reqBody := fmt.Sprintf(`{"content":%q}`, content)
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/channels/ch-1/messages/ask", strings.NewReader(reqBody))
+			req.Header.Set("Content-Type", "application/json")
+			router.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusCreated && rec.Code != http.StatusOK {
-		t.Fatalf("expected 200/201, got %d body=%s", rec.Code, rec.Body.String())
+			if rec.Code != http.StatusCreated && rec.Code != http.StatusOK {
+				t.Fatalf("expected 200/201, got %d body=%s", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestPhase75ChannelAIStreamFinalIncludesMessageID(t *testing.T) {
+	setupTestDB(t)
+	db.DB.Create(&domain.Workspace{ID: "ws-1", Name: "Relay"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", Name: "ops", WorkspaceID: "ws-1"})
+
+	hub := realtime.NewHub()
+	go hub.Run()
+	SetRealtimeHub(hub)
+	defer SetRealtimeHub(nil)
+	client := realtime.NewTestClient(2)
+	hub.RegisterTestClient(client)
+	defer hub.UnregisterTestClient(client)
+
+	waitForCondition(t, time.Second, func() bool { return hub.ClientCount() == 1 })
+	broadcastChannelAIStreamChunkWithMessageID("ch-1", "stream-1", "msg-trigger", "user-2", "answer", "", "msg-final", true)
+
+	raw, err := client.Receive(time.Second)
+	if err != nil {
+		t.Fatalf("failed to receive final stream event: %v", err)
+	}
+	var event realtime.Event
+	if err := json.Unmarshal(raw, &event); err != nil {
+		t.Fatalf("failed to decode final stream event: %v", err)
+	}
+	if event.Type != "channel.ai.stream.chunk" {
+		t.Fatalf("expected channel.ai.stream.chunk, got %s", event.Type)
+	}
+	payload, ok := event.Payload.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map payload, got %#v", event.Payload)
+	}
+	if payload["message_id"] != "msg-final" || payload["is_final"] != true {
+		t.Fatalf("expected final payload with message_id, got %#v", payload)
 	}
 }

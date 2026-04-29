@@ -7686,10 +7686,12 @@ func TestPhase75ChannelAIMentionReply(t *testing.T) {
 	db.DB.Create(&domain.User{ID: "user-1", OrganizationID: "org-1", Name: "Nikko", Email: "nikko@example.com", UserType: "human"})
 	db.DB.Create(&domain.User{ID: "user-2", OrganizationID: "org-1", Name: "AI Assistant", Email: "ai@example.com", UserType: "ai"})
 	db.DB.Create(&domain.User{ID: "user-3", OrganizationID: "org-1", Name: "Jane", Email: "jane@example.com", UserType: "human"})
+	db.DB.Create(&domain.User{ID: "user-4", OrganizationID: "org-1", Name: "Build Bot", Email: "build-bot@example.com", UserType: "bot"})
 	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public"})
 	db.DB.Create(&domain.ChannelMember{ChannelID: "ch-1", UserID: "user-1", Role: "owner"})
 	db.DB.Create(&domain.ChannelMember{ChannelID: "ch-1", UserID: "user-2", Role: "member"})
 	db.DB.Create(&domain.ChannelMember{ChannelID: "ch-1", UserID: "user-3", Role: "member"})
+	db.DB.Create(&domain.ChannelMember{ChannelID: "ch-1", UserID: "user-4", Role: "member"})
 
 	router := gin.New()
 	router.POST("/api/v1/messages", CreateMessage)
@@ -7756,6 +7758,25 @@ func TestPhase75ChannelAIMentionReply(t *testing.T) {
 		db.DB.Model(&domain.Message{}).Where("channel_id = ?", "ch-1").Count(&count)
 		if count != 3 {
 			t.Fatalf("expected no extra AI reply for human mention, got %d messages", count)
+		}
+	})
+
+	t.Run("ai authored mention does not trigger another ai", func(t *testing.T) {
+		var before int64
+		db.DB.Model(&domain.Message{}).Where("channel_id = ?", "ch-1").Count(&before)
+		body := `{"channel_id":"ch-1","user_id":"user-2","content":"<p><span data-mention-kind=\"user\" data-mention-user-id=\"user-4\" data-mention-name=\"Build Bot\" data-mention-user-type=\"bot\" contenteditable=\"false\">@Build Bot</span> please continue</p>"}`
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/messages", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("expected 201, got %d body=%s", rec.Code, rec.Body.String())
+		}
+		time.Sleep(150 * time.Millisecond)
+		var after int64
+		db.DB.Model(&domain.Message{}).Where("channel_id = ?", "ch-1").Count(&after)
+		if after != before+1 {
+			t.Fatalf("expected only the AI-authored trigger message, before=%d after=%d", before, after)
 		}
 	})
 }
