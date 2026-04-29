@@ -16,6 +16,7 @@ interface MessageState {
   fetchThreadSummary: (messageId: string) => Promise<void>
   generateThreadSummary: (messageId: string) => Promise<void>
   addMessage: (message: Message) => void
+  addMessageFromRaw: (rawMessage: any) => void
   sendMessage: (channelId: string, content: string, userId: string, threadId?: string, artifactIds?: string[], fileIds?: string[]) => Promise<void>
   sendDMMessage: (dmId: string, content: string, userId: string, artifactIds?: string[], fileIds?: string[]) => Promise<void>
   getMessagesByChannel: (channelId: string) => Message[]
@@ -31,9 +32,12 @@ interface MessageState {
   // Streaming DM messages from AI
   streamingDMMessages: Record<string, { dmId: string; text: string }>
   addStreamingChunk: (tempId: string, dmId: string, chunk: string, isFinal: boolean) => void
+  streamingChannelMessages: Record<string, { channelId: string; aiUserId: string; triggerMessageId: string; createdAt: string; answer: string; reasoning: string; toolCalls: { id: string; name: string; arguments: string }[]; usage?: Record<string, unknown> }>
+  addChannelStreamingChunk: (tempId: string, payload: { channelId: string; aiUserId: string; triggerMessageId: string; kind: string; chunk: string; isFinal: boolean }) => void
+  clearChannelStreamingForTrigger: (triggerMessageId: string, aiUserId?: string) => void
 }
 
-const mapMessage = (m: any): Message => {
+export const mapMessage = (m: any): Message => {
   let reactions: any[] = []
   let attachments: any[] = []
   let parsedMeta: Record<string, unknown> | undefined
@@ -75,6 +79,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   currentThreadSummary: null,
   isSummaryLoading: false,
   streamingDMMessages: {},
+  streamingChannelMessages: {},
   fetchMessages: async (channelId) => {
     try {
       const response = await fetch(`${API_BASE_URL}/messages?channel_id=${channelId}`)
@@ -150,6 +155,18 @@ export const useMessageStore = create<MessageState>((set, get) => ({
     if (state.messages.find(m => m.id === message.id)) return state;
     return { messages: [...state.messages, message] };
   }),
+  addMessageFromRaw: (rawMessage) => {
+    const message = mapMessage(rawMessage)
+    set((state) => {
+      const exists = state.messages.find(m => m.id === message.id)
+      return {
+        messages: exists ? state.messages.map(m => m.id === message.id ? message : m) : [...state.messages, message],
+        currentThreadMessages: state.currentThreadMessages.find(m => m.id === message.id)
+          ? state.currentThreadMessages.map(m => m.id === message.id ? message : m)
+          : state.currentThreadMessages,
+      }
+    })
+  },
   sendMessage: async (channelId, content, userId, threadId, artifactIds, fileIds) => {
     try {
       const response = await fetch(`${API_BASE_URL}/messages`, {
@@ -228,6 +245,58 @@ export const useMessageStore = create<MessageState>((set, get) => ({
           [tempId]: { dmId, text: (existing?.text ?? '') + chunk },
         }
       }
+    })
+  },
+  addChannelStreamingChunk: (tempId, payload) => {
+    if (payload.isFinal) {
+      set(state => {
+        const next = { ...state.streamingChannelMessages }
+        delete next[tempId]
+        return { streamingChannelMessages: next }
+      })
+      return
+    }
+    set(state => {
+      const existing = state.streamingChannelMessages[tempId]
+      const toolCalls = existing?.toolCalls ? [...existing.toolCalls] : []
+      let usage = existing?.usage
+      if (payload.kind === "tool_call" && payload.chunk) {
+        toolCalls.push({ id: `${tempId}-tool-${toolCalls.length + 1}`, name: "channel_context", arguments: payload.chunk })
+      }
+      if (payload.kind === "usage" && payload.chunk) {
+        try {
+          usage = JSON.parse(payload.chunk)
+        } catch {
+          usage = usage
+        }
+      }
+      return {
+        streamingChannelMessages: {
+          ...state.streamingChannelMessages,
+          [tempId]: {
+            channelId: payload.channelId,
+            aiUserId: payload.aiUserId,
+            triggerMessageId: payload.triggerMessageId,
+            createdAt: existing?.createdAt ?? new Date().toISOString(),
+            answer: payload.kind === "answer" ? `${existing?.answer ?? ""}${payload.chunk ?? ""}` : (existing?.answer ?? ""),
+            reasoning: payload.kind === "reasoning" ? `${existing?.reasoning ?? ""}${payload.chunk ?? ""}` : (existing?.reasoning ?? ""),
+            toolCalls,
+            usage,
+          },
+        },
+      }
+    })
+  },
+  clearChannelStreamingForTrigger: (triggerMessageId, aiUserId) => {
+    set(state => {
+      const next = Object.fromEntries(
+        Object.entries(state.streamingChannelMessages).filter(([, value]) => {
+          if (value.triggerMessageId !== triggerMessageId) return true
+          if (aiUserId && value.aiUserId !== aiUserId) return true
+          return false
+        })
+      )
+      return { streamingChannelMessages: next }
     })
   },
   deleteMessageLocally: (messageId: string) => {

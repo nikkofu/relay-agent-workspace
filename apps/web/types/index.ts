@@ -1,5 +1,7 @@
 export type UserStatus = "online" | "away" | "offline" | "busy"
 
+export type UserType = "human" | "bot" | "ai"
+
 export interface FileAsset {
   id: string
   name: string
@@ -998,6 +1000,7 @@ export interface User {
   id: string
   name: string
   email: string
+  userType?: UserType
   avatar?: string
   status: UserStatus
   statusText?: string
@@ -1033,6 +1036,21 @@ export interface UserGroup {
   memberCount: number
   members?: { user: User, role: string, joinedAt: string }[]
 }
+
+export type ComposerMentionTarget =
+  | {
+      kind: "user"
+      user_id: string
+      name: string
+      user_type?: UserType
+      avatar?: string
+    }
+  | {
+      kind: "group"
+      group_id: string
+      handle: string
+      name: string
+    }
 
 export interface WorkflowRun {
   id: string

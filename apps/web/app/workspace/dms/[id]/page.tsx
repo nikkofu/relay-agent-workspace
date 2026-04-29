@@ -24,7 +24,7 @@ import { useEffect, useMemo, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useMessageStore } from "@/stores/message-store"
 import { useDMStore } from "@/stores/dm-store"
-import { useUserStore } from "@/stores/user-store"
+import { isAIUserLike, useUserStore } from "@/stores/user-store"
 import { MessageComposer } from "@/components/message/message-composer"
 import { TypingIndicator } from "@/components/message/typing-indicator"
 import { Button } from "@/components/ui/button"
@@ -40,12 +40,6 @@ import { toast } from "sonner"
 import { normalizeAISidecar, estimateTokens, plainTextOf } from "@/lib/ai-sidecar"
 import { ReasoningPanel, ToolTimeline, UsageChip } from "@/components/ai/ai-sidecar-blocks"
 import { normalizeExecutionTarget, TARGET_LABELS, TARGET_STYLES } from "@/lib/execution-target"
-
-function isAIUserCheck(user: { id: string; name: string; email?: string }) {
-  const name = user.name.toLowerCase()
-  const email = (user.email ?? "").toLowerCase()
-  return name.includes("assistant") || name.includes("ai") || email.startsWith("ai@") || user.id === "user-2"
-}
 
 // Token-estimate + HTML-stripping helpers live in `@/lib/ai-sidecar` so the
 // fallback heuristic (~4 chars / token) and the HTML strip behave identically
@@ -69,7 +63,7 @@ function DMConversationContent() {
   const conversation = conversations.find(c => c.id === dmId)
   const otherUserId = conversation?.userIds?.find((id: string) => id !== currentUser?.id)
   const otherUser = otherUserId ? users.find(u => u.id === otherUserId) : null
-  const isAI = otherUser ? isAIUserCheck(otherUser) : false
+  const isAI = otherUser ? isAIUserLike(otherUser) : false
 
   const dmMessages = messages.filter(m => m.dmId === dmId)
   const streamEntries = Object.entries(streamingDMMessages).filter(([, v]) => v.dmId === dmId)
@@ -190,7 +184,7 @@ function DMConversationContent() {
 
         {dmMessages.map((msg, idx) => {
           const sender = users.find(u => u.id === msg.senderId)
-          const senderIsAI = sender ? isAIUserCheck(sender) : false
+          const senderIsAI = sender ? isAIUserLike(sender) : false
           const isOwn = msg.senderId === currentUser?.id
           const text = plainTextOf(msg.content || "")
           const renderedContent = senderIsAI ? renderAssistantMessageHtml(msg.content || "") : (msg.content || "")

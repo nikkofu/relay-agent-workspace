@@ -36,7 +36,8 @@ import { useChannelStore } from "@/stores/channel-store"
 import { useUserStore } from "@/stores/user-store"
 import { API_BASE_URL } from "@/lib/constants"
 import { CheckCircle2 } from "lucide-react"
-import type { EntitySuggestResult, EntityTextMatch, ComposeSuggestion, ComposeIntent, ComposeScope, ComposeProposedSlot } from "@/types"
+import type { EntitySuggestResult, EntityTextMatch, ComposeSuggestion, ComposeIntent, ComposeScope, ComposeProposedSlot, ComposerMentionTarget } from "@/types"
+import { UserMention } from "./tiptap-user-mention"
 
 interface MessageComposerProps {
   placeholder?: string
@@ -186,6 +187,7 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
         class: 'text-blue-500 underline cursor-pointer',
       },
     }),
+    UserMention,
   ], [placeholder])
 
   const editor = useEditor({
@@ -428,11 +430,24 @@ export function MessageComposer({ placeholder, onSend, scope }: MessageComposerP
     editor?.commands.focus()
   }
 
-  const handleMentionSelect = (name: string) => {
-    // Replace trailing @ with mention (we can use a more advanced approach but this works for now)
-    editor?.commands.insertContent(name + " ")
+  const handleMentionSelect = (target: ComposerMentionTarget) => {
+    if (!editor) return
+    const to = editor.state.selection.to
+    const from = Math.max(1, to - 1)
+    const chain = editor.chain().focus().deleteRange({ from, to })
+    if (target.kind === "user") {
+      chain.insertUserMention({
+        kind: "user",
+        userId: target.user_id,
+        name: target.name,
+        userType: target.user_type,
+        mentionText: `@${target.name}`,
+      }).run()
+    } else {
+      chain.insertContent(`@${target.handle} `).run()
+    }
     setShowMentions(false)
-    editor?.commands.focus()
+    editor.commands.focus()
   }
 
   const handleEntityMentionSelect = useCallback((entity: EntitySuggestResult) => {

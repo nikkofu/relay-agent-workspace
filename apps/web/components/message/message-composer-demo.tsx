@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils"
 import { AISlashCommand } from "@/components/ai-chat/ai-slash-command"
 import { MentionPopover } from "./mention-popover"
 import { useUIStore } from "@/stores/ui-store"
+import type { ComposerMentionTarget } from "@/types"
 
 interface MessageComposerProps {
   placeholder?: string
@@ -96,8 +97,9 @@ export function MessageComposer({ placeholder, onSend }: MessageComposerProps) {
     textareaRef.current?.focus()
   }
 
-  const handleMentionSelect = (name: string) => {
-    const newContent = content.substring(0, content.lastIndexOf("@")) + "@" + name + " "
+  const handleMentionSelect = (target: ComposerMentionTarget) => {
+    const mentionText = target.kind === "user" ? `@${target.name}` : `@${target.handle}`
+    const newContent = content.substring(0, content.lastIndexOf("@")) + mentionText + " "
     setContent(newContent)
     setShowMentions(false)
     textareaRef.current?.focus()

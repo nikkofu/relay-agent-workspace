@@ -74,6 +74,13 @@ type messageUserMention struct {
 	MentionText string `json:"mention_text"`
 }
 
+type aiMentionReplyMetadata struct {
+	TriggerMessageID string `json:"trigger_message_id"`
+	MentionedUserID  string `json:"mentioned_user_id"`
+	ScopeType        string `json:"scope_type"`
+	ChannelID        string `json:"channel_id,omitempty"`
+}
+
 var CollabSnapshotPath = agentcollab.DefaultPath()
 
 type messageMetadata struct {
@@ -83,6 +90,7 @@ type messageMetadata struct {
 	EntityMentions  []knowledge.MentionedEntity       `json:"entity_mentions,omitempty"`
 	KnowledgeDigest *knowledge.ChannelKnowledgeDigest `json:"knowledge_digest,omitempty"`
 	AISidecar       any                               `json:"ai_sidecar,omitempty"`
+	AIMentionReply  *aiMentionReplyMetadata           `json:"ai_mention_reply,omitempty"`
 
 	// Legacy fields for backward compatibility
 	Reasoning string              `json:"reasoning,omitempty"`
@@ -125,8 +133,37 @@ func buildUserInsight(user domain.User) string {
 
 func enrichUser(user domain.User) domain.User {
 	user = derivePresence(user)
+	user.UserType = resolveUserType(user)
 	user.AIInsight = buildUserInsight(user)
 	return user
+}
+
+func normalizeStoredUserType(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "human":
+		return "human"
+	case "bot":
+		return "bot"
+	case "ai":
+		return "ai"
+	default:
+		return ""
+	}
+}
+
+func resolveUserType(user domain.User) string {
+	if explicit := normalizeStoredUserType(user.UserType); explicit != "" {
+		return explicit
+	}
+	name := strings.ToLower(strings.TrimSpace(user.Name))
+	email := strings.ToLower(strings.TrimSpace(user.Email))
+	if strings.Contains(name, "ai assistant") ||
+		strings.Contains(name, "assistant") ||
+		strings.HasPrefix(email, "ai@") ||
+		strings.Contains(email, "ai-assistant") {
+		return "ai"
+	}
+	return "human"
 }
 
 func derivePresence(user domain.User) domain.User {
@@ -399,6 +436,95 @@ func loadUserNameByID(userID string) string {
 	return strings.TrimSpace(user.Name)
 }
 
+func findStructuredUserMentions(content string, users []domain.User) []messageUserMention {
+	if strings.TrimSpace(content) == "" || !strings.Contains(strings.ToLower(content), "data-mention-user-id") {
+		return nil
+	}
+
+	spanPattern := regexp.MustCompile(`(?is)<span\b([^>]*)>(.*?)</span>`)
+	candidateByID := make(map[string]domain.User, len(users))
+	for _, user := range users {
+		candidateByID[user.ID] = user
+	}
+
+	attributeValue := func(attrs, name string) string {
+		doubleQuoted := regexp.MustCompile(fmt.Sprintf(`(?i)%s\s*=\s*"([^"]*)"`, regexp.QuoteMeta(name)))
+		if match := doubleQuoted.FindStringSubmatch(attrs); len(match) >= 2 {
+			return html.UnescapeString(strings.TrimSpace(match[1]))
+		}
+		singleQuoted := regexp.MustCompile(fmt.Sprintf(`(?i)%s\s*=\s*'([^']*)'`, regexp.QuoteMeta(name)))
+		if match := singleQuoted.FindStringSubmatch(attrs); len(match) >= 2 {
+			return html.UnescapeString(strings.TrimSpace(match[1]))
+		}
+		return ""
+	}
+
+	mentions := make([]messageUserMention, 0)
+	seen := map[string]struct{}{}
+	for _, match := range spanPattern.FindAllStringSubmatch(content, -1) {
+		attrs := match[1]
+		if !strings.EqualFold(strings.TrimSpace(attributeValue(attrs, "data-mention-kind")), "user") {
+			continue
+		}
+		userID := strings.TrimSpace(attributeValue(attrs, "data-mention-user-id"))
+		user, ok := candidateByID[userID]
+		if !ok {
+			continue
+		}
+		if _, exists := seen[userID]; exists {
+			continue
+		}
+		name := strings.TrimSpace(attributeValue(attrs, "data-mention-name"))
+		if name == "" {
+			name = strings.TrimSpace(user.Name)
+		}
+		mentionText := "@" + name
+		if name == "" {
+			mentionText = strings.TrimSpace(html.UnescapeString(match[2]))
+			if mentionText != "" && !strings.HasPrefix(mentionText, "@") {
+				mentionText = "@" + mentionText
+			}
+		}
+		if mentionText == "@" || strings.TrimSpace(mentionText) == "" {
+			continue
+		}
+		seen[userID] = struct{}{}
+		mentions = append(mentions, messageUserMention{
+			UserID:      userID,
+			Name:        name,
+			MentionText: mentionText,
+		})
+	}
+
+	return mentions
+}
+
+func collectUserMentions(content string, users []domain.User) []messageUserMention {
+	structured := findStructuredUserMentions(content, users)
+	fallback := findExplicitUserMentions(content, users)
+	if len(structured) == 0 && len(fallback) == 0 {
+		return nil
+	}
+
+	mentions := make([]messageUserMention, 0, len(structured)+len(fallback))
+	seen := map[string]struct{}{}
+	for _, mention := range structured {
+		if _, exists := seen[mention.UserID]; exists {
+			continue
+		}
+		seen[mention.UserID] = struct{}{}
+		mentions = append(mentions, mention)
+	}
+	for _, mention := range fallback {
+		if _, exists := seen[mention.UserID]; exists {
+			continue
+		}
+		seen[mention.UserID] = struct{}{}
+		mentions = append(mentions, mention)
+	}
+	return mentions
+}
+
 func findExplicitUserMentions(content string, users []domain.User) []messageUserMention {
 	plain := normalizeMentionContent(content)
 	if plain == "" || !strings.Contains(plain, "@") {
@@ -524,10 +650,10 @@ func broadcastMentionCreatedEvent(workspaceID, channelID, messageID string, payl
 	})
 }
 
-func persistMessageMentions(messageID, workspaceID, channelID, dmID, mentionedByUserID, content string, users []domain.User) {
-	mentions := findExplicitUserMentions(content, users)
+func persistMessageMentions(messageID, workspaceID, channelID, dmID, mentionedByUserID, content string, users []domain.User) []messageUserMention {
+	mentions := collectUserMentions(content, users)
 	if len(mentions) == 0 {
-		return
+		return nil
 	}
 
 	var message domain.Message
@@ -538,6 +664,10 @@ func persistMessageMentions(messageID, workspaceID, channelID, dmID, mentionedBy
 		}
 	} else {
 		messageLoaded = true
+	}
+	userNames := make(map[string]string, len(users))
+	for _, user := range users {
+		userNames[user.ID] = strings.TrimSpace(user.Name)
 	}
 
 	persisted := make([]messageUserMention, 0, len(mentions))
@@ -572,7 +702,14 @@ func persistMessageMentions(messageID, workspaceID, channelID, dmID, mentionedBy
 			continue
 		}
 
-		mention.Name = loadUserNameByID(mention.UserID)
+		if name := strings.TrimSpace(userNames[mention.UserID]); name != "" {
+			mention.Name = name
+		} else {
+			mention.Name = loadUserNameByID(mention.UserID)
+		}
+		if mention.MentionText == "" && mention.Name != "" {
+			mention.MentionText = "@" + mention.Name
+		}
 		persisted = append(persisted, mention)
 
 		// Create durable notification item
@@ -615,7 +752,7 @@ func persistMessageMentions(messageID, workspaceID, channelID, dmID, mentionedBy
 	}
 
 	if len(persisted) == 0 || !messageLoaded {
-		return
+		return persisted
 	}
 
 	meta := decodeMessageMetadata(message)
@@ -623,12 +760,36 @@ func persistMessageMentions(messageID, workspaceID, channelID, dmID, mentionedBy
 	metadataJSON, err := json.Marshal(meta)
 	if err != nil {
 		log.Printf("[collab] failed to marshal mention metadata for message %s: %v", messageID, err)
-		return
+		return persisted
 	}
 
 	if err := db.DB.Model(&domain.Message{}).Where("id = ?", messageID).Update("metadata", string(metadataJSON)).Error; err != nil {
 		log.Printf("[collab] failed to update mention metadata for message %s: %v", messageID, err)
 	}
+
+	return persisted
+}
+
+func findFirstEligibleAIMentionUser(mentions []messageUserMention, users []domain.User, senderUserID string) *domain.User {
+	if len(mentions) == 0 {
+		return nil
+	}
+	usersByID := make(map[string]domain.User, len(users))
+	for _, user := range users {
+		usersByID[user.ID] = user
+	}
+	for _, mention := range mentions {
+		user, ok := usersByID[mention.UserID]
+		if !ok {
+			continue
+		}
+		if user.ID == senderUserID || !isAIUser(user) {
+			continue
+		}
+		candidate := user
+		return &candidate
+	}
+	return nil
 }
 
 func refreshMessageMetadata(messageID string) (*domain.Message, error) {
@@ -873,12 +1034,12 @@ func recomputeThreadParentWithDB(conn *gorm.DB, parentID string) error {
 }
 
 type activityItem struct {
-	ID         string      `json:"id"`
-	Type       string      `json:"type"`
-	User       domain.User `json:"user"`
-	Channel    any         `json:"channel,omitempty"`
-	Message    any         `json:"message,omitempty"`
-	Target     string      `json:"target,omitempty"`
+	ID         string         `json:"id"`
+	Type       string         `json:"type"`
+	User       domain.User    `json:"user"`
+	Channel    any            `json:"channel,omitempty"`
+	Message    any            `json:"message,omitempty"`
+	Target     string         `json:"target,omitempty"`
 	Summary    string         `json:"summary"`
 	OccurredAt time.Time      `json:"occurred_at"`
 	IsRead     bool           `json:"is_read"`
@@ -2067,12 +2228,8 @@ func CreateDMMessage(c *gin.Context) {
 }
 
 func isAIUser(user domain.User) bool {
-	name := strings.ToLower(strings.TrimSpace(user.Name))
-	email := strings.ToLower(strings.TrimSpace(user.Email))
-	return strings.Contains(name, "ai assistant") ||
-		strings.Contains(name, "assistant") ||
-		strings.HasPrefix(email, "ai@") ||
-		strings.Contains(email, "ai-assistant")
+	userType := resolveUserType(user)
+	return userType == "ai" || userType == "bot"
 }
 
 func buildDMAIPrompt(aiUser domain.User, recentMessages []domain.DMMessage, latestMessage string) string {
@@ -3394,10 +3551,11 @@ func CreateMessage(c *gin.Context) {
 	}
 
 	workspaceID, users, err := loadMentionUsersForChannel(input.ChannelID)
+	var persistedMentions []messageUserMention
 	if err != nil {
 		log.Printf("[collab] failed to load mention candidates for channel %s: %v", input.ChannelID, err)
 	} else {
-		persistMessageMentions(msg.ID, workspaceID, input.ChannelID, "", input.UserID, input.Content, users)
+		persistedMentions = persistMessageMentions(msg.ID, workspaceID, input.ChannelID, "", input.UserID, input.Content, users)
 	}
 
 	refreshed, err := refreshMessageMetadata(msg.ID)
@@ -3445,6 +3603,9 @@ func CreateMessage(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to broadcast message event"})
 			return
 		}
+	}
+	if aiMentionUser := findFirstEligibleAIMentionUser(persistedMentions, users, input.UserID); aiMentionUser != nil {
+		go triggerChannelAIMentionReply(input.ChannelID, msg.ID, aiMentionUser.ID, input.UserID)
 	}
 	autoLinkKnowledgeForMessage(msg)
 

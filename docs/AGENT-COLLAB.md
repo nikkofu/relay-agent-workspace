@@ -18,9 +18,10 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 ## 📋 Task Board
 
 | Status | Task | Assigned To | Deadline | Description |
-| 🟡 Active | Phase 75 Atomic Mentions + Channel AI Replies Contract | Codex | 2026-04-29 | Frozen design and implementation plan for atomic `@user` chips, durable AI/bot user classification, channel AI mention auto-replies, and DM-style AI sidecar rendering in channel messages. Published `v0.6.75`. |
-| 🟡 Active | Phase 75 Atomic Mention + Channel AI Backend | Gemini | 2026-04-29 | Implement user type contract, structured mention parsing, channel AI mention trigger, channel stream events, and `/ask` compatibility tests. |
-| 🟡 Active | Phase 75 Atomic Mention + Channel AI Web | Windsurf | 2026-04-29 | Implement Tiptap atomic mention chip, structured mention picker target shape, metadata-preserving `message.created` mapping, and channel AI streaming UI. |
+| :--- | :--- | :--- | :--- | :--- |
+| 🟢 Done | Phase 75 Atomic Mentions + Channel AI Replies Contract | Codex | 2026-04-29 | Frozen design/plan and coordinated the implementation/verification envelope for atomic `@user` chips, durable AI/bot user classification, channel AI mention auto-replies, and DM-style AI sidecar rendering in channel messages. Release `v0.6.75` prepared. |
+| 🟢 Done | Phase 75 Atomic Mention + Channel AI Backend | Gemini | 2026-04-29 | Implemented `user_type`, structured mention parsing, deterministic mention persistence, channel AI mention trigger + stream events, and `/ask` compatibility with focused backend tests. |
+| 🟢 Done | Phase 75 Atomic Mention + Channel AI Web | Windsurf | 2026-04-29 | Implemented Tiptap atomic mention chip, structured mention picker target shape, metadata-preserving realtime message mapping, and channel AI streaming UI. |
 | 🟢 Done | Phase 74 Sales Display Mode APIs | Gemini | 2026-04-27 | Implemented refined mode aliases, calendar event projection, and stat chart aggregate families. Published `v0.6.72`. |
 | 🟢 Done | Phase 74 Sales App Display Modes Contract | Codex | 2026-04-27 | Frozen design and implementation plan for Sales App List/Card Grid/Kanban/Calendar(day/week/month)/Stat(chart styles) refinement. Published `v0.6.71`; latest Web hotfix `v0.6.74`. |
 | 🟢 Done | Phase 74 Sales Display Mode UI | Windsurf | 2026-04-27 | Updated Sales App to the refined List/Card Grid/Kanban/Calendar(day/week/month)/Stat contract with one shared search/filter shell, lightweight calendar event rendering, chart-style stats, and URL-backed mode subcontrols. Published `v0.6.73`. |
@@ -215,10 +216,10 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `backend-api-tests` | Phase 75 owner for user type, structured mention parsing, channel AI mention reply trigger, stream events, and `/ask` compatibility. | 0% |
+| **Gemini** | `backend-api-tests` | Phase 75 backend/API/tests delivered: `user_type`, structured mention parsing, channel AI mention replies, stream events, and `/ask` compatibility. | 100% |
 | **Codex** | `orchestration` | Phase 75 contract owner: published atomic mention + channel AI reply plan and will audit Gemini/Windsurf implementation after delivery. | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Phase 75 owner for Tiptap atomic mention chip, structured mention picker, channel AI stream UI, and realtime metadata preservation. | 0% |
+| **Windsurf** | `web-delivery` | Phase 75 Web/UI delivered: atomic mention chip, structured mention picker, channel AI stream UI, and realtime metadata preservation. | 100% |
 
 ### 2026-04-29 - Phase 75 Atomic Mentions + Channel AI Replies Plan (v0.6.75)
 
@@ -240,6 +241,18 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
   - Spec: `docs/superpowers/specs/2026-04-29-phase75-atomic-ai-mentions-design.md`
   - Plan: `docs/superpowers/plans/2026-04-29-phase75-atomic-ai-mentions.md`
   - Release: `docs/releases/v0.6.75.md`
+
+### 2026-04-29 - Phase 75 Atomic Mentions + Channel AI Replies Implementation
+
+- **Gemini/Windsurf**: Phase 75 implementation is complete in the local release candidate for `v0.6.75`.
+- **Gemini**: Added durable backend `user_type` semantics, seeded AI Assistant as `ai`, preserved legacy heuristic fallback, and updated focused tests to lock the Phase 75 backend contract.
+- **Gemini**: `CreateMessage` now parses structured `data-mention-kind="user"` spans, persists deterministic `user_mentions`, deduplicates structured and plain-text mention detection, and triggers one non-recursive channel AI reply when an AI/bot user is mentioned.
+- **Gemini**: Added `channel.ai.stream.chunk` realtime events and persisted final channel AI replies with canonical `metadata.ai_sidecar` plus `metadata.ai_mention_reply` linkage; `/ask` remains compatible.
+- **Windsurf**: Added a Tiptap atomic user mention node, upgraded `MentionPopover` to emit structured mention targets, preserved message metadata in websocket `message.created`, and rendered temporary channel AI reasoning/tool/usage progress rows until the final persisted reply arrives.
+- **Verification completed**:
+  - `cd apps/api && go test ./internal/handlers -run 'TestPhase73BusinessApps|TestPhase74|TestCreateMessage|TestCreateDMMessage|TestPhase65CAISlashCommandAsk|TestPhase75' -count=1`
+  - `cd apps/web && pnpm exec tsc --noEmit`
+  - `cd apps/web && pnpm lint`
 
 ### 2026-04-27 - Phase 74 Sales Display Mode UI Completion (v0.6.73)
 - **Windsurf**: Phase 74 Web implementation is complete and published as `v0.6.73`.

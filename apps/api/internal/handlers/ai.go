@@ -20,6 +20,7 @@ import (
 	"github.com/nikkofu/relay-agent-workspace/api/internal/ids"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/knowledge"
 	"github.com/nikkofu/relay-agent-workspace/api/internal/llm"
+	"github.com/nikkofu/relay-agent-workspace/api/internal/realtime"
 )
 
 type AIStreamer interface {
@@ -261,6 +262,218 @@ func ComposeAIStream(c *gin.Context) {
 			return
 		}
 	}
+}
+
+func preferredAIUserForChannel(channelID string) (*domain.User, error) {
+	var memberships []domain.ChannelMember
+	if err := db.DB.Where("channel_id = ?", channelID).Order("id asc").Find(&memberships).Error; err != nil {
+		return nil, err
+	}
+	for _, membership := range memberships {
+		var user domain.User
+		if err := db.DB.First(&user, "id = ?", membership.UserID).Error; err != nil {
+			continue
+		}
+		if isAIUser(user) {
+			candidate := user
+			return &candidate, nil
+		}
+	}
+	var fallback domain.User
+	if err := db.DB.First(&fallback, "id = ?", "user-2").Error; err == nil && isAIUser(fallback) {
+		return &fallback, nil
+	}
+	return nil, nil
+}
+
+func buildChannelAIPrompt(aiUser domain.User, recentMessages []domain.Message, latestMessage string) string {
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "You are %s, a helpful AI assistant embedded in a Slack-like team collaboration workspace.\n", aiUser.Name)
+	sb.WriteString("Respond helpfully and concisely to the latest channel message. Reference recent context when useful and keep the answer channel-appropriate.\n\n")
+	if len(recentMessages) > 0 {
+		sb.WriteString("Recent channel context (oldest first):\n")
+		for _, msg := range recentMessages {
+			label := msg.UserID
+			if msg.UserID == aiUser.ID {
+				label = aiUser.Name
+			}
+			fmt.Fprintf(&sb, "%s: %s\n", label, normalizeMentionContent(msg.Content))
+		}
+		sb.WriteString("\n")
+	}
+	fmt.Fprintf(&sb, "Latest message: %s\n\nYour response:", normalizeMentionContent(latestMessage))
+	return sb.String()
+}
+
+func broadcastChannelAIStreamChunk(channelID, tempID, triggerMessageID, aiUserID, kind, chunk string, isFinal bool) {
+	if RealtimeHub == nil {
+		return
+	}
+	var channel domain.Channel
+	if err := db.DB.First(&channel, "id = ?", channelID).Error; err != nil {
+		return
+	}
+	_ = RealtimeHub.Broadcast(realtime.Event{
+		ID:          "evt_" + time.Now().Format("20060102150405.000000"),
+		Type:        "channel.ai.stream.chunk",
+		WorkspaceID: channel.WorkspaceID,
+		ChannelID:   channelID,
+		TS:          time.Now().UTC().Format(time.RFC3339Nano),
+		Payload: gin.H{
+			"temp_id":            tempID,
+			"channel_id":         channelID,
+			"trigger_message_id": triggerMessageID,
+			"ai_user_id":         aiUserID,
+			"kind":               kind,
+			"chunk":              chunk,
+			"is_final":           isFinal,
+		},
+	})
+}
+
+func triggerChannelAIMentionReply(channelID, triggerMessageID, aiUserID, senderUserID string) {
+	if AIGateway == nil {
+		return
+	}
+	var triggerMessage domain.Message
+	if err := db.DB.First(&triggerMessage, "id = ? AND channel_id = ?", triggerMessageID, channelID).Error; err != nil {
+		return
+	}
+	if triggerMessage.UserID == aiUserID || triggerMessage.UserID == senderUserID {
+		if triggerMessage.UserID == aiUserID {
+			return
+		}
+	}
+	var aiUser domain.User
+	if err := db.DB.First(&aiUser, "id = ?", aiUserID).Error; err != nil {
+		return
+	}
+	if !isAIUser(aiUser) || aiUser.ID == senderUserID {
+		return
+	}
+	var recentMessages []domain.Message
+	_ = db.DB.Where("channel_id = ?", channelID).Order("created_at desc").Limit(12).Find(&recentMessages).Error
+	reverseMessages(recentMessages)
+	prompt := buildChannelAIPrompt(aiUser, recentMessages, triggerMessage.Content)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	session, err := AIGateway.Stream(ctx, llm.Request{Prompt: prompt, ChannelID: channelID})
+	if err != nil {
+		log.Printf("[ai-channel] gateway error: %v", err)
+		return
+	}
+	tempID := ids.NewPrefixedUUID("channel-ai-stream")
+	var reply strings.Builder
+	var reasoning strings.Builder
+	var toolCalls []domain.AIToolCall
+	var usage *domain.AIUsage
+	toolIndex := 0
+	for {
+		select {
+		case event, ok := <-session.Events:
+			if !ok {
+				goto finalize
+			}
+			switch event.Type {
+			case "chunk":
+				if event.Text == "" {
+					continue
+				}
+				reply.WriteString(event.Text)
+				broadcastChannelAIStreamChunk(channelID, tempID, triggerMessageID, aiUser.ID, "answer", event.Text, false)
+			case "reasoning":
+				if event.Text == "" {
+					continue
+				}
+				reasoning.WriteString(event.Text)
+				broadcastChannelAIStreamChunk(channelID, tempID, triggerMessageID, aiUser.ID, "reasoning", event.Text, false)
+			case "tool_call":
+				toolIndex++
+				toolCalls = append(toolCalls, domain.AIToolCall{ID: fmt.Sprintf("tool-%d", toolIndex), Name: "channel_context", Arguments: event.Text})
+				broadcastChannelAIStreamChunk(channelID, tempID, triggerMessageID, aiUser.ID, "tool_call", event.Text, false)
+			case "usage":
+				if parsed := parseAIUsageText(event.Text); parsed != nil {
+					usage = parsed
+				}
+				broadcastChannelAIStreamChunk(channelID, tempID, triggerMessageID, aiUser.ID, "usage", event.Text, false)
+			}
+		case err, ok := <-session.Errors:
+			if !ok {
+				session.Errors = nil
+				continue
+			}
+			if err != nil {
+				broadcastChannelAIStreamChunk(channelID, tempID, triggerMessageID, aiUser.ID, "error", err.Error(), true)
+				log.Printf("[ai-channel] stream error: %v", err)
+				return
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
+
+finalize:
+	replyContent := strings.TrimSpace(reply.String())
+	if replyContent == "" {
+		broadcastChannelAIStreamChunk(channelID, tempID, triggerMessageID, aiUser.ID, "error", "", true)
+		return
+	}
+	if usage == nil {
+		promptTokens := len([]rune(prompt)) / 4
+		outputTokens := len([]rune(replyContent)) / 4
+		usage = &domain.AIUsage{InputTokens: promptTokens, OutputTokens: outputTokens, TotalTokens: promptTokens + outputTokens}
+	}
+	meta := messageMetadata{
+		AISidecar: &domain.AISidecar{
+			Reasoning: &domain.AIReasoning{Summary: strings.TrimSpace(reasoning.String())},
+			ToolCalls: toolCalls,
+			Usage:     usage,
+		},
+		AIMentionReply: &aiMentionReplyMetadata{
+			TriggerMessageID: triggerMessageID,
+			MentionedUserID:  aiUser.ID,
+			ScopeType:        "channel",
+			ChannelID:        channelID,
+		},
+	}
+	metaJSON, err := json.Marshal(meta)
+	if err != nil {
+		log.Printf("[ai-channel] failed to marshal metadata: %v", err)
+		return
+	}
+	aiMessage := domain.Message{
+		ID:        ids.NewPrefixedUUID("msg"),
+		ChannelID: channelID,
+		UserID:    aiUser.ID,
+		Content:   replyContent,
+		Metadata:  string(metaJSON),
+		CreatedAt: time.Now().UTC(),
+	}
+	if err := db.DB.Create(&aiMessage).Error; err != nil {
+		log.Printf("[ai-channel] failed to save reply: %v", err)
+		return
+	}
+	broadcastChannelAIStreamChunk(channelID, tempID, triggerMessageID, aiUser.ID, "answer", "", true)
+	if updated, err := refreshMessageMetadata(aiMessage.ID); err == nil && updated != nil {
+		_ = broadcastRealtimeEvent("message.created", *updated, *updated)
+	}
+}
+
+func parseAIUsageText(value string) *domain.AIUsage {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	var usage domain.AIUsage
+	if err := json.Unmarshal([]byte(value), &usage); err != nil {
+		return nil
+	}
+	if usage.InputTokens == 0 && usage.OutputTokens == 0 && usage.TotalTokens == 0 {
+		return nil
+	}
+	if usage.TotalTokens == 0 {
+		usage.TotalTokens = usage.InputTokens + usage.OutputTokens
+	}
+	return &usage
 }
 
 func SubmitAIComposeFeedback(c *gin.Context) {
@@ -2652,12 +2865,21 @@ func AISlashCommandAsk(c *gin.Context) {
 	}
 
 	question := strings.TrimPrefix(input.Content, "/ask ")
+	aiUser, err := preferredAIUserForChannel(channelID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to resolve ai user"})
+		return
+	}
+	aiUserID := "ai-assistant"
+	if aiUser != nil {
+		aiUserID = aiUser.ID
+	}
 
 	// Create AI response placeholder
 	aiMsg := domain.Message{
 		ID:        ids.NewPrefixedUUID("msg"),
 		ChannelID: channelID,
-		UserID:    "ai-assistant", // Assuming a reserved AI user ID
+		UserID:    aiUserID,
 		Content:   "Processing question: " + question,
 		Metadata:  `{"ai_sidecar":{"reasoning":"Analyzing channel knowledge...","tool_calls":[],"usage":null}}`,
 		CreatedAt: time.Now().UTC(),
@@ -2676,9 +2898,9 @@ func AISlashCommandAsk(c *gin.Context) {
 			ToolCalls: []domain.AIToolCall{
 				{ID: "tc-1", Name: "search_knowledge", Arguments: fmt.Sprintf(`{"query":"%s"}`, question), Result: "Success"},
 			},
-			Usage:    &domain.AIUsage{InputTokens: 50, OutputTokens: 120, TotalTokens: 170},
+			Usage: &domain.AIUsage{InputTokens: 50, OutputTokens: 120, TotalTokens: 170},
 			Analysis: map[string]any{
-				"summary": "Detected knowledge spike",
+				"summary":                  "Detected knowledge spike",
 				"default_execution_target": map[string]any{"type": "channel_message"},
 			},
 		}

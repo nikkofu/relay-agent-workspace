@@ -1,5 +1,5 @@
 import { create } from "zustand"
-import { User } from "@/types"
+import { User, UserType } from "@/types"
 import { API_BASE_URL } from "@/lib/constants"
 
 interface UserState {
@@ -25,8 +25,22 @@ interface UserState {
 
 const AI_DICEBEAR_URL = "https://api.dicebear.com/7.x/bottts/svg?seed=ai"
 
+const normalizeUserType = (value: unknown): UserType | undefined => {
+  if (value === "human" || value === "bot" || value === "ai") return value
+  return undefined
+}
+
+export const isAIUserLike = (user: Pick<User, "id" | "name" | "email" | "userType"> | null | undefined) => {
+  if (!user) return false
+  if (user.userType === "ai" || user.userType === "bot") return true
+  const name = (user.name || "").toLowerCase()
+  const email = (user.email || "").toLowerCase()
+  return name.includes("ai assistant") || name.includes("assistant") || email.startsWith("ai@") || email.includes("ai-assistant") || user.id === "user-2"
+}
+
 const mapUser = (u: any): User => ({
   ...u,
+  userType: normalizeUserType(u.user_type),
   avatar: u.avatar === AI_DICEBEAR_URL ? "/ai-wand-avatar.svg" : u.avatar,
   statusText: u.status_text,
   statusEmoji: u.status_emoji,

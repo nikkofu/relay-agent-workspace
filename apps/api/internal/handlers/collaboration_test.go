@@ -7362,7 +7362,7 @@ func TestChannelExecutionHomeIncludesExecutionBlocks(t *testing.T) {
 	db.DB.Create(&domain.User{ID: "user-1", OrganizationID: "org-1", Name: "Nikko Fu", Email: "nikko@example.com"})
 	db.DB.Create(&domain.Workspace{ID: "ws-1", OrganizationID: "org-1", Name: "Relay"})
 	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "ops", Type: "public"})
-	
+
 	// Add some data to be aggregated
 	db.DB.Create(&domain.WorkspaceList{ID: "list-1", WorkspaceID: "ws-1", ChannelID: "ch-1", CreatedBy: "user-1", Title: "Tasks"})
 	db.DB.Create(&domain.WorkspaceListItem{ListID: "list-1", Content: "Open Task", AssignedTo: "user-1", IsCompleted: false})
@@ -7408,9 +7408,9 @@ func TestChannelExecutionHomeSummaryIncludesOverdue(t *testing.T) {
 	db.DB.Create(&domain.User{ID: "user-1", OrganizationID: "org-1", Name: "Nikko Fu", Email: "nikko@example.com"})
 	db.DB.Create(&domain.Workspace{ID: "ws-1", OrganizationID: "org-1", Name: "Relay"})
 	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "ops", Type: "public"})
-	
+
 	db.DB.Create(&domain.WorkspaceList{ID: "list-1", WorkspaceID: "ws-1", ChannelID: "ch-1", CreatedBy: "user-1", Title: "Tasks"})
-	
+
 	overdue := time.Now().Add(-24 * time.Hour)
 	db.DB.Create(&domain.WorkspaceListItem{ListID: "list-1", Content: "Overdue Task", AssignedTo: "user-1", IsCompleted: false, DueAt: &overdue})
 
@@ -7449,16 +7449,16 @@ func TestPhase65CMentionPagination(t *testing.T) {
 	user := domain.User{ID: "user-1", Name: "Nikko", OrganizationID: "org-1", Email: "nikko@example.com"}
 	db.DB.Create(&user)
 	db.DB.Create(&domain.User{ID: "user-2", Name: "Actor", OrganizationID: "org-1", Email: "actor@example.com"})
-	
+
 	// Create 5 mentions
 	for i := 1; i <= 5; i++ {
 		db.DB.Create(&domain.MessageMention{
-			ID:                 fmt.Sprintf("mention-%d", i),
-			MessageID:          fmt.Sprintf("msg-%d", i),
-			MentionedUserID:    "user-1",
-			MentionedByUserID:  "user-2",
-			MentionKind:        "user",
-			CreatedAt:          time.Now().Add(time.Duration(i) * time.Minute),
+			ID:                fmt.Sprintf("mention-%d", i),
+			MessageID:         fmt.Sprintf("msg-%d", i),
+			MentionedUserID:   "user-1",
+			MentionedByUserID: "user-2",
+			MentionKind:       "user",
+			CreatedAt:         time.Now().Add(time.Duration(i) * time.Minute),
 		})
 	}
 
@@ -7495,7 +7495,7 @@ func TestPhase65CInboxUsesNotificationItem(t *testing.T) {
 	user := domain.User{ID: "user-1", Name: "Nikko", OrganizationID: "org-1", Email: "nikko@example.com"}
 	db.DB.Create(&user)
 	db.DB.Create(&domain.User{ID: "user-2", Name: "Actor", OrganizationID: "org-1", Email: "actor@example.com"})
-	
+
 	// Pre-populate a NotificationItem
 	db.DB.Create(&domain.NotificationItem{
 		ID:         "notify-1",
@@ -7539,16 +7539,16 @@ func TestPhase65CHomeIncludesUnreadMentionCount(t *testing.T) {
 	user := domain.User{ID: "user-1", Name: "Nikko", OrganizationID: "org-1", Email: "nikko@example.com"}
 	db.DB.Create(&user)
 	db.DB.Create(&domain.User{ID: "user-2", Name: "Actor", OrganizationID: "org-1", Email: "actor@example.com"})
-	
+
 	// Create 3 unread mentions
 	for i := 1; i <= 3; i++ {
 		db.DB.Create(&domain.MessageMention{
-			ID:                 fmt.Sprintf("mention-%d", i),
-			MessageID:          fmt.Sprintf("msg-%d", i),
-			MentionedUserID:    "user-1",
-			MentionedByUserID:  "user-2",
-			MentionKind:        "user",
-			CreatedAt:          time.Now(),
+			ID:                fmt.Sprintf("mention-%d", i),
+			MessageID:         fmt.Sprintf("msg-%d", i),
+			MentionedUserID:   "user-1",
+			MentionedByUserID: "user-2",
+			MentionKind:       "user",
+			CreatedAt:         time.Now(),
 		})
 	}
 
@@ -7575,4 +7575,199 @@ func TestPhase65CHomeIncludesUnreadMentionCount(t *testing.T) {
 	if payload.Home.Activity.UnreadMentionCount != 3 {
 		t.Fatalf("expected 3 unread mentions, got %d", payload.Home.Activity.UnreadMentionCount)
 	}
+}
+
+func TestPhase75AIUserType(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+	db.SeedData()
+
+	router := gin.New()
+	router.GET("/api/v1/users", GetUsers)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/users?id=user-2", nil)
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Users []struct {
+			ID       string `json:"id"`
+			UserType string `json:"user_type"`
+		} `json:"users"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode users payload: %v", err)
+	}
+	if len(payload.Users) == 0 || payload.Users[0].ID != "user-2" || payload.Users[0].UserType != "ai" {
+		t.Fatalf("expected seeded user-2 to serialize as ai, got %#v", payload.Users)
+	}
+	if got := enrichUser(domain.User{ID: "user-9", Name: "Plain Human", Email: "plain@example.com"}).UserType; got != "human" {
+		t.Fatalf("expected empty user_type to normalize to human, got %q", got)
+	}
+	if !isAIUser(domain.User{ID: "user-ai", Name: "Helper", Email: "helper@example.com", UserType: "ai"}) {
+		t.Fatal("expected explicit ai user_type to trigger AI classification")
+	}
+	if !isAIUser(domain.User{ID: "user-bot", Name: "Bot", Email: "bot@example.com", UserType: "bot"}) {
+		t.Fatal("expected explicit bot user_type to trigger AI classification")
+	}
+	if !isAIUser(domain.User{ID: "user-legacy", Name: "AI Assistant", Email: "legacy@example.com"}) {
+		t.Fatal("expected legacy heuristic fallback to remain active when user_type is empty")
+	}
+	if isAIUser(domain.User{ID: "user-human", Name: "AI Assistant", Email: "ai@example.com", UserType: "human"}) {
+		t.Fatal("expected explicit human user_type to suppress legacy AI heuristic")
+	}
+}
+
+func TestPhase75StructuredMentions(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+
+	db.DB.Create(&domain.Organization{ID: "org-1", Name: "Relay"})
+	db.DB.Create(&domain.Workspace{ID: "ws-1", OrganizationID: "org-1", Name: "Relay"})
+	db.DB.Create(&domain.User{ID: "user-1", OrganizationID: "org-1", Name: "Nikko", Email: "nikko@example.com", UserType: "human"})
+	db.DB.Create(&domain.User{ID: "user-2", OrganizationID: "org-1", Name: "AI Assistant", Email: "ai@example.com", UserType: "ai"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public"})
+	db.DB.Create(&domain.ChannelMember{ChannelID: "ch-1", UserID: "user-1", Role: "owner"})
+	db.DB.Create(&domain.ChannelMember{ChannelID: "ch-1", UserID: "user-2", Role: "member"})
+
+	router := gin.New()
+	router.POST("/api/v1/messages", CreateMessage)
+
+	body := `{"channel_id":"ch-1","user_id":"user-1","content":"<p><span data-mention-kind=\"user\" data-mention-user-id=\"user-2\" data-mention-name=\"AI Assistant\" data-mention-user-type=\"ai\" contenteditable=\"false\">@Ship Copilot</span> please help @AI Assistant</p>"}`
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/messages", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var response struct {
+		Message domain.Message `json:"message"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("failed to decode create message response: %v", err)
+	}
+
+	var mentions []domain.MessageMention
+	if err := db.DB.Where("message_id = ?", response.Message.ID).Find(&mentions).Error; err != nil {
+		t.Fatalf("failed to load mentions: %v", err)
+	}
+	if len(mentions) != 1 || mentions[0].MentionedUserID != "user-2" {
+		t.Fatalf("expected one deduped structured mention for user-2, got %#v", mentions)
+	}
+
+	var metadata struct {
+		UserMentions []messageUserMention `json:"user_mentions"`
+	}
+	if err := json.Unmarshal([]byte(response.Message.Metadata), &metadata); err != nil {
+		t.Fatalf("failed to decode message metadata: %v", err)
+	}
+	if len(metadata.UserMentions) != 1 {
+		t.Fatalf("expected one user mention in metadata, got %#v", metadata.UserMentions)
+	}
+	if metadata.UserMentions[0].UserID != "user-2" || metadata.UserMentions[0].Name != "AI Assistant" || metadata.UserMentions[0].MentionText != "@AI Assistant" {
+		t.Fatalf("unexpected structured mention metadata: %#v", metadata.UserMentions[0])
+	}
+}
+
+func TestPhase75ChannelAIMentionReply(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+	AIGateway = stubGateway{}
+
+	db.DB.Create(&domain.Organization{ID: "org-1", Name: "Relay"})
+	db.DB.Create(&domain.Workspace{ID: "ws-1", OrganizationID: "org-1", Name: "Relay"})
+	db.DB.Create(&domain.User{ID: "user-1", OrganizationID: "org-1", Name: "Nikko", Email: "nikko@example.com", UserType: "human"})
+	db.DB.Create(&domain.User{ID: "user-2", OrganizationID: "org-1", Name: "AI Assistant", Email: "ai@example.com", UserType: "ai"})
+	db.DB.Create(&domain.User{ID: "user-3", OrganizationID: "org-1", Name: "Jane", Email: "jane@example.com", UserType: "human"})
+	db.DB.Create(&domain.Channel{ID: "ch-1", WorkspaceID: "ws-1", Name: "general", Type: "public"})
+	db.DB.Create(&domain.ChannelMember{ChannelID: "ch-1", UserID: "user-1", Role: "owner"})
+	db.DB.Create(&domain.ChannelMember{ChannelID: "ch-1", UserID: "user-2", Role: "member"})
+	db.DB.Create(&domain.ChannelMember{ChannelID: "ch-1", UserID: "user-3", Role: "member"})
+
+	router := gin.New()
+	router.POST("/api/v1/messages", CreateMessage)
+
+	t.Run("ai mention triggers one reply", func(t *testing.T) {
+		body := `{"channel_id":"ch-1","user_id":"user-1","content":"<p><span data-mention-kind=\"user\" data-mention-user-id=\"user-2\" data-mention-name=\"AI Assistant\" data-mention-user-type=\"ai\" contenteditable=\"false\">@AI Assistant</span> can you help?</p>"}`
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/messages", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("expected 201, got %d body=%s", rec.Code, rec.Body.String())
+		}
+
+		var created struct {
+			Message domain.Message `json:"message"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+			t.Fatalf("failed to decode created message: %v", err)
+		}
+
+		waitForCondition(t, time.Second, func() bool {
+			var count int64
+			db.DB.Model(&domain.Message{}).Where("channel_id = ?", "ch-1").Count(&count)
+			return count >= 2
+		})
+
+		var replies []domain.Message
+		if err := db.DB.Where("channel_id = ? AND id <> ?", "ch-1", created.Message.ID).Order("created_at asc").Find(&replies).Error; err != nil {
+			t.Fatalf("failed to load channel replies: %v", err)
+		}
+		if len(replies) != 1 {
+			t.Fatalf("expected one AI reply, got %#v", replies)
+		}
+		if replies[0].UserID != "user-2" {
+			t.Fatalf("expected AI reply sender user-2, got %#v", replies[0])
+		}
+		var metadata struct {
+			AISidecar      map[string]any         `json:"ai_sidecar"`
+			AIMentionReply aiMentionReplyMetadata `json:"ai_mention_reply"`
+		}
+		if err := json.Unmarshal([]byte(replies[0].Metadata), &metadata); err != nil {
+			t.Fatalf("failed to decode AI reply metadata: %v", err)
+		}
+		if metadata.AISidecar == nil {
+			t.Fatalf("expected ai_sidecar metadata, got %s", replies[0].Metadata)
+		}
+		if metadata.AIMentionReply.TriggerMessageID != created.Message.ID || metadata.AIMentionReply.MentionedUserID != "user-2" {
+			t.Fatalf("unexpected ai_mention_reply metadata: %#v", metadata.AIMentionReply)
+		}
+	})
+
+	t.Run("human mention does not trigger ai", func(t *testing.T) {
+		body := `{"channel_id":"ch-1","user_id":"user-1","content":"<p><span data-mention-kind=\"user\" data-mention-user-id=\"user-3\" data-mention-name=\"Jane\" data-mention-user-type=\"human\" contenteditable=\"false\">@Jane</span> please review</p>"}`
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/messages", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("expected 201, got %d body=%s", rec.Code, rec.Body.String())
+		}
+		time.Sleep(150 * time.Millisecond)
+		var count int64
+		db.DB.Model(&domain.Message{}).Where("channel_id = ?", "ch-1").Count(&count)
+		if count != 3 {
+			t.Fatalf("expected no extra AI reply for human mention, got %d messages", count)
+		}
+	})
+}
+
+func waitForCondition(t *testing.T, timeout time.Duration, check func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if check() {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("condition not met before timeout")
 }

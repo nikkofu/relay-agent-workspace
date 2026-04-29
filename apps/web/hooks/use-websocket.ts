@@ -17,7 +17,7 @@ import { useToolStore, mapToolRun } from '@/stores/tool-store'
 
 export function useWebsocket() {
   const socketRef = useRef<WebSocket | null>(null)
-  const { addMessage, addStreamingChunk } = useMessageStore()
+  const { addMessageFromRaw, addStreamingChunk, addChannelStreamingChunk, clearChannelStreamingForTrigger } = useMessageStore()
   const { setCollabData } = useCollabStore()
   const { updatePresence, setTyping } = usePresenceStore()
   const { updateArtifactLocally } = useArtifactStore()
@@ -47,18 +47,19 @@ export function useWebsocket() {
         console.log("WS Event received:", data.type)
 
         if (data.type === 'message.created') {
-          addMessage({
-            id: data.payload.id,
-            content: data.payload.content,
-            senderId: data.payload.user_id,
-            channelId: data.payload.channel_id,
-            dmId: data.payload.dm_id,
-            createdAt: data.payload.created_at,
-            reactions: [],
-            attachments: [],
-            replyCount: data.payload.reply_count,
-            lastReplyAt: data.payload.last_reply_at
-          })
+          addMessageFromRaw(data.payload)
+          const mentionReply = data.payload?.metadata?.ai_mention_reply
+            ?? (() => {
+              try {
+                const meta = typeof data.payload?.metadata === 'string' ? JSON.parse(data.payload.metadata) : data.payload?.metadata
+                return meta?.ai_mention_reply
+              } catch {
+                return undefined
+              }
+            })()
+          if (mentionReply?.trigger_message_id) {
+            clearChannelStreamingForTrigger(mentionReply.trigger_message_id, data.payload?.user_id)
+          }
           // Phase 64C: append to unified feed for live updates
           if (data.payload.channel_id && !data.payload.thread_id) {
             appendUnifiedFeedItem({
@@ -245,6 +246,18 @@ export function useWebsocket() {
           const { temp_id, dm_id, chunk, is_final } = data.payload || {}
           if (temp_id && dm_id !== undefined) {
             addStreamingChunk(temp_id, dm_id, chunk ?? '', !!is_final)
+          }
+        } else if (data.type === 'channel.ai.stream.chunk') {
+          const { temp_id, channel_id, ai_user_id, trigger_message_id, kind, chunk, is_final } = data.payload || {}
+          if (temp_id && channel_id && ai_user_id && trigger_message_id) {
+            addChannelStreamingChunk(temp_id, {
+              channelId: channel_id,
+              aiUserId: ai_user_id,
+              triggerMessageId: trigger_message_id,
+              kind: kind ?? 'answer',
+              chunk: chunk ?? '',
+              isFinal: !!is_final,
+            })
           }
         } else if (data.type === 'notifications.read') {
           markAsReadLocally(data.payload.item_ids || [])
@@ -540,5 +553,5 @@ export function useWebsocket() {
     return () => {
       socket.close()
     }
-  }, [addMessage])
+  }, [addMessageFromRaw, addStreamingChunk, addChannelStreamingChunk, clearChannelStreamingForTrigger, appendUnifiedFeedItem, appendMentionItem, markAsReadLocally, fetchWorkflowRuns])
 }

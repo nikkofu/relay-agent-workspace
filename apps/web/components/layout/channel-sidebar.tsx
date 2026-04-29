@@ -7,9 +7,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { cn } from "@/lib/utils"
 import { useWorkspaceStore } from "@/stores/workspace-store"
 import { useChannelStore } from "@/stores/channel-store"
-import { useUIStore } from "@/stores/ui-store"
 import { useDMStore } from "@/stores/dm-store"
-import { useUserStore } from "@/stores/user-store"
+import { isAIUserLike, useUserStore } from "@/stores/user-store"
+import { useUIStore } from "@/stores/ui-store"
 import { HuddleBar } from "@/components/huddle/huddle-bar"
 import { useState, useEffect } from "react"
 import { Badge } from "@/components/ui/badge"
@@ -215,7 +215,7 @@ export function ChannelSidebar() {
                         user.status === 'busy' && "bg-red-500/20",
                         user.status === 'offline' && "bg-white/10"
                       )}>
-                        {user.id === 'user-2' ? (
+                        {isAIUserLike(user) ? (
                           <Sparkles className="w-3 h-3 text-purple-400" />
                         ) : (
                           <div className={cn(

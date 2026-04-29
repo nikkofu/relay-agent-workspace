@@ -15,7 +15,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { useDMStore } from "@/stores/dm-store"
-import { useUserStore } from "@/stores/user-store"
+import { isAIUserLike, useUserStore } from "@/stores/user-store"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -31,13 +31,6 @@ function statusDot(status?: string) {
   if (status === "away") return "bg-amber-500"
   if (status === "busy") return "bg-red-500"
   return "bg-slate-400"
-}
-
-function isAIUser(user: { id: string; name: string; email?: string }) {
-  const name = (user.name || "").toLowerCase()
-  const email = (user.email ?? "").toLowerCase()
-  return name.includes("assistant") || name.includes("ai")
-    || email.startsWith("ai@") || user.id === "user-2"
 }
 
 export function DMConversationList() {
@@ -121,7 +114,7 @@ export function DMConversationList() {
         ) : (
           <div>
             {enriched.map(({ conv, user }) => {
-              const isAI = isAIUser(user)
+              const isAI = isAIUserLike(user)
               const isActive = activeDmId && conv.id === activeDmId
               const unread = conv.unreadCount ?? 0
               return (
@@ -161,7 +154,7 @@ export function DMConversationList() {
                         unread > 0 && !isActive && "text-foreground",
                       )}>
                         {user.name}
-                        {isAI && (
+                        {isAIUserLike(user) && (
                           <Badge className="ml-1 text-[7px] font-black bg-violet-500/10 text-violet-600 border-none h-3 px-1 align-middle">AI</Badge>
                         )}
                       </span>

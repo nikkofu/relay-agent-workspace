@@ -19,6 +19,7 @@ type User struct {
 	OrganizationID    string     `json:"org_id"`
 	Name              string     `json:"name"`
 	Email             string     `gorm:"unique" json:"email"`
+	UserType          string     `json:"user_type"`
 	Avatar            string     `json:"avatar"`
 	Title             string     `json:"title"`
 	Department        string     `json:"department"`

@@ -55,6 +55,7 @@ func SeedData() {
 			OrganizationID: org.ID,
 			Name:           "AI Assistant",
 			Email:          "ai@acim.ai",
+			UserType:       "ai",
 			Avatar:         "/ai-wand-avatar.svg",
 			Title:          "Workspace AI",
 			Department:     "Automation",

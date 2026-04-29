@@ -2,15 +2,18 @@
 
 ## [0.6.75] - 2026-04-29
 
-### Added (Planning — Codex)
-- **Phase 75 Atomic Mentions + Channel AI Replies plan** — Frozen the next Slack-like messaging slice: channel/thread `@user` mentions become atomic editor chips, structured mention metadata flows to backend persistence, and `@AI Assistant` in a channel triggers a channel-native AI reply.
-- **AI user classification contract** — Defined durable user type semantics (`human`, `bot`, `ai`) with legacy heuristic fallback for existing AI Assistant rows.
-- **Channel AI side-channel contract** — Defined channel-scoped AI streaming and final persisted replies using canonical `metadata.ai_sidecar` so channel replies can show reasoning, tool calls, execution process, and token usage like AI DMs.
-- **Gemini/Windsurf split** — Gemini owns backend/API/tests for user type, structured mention parsing, AI mention trigger, stream events, and `/ask` compatibility. Windsurf owns all Web/UI delivery: Tiptap atom mention node, mention picker target shape, channel AI streaming UI, and metadata-preserving realtime message mapping.
+### Added (Backend + Web — Gemini/Windsurf)
+- **Durable AI user classification** — Added `user_type` semantics (`human`, `bot`, `ai`) to backend users, seeded AI Assistant as `ai`, preserved heuristic fallback for legacy rows, and normalized the Web user store onto canonical `userType` values.
+- **Atomic user mention pipeline** — Channel composers now emit atomic Tiptap user-mention chips with deterministic `data-mention-*` attributes, `MentionPopover` returns structured mention targets, and backend `CreateMessage` persists structured mentions deterministically while deduplicating them against plain-text fallback parsing.
+- **Channel AI mention replies** — Mentioning an AI/bot user in a channel now triggers one non-recursive channel-native AI reply, emits `channel.ai.stream.chunk` realtime progress, and persists a final reply with `metadata.ai_sidecar` plus `metadata.ai_mention_reply` linkage.
+- **Realtime metadata preservation** — Websocket `message.created` now reuses the same raw message mapper as REST loading so `metadata.ai_sidecar`, mention metadata, and future metadata bags survive live updates.
+- **Channel AI streaming UI** — Active channels now render temporary AI thinking/reasoning/tool/usage progress rows using the existing AI sidecar blocks until the persisted reply arrives.
+- **`/ask` compatibility** — Channel `/ask` keeps working while preferring the resolved AI user identity instead of a hard-coded placeholder sender when available.
 
 ### Verified
-- `apps/api`: `go test ./internal/handlers -run 'TestPhase73BusinessApps|TestPhase74|TestCreateMessage|TestCreateDMMessage|TestPhase65CAISlashCommandAsk' -count=1`
+- `apps/api`: `go test ./internal/handlers -run 'TestPhase73BusinessApps|TestPhase74|TestCreateMessage|TestCreateDMMessage|TestPhase65CAISlashCommandAsk|TestPhase75' -count=1`
 - `apps/web`: `pnpm exec tsc --noEmit`
+- `apps/web`: `pnpm lint`
 
 ## [0.6.74] - 2026-04-27
 

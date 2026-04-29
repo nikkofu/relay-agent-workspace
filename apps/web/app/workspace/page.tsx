@@ -22,10 +22,16 @@ import {
 import { ChannelKnowledgePanel } from "@/components/channel/channel-knowledge-panel"
 import { ChannelDigestBanner } from "@/components/channel/channel-digest-banner"
 import { useKnowledgeStore } from "@/stores/knowledge-store"
+import type { Message } from "@/types"
+
+const escapeHtml = (value: string) => value
+  .replace(/&/g, "&amp;")
+  .replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;")
 
 function WorkspaceContent() {
   const { currentChannel, setCurrentChannelById, setCurrentChannel, channels } = useChannelStore()
-  const { messages } = useMessageStore()
+  const { messages, streamingChannelMessages } = useMessageStore()
   const { artifacts, fetchArtifacts, duplicateArtifact } = useArtifactStore()
   const { openCanvas } = useUIStore()
   const { fetchChannelKnowledge, channelKnowledge, fetchChannelKnowledgeSummary, channelSummary } = useKnowledgeStore()
@@ -92,6 +98,29 @@ function WorkspaceContent() {
   }
 
   const channelMessages = messages.filter(m => m.channelId === currentChannel.id && !m.threadId)
+  const streamingMessages: Message[] = Object.entries(streamingChannelMessages)
+    .filter(([, value]) => value.channelId === currentChannel.id)
+    .map(([tempId, value]) => ({
+      id: tempId,
+      senderId: value.aiUserId,
+      channelId: value.channelId,
+      content: `<p>${escapeHtml(value.answer || "Thinking…")}</p>`,
+      createdAt: value.createdAt,
+      metadata: {
+        ai_sidecar: {
+          reasoning: value.reasoning ? { summary: value.reasoning } : undefined,
+          tool_calls: value.toolCalls,
+          usage: value.usage,
+        },
+        ai_mention_reply: {
+          trigger_message_id: value.triggerMessageId,
+          mentioned_user_id: value.aiUserId,
+          scope_type: "channel",
+          channel_id: value.channelId,
+        },
+      },
+    }))
+  const visibleMessages = [...channelMessages, ...streamingMessages]
 
   return (
     <MessageArea>
@@ -207,7 +236,7 @@ function WorkspaceContent() {
 
         {/* Messages List */}
         <div className="flex-1 min-h-0 overflow-hidden">
-          <MessageList messages={channelMessages} className="h-full" />
+          <MessageList messages={visibleMessages} className="h-full" />
         </div>
         </div>
 
