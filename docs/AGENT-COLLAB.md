@@ -18,8 +18,11 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 ## 📋 Task Board
 
 | Status | Task | Assigned To | Deadline | Description |
+| 🟡 Active | Phase 75 Atomic Mentions + Channel AI Replies Contract | Codex | 2026-04-29 | Frozen design and implementation plan for atomic `@user` chips, durable AI/bot user classification, channel AI mention auto-replies, and DM-style AI sidecar rendering in channel messages. Published `v0.6.75`. |
+| 🟡 Active | Phase 75 Atomic Mention + Channel AI Backend | Gemini | 2026-04-29 | Implement user type contract, structured mention parsing, channel AI mention trigger, channel stream events, and `/ask` compatibility tests. |
+| 🟡 Active | Phase 75 Atomic Mention + Channel AI Web | Windsurf | 2026-04-29 | Implement Tiptap atomic mention chip, structured mention picker target shape, metadata-preserving `message.created` mapping, and channel AI streaming UI. |
 | 🟢 Done | Phase 74 Sales Display Mode APIs | Gemini | 2026-04-27 | Implemented refined mode aliases, calendar event projection, and stat chart aggregate families. Published `v0.6.72`. |
-| 🟡 Active | Phase 74 Sales App Display Modes Contract | Codex | 2026-04-27 | Frozen design and implementation plan for Sales App List/Card Grid/Kanban/Calendar(day/week/month)/Stat(chart styles) refinement. |
+| 🟢 Done | Phase 74 Sales App Display Modes Contract | Codex | 2026-04-27 | Frozen design and implementation plan for Sales App List/Card Grid/Kanban/Calendar(day/week/month)/Stat(chart styles) refinement. Published `v0.6.71`; latest Web hotfix `v0.6.74`. |
 | 🟢 Done | Phase 74 Sales Display Mode UI | Windsurf | 2026-04-27 | Updated Sales App to the refined List/Card Grid/Kanban/Calendar(day/week/month)/Stat contract with one shared search/filter shell, lightweight calendar event rendering, chart-style stats, and URL-backed mode subcontrols. Published `v0.6.73`. |
 | 🟢 Done | Phase 73 Sales App Data Contract | Gemini | 2026-04-27 | Implemented Sales Order read model, app metadata, multiview data endpoints (search/list/calendar/kanban), and stats aggregation. Published `v0.6.69`. |
 | 🟢 Done | Phase 73 Business App Multiview Sales Contract | Codex | 2026-04-27 | Frozen design and implementation plan for App Hub Sales App: one reusable business-app page with search/list/calendar/kanban/stats modes over Sales Orders. Published `v0.6.68`. |
@@ -212,10 +215,31 @@ This document is the primary communication channel between **Nikko Fu**, **Gemin
 
 | Agent | Current Skill | Active Task | Progress |
 | :--- | :--- | :--- | :--- |
-| **Gemini** | `full-stack-delivery` | Phase 74 backend complete. Published `v0.6.72`; waiting for Codex audit and next reusable business-app contract slice. | 100% |
-| **Codex** | `orchestration` | Phase 74 contract owner: auditing Gemini/Windsurf delivery and freezing next-step AI-native business app action/context contracts. | 45% |
+| **Gemini** | `backend-api-tests` | Phase 75 owner for user type, structured mention parsing, channel AI mention reply trigger, stream events, and `/ask` compatibility. | 0% |
+| **Codex** | `orchestration` | Phase 75 contract owner: published atomic mention + channel AI reply plan and will audit Gemini/Windsurf implementation after delivery. | 100% |
 | **Claude Code**| `idle` | - | - |
-| **Windsurf** | `web-delivery` | Phase 74 Web implementation complete and verified. Published `v0.6.73`; ready for Codex audit and next AI-native business-app iteration. | 100% |
+| **Windsurf** | `web-delivery` | Phase 75 owner for Tiptap atomic mention chip, structured mention picker, channel AI stream UI, and realtime metadata preservation. | 0% |
+
+### 2026-04-29 - Phase 75 Atomic Mentions + Channel AI Replies Plan (v0.6.75)
+
+- Codex synced latest `main` at `v0.6.74` and verified Phase 74 baseline remains clean.
+- Phase 75 is now frozen as the next Slack-like + AI-native messaging slice.
+- Gemini must own all backend/API/test work:
+  - add durable `user_type` semantics (`human`, `bot`, `ai`) with legacy fallback
+  - parse structured `data-mention-*` spans in `CreateMessage`
+  - trigger one non-recursive channel AI reply when an AI/bot user is mentioned
+  - emit channel AI stream events and persist final replies with `metadata.ai_sidecar`
+  - preserve `/ask` compatibility
+- Windsurf must own all Web/UI work:
+  - implement a Tiptap inline atom node for user mention chips
+  - make Backspace at the chip boundary delete the whole `@AI Assistant` component
+  - update `MentionPopover` to return structured mention targets
+  - preserve metadata when consuming realtime `message.created`
+  - render channel AI thinking/reasoning/tool/usage progress using the existing AI sidecar blocks
+- References:
+  - Spec: `docs/superpowers/specs/2026-04-29-phase75-atomic-ai-mentions-design.md`
+  - Plan: `docs/superpowers/plans/2026-04-29-phase75-atomic-ai-mentions.md`
+  - Release: `docs/releases/v0.6.75.md`
 
 ### 2026-04-27 - Phase 74 Sales Display Mode UI Completion (v0.6.73)
 - **Windsurf**: Phase 74 Web implementation is complete and published as `v0.6.73`.
